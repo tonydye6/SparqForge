@@ -5,9 +5,9 @@ const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 
 function getEncryptionKey(): Buffer {
-  const secret = process.env.TOKEN_ENCRYPTION_KEY || process.env.SESSION_SECRET;
+  const secret = process.env.TOKEN_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || process.env.SESSION_SECRET;
   if (!secret) {
-    throw new Error("TOKEN_ENCRYPTION_KEY or SESSION_SECRET environment variable is required for token encryption");
+    throw new Error("TOKEN_ENCRYPTION_KEY, NEXTAUTH_SECRET, or SESSION_SECRET environment variable is required for token encryption");
   }
   return crypto.createHash("sha256").update(secret).digest();
 }
