@@ -32,6 +32,9 @@ import type {
   HashtagSet,
   HealthStatus,
   MessageResponse,
+  SocialAccount,
+  SocialAccountDeleteResponse,
+  SocialAccountRefreshResponse,
   Template,
   UpdateAssetInput,
   UpdateCampaignInput,
@@ -2201,4 +2204,253 @@ export const useUploadFile = <
   TContext
 > => {
   return useMutation(getUploadFileMutationOptions(options));
+};
+
+/**
+ * @summary List all connected social accounts
+ */
+export const getGetSocialAccountsUrl = () => {
+  return `/api/social-accounts`;
+};
+
+export const getSocialAccounts = async (
+  options?: RequestInit,
+): Promise<SocialAccount[]> => {
+  return customFetch<SocialAccount[]>(getGetSocialAccountsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSocialAccountsQueryKey = () => {
+  return [`/api/social-accounts`] as const;
+};
+
+export const getGetSocialAccountsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSocialAccounts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSocialAccounts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSocialAccountsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSocialAccounts>>
+  > = ({ signal }) => getSocialAccounts({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSocialAccounts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSocialAccountsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSocialAccounts>>
+>;
+export type GetSocialAccountsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all connected social accounts
+ */
+
+export function useGetSocialAccounts<
+  TData = Awaited<ReturnType<typeof getSocialAccounts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSocialAccounts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSocialAccountsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Disconnect a social account
+ */
+export const getDeleteSocialAccountUrl = (id: string) => {
+  return `/api/social-accounts/${id}`;
+};
+
+export const deleteSocialAccount = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SocialAccountDeleteResponse> => {
+  return customFetch<SocialAccountDeleteResponse>(
+    getDeleteSocialAccountUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteSocialAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteSocialAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSocialAccount>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSocialAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSocialAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSocialAccount>>
+>;
+
+export type DeleteSocialAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Disconnect a social account
+ */
+export const useDeleteSocialAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteSocialAccountMutationOptions(options));
+};
+
+/**
+ * @summary Refresh an expired or expiring token
+ */
+export const getRefreshSocialAccountUrl = (id: string) => {
+  return `/api/social-accounts/${id}/refresh`;
+};
+
+export const refreshSocialAccount = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SocialAccountRefreshResponse> => {
+  return customFetch<SocialAccountRefreshResponse>(
+    getRefreshSocialAccountUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRefreshSocialAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["refreshSocialAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshSocialAccount>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return refreshSocialAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshSocialAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshSocialAccount>>
+>;
+
+export type RefreshSocialAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Refresh an expired or expiring token
+ */
+export const useRefreshSocialAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getRefreshSocialAccountMutationOptions(options));
 };

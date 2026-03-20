@@ -2,7 +2,7 @@
 
 ## Overview
 
-SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phases 1–4 are complete.
+SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phases 1–5A are complete.
 
 ## Stack
 
@@ -26,8 +26,8 @@ SparqForge is an AI-powered social media content generation and management tool 
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server
-│   │   ├── src/routes/     # API routes including generate.ts, download.ts, calendar-entries.ts
-│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts)
+│   │   ├── src/routes/     # API routes including generate.ts, download.ts, calendar-entries.ts, social-auth.ts, social-accounts.ts
+│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts, token-encryption.ts, token-refresh.ts)
 │   │   └── uploads/generated/  # Generated images (raw + composited)
 │   ├── sparqforge/         # React + Vite frontend (SparqForge UI)
 │   └── mockup-sandbox/     # Component preview server
@@ -56,6 +56,7 @@ Tables (Drizzle ORM in lib/db/src/schema/):
 - **refinement_logs** — User edit tracking for template improvement
 - **cost_logs** — API cost tracking
 - **users** — User accounts with roles (admin, editor, viewer)
+- **social_accounts** — Connected social media accounts (Twitter/X, Instagram, LinkedIn) with encrypted tokens
 
 ## API Endpoints
 
@@ -76,6 +77,15 @@ All at `/api`:
 - `POST /campaigns/:id/remix` — Remix an existing campaign
 - `GET/POST /calendar-entries`, `PUT/DELETE /calendar-entries/:id` — Calendar entry CRUD (PUT supports scheduledAt for drag-reschedule)
 - `POST /upload`, `GET /files/:filename`, `GET /files/generated/:filename`
+- `GET /auth/twitter` — Twitter/X OAuth 2.0 PKCE redirect
+- `GET /auth/twitter/callback` — Twitter/X OAuth callback
+- `GET /auth/instagram` — Instagram (via Facebook) OAuth redirect
+- `GET /auth/instagram/callback` — Instagram OAuth callback
+- `GET /auth/linkedin` — LinkedIn OAuth 2.0 redirect
+- `GET /auth/linkedin/callback` — LinkedIn OAuth callback
+- `GET /social-accounts` — List connected social accounts
+- `DELETE /social-accounts/:id` — Disconnect a social account
+- `POST /social-accounts/:id/refresh` — Refresh expired token
 
 ## AI Generation Pipeline
 
@@ -89,13 +99,22 @@ Supported platforms: Instagram Feed (1:1), Instagram Story (9:16), Twitter/X (16
 
 Brand identities: Crown U (#00A3FF), Rumble U (#FF4D00), Mascot Mayhem (#FFD700), Corporate (#8B5CF6)
 
+## Social Account OAuth
+
+- **Twitter/X**: OAuth 2.0 with PKCE flow (uses `X_SparqForge_X_API_Key`)
+- **Instagram**: Facebook Login OAuth, exchanges for long-lived token, retrieves IG Business Account (uses `SparqForge_Instagram_App_ID` + `SparqForge_Instagram_App_Secret`)
+- **LinkedIn**: OAuth 2.0 with `w_member_social` scope (uses `SparqForge_LinkedIn_Client_ID` + `SparqForge_LinkedIn_Client_Secret`)
+- **Token Encryption**: AES-256-GCM encryption at rest (uses `TOKEN_ENCRYPTION_KEY` or `SESSION_SECRET`)
+- **Token Refresh**: Automatic check on server startup for tokens expiring within 24 hours
+- **TikTok**: Not yet implemented (API keys not available)
+
 ## Frontend Pages
 
 - `/` — Campaign Studio (3-panel workspace with AI generation, live variant display, inline caption editing, per-variant refinement, save-as-hashtag-set, download)
 - `/assets` — Asset Library (3 tabs: Visual Assets, Briefs & Context, Hashtag Library)
 - `/calendar` — Content Calendar (month/week views with drag-to-reschedule in month view)
 - `/review` — Review Queue (Kanban board)
-- `/settings` — Brand Settings (tabbed per brand)
+- `/settings` — Settings (2 tabs: Brand Settings, Connected Accounts)
 
 ## Design Tokens
 
@@ -141,9 +160,19 @@ Phase 4 (Review & Calendar) — Complete:
 - [x] Hashtag usage count tracking (incremented during context assembly)
 - [x] Brand filtering on calendar
 
-Not yet implemented (Phase 5+):
+Phase 5A (Social Account OAuth + Management UI) — Complete:
+- [x] social_accounts table with encrypted token storage
+- [x] Twitter/X OAuth 2.0 PKCE flow
+- [x] Instagram OAuth via Facebook Login with long-lived token exchange
+- [x] LinkedIn OAuth 2.0 flow
+- [x] CRUD API for social accounts (list, disconnect, refresh)
+- [x] Connected Accounts tab in Settings UI
+- [x] Token refresh on server startup for expiring tokens
+- [x] AES-256-GCM encryption for access/refresh tokens at rest
+
+Not yet implemented (Phase 5B+):
+- Social media publishing (Phase 5B)
+- TikTok OAuth (keys not available)
 - Authentication (Google OAuth)
-- Reference URL pipeline (ScreenshotOne + Gemini Flash analysis)
-- Social media publishing
 - Template refinement analysis
 - Video generation

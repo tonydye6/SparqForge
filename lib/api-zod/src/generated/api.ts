@@ -579,3 +579,45 @@ export const UploadFileResponse = zod.object({
   url: zod.string(),
   thumbnailUrl: zod.string().optional(),
 });
+
+/**
+ * @summary List all connected social accounts
+ */
+export const GetSocialAccountsResponseItem = zod.object({
+  id: zod.string(),
+  platform: zod.string(),
+  accountName: zod.string(),
+  accountId: zod.string(),
+  tokenExpiry: zod.date().nullish(),
+  brandId: zod.string().nullish(),
+  status: zod.string(),
+  displayStatus: zod.string(),
+  createdAt: zod.date().optional(),
+  updatedAt: zod.date().optional(),
+});
+export const GetSocialAccountsResponse = zod.array(
+  GetSocialAccountsResponseItem,
+);
+
+/**
+ * @summary Disconnect a social account
+ */
+export const DeleteSocialAccountParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const DeleteSocialAccountResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Refresh an expired or expiring token
+ */
+export const RefreshSocialAccountParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const RefreshSocialAccountResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});

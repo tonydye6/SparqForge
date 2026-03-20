@@ -21,6 +21,8 @@ tags:
     description: Campaign management
   - name: upload
     description: File upload
+  - name: social-accounts
+    description: Social media account management
 paths:
   /healthz:
     get:
@@ -524,6 +526,65 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UploadResponse"
+
+  /social-accounts:
+    get:
+      operationId: getSocialAccounts
+      tags: [social-accounts]
+      summary: List all connected social accounts
+      responses:
+        "200":
+          description: List of social accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SocialAccount"
+
+  /social-accounts/{id}:
+    delete:
+      operationId: deleteSocialAccount
+      tags: [social-accounts]
+      summary: Disconnect a social account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Account disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialAccountDeleteResponse"
+        "404":
+          description: Account not found
+
+  /social-accounts/{id}/refresh:
+    post:
+      operationId: refreshSocialAccount
+      tags: [social-accounts]
+      summary: Refresh an expired or expiring token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialAccountRefreshResponse"
+        "400":
+          description: Refresh failed
+        "404":
+          description: Account not found
 
 components:
   schemas:
@@ -1092,3 +1153,57 @@ components:
         reviewComment:
           type: string
           nullable: true
+
+    SocialAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        platform:
+          type: string
+        accountName:
+          type: string
+        accountId:
+          type: string
+        tokenExpiry:
+          type: string
+          format: date-time
+          nullable: true
+        brandId:
+          type: string
+          nullable: true
+        status:
+          type: string
+        displayStatus:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - platform
+        - accountName
+        - accountId
+        - status
+        - displayStatus
+
+    SocialAccountDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
+
+    SocialAccountRefreshResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success

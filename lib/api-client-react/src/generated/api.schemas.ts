@@ -224,6 +224,28 @@ export interface UpdateCampaignInput {
   reviewComment?: string | null;
 }
 
+export interface SocialAccount {
+  id: string;
+  platform: string;
+  accountName: string;
+  accountId: string;
+  tokenExpiry?: string | null;
+  brandId?: string | null;
+  status: string;
+  displayStatus: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SocialAccountDeleteResponse {
+  success: boolean;
+}
+
+export interface SocialAccountRefreshResponse {
+  success: boolean;
+  message?: string;
+}
+
 export type GetTemplatesParams = {
   brandId?: string;
 };
