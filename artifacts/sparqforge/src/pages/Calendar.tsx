@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Filter, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useGetBrands } from "@workspace/api-client-react";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -41,6 +42,8 @@ export default function Calendar() {
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const { data: brands } = useGetBrands();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [dragOverDay, setDragOverDay] = useState<number | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -130,6 +133,62 @@ export default function Calendar() {
     setLocation(`/?campaign=${entry.campaignId}`);
   };
 
+  const handleDragStart = useCallback((e: React.DragEvent, entry: CalendarEntry) => {
+    e.dataTransfer.setData("application/json", JSON.stringify({ entryId: entry.id, scheduledAt: entry.scheduledAt }));
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, dayNum: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverDay(dayNum);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverDay(null);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent, targetDay: number) => {
+    e.preventDefault();
+    setDragOverDay(null);
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      const { entryId, scheduledAt } = data as { entryId: string; scheduledAt: string };
+
+      const oldDate = new Date(scheduledAt);
+      const newDate = new Date(year, month, targetDay, oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+
+      if (oldDate.getDate() === targetDay && oldDate.getMonth() === month && oldDate.getFullYear() === year) {
+        return;
+      }
+
+      const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledAt: newDate.toISOString() }),
+      });
+
+      if (!resp.ok) {
+        toast({ variant: "destructive", title: "Failed to reschedule" });
+        return;
+      }
+
+      setEntries(prev => prev.map(entry =>
+        entry.id === entryId
+          ? { ...entry, scheduledAt: newDate.toISOString() }
+          : entry
+      ));
+
+      toast({
+        title: "Rescheduled",
+        description: `Moved to ${newDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+      });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to reschedule" });
+    }
+  }, [year, month, toast]);
+
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
 
@@ -160,15 +219,17 @@ export default function Calendar() {
       return (
         <div
           key={entry.id}
+          draggable
+          onDragStart={(e) => handleDragStart(e, entry)}
           onClick={() => handleEntryClick(entry)}
-          className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] font-medium cursor-pointer transition-colors border hover:brightness-110"
+          className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] font-medium cursor-grab active:cursor-grabbing transition-colors border hover:brightness-110"
           style={{
             backgroundColor: `${entry.brandColor}15`,
             borderColor: `${entry.brandColor}30`,
             borderLeftWidth: "3px",
             borderLeftColor: entry.brandColor,
           }}
-          title={`${entry.campaignName} — ${pl.label} at ${time}`}
+          title={`${entry.campaignName} — ${pl.label} at ${time} (drag to reschedule)`}
         >
           <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
           <span className="truncate" style={{ color: entry.brandColor }}>{entry.campaignName?.slice(0, 16) || "Untitled"}</span>
@@ -218,7 +279,7 @@ export default function Calendar() {
       <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Content Calendar</h1>
-          <p className="text-muted-foreground mt-1">Schedule and review upcoming posts.</p>
+          <p className="text-muted-foreground mt-1">Schedule and review upcoming posts. Drag entries to reschedule.</p>
         </div>
 
         <div className="flex items-center gap-4">
@@ -286,11 +347,15 @@ export default function Calendar() {
               const isValid = dayNum >= 1 && dayNum <= daysInMonth;
               const isToday = isCurrentMonth && dayNum === todayDate;
               const dayEntries = isValid ? (entriesByDay[dayNum] || []) : [];
+              const isDragOver = dragOverDay === dayNum;
 
               return (
                 <div
                   key={i}
-                  className={`border-r border-b border-border p-2 min-h-[100px] transition-colors hover:bg-muted/30 ${!isValid ? 'bg-background/40 opacity-40' : ''} ${isToday ? 'bg-primary/5' : ''}`}
+                  className={`border-r border-b border-border p-2 min-h-[100px] transition-colors ${!isValid ? 'bg-background/40 opacity-40' : 'hover:bg-muted/30'} ${isToday ? 'bg-primary/5' : ''} ${isDragOver && isValid ? 'bg-primary/10 ring-2 ring-inset ring-primary/40' : ''}`}
+                  onDragOver={isValid ? (e) => handleDragOver(e, dayNum) : undefined}
+                  onDragLeave={isValid ? handleDragLeave : undefined}
+                  onDrop={isValid ? (e) => handleDrop(e, dayNum) : undefined}
                 >
                   {isValid && (
                     <>

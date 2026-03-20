@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2 } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -27,6 +28,7 @@ interface GeneratedVariant {
   compositedImageUrl: string | null;
   caption: string;
   headlineText: string | null;
+  imageVersion?: number;
 }
 
 interface ActivityLog {
@@ -79,6 +81,15 @@ export default function CampaignStudio() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+  
+  const [variantRefineOpen, setVariantRefineOpen] = useState<Record<string, boolean>>({});
+  const [variantRefineText, setVariantRefineText] = useState<Record<string, string>>({});
+  const [regeneratingVariant, setRegeneratingVariant] = useState<string | null>(null);
+  
+  const [hashtagDialogOpen, setHashtagDialogOpen] = useState(false);
+  const [hashtagSetName, setHashtagSetName] = useState("");
+  const [hashtagsToSave, setHashtagsToSave] = useState<string[]>([]);
+  const [savingHashtags, setSavingHashtags] = useState(false);
 
   const [referenceUrl, setReferenceUrl] = useState("");
   const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
@@ -605,6 +616,79 @@ export default function CampaignStudio() {
     }
   }, [campaignId, toast, addLog]);
 
+  const handleVariantRegenerate = useCallback(async (variantId: string, platform: string) => {
+    if (!campaignId || !variantId) return;
+    const instruction = variantRefineText[platform] || "";
+    
+    setRegeneratingVariant(platform);
+    addLog(`Regenerating ${PLATFORM_LABELS[platform]?.name || platform}...`, "pending");
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Regeneration failed" }));
+        throw new Error(err.error || "Regeneration failed");
+      }
+
+      const updated = await resp.json();
+      setGeneratedVariants(prev => prev.map(v =>
+        v.platform === platform
+          ? { ...v, rawImageUrl: updated.rawImageUrl, compositedImageUrl: updated.compositedImageUrl, id: updated.id, imageVersion: (v.imageVersion || 0) + 1 }
+          : v
+      ));
+
+      setVariantRefineText(prev => ({ ...prev, [platform]: "" }));
+      setVariantRefineOpen(prev => ({ ...prev, [platform]: false }));
+      addLog(`${PLATFORM_LABELS[platform]?.name || platform} regenerated`, "done");
+      toast({ title: "Variant regenerated" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      addLog(`Regeneration failed: ${msg}`, "error");
+      toast({ variant: "destructive", title: "Regeneration failed", description: msg });
+    } finally {
+      setRegeneratingVariant(null);
+    }
+  }, [campaignId, variantRefineText, addLog, toast]);
+
+  const extractHashtags = useCallback((caption: string): string[] => {
+    const matches = caption.match(/#[a-zA-Z0-9_]+/g);
+    return matches ? [...new Set(matches)] : [];
+  }, []);
+
+  const handleSaveHashtagSet = useCallback(async () => {
+    if (!selectedBrand || !hashtagSetName.trim() || hashtagsToSave.length === 0) return;
+    
+    setSavingHashtags(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/hashtag-sets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brandId: selectedBrand,
+          name: hashtagSetName.trim(),
+          hashtags: hashtagsToSave.map(h => h.startsWith("#") ? h.slice(1) : h),
+          category: "saved",
+        }),
+      });
+
+      if (!resp.ok) throw new Error("Failed to save");
+
+      toast({ title: "Hashtag set saved", description: `"${hashtagSetName}" saved with ${hashtagsToSave.length} hashtags.` });
+      setHashtagDialogOpen(false);
+      setHashtagSetName("");
+      setHashtagsToSave([]);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save hashtag set" });
+    } finally {
+      setSavingHashtags(false);
+    }
+  }, [selectedBrand, hashtagSetName, hashtagsToSave, toast]);
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
       
@@ -908,6 +992,7 @@ export default function CampaignStudio() {
               generatedVariants.map((variant) => {
                 const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, platformIcon: "twitter", ratio: variant.aspectRatio };
                 const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
+                const versionSuffix = variant.imageVersion ? `?v=${variant.imageVersion}` : "";
                 return (
                   <div key={variant.platform} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
                     <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
@@ -931,17 +1016,29 @@ export default function CampaignStudio() {
                     <div className="p-4 flex-1 flex flex-col gap-4">
                       <div className="flex gap-4">
                         {variant.platform === "tiktok" ? (
-                          <div className="w-[160px] shrink-0">
+                          <div className="w-[160px] shrink-0 relative">
+                            {regeneratingVariant === variant.platform && (
+                              <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center rounded-md">
+                                <Loader2 size={24} className="animate-spin text-primary" />
+                                <span className="text-[10px] text-primary mt-1">Regenerating...</span>
+                              </div>
+                            )}
                             <TikTokPreviewFrame
-                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}` : undefined}
+                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}${versionSuffix}` : undefined}
                               caption={variant.caption}
                             />
                           </div>
                         ) : (
-                        <div className="w-[160px] shrink-0 rounded-md border border-border/50 overflow-hidden bg-muted/30">
+                        <div className="w-[160px] shrink-0 rounded-md border border-border/50 overflow-hidden bg-muted/30 relative">
+                          {regeneratingVariant === variant.platform && (
+                            <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center">
+                              <Loader2 size={24} className="animate-spin text-primary" />
+                              <span className="text-[10px] text-primary mt-1">Regenerating...</span>
+                            </div>
+                          )}
                           {imageUrl ? (
                             <img 
-                              src={`${API_BASE}${imageUrl}`} 
+                              src={`${API_BASE}${imageUrl}${versionSuffix}`} 
                               alt={`${label.name} variant`} 
                               className="w-full h-auto object-cover"
                             />
@@ -969,11 +1066,65 @@ export default function CampaignStudio() {
                           <div className="flex justify-between items-center px-1">
                             <span className="text-[10px] text-muted-foreground">{variant.caption.length} chars</span>
                             <div className="flex gap-1">
-                               <Button variant="ghost" size="icon" className="h-6 w-6"><FileText size={12} /></Button>
+                              {extractHashtags(variant.caption).length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-[10px] text-muted-foreground hover:text-primary px-1.5 gap-1"
+                                  onClick={() => {
+                                    setHashtagsToSave(extractHashtags(variant.caption));
+                                    setHashtagDialogOpen(true);
+                                  }}
+                                >
+                                  <Hash size={10} />
+                                  Save as Hashtag Set
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
+
+                      {variant.id && (
+                        <div className="border-t border-border pt-2">
+                          <button
+                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full"
+                            onClick={() => setVariantRefineOpen(prev => ({ ...prev, [variant.platform]: !prev[variant.platform] }))}
+                          >
+                            {variantRefineOpen[variant.platform] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            <Wand2 size={11} />
+                            <span>Refine this variant</span>
+                          </button>
+                          {variantRefineOpen[variant.platform] && (
+                            <div className="mt-2 flex gap-2">
+                              <Input
+                                placeholder="e.g. 'Make it brighter' or 'More dynamic angle'"
+                                className="flex-1 h-8 text-xs bg-background border-border"
+                                value={variantRefineText[variant.platform] || ""}
+                                onChange={(e) => setVariantRefineText(prev => ({ ...prev, [variant.platform]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && variant.id) {
+                                    handleVariantRegenerate(variant.id, variant.platform);
+                                  }
+                                }}
+                                disabled={regeneratingVariant !== null}
+                              />
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 text-xs bg-primary hover:bg-primary/90"
+                                disabled={regeneratingVariant !== null}
+                                onClick={() => variant.id && handleVariantRegenerate(variant.id, variant.platform)}
+                              >
+                                {regeneratingVariant === variant.platform ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <><Wand2 size={12} className="mr-1" /> Refine</>
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -1106,6 +1257,51 @@ export default function CampaignStudio() {
           }}
         />
       )}
+
+      <Dialog open={hashtagDialogOpen} onOpenChange={setHashtagDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save as Hashtag Set</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Set Name</label>
+              <Input
+                placeholder="e.g. Tournament Hype Tags"
+                value={hashtagSetName}
+                onChange={(e) => setHashtagSetName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Hashtags ({hashtagsToSave.length})</label>
+              <div className="flex flex-wrap gap-1.5">
+                {hashtagsToSave.map((tag, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">
+                    {tag}
+                    <button
+                      className="ml-1 hover:text-destructive"
+                      onClick={() => setHashtagsToSave(prev => prev.filter((_, idx) => idx !== i))}
+                    >
+                      <X size={10} />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHashtagDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleSaveHashtagSet}
+              disabled={savingHashtags || !hashtagSetName.trim() || hashtagsToSave.length === 0}
+            >
+              {savingHashtags ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Hash size={14} className="mr-2" />}
+              Save Set
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
