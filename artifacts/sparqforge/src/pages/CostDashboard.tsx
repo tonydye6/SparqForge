@@ -1,0 +1,285 @@
+import { useState, useEffect } from "react";
+import { DollarSign, TrendingUp, Zap, BarChart3, Calendar as CalendarIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+interface CostSummary {
+  totalCost: number;
+  totalEntries: number;
+  byService: Array<{ service: string; totalCost: number; count: number }>;
+  byOperation: Array<{ operation: string; service: string; totalCost: number; count: number }>;
+  dailySpend: Array<{ date: string; totalCost: number; count: number }>;
+}
+
+interface CostLogEntry {
+  id: string;
+  campaignId: string | null;
+  service: string;
+  operation: string;
+  model: string | null;
+  costUsd: number;
+  createdAt: string;
+}
+
+const SERVICE_COLORS: Record<string, string> = {
+  anthropic: "#D97757",
+  gemini: "#4285F4",
+  elevenlabs: "#00C9A7",
+};
+
+const SERVICE_LABELS: Record<string, string> = {
+  anthropic: "Claude (Anthropic)",
+  gemini: "Gemini / Imagen / Veo",
+  elevenlabs: "ElevenLabs",
+};
+
+export default function CostDashboard() {
+  const [summary, setSummary] = useState<CostSummary | null>(null);
+  const [recentLogs, setRecentLogs] = useState<CostLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  const getDateParams = () => {
+    const now = new Date();
+    let startDate: string | undefined;
+    if (dateRange === "7d") {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      startDate = d.toISOString();
+    } else if (dateRange === "30d") {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 30);
+      startDate = d.toISOString();
+    } else if (dateRange === "90d") {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 90);
+      startDate = d.toISOString();
+    }
+    return { startDate, endDate: now.toISOString() };
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const { startDate, endDate } = getDateParams();
+        const params = new URLSearchParams();
+        if (startDate) params.set("startDate", startDate);
+        if (endDate) params.set("endDate", endDate);
+
+        const [summaryRes, logsRes] = await Promise.all([
+          fetch(`${API_BASE}/api/cost-logs/summary?${params}`),
+          fetch(`${API_BASE}/api/cost-logs?${params}&limit=50`),
+        ]);
+
+        if (summaryRes.ok) setSummary(await summaryRes.json());
+        if (logsRes.ok) setRecentLogs(await logsRes.json());
+      } catch {}
+      setIsLoading(false);
+    };
+    loadData();
+  }, [dateRange]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden p-6 max-w-[1200px] mx-auto w-full">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-foreground">Cost Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Track API spending across all AI services.</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 bg-card" />)}
+        </div>
+        <Skeleton className="h-[300px] bg-card" />
+      </div>
+    );
+  }
+
+  const maxDailySpend = Math.max(...(summary?.dailySpend.map(d => d.totalCost) || [0]), 0.01);
+  const avgDailyCost = summary && summary.dailySpend.length > 0
+    ? summary.totalCost / summary.dailySpend.length
+    : 0;
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden p-6 max-w-[1200px] mx-auto w-full">
+      <div className="mb-6 flex items-center justify-between shrink-0">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Cost Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Track API spending across all AI services.</p>
+        </div>
+        <div className="flex gap-2">
+          {(["7d", "30d", "90d", "all"] as const).map(range => (
+            <Button
+              key={range}
+              variant={dateRange === range ? "default" : "outline"}
+              size="sm"
+              onClick={() => setDateRange(range)}
+            >
+              {range === "all" ? "All Time" : range}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto pr-2 pb-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <SummaryCard
+            icon={<DollarSign size={20} />}
+            label="Total Spend"
+            value={`$${(summary?.totalCost || 0).toFixed(2)}`}
+            color="text-primary"
+          />
+          <SummaryCard
+            icon={<TrendingUp size={20} />}
+            label="Daily Average"
+            value={`$${avgDailyCost.toFixed(2)}`}
+            color="text-green-400"
+          />
+          <SummaryCard
+            icon={<Zap size={20} />}
+            label="API Calls"
+            value={String(summary?.totalEntries || 0)}
+            color="text-amber-400"
+          />
+          <SummaryCard
+            icon={<BarChart3 size={20} />}
+            label="Services Used"
+            value={String(summary?.byService.length || 0)}
+            color="text-purple-400"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+              <CalendarIcon size={16} className="text-primary" /> Daily Spend
+            </h3>
+            {summary?.dailySpend && summary.dailySpend.length > 0 ? (
+              <div className="flex items-end gap-1 h-[180px]">
+                {summary.dailySpend.map((day, i) => {
+                  const height = Math.max((day.totalCost / maxDailySpend) * 100, 2);
+                  const date = new Date(day.date + "T00:00:00");
+                  const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center group relative">
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background border border-border rounded px-2 py-1 text-[10px] text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                        ${day.totalCost.toFixed(3)} ({day.count} calls)
+                      </div>
+                      <div
+                        className="w-full bg-primary/80 rounded-t hover:bg-primary transition-colors min-h-[2px]"
+                        style={{ height: `${height}%` }}
+                      />
+                      {summary.dailySpend.length <= 14 && (
+                        <span className="text-[9px] text-muted-foreground mt-1 truncate w-full text-center">{label}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-[180px] flex items-center justify-center text-muted-foreground text-sm">
+                No spending data for this period
+              </div>
+            )}
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Spend by Service</h3>
+            <div className="space-y-4">
+              {summary?.byService.map(s => {
+                const pct = summary.totalCost > 0 ? (s.totalCost / summary.totalCost) * 100 : 0;
+                const color = SERVICE_COLORS[s.service] || "#666";
+                return (
+                  <div key={s.service}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-foreground">{SERVICE_LABELS[s.service] || s.service}</span>
+                      <span className="text-xs text-muted-foreground">${s.totalCost.toFixed(2)}</span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: color }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">{s.count} calls · {pct.toFixed(0)}%</span>
+                  </div>
+                );
+              })}
+              {(!summary?.byService || summary.byService.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">No data</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Spend by Operation</h3>
+            <div className="space-y-2">
+              {summary?.byOperation
+                .sort((a, b) => b.totalCost - a.totalCost)
+                .map((o, i) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-background rounded-lg border border-border">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px] font-mono">{o.operation}</Badge>
+                    <span className="text-[10px] text-muted-foreground">{SERVICE_LABELS[o.service] || o.service}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-semibold text-foreground">${o.totalCost.toFixed(3)}</span>
+                    <span className="text-[10px] text-muted-foreground ml-2">{o.count}x</span>
+                  </div>
+                </div>
+              ))}
+              {(!summary?.byOperation || summary.byOperation.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">No data</p>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-foreground mb-4">Recent API Calls</h3>
+            <div className="space-y-1 max-h-[300px] overflow-y-auto">
+              {recentLogs.map(log => (
+                <div key={log.id} className="flex items-center justify-between p-2 text-xs border-b border-border last:border-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: SERVICE_COLORS[log.service] || "#666" }}
+                    />
+                    <span className="text-foreground truncate">{log.operation}</span>
+                    {log.model && <span className="text-muted-foreground text-[10px] shrink-0">{log.model}</span>}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0 ml-2">
+                    <span className="font-mono text-foreground">${log.costUsd.toFixed(4)}</span>
+                    <span className="text-muted-foreground text-[10px]">
+                      {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {recentLogs.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No API calls recorded</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+  return (
+    <div className="bg-card border border-border rounded-xl p-5">
+      <div className={`${color} mb-2`}>{icon}</div>
+      <div className="text-2xl font-bold text-foreground">{value}</div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
+    </div>
+  );
+}

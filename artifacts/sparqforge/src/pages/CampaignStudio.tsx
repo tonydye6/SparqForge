@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2, Video, Volume2, VolumeX, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,6 +29,10 @@ interface GeneratedVariant {
   caption: string;
   headlineText: string | null;
   imageVersion?: number;
+  videoUrl?: string | null;
+  audioSource?: string | null;
+  audioUrl?: string | null;
+  mergedVideoUrl?: string | null;
 }
 
 interface ActivityLog {
@@ -90,6 +94,15 @@ export default function CampaignStudio() {
   const [hashtagSetName, setHashtagSetName] = useState("");
   const [hashtagsToSave, setHashtagsToSave] = useState<string[]>([]);
   const [savingHashtags, setSavingHashtags] = useState(false);
+
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoProgress, setVideoProgress] = useState<Record<string, string>>({});
+  const [audioDialogOpen, setAudioDialogOpen] = useState(false);
+  const [audioDialogVariant, setAudioDialogVariant] = useState<GeneratedVariant | null>(null);
+  const [audioSource, setAudioSource] = useState<"music" | "sfx" | "mute">("music");
+  const [audioPrompt, setAudioPrompt] = useState("");
+  const [audioMergeMode, setAudioMergeMode] = useState<"replace" | "mix">("replace");
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
   const [referenceUrl, setReferenceUrl] = useState("");
   const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
@@ -562,6 +575,10 @@ export default function CampaignStudio() {
             compositedImageUrl: v.compositedImageUrl,
             caption: v.caption,
             headlineText: v.headlineText,
+            videoUrl: (v as any).videoUrl || null,
+            audioSource: (v as any).audioSource || null,
+            audioUrl: (v as any).audioUrl || null,
+            mergedVideoUrl: (v as any).mergedVideoUrl || null,
           })));
         }
         if (cost) setEstimatedCost(cost);
@@ -615,6 +632,164 @@ export default function CampaignStudio() {
       toast({ variant: "destructive", title: "Failed to submit" });
     }
   }, [campaignId, toast, addLog]);
+
+  const handleGenerateVideo = useCallback(async () => {
+    if (!campaignId) {
+      toast({ variant: "destructive", title: "Generate images first" });
+      return;
+    }
+
+    setIsGeneratingVideo(true);
+    setVideoProgress({});
+    addLog("Starting video generation...", "pending");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/campaigns/${campaignId}/generate-video`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orientations: ["landscape", "portrait"] }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error("Failed to start video generation");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        let currentEvent = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ") && currentEvent) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (currentEvent === "video_progress") {
+                const orientation = data.orientation as string;
+                const status = data.status as string;
+                setVideoProgress(prev => ({ ...prev, [orientation]: status }));
+                if (status === "started") {
+                  addLog(`Generating ${orientation} video...`, "pending");
+                } else if (status === "completed") {
+                  updateLastLog("done");
+                  if (data.videoUrl) {
+                    const matchingRatio = orientation === "landscape" ? "16:9" : "9:16";
+                    setGeneratedVariants(prev => prev.map(v =>
+                      v.aspectRatio === matchingRatio ? { ...v, videoUrl: data.videoUrl as string } : v
+                    ));
+                  }
+                } else if (status === "failed") {
+                  updateLastLog("error");
+                }
+              } else if (currentEvent === "complete") {
+                addLog("Video generation complete!", "done");
+              } else if (currentEvent === "error") {
+                addLog(data.message as string, "error");
+              } else if (currentEvent === "progress") {
+                addLog(data.message as string, data.done ? "done" : "pending");
+              }
+            } catch {}
+            currentEvent = "";
+          }
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      addLog(`Video generation failed: ${msg}`, "error");
+      toast({ variant: "destructive", title: "Video Generation Failed", description: msg });
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  }, [campaignId, addLog, updateLastLog, toast]);
+
+  const handleSetAudio = useCallback(async () => {
+    if (!campaignId || !audioDialogVariant?.id) return;
+
+    setIsGeneratingAudio(true);
+    addLog(`Generating ${audioSource} audio...`, "pending");
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${audioDialogVariant.id}/audio`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: audioSource,
+          prompt: audioPrompt,
+          mode: audioMergeMode,
+        }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Audio generation failed" }));
+        throw new Error(err.error || "Audio generation failed");
+      }
+
+      const updated = await resp.json();
+      setGeneratedVariants(prev => prev.map(v =>
+        v.id === audioDialogVariant.id
+          ? { ...v, audioSource: updated.audioSource, audioUrl: updated.audioUrl, mergedVideoUrl: updated.mergedVideoUrl }
+          : v
+      ));
+
+      updateLastLog("done");
+      toast({ title: "Audio applied!", description: `${audioSource} audio added to variant.` });
+      setAudioDialogOpen(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      addLog(`Audio failed: ${msg}`, "error");
+      toast({ variant: "destructive", title: "Audio Failed", description: msg });
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  }, [campaignId, audioDialogVariant, audioSource, audioPrompt, audioMergeMode, addLog, updateLastLog, toast]);
+
+  const handleUploadAudio = useCallback(async (variantId: string, file: File) => {
+    if (!campaignId) return;
+
+    addLog("Uploading custom audio...", "pending");
+
+    try {
+      const formData = new FormData();
+      formData.append("audio", file);
+      formData.append("mode", audioMergeMode);
+
+      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/audio-upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error || "Upload failed");
+      }
+
+      const updated = await resp.json();
+      setGeneratedVariants(prev => prev.map(v =>
+        v.id === variantId
+          ? { ...v, audioSource: updated.audioSource, audioUrl: updated.audioUrl, mergedVideoUrl: updated.mergedVideoUrl }
+          : v
+      ));
+
+      updateLastLog("done");
+      toast({ title: "Custom audio applied!" });
+      setAudioDialogOpen(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      addLog(`Audio upload failed: ${msg}`, "error");
+      toast({ variant: "destructive", title: "Upload Failed", description: msg });
+    }
+  }, [campaignId, audioMergeMode, addLog, updateLastLog, toast]);
+
+  const audioFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleVariantRegenerate = useCallback(async (variantId: string, platform: string) => {
     if (!campaignId || !variantId) return;
@@ -917,16 +1092,28 @@ export default function CampaignStudio() {
           </div>
         </div>
         
-        <div className="p-4 border-t border-border bg-background shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-10">
+        <div className="p-4 border-t border-border bg-background shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-10 space-y-2">
           <Button 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20"
             onClick={handleGenerate}
-            disabled={isGenerating || !selectedBrand || !selectedTemplate}
+            disabled={isGenerating || isGeneratingVideo || !selectedBrand || !selectedTemplate}
           >
             {isGenerating ? (
               <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
             ) : (
               <><Play size={16} className="mr-2" /> Generate Campaign</>
+            )}
+          </Button>
+          <Button 
+            variant="outline"
+            className="w-full border-border hover:bg-muted text-foreground"
+            onClick={handleGenerateVideo}
+            disabled={isGenerating || isGeneratingVideo || !campaignId || generatedVariants.length === 0}
+          >
+            {isGeneratingVideo ? (
+              <><Loader2 size={16} className="mr-2 animate-spin" /> Generating Video...</>
+            ) : (
+              <><Video size={16} className="mr-2 text-primary" /> Generate Video</>
             )}
           </Button>
         </div>
@@ -1084,6 +1271,49 @@ export default function CampaignStudio() {
                           </div>
                         </div>
                       </div>
+
+                      {variant.videoUrl && (
+                        <div className="border-t border-border pt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                              <Video size={12} className="text-primary" /> Video Preview
+                            </span>
+                            <div className="flex items-center gap-1">
+                              {variant.audioSource && variant.audioSource !== "mute" && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                                  <Volume2 size={8} className="mr-0.5" />
+                                  {variant.audioSource === "elevenlabs_music" ? "Music" : variant.audioSource === "elevenlabs_sfx" ? "SFX" : variant.audioSource === "custom_upload" ? "Custom" : "Native"}
+                                </Badge>
+                              )}
+                              {variant.audioSource === "mute" && (
+                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 text-muted-foreground">
+                                  <VolumeX size={8} className="mr-0.5" /> Muted
+                                </Badge>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px] text-muted-foreground hover:text-primary px-1.5 gap-1"
+                                onClick={() => {
+                                  setAudioDialogVariant(variant);
+                                  setAudioSource("music");
+                                  setAudioPrompt("");
+                                  setAudioDialogOpen(true);
+                                }}
+                                disabled={isGeneratingAudio}
+                              >
+                                <Music size={10} /> Audio
+                              </Button>
+                            </div>
+                          </div>
+                          <video
+                            src={`${API_BASE}${variant.mergedVideoUrl || variant.videoUrl}`}
+                            controls
+                            className="w-full rounded-md border border-border/50 bg-black"
+                            style={{ maxHeight: "200px" }}
+                          />
+                        </div>
+                      )}
 
                       {variant.id && (
                         <div className="border-t border-border pt-2">
@@ -1298,6 +1528,101 @@ export default function CampaignStudio() {
             >
               {savingHashtags ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Hash size={14} className="mr-2" />}
               Save Set
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={audioDialogOpen} onOpenChange={setAudioDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Music size={18} className="text-primary" /> Audio Settings
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Audio Source</label>
+              <Select value={audioSource} onValueChange={(v) => setAudioSource(v as "music" | "sfx" | "mute")}>
+                <SelectTrigger className="bg-background border-border">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="music">
+                    <span className="flex items-center gap-2"><Music size={14} /> AI Music</span>
+                  </SelectItem>
+                  <SelectItem value="sfx">
+                    <span className="flex items-center gap-2"><Volume2 size={14} /> Sound Effects</span>
+                  </SelectItem>
+                  <SelectItem value="mute">
+                    <span className="flex items-center gap-2"><VolumeX size={14} /> Mute Audio</span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(audioSource === "music" || audioSource === "sfx") && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  {audioSource === "music" ? "Music Style / Mood" : "Sound Effect Description"}
+                </label>
+                <Input
+                  placeholder={audioSource === "music" ? "e.g. Epic orchestral gaming trailer" : "e.g. Explosion, crowd cheering"}
+                  value={audioPrompt}
+                  onChange={(e) => setAudioPrompt(e.target.value)}
+                  className="bg-background border-border"
+                />
+              </div>
+            )}
+
+            {audioSource !== "mute" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Mix Mode</label>
+                <Select value={audioMergeMode} onValueChange={(v) => setAudioMergeMode(v as "replace" | "mix")}>
+                  <SelectTrigger className="bg-background border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="replace">Replace original audio</SelectItem>
+                    <SelectItem value="mix">Mix with original audio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <input
+                type="file"
+                accept="audio/mpeg,audio/mp3,audio/wav"
+                className="hidden"
+                ref={audioFileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && audioDialogVariant?.id) {
+                    handleUploadAudio(audioDialogVariant.id, file);
+                  }
+                  e.target.value = "";
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => audioFileInputRef.current?.click()}
+                disabled={isGeneratingAudio}
+              >
+                <Upload size={12} className="mr-1" /> Upload Custom Audio
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAudioDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleSetAudio}
+              disabled={isGeneratingAudio || ((audioSource === "music" || audioSource === "sfx") && !audioPrompt.trim())}
+            >
+              {isGeneratingAudio ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Music size={14} className="mr-2" />}
+              Apply Audio
             </Button>
           </DialogFooter>
         </DialogContent>

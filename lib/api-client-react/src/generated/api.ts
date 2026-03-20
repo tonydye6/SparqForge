@@ -22,6 +22,8 @@ import type {
   Brand,
   Campaign,
   CampaignVariant,
+  CostLogEntry,
+  CostSummary,
   CreateAssetInput,
   CreateBrandInput,
   CreateCampaignInput,
@@ -30,6 +32,8 @@ import type {
   GenerateVideoBody,
   GetAssetsParams,
   GetCampaignsParams,
+  GetCostLogsParams,
+  GetCostLogsSummaryParams,
   GetHashtagSetsParams,
   GetTemplatesParams,
   HashtagSet,
@@ -3260,3 +3264,194 @@ export const useUploadVariantAudio = <
 > => {
   return useMutation(getUploadVariantAudioMutationOptions(options));
 };
+
+/**
+ * @summary Get cost log entries with optional filters
+ */
+export const getGetCostLogsUrl = (params?: GetCostLogsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cost-logs?${stringifiedParams}`
+    : `/api/cost-logs`;
+};
+
+export const getCostLogs = async (
+  params?: GetCostLogsParams,
+  options?: RequestInit,
+): Promise<CostLogEntry[]> => {
+  return customFetch<CostLogEntry[]>(getGetCostLogsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCostLogsQueryKey = (params?: GetCostLogsParams) => {
+  return [`/api/cost-logs`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCostLogsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCostLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCostLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCostLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCostLogsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCostLogs>>> = ({
+    signal,
+  }) => getCostLogs(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCostLogs>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCostLogsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCostLogs>>
+>;
+export type GetCostLogsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get cost log entries with optional filters
+ */
+
+export function useGetCostLogs<
+  TData = Awaited<ReturnType<typeof getCostLogs>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCostLogsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCostLogs>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCostLogsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get cost summary with breakdowns
+ */
+export const getGetCostLogsSummaryUrl = (params?: GetCostLogsSummaryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cost-logs/summary?${stringifiedParams}`
+    : `/api/cost-logs/summary`;
+};
+
+export const getCostLogsSummary = async (
+  params?: GetCostLogsSummaryParams,
+  options?: RequestInit,
+): Promise<CostSummary> => {
+  return customFetch<CostSummary>(getGetCostLogsSummaryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCostLogsSummaryQueryKey = (
+  params?: GetCostLogsSummaryParams,
+) => {
+  return [`/api/cost-logs/summary`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCostLogsSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCostLogsSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCostLogsSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCostLogsSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCostLogsSummaryQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCostLogsSummary>>
+  > = ({ signal }) => getCostLogsSummary(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCostLogsSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCostLogsSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCostLogsSummary>>
+>;
+export type GetCostLogsSummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get cost summary with breakdowns
+ */
+
+export function useGetCostLogsSummary<
+  TData = Awaited<ReturnType<typeof getCostLogsSummary>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCostLogsSummaryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCostLogsSummary>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCostLogsSummaryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

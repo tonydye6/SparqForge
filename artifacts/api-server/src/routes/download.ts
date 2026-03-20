@@ -90,6 +90,39 @@ router.get("/campaigns/:id/download", async (req: Request, res: Response): Promi
     archive.append(JSON.stringify(metadata, null, 2), { name: `${zipName}/${platformDir}/metadata.json` });
   }
 
+  const videoVariants = variants.filter(v => v.videoUrl || v.mergedVideoUrl);
+  if (videoVariants.length > 0) {
+    for (const variant of videoVariants) {
+      const videoFileUrl = variant.mergedVideoUrl || variant.videoUrl;
+      if (videoFileUrl) {
+        const filename = videoFileUrl.replace("/api/files/generated/", "");
+        const filePath = path.join(UPLOADS_DIR, filename);
+        if (fs.existsSync(filePath)) {
+          const safeplatform = variant.platform.replace(/[^a-zA-Z0-9_-]/g, "_");
+          archive.file(filePath, { name: `${zipName}/video/${safeplatform}_${variant.aspectRatio.replace(":", "x")}.mp4` });
+        }
+      }
+
+      if (variant.audioUrl) {
+        const audioFilename = variant.audioUrl.replace("/api/files/generated/", "");
+        const audioPath = path.join(UPLOADS_DIR, audioFilename);
+        if (fs.existsSync(audioPath)) {
+          const safeplatform2 = variant.platform.replace(/[^a-zA-Z0-9_-]/g, "_");
+          archive.file(audioPath, { name: `${zipName}/video/${safeplatform2}_${variant.aspectRatio.replace(":", "x")}_audio.mp3` });
+        }
+      }
+    }
+
+    const videoMetadata = videoVariants.map(v => ({
+      platform: v.platform,
+      aspectRatio: v.aspectRatio,
+      audioSource: v.audioSource,
+      hasVideo: !!v.videoUrl,
+      hasMergedVideo: !!v.mergedVideoUrl,
+    }));
+    archive.append(JSON.stringify(videoMetadata, null, 2), { name: `${zipName}/video/metadata.json` });
+  }
+
   const campaignSummary = {
     campaign: campaign.name,
     brand: brandName,
@@ -116,21 +149,26 @@ router.get("/campaigns/:id/variants/:variantId/download", async (req: Request, r
     return;
   }
 
+  const videoUrl = variant.mergedVideoUrl || variant.videoUrl;
   const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
-  if (!imageUrl) {
-    res.status(400).json({ error: "No image available for download" });
+  const fileUrl = videoUrl || imageUrl;
+  if (!fileUrl) {
+    res.status(400).json({ error: "No media available for download" });
     return;
   }
 
-  const filename = imageUrl.replace("/api/files/generated/", "");
+  const filename = fileUrl.replace("/api/files/generated/", "");
   const filePath = path.join(UPLOADS_DIR, filename);
   if (!fs.existsSync(filePath)) {
-    res.status(404).json({ error: "Image file not found" });
+    res.status(404).json({ error: "File not found" });
     return;
   }
 
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Content-Disposition", `attachment; filename="${variant.platform}_${variant.aspectRatio.replace(":", "x")}.png"`);
+  const isVideo = !!videoUrl;
+  const mimeType = isVideo ? "video/mp4" : "image/png";
+  const ext = isVideo ? ".mp4" : ".png";
+  res.setHeader("Content-Type", mimeType);
+  res.setHeader("Content-Disposition", `attachment; filename="${variant.platform}_${variant.aspectRatio.replace(":", "x")}${ext}"`);
   fs.createReadStream(filePath).pipe(res);
 });
 
