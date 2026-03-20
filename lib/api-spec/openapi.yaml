@@ -1,22 +1,32 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: SparqForge API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: brands
+    description: Brand configuration
+  - name: templates
+    description: Campaign templates
+  - name: assets
+    description: Asset library
+  - name: hashtags
+    description: Hashtag sets
+  - name: campaigns
+    description: Campaign management
+  - name: upload
+    description: File upload
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +34,497 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /brands:
+    get:
+      operationId: getBrands
+      tags: [brands]
+      summary: Get all brands
+      responses:
+        "200":
+          description: List of brands
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Brand"
+    post:
+      operationId: createBrand
+      tags: [brands]
+      summary: Create a brand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBrandInput"
+      responses:
+        "201":
+          description: Brand created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+
+  /brands/{id}:
+    get:
+      operationId: getBrand
+      tags: [brands]
+      summary: Get a brand by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Brand
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+    put:
+      operationId: updateBrand
+      tags: [brands]
+      summary: Update a brand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBrandInput"
+      responses:
+        "200":
+          description: Brand updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Brand"
+    delete:
+      operationId: deleteBrand
+      tags: [brands]
+      summary: Delete a brand
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /templates:
+    get:
+      operationId: getTemplates
+      tags: [templates]
+      summary: Get all templates
+      parameters:
+        - name: brandId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Template"
+    post:
+      operationId: createTemplate
+      tags: [templates]
+      summary: Create a template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTemplateInput"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+
+  /templates/{id}:
+    get:
+      operationId: getTemplate
+      tags: [templates]
+      summary: Get a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+    put:
+      operationId: updateTemplate
+      tags: [templates]
+      summary: Update a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTemplateInput"
+      responses:
+        "200":
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+    delete:
+      operationId: deleteTemplate
+      tags: [templates]
+      summary: Delete a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /assets:
+    get:
+      operationId: getAssets
+      tags: [assets]
+      summary: Get all assets
+      parameters:
+        - name: brandId
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+    post:
+      operationId: createAsset
+      tags: [assets]
+      summary: Create an asset record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetInput"
+      responses:
+        "201":
+          description: Asset created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /assets/{id}:
+    get:
+      operationId: getAsset
+      tags: [assets]
+      summary: Get an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+    put:
+      operationId: updateAsset
+      tags: [assets]
+      summary: Update an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAssetInput"
+      responses:
+        "200":
+          description: Asset updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+    delete:
+      operationId: deleteAsset
+      tags: [assets]
+      summary: Delete an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /hashtag-sets:
+    get:
+      operationId: getHashtagSets
+      tags: [hashtags]
+      summary: Get all hashtag sets
+      parameters:
+        - name: brandId
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of hashtag sets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HashtagSet"
+    post:
+      operationId: createHashtagSet
+      tags: [hashtags]
+      summary: Create a hashtag set
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHashtagSetInput"
+      responses:
+        "201":
+          description: Hashtag set created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HashtagSet"
+
+  /hashtag-sets/{id}:
+    put:
+      operationId: updateHashtagSet
+      tags: [hashtags]
+      summary: Update a hashtag set
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHashtagSetInput"
+      responses:
+        "200":
+          description: Hashtag set updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HashtagSet"
+    delete:
+      operationId: deleteHashtagSet
+      tags: [hashtags]
+      summary: Delete a hashtag set
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /campaigns:
+    get:
+      operationId: getCampaigns
+      tags: [campaigns]
+      summary: Get all campaigns
+      parameters:
+        - name: brandId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create a campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignInput"
+      responses:
+        "201":
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: Get a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+    put:
+      operationId: updateCampaign
+      tags: [campaigns]
+      summary: Update a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCampaignInput"
+      responses:
+        "200":
+          description: Campaign updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /upload:
+    post:
+      operationId: uploadFile
+      tags: [upload]
+      summary: Upload a file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                brandId:
+                  type: string
+                type:
+                  type: string
+              required:
+                - file
+      responses:
+        "200":
+          description: File uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +535,560 @@ components:
       required:
         - status
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    UploadResponse:
+      type: object
+      properties:
+        url:
+          type: string
+        thumbnailUrl:
+          type: string
+      required:
+        - url
+
+    Brand:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        colorPrimary:
+          type: string
+        colorSecondary:
+          type: string
+        colorAccent:
+          type: string
+        colorBackground:
+          type: string
+        voiceDescription:
+          type: string
+        bannedTerms:
+          type: array
+          items:
+            type: string
+        trademarkRules:
+          type: string
+        hashtagStrategy:
+          type: object
+          additionalProperties: true
+        imagenPrefix:
+          type: string
+        negativePrompt:
+          type: string
+        platformRules:
+          type: object
+          additionalProperties: true
+        logoFileUrl:
+          type: string
+          nullable: true
+        brandFonts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - slug
+        - colorPrimary
+        - colorSecondary
+        - colorAccent
+        - colorBackground
+        - voiceDescription
+        - bannedTerms
+        - trademarkRules
+        - hashtagStrategy
+        - imagenPrefix
+        - negativePrompt
+        - platformRules
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CreateBrandInput:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        colorPrimary:
+          type: string
+        colorSecondary:
+          type: string
+        colorAccent:
+          type: string
+        colorBackground:
+          type: string
+        voiceDescription:
+          type: string
+        bannedTerms:
+          type: array
+          items:
+            type: string
+        trademarkRules:
+          type: string
+        hashtagStrategy:
+          type: object
+          additionalProperties: true
+        imagenPrefix:
+          type: string
+        negativePrompt:
+          type: string
+        platformRules:
+          type: object
+          additionalProperties: true
+        logoFileUrl:
+          type: string
+          nullable: true
+        brandFonts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          nullable: true
+      required:
+        - name
+        - slug
+        - colorPrimary
+        - colorSecondary
+        - colorAccent
+        - colorBackground
+        - voiceDescription
+        - bannedTerms
+        - trademarkRules
+        - hashtagStrategy
+        - imagenPrefix
+        - negativePrompt
+        - platformRules
+
+    Template:
+      type: object
+      properties:
+        id:
+          type: string
+        brandId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        imagenPromptAddition:
+          type: string
+        imagenNegativeAddition:
+          type: string
+        claudeCaptionInstruction:
+          type: object
+          additionalProperties: true
+        claudeHeadlineInstruction:
+          type: string
+          nullable: true
+        layoutSpec:
+          type: object
+          additionalProperties: true
+          nullable: true
+        recommendedAssetTypes:
+          type: array
+          items:
+            type: string
+        targetAspectRatios:
+          type: array
+          items:
+            type: string
+        totalGenerations:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - brandId
+        - name
+        - version
+        - imagenPromptAddition
+        - imagenNegativeAddition
+        - claudeCaptionInstruction
+        - recommendedAssetTypes
+        - targetAspectRatios
+        - totalGenerations
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CreateTemplateInput:
+      type: object
+      properties:
+        brandId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        imagenPromptAddition:
+          type: string
+        imagenNegativeAddition:
+          type: string
+        claudeCaptionInstruction:
+          type: object
+          additionalProperties: true
+        claudeHeadlineInstruction:
+          type: string
+          nullable: true
+        layoutSpec:
+          type: object
+          additionalProperties: true
+          nullable: true
+        recommendedAssetTypes:
+          type: array
+          items:
+            type: string
+        targetAspectRatios:
+          type: array
+          items:
+            type: string
+      required:
+        - brandId
+        - name
+        - imagenPromptAddition
+        - imagenNegativeAddition
+        - claudeCaptionInstruction
+        - recommendedAssetTypes
+        - targetAspectRatios
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+        brandId:
+          type: string
+        type:
+          type: string
+        subType:
+          type: string
+          nullable: true
+        status:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        fileUrl:
+          type: string
+          nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        mimeType:
+          type: string
+          nullable: true
+        fileSizeBytes:
+          type: integer
+          nullable: true
+        uploadedBy:
+          type: string
+        approvedBy:
+          type: string
+          nullable: true
+        approvedAt:
+          type: string
+          format: date-time
+          nullable: true
+        usageCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - brandId
+        - type
+        - status
+        - name
+        - tags
+        - uploadedBy
+        - usageCount
+        - createdAt
+        - updatedAt
+
+    CreateAssetInput:
+      type: object
+      properties:
+        brandId:
+          type: string
+        type:
+          type: string
+        subType:
+          type: string
+          nullable: true
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        fileUrl:
+          type: string
+          nullable: true
+        thumbnailUrl:
+          type: string
+          nullable: true
+        content:
+          type: string
+          nullable: true
+        mimeType:
+          type: string
+          nullable: true
+        fileSizeBytes:
+          type: integer
+          nullable: true
+        uploadedBy:
+          type: string
+      required:
+        - brandId
+        - type
+        - name
+        - tags
+        - uploadedBy
+
+    UpdateAssetInput:
+      type: object
+      properties:
+        status:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        content:
+          type: string
+          nullable: true
+        subType:
+          type: string
+          nullable: true
+        approvedBy:
+          type: string
+          nullable: true
+
+    HashtagSet:
+      type: object
+      properties:
+        id:
+          type: string
+        brandId:
+          type: string
+        name:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+        usageCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - brandId
+        - name
+        - hashtags
+        - category
+        - usageCount
+        - createdAt
+        - updatedAt
+
+    CreateHashtagSetInput:
+      type: object
+      properties:
+        brandId:
+          type: string
+        name:
+          type: string
+        hashtags:
+          type: array
+          items:
+            type: string
+        category:
+          type: string
+      required:
+        - brandId
+        - name
+        - hashtags
+        - category
+
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: string
+        brandId:
+          type: string
+        templateId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        status:
+          type: string
+        briefText:
+          type: string
+          nullable: true
+        referenceUrl:
+          type: string
+          nullable: true
+        selectedAssets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        selectedHashtagSets:
+          type: array
+          items:
+            type: string
+          nullable: true
+        sourceCampaignId:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+        reviewedBy:
+          type: string
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - brandId
+        - name
+        - status
+        - selectedAssets
+        - createdBy
+        - createdAt
+        - updatedAt
+
+    CreateCampaignInput:
+      type: object
+      properties:
+        brandId:
+          type: string
+        templateId:
+          type: string
+          nullable: true
+        name:
+          type: string
+        briefText:
+          type: string
+          nullable: true
+        referenceUrl:
+          type: string
+          nullable: true
+        selectedAssets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        selectedHashtagSets:
+          type: array
+          items:
+            type: string
+          nullable: true
+        createdBy:
+          type: string
+      required:
+        - brandId
+        - name
+        - selectedAssets
+        - createdBy
+
+    UpdateCampaignInput:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        briefText:
+          type: string
+          nullable: true
+        referenceUrl:
+          type: string
+          nullable: true
+        templateId:
+          type: string
+          nullable: true
+        selectedAssets:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        selectedHashtagSets:
+          type: array
+          items:
+            type: string
+          nullable: true
+        reviewedBy:
+          type: string
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true

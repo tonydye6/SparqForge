@@ -1,0 +1,23 @@
+packages:
+  "framer-motion": "Animations and page transitions for premium feel"
+  "react-dropzone": "Drag and drop file upload for Asset Library"
+  "date-fns": "Date formatting for Calendar and Activity feeds"
+  "lucide-react": "Icons for the interface"
+  "@hookform/resolvers": "Form validation"
+  "zod": "Schema validation for forms"
+  "react-hook-form": "Form state management"
+
+images:
+  - path: "artifacts/sparqforge/public/images/sparq-logo.png"
+    description: "Minimalist, aggressive gaming logo mark for 'SparqForge', glowing electric blue on pure black background, sharp angles"
+    aspect_ratio: "1:1"
+  - path: "artifacts/sparqforge/public/images/avatar.png"
+    description: "Cyberpunk esports gamer profile avatar, neon lighting, dark background"
+    aspect_ratio: "1:1"
+  - path: "artifacts/sparqforge/public/images/empty-state.png"
+    description: "Abstract 3D wireframe mesh in dark void with subtle blue glowing nodes, shallow depth of field"
+    aspect_ratio: "16:9"
+
+notes:
+  - "App uses dark mode exclusively as per requirements"
+  - "Importing Orval-generated React Query hooks directly from @workspace/api-client-react"
