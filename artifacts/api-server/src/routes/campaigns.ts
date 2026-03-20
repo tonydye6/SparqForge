@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, campaignsTable } from "@workspace/db";
+import { eq, and, gte } from "drizzle-orm";
+import { db, campaignsTable, campaignVariantsTable, calendarEntriesTable } from "@workspace/db";
 import {
   GetCampaignsQueryParams,
   CreateCampaignBody,
@@ -25,6 +25,42 @@ router.get("/campaigns", async (req, res): Promise<void> => {
   }
 
   res.json(GetCampaignsResponse.parse(results));
+});
+
+router.get("/campaigns/check-duplicate", async (req, res): Promise<void> => {
+  const { templateId, primaryAssetId } = req.query as Record<string, string>;
+
+  if (!templateId || !primaryAssetId) {
+    res.json({ duplicate: false });
+    return;
+  }
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const results = await db.select().from(campaignsTable)
+    .where(and(
+      eq(campaignsTable.templateId, templateId),
+      gte(campaignsTable.createdAt, thirtyDaysAgo),
+    ))
+    .orderBy(campaignsTable.createdAt);
+
+  const matches = results.filter(c => {
+    const assets = (c.selectedAssets || []) as Array<{ assetId: string; role: string }>;
+    return assets.some(a => a.assetId === primaryAssetId && a.role === "primary");
+  });
+
+  if (matches.length > 0) {
+    const match = matches[matches.length - 1];
+    res.json({
+      duplicate: true,
+      campaignId: match.id,
+      campaignName: match.name,
+      createdAt: match.createdAt,
+    });
+  } else {
+    res.json({ duplicate: false });
+  }
 });
 
 router.post("/campaigns", async (req, res): Promise<void> => {
@@ -79,6 +115,53 @@ router.put("/campaigns/:id", async (req, res): Promise<void> => {
   }
 
   res.json(UpdateCampaignResponse.parse(campaign));
+});
+
+router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+  const { scheduledAt, perPlatform } = req.body as {
+    scheduledAt?: string;
+    perPlatform?: Record<string, string>;
+  };
+
+  if (!scheduledAt && !perPlatform) {
+    res.status(400).json({ error: "Either scheduledAt or perPlatform times required" });
+    return;
+  }
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  const variants = await db.select().from(campaignVariantsTable)
+    .where(eq(campaignVariantsTable.campaignId, campaignId));
+
+  if (variants.length === 0) {
+    res.status(400).json({ error: "No variants to schedule" });
+    return;
+  }
+
+  const created = [];
+  for (const variant of variants) {
+    const time = perPlatform?.[variant.platform] || scheduledAt;
+    if (!time) continue;
+
+    const [entry] = await db.insert(calendarEntriesTable).values({
+      campaignId,
+      variantId: variant.id,
+      platform: variant.platform,
+      scheduledAt: new Date(time),
+    }).returning();
+    created.push(entry);
+  }
+
+  await db.update(campaignsTable)
+    .set({ status: "scheduled", updatedAt: new Date() })
+    .where(eq(campaignsTable.id, campaignId));
+
+  res.status(201).json({ entries: created, count: created.length });
 });
 
 export default router;

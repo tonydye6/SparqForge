@@ -22,6 +22,7 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
       brandColor: brandsTable.colorPrimary,
       caption: campaignVariantsTable.caption,
       aspectRatio: campaignVariantsTable.aspectRatio,
+      compositedImageUrl: campaignVariantsTable.compositedImageUrl,
     })
     .from(calendarEntriesTable)
     .innerJoin(campaignsTable, eq(calendarEntriesTable.campaignId, campaignsTable.id))
