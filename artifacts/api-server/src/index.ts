@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./seed";
 import { refreshExpiringTokens } from "./services/token-refresh";
+import { startPublishScheduler } from "./services/publish-scheduler";
 
 const rawPort = process.env["PORT"];
 
@@ -21,6 +22,7 @@ seedDatabase()
   .then(() => {
     app.listen(port, () => {
       logger.info({ port }, "Server listening");
+      startPublishScheduler();
     });
     refreshExpiringTokens()
       .then(() => logger.info("Token refresh check completed"))
@@ -30,5 +32,6 @@ seedDatabase()
     logger.error(err, "Failed to seed database");
     app.listen(port, () => {
       logger.info({ port }, "Server listening (seed failed)");
+      startPublishScheduler();
     });
   });

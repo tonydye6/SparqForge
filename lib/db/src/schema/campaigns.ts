@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, json, index, real } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, json, index, real, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -68,6 +68,7 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
   publishedAt: timestamp("published_at"),
   publishStatus: text("publish_status").notNull().default("scheduled"),
   publishError: text("publish_error"),
+  retryCount: integer("retry_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

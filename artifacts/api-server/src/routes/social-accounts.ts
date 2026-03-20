@@ -45,6 +45,28 @@ router.get("/social-accounts", async (_req, res) => {
   }
 });
 
+router.get("/social-accounts/platform/:platform", async (req, res) => {
+  try {
+    const { platform } = req.params;
+
+    const accounts = await db.select({
+      id: socialAccountsTable.id,
+      platform: socialAccountsTable.platform,
+      accountName: socialAccountsTable.accountName,
+      accountId: socialAccountsTable.accountId,
+      brandId: socialAccountsTable.brandId,
+      status: socialAccountsTable.status,
+      createdAt: socialAccountsTable.createdAt,
+    }).from(socialAccountsTable)
+      .where(eq(socialAccountsTable.platform, platform));
+
+    res.json(accounts);
+  } catch (err) {
+    logger.error(err, "Failed to fetch social accounts by platform");
+    res.status(500).json({ error: "Failed to fetch social accounts" });
+  }
+});
+
 router.delete("/social-accounts/:id", async (req, res) => {
   try {
     const { id } = req.params;
