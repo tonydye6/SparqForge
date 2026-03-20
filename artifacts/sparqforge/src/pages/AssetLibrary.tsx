@@ -1,30 +1,88 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash } from "lucide-react";
+import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useGetAssets, useUploadFile } from "@workspace/api-client-react";
+import { 
+  useGetAssets, useUploadFile, useUpdateAsset, useDeleteAsset, useCreateAsset,
+  useGetBrands, useGetHashtagSets, useCreateHashtagSet, useUpdateHashtagSet, useDeleteHashtagSet,
+  type Asset
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { useForm } from "react-hook-form";
 
 export default function AssetLibrary() {
-  const { data: assets, isLoading } = useGetAssets();
-  const uploadMutation = useUploadFile();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  const { data: brands } = useGetBrands();
+
+  // Queries
+  const { data: visuals, isLoading: visualsLoading } = useGetAssets({ 
+    type: "visual", 
+    brandId: selectedBrand !== "all" ? selectedBrand : undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+    search: searchQuery || undefined
+  });
+  
+  const { data: briefs, isLoading: briefsLoading } = useGetAssets({ 
+    type: "context",
+    brandId: selectedBrand !== "all" ? selectedBrand : undefined,
+  });
+
+  const { data: hashtagSets } = useGetHashtagSets({
+    brandId: selectedBrand !== "all" ? selectedBrand : undefined,
+  });
+
+  const uploadMutation = useUploadFile();
+  const createAssetMutation = useCreateAsset({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/assets"] })
+    }
+  });
+
   const onDrop = useCallback((acceptedFiles: File[]) => {
     acceptedFiles.forEach(file => {
-      uploadMutation.mutate({ data: { file, type: 'visual' } }, {
-        onSuccess: () => {
-          toast({ title: "Asset uploaded successfully", description: file.name });
+      // 1. Upload to storage
+      uploadMutation.mutate({ data: { file, type: 'visual', brandId: selectedBrand !== "all" ? selectedBrand : undefined } }, {
+        onSuccess: (res) => {
+          // 2. Create asset record
+          createAssetMutation.mutate({
+            data: {
+              brandId: selectedBrand !== "all" ? selectedBrand : (brands?.[0]?.id || ""),
+              type: "visual",
+              name: file.name,
+              status: "uploaded",
+              fileUrl: res.url,
+              thumbnailUrl: res.thumbnailUrl || res.url,
+              mimeType: file.type,
+              fileSizeBytes: file.size,
+              uploadedBy: "current_user",
+              tags: [],
+            }
+          }, {
+            onSuccess: () => {
+              toast({ title: "Asset uploaded", description: file.name });
+            }
+          });
         },
-        onError: (err) => {
+        onError: (err: any) => {
           toast({ variant: "destructive", title: "Upload failed", description: err.message });
         }
       });
     });
-  }, [uploadMutation, toast]);
+  }, [uploadMutation, createAssetMutation, selectedBrand, brands, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
@@ -35,9 +93,6 @@ export default function AssetLibrary() {
           <h1 className="text-3xl font-bold text-foreground">Asset Library</h1>
           <p className="text-muted-foreground mt-1">Manage brand visuals, context briefs, and hashtag sets.</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 font-bold">
-          <UploadCloud className="mr-2 h-4 w-4" /> Upload New
-        </Button>
       </div>
 
       <Tabs defaultValue="visuals" className="flex-1 flex flex-col overflow-hidden">
@@ -53,22 +108,43 @@ export default function AssetLibrary() {
           </TabsTrigger>
         </TabsList>
 
-        <div className="flex items-center gap-4 mb-6 shrink-0">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex items-center gap-4 mb-6 shrink-0 flex-wrap">
+          <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+            <SelectTrigger className="w-[200px] bg-card border-border">
+              <SelectValue placeholder="All Brands" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Brands</SelectItem>
+              {brands?.map(b => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <div className="relative flex-1 max-w-md min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input placeholder="Search assets..." className="pl-10 bg-card border-border" />
+            <Input 
+              placeholder="Search assets..." 
+              className="pl-10 bg-card border-border" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-          <Button variant="outline" className="bg-card border-border text-muted-foreground">
-            <Filter className="mr-2 h-4 w-4" /> Filter
-          </Button>
-          <Button variant="outline" className="bg-card border-border text-muted-foreground">
-            <FolderPlus className="mr-2 h-4 w-4" /> New Folder
-          </Button>
+          
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[150px] bg-card border-border">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="uploaded">Uploaded</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        <TabsContent value="visuals" className="flex-1 overflow-y-auto mt-0 border-none p-0 outline-none">
-          
-          {/* Upload Dropzone */}
+        <TabsContent value="visuals" className="flex-1 overflow-y-auto mt-0 border-none p-0 outline-none pr-4 pb-10">
           <div 
             {...getRootProps()} 
             className={`mb-8 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
@@ -77,87 +153,446 @@ export default function AssetLibrary() {
           >
             <input {...getInputProps()} />
             <div className="mx-auto w-12 h-12 bg-background rounded-full flex items-center justify-center mb-4 border border-border shadow-sm">
-              <UploadCloud className="text-primary" size={24} />
+              {uploadMutation.isPending ? <UploadCloud className="text-primary animate-bounce" size={24} /> : <UploadCloud className="text-primary" size={24} />}
             </div>
-            <h3 className="text-lg font-semibold text-foreground mb-1">Drag & drop files here</h3>
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              {uploadMutation.isPending ? "Uploading..." : "Drag & drop files here"}
+            </h3>
             <p className="text-sm text-muted-foreground">Supports JPG, PNG, MP4, up to 50MB</p>
           </div>
 
-          {/* Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 pb-10">
-            {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {visualsLoading ? (
               Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="aspect-square bg-card rounded-xl border border-border animate-pulse" />
               ))
-            ) : assets && assets.length > 0 ? (
-              assets.map((asset) => (
-                <AssetCard key={asset.id} asset={asset as any} />
+            ) : visuals && visuals.length > 0 ? (
+              visuals.map((asset) => (
+                <VisualAssetCard key={asset.id} asset={asset} />
               ))
             ) : (
-              // Placeholder mock data if empty
-              Array.from({ length: 8 }).map((_, i) => (
-                <AssetCard key={i} asset={{
-                  id: `mock-${i}`,
-                  name: `Brand_Asset_v${i+1}.png`,
-                  status: i % 3 === 0 ? 'approved' : 'uploaded',
-                  type: i % 4 === 0 ? 'video' : 'image',
-                  createdAt: new Date().toISOString()
-                } as any} />
-              ))
+              <div className="col-span-full py-12 text-center text-muted-foreground">No visual assets found.</div>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="briefs" className="flex-1 overflow-y-auto mt-0">
-          <div className="flex flex-col items-center justify-center h-64 text-center border border-border border-dashed rounded-xl bg-card/30">
-            <FileText size={48} className="text-muted-foreground/50 mb-4" />
-            <h3 className="text-xl font-bold text-foreground mb-2">No briefs yet</h3>
-            <p className="text-muted-foreground mb-4">Create context documents to guide AI generation.</p>
-            <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-white">Create Brief</Button>
-          </div>
+        <TabsContent value="briefs" className="flex-1 overflow-y-auto mt-0 pr-4">
+          <BriefsTab briefs={briefs || []} brands={brands || []} isLoading={briefsLoading} />
         </TabsContent>
 
-        <TabsContent value="hashtags" className="flex-1 overflow-y-auto mt-0">
-           <div className="flex flex-col items-center justify-center h-64 text-center border border-border border-dashed rounded-xl bg-card/30">
-            <Hash size={48} className="text-muted-foreground/50 mb-4" />
-            <h3 className="text-xl font-bold text-foreground mb-2">Hashtag library empty</h3>
-            <p className="text-muted-foreground mb-4">Organize your hashtags by campaign and platform.</p>
-            <Button variant="outline" className="border-primary text-primary hover:bg-primary hover:text-white">Create Set</Button>
-          </div>
+        <TabsContent value="hashtags" className="flex-1 overflow-y-auto mt-0 pr-4">
+          <HashtagsTab sets={hashtagSets || []} brands={brands || []} />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function AssetCard({ asset }: { asset: any }) {
+function VisualAssetCard({ asset }: { asset: Asset }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const updateMutation = useUpdateAsset();
+  const deleteMutation = useDeleteAsset();
+  const [editMode, setEditMode] = useState(false);
+  const [formData, setFormData] = useState({ name: asset.name, description: asset.description || "", tags: asset.tags?.join(", ") || "" });
+
+  const handleUpdate = (updates: any) => {
+    updateMutation.mutate({ id: asset.id, data: updates }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        toast({ title: "Asset updated" });
+        setEditMode(false);
+      }
+    });
+  };
+
+  const handleDelete = () => {
+    if(confirm("Are you sure you want to delete this asset?")) {
+      deleteMutation.mutate({ id: asset.id }, {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+          setIsOpen(false);
+          toast({ title: "Asset deleted" });
+        }
+      });
+    }
+  };
+
+  const saveEdits = () => {
+    handleUpdate({
+      name: formData.name,
+      description: formData.description,
+      tags: formData.tags.split(",").map(s => s.trim()).filter(Boolean)
+    });
+  };
+
   return (
-    <div className="group relative bg-card border border-border rounded-xl overflow-hidden shadow-md hover:shadow-xl hover:border-primary/50 transition-all duration-300">
-      <div className="aspect-square bg-muted/30 relative overflow-hidden">
-        {/* landing page hero scenic mountain landscape */}
-        <img 
-          src={asset.thumbnailUrl || `https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&h=400&fit=crop`} 
-          alt={asset.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-80 group-hover:opacity-100"
-        />
-        <div className="absolute top-2 right-2 flex gap-1">
-          {asset.status === 'approved' && <Badge className="bg-success text-white border-none shadow-sm">Approved</Badge>}
-          {asset.status === 'uploaded' && <Badge className="bg-warning text-black border-none shadow-sm">Pending</Badge>}
+    <>
+      <div 
+        className="group relative bg-card border border-border rounded-xl overflow-hidden shadow-md hover:shadow-xl hover:border-primary/50 transition-all duration-300 cursor-pointer"
+        onClick={() => setIsOpen(true)}
+      >
+        <div className="aspect-square bg-muted/30 relative overflow-hidden">
+          {asset.thumbnailUrl || asset.fileUrl ? (
+            <img 
+              src={asset.thumbnailUrl || asset.fileUrl || ""} 
+              alt={asset.name}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+              <ImageIcon size={32} />
+            </div>
+          )}
+          
+          <div className="absolute top-2 right-2 flex gap-1">
+            {asset.status === 'approved' && <Badge className="bg-success text-white border-none shadow-sm text-[10px]">Approved</Badge>}
+            {asset.status === 'uploaded' && <Badge className="bg-warning text-black border-none shadow-sm text-[10px]">Pending</Badge>}
+            {asset.status === 'archived' && <Badge variant="secondary" className="border-none shadow-sm text-[10px]">Archived</Badge>}
+          </div>
+          <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono shadow-sm flex items-center gap-1">
+            {asset.mimeType?.includes('video') ? <Video size={10} /> : <ImageIcon size={10} />}
+            {asset.mimeType?.split('/')[1]?.toUpperCase() || 'FILE'}
+          </div>
         </div>
-        <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur text-foreground rounded px-1.5 py-0.5 text-xs font-mono shadow-sm flex items-center gap-1">
-          {asset.type === 'video' ? <Video size={10} /> : <ImageIcon size={10} />}
-          {asset.type === 'video' ? 'MP4' : 'PNG'}
+        <div className="p-3">
+          <h4 className="text-sm font-semibold text-foreground truncate" title={asset.name}>{asset.name}</h4>
+          <p className="text-xs text-muted-foreground mt-1 flex justify-between items-center">
+            <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
+          </p>
         </div>
       </div>
-      <div className="p-3">
-        <h4 className="text-sm font-semibold text-foreground truncate" title={asset.name}>{asset.name}</h4>
-        <p className="text-xs text-muted-foreground mt-1 flex justify-between items-center">
-          <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
-            <MoreVertical size={14} />
-          </Button>
-        </p>
+
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetContent className="w-full sm:max-w-md border-l border-border bg-card p-0 flex flex-col">
+          <div className="p-6 border-b border-border bg-background">
+            <SheetTitle className="text-xl">Asset Details</SheetTitle>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center border border-border">
+              {asset.fileUrl ? (
+                asset.mimeType?.includes('video') ? (
+                  <video src={asset.fileUrl} controls className="max-w-full max-h-full" />
+                ) : (
+                  <img src={asset.fileUrl} alt={asset.name} className="max-w-full max-h-full object-contain" />
+                )
+              ) : (
+                <ImageIcon size={48} className="text-muted-foreground" />
+              )}
+            </div>
+
+            {editMode ? (
+              <div className="space-y-4">
+                <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Asset Name" />
+                <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Description" rows={3} />
+                <Input value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} placeholder="Tags (comma separated)" />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveEdits} disabled={updateMutation.isPending}>Save</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditMode(false)}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-bold text-lg flex items-center justify-between">
+                    {asset.name}
+                    <Button variant="ghost" size="icon" onClick={() => setEditMode(true)} className="h-8 w-8"><Edit2 size={14} /></Button>
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">{asset.description || "No description provided."}</p>
+                </div>
+                {asset.tags && asset.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {asset.tags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4 text-sm bg-background p-4 rounded-lg border border-border">
+                  <div>
+                    <span className="text-muted-foreground block text-xs uppercase mb-1">Status</span>
+                    <Badge variant="outline">{asset.status}</Badge>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs uppercase mb-1">Uploaded</span>
+                    <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs uppercase mb-1">Type</span>
+                    <span>{asset.mimeType || 'Unknown'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-xs uppercase mb-1">Usage</span>
+                    <span>{asset.usageCount} times</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-border bg-background flex flex-col gap-2">
+            <div className="flex gap-2 w-full">
+              {asset.status !== 'approved' && (
+                <Button className="flex-1 bg-success hover:bg-success/90 text-white" onClick={() => handleUpdate({ status: 'approved' })} disabled={updateMutation.isPending}>
+                  <Check className="w-4 h-4 mr-2" /> Approve
+                </Button>
+              )}
+              {asset.status !== 'archived' && (
+                <Button className="flex-1 bg-warning hover:bg-warning/90 text-black" onClick={() => handleUpdate({ status: 'archived' })} disabled={updateMutation.isPending}>
+                  <X className="w-4 h-4 mr-2" /> Archive
+                </Button>
+              )}
+            </div>
+            <Button variant="outline" className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive border-border" onClick={handleDelete} disabled={deleteMutation.isPending}>
+              <Trash2 className="w-4 h-4 mr-2" /> Delete Asset
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+function BriefsTab({ briefs, brands, isLoading }: { briefs: Asset[], brands: any[], isLoading: boolean }) {
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const { register, handleSubmit, reset } = useForm();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const createMutation = useCreateAsset({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        setIsAddOpen(false);
+        reset();
+        toast({ title: "Brief created" });
+      }
+    }
+  });
+
+  const onSubmit = (data: any) => {
+    createMutation.mutate({
+      data: {
+        brandId: data.brandId,
+        type: "context",
+        name: data.title,
+        content: data.content,
+        status: "approved",
+        tags: data.tags ? data.tags.split(",").map((s:string) => s.trim()) : [],
+        uploadedBy: "current_user"
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button><Plus className="w-4 h-4 mr-2"/> Create Brief</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>New Context Brief</DialogTitle></DialogHeader>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Brand</label>
+                <select {...register("brandId", { required: true })} className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Title</label>
+                <Input {...register("title", { required: true })} placeholder="e.g. Q3 Campaign Messaging" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Content</label>
+                <Textarea {...register("content", { required: true })} rows={6} placeholder="Paste brief content here..." />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tags</label>
+                <Input {...register("tags")} placeholder="comma separated" />
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={createMutation.isPending}>Save Brief</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
+
+      {isLoading ? (
+        <div className="space-y-4">
+           <Skeleton className="h-24 w-full bg-card rounded-xl" />
+           <Skeleton className="h-24 w-full bg-card rounded-xl" />
+        </div>
+      ) : briefs.length > 0 ? (
+        <div className="grid gap-4">
+          {briefs.map(brief => (
+            <div key={brief.id} className="bg-card border border-border rounded-xl p-4 flex flex-col md:flex-row gap-4 hover:border-primary/50 transition-colors">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="font-bold text-lg text-foreground">{brief.name}</h4>
+                  <Badge variant="outline" className="text-[10px]">{brands.find(b => b.id === brief.brandId)?.name || 'Unknown Brand'}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-2 bg-background p-3 rounded border border-border font-mono">
+                  {brief.content}
+                </p>
+                {brief.tags && brief.tags.length > 0 && (
+                  <div className="flex gap-1 mt-3">
+                    {brief.tags.map(t => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center md:items-start gap-2 shrink-0 md:pl-4 md:border-l border-border">
+                <Button variant="ghost" size="sm"><Edit2 className="w-4 h-4 mr-2" /> Edit</Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col items-center justify-center h-64 text-center border border-border border-dashed rounded-xl bg-card/30">
+          <FileText size={48} className="text-muted-foreground/50 mb-4" />
+          <h3 className="text-xl font-bold text-foreground mb-2">No briefs yet</h3>
+          <p className="text-muted-foreground mb-4">Create context documents to guide AI generation.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HashtagsTab({ sets, brands }: { sets: any[], brands: any[] }) {
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const { register, handleSubmit, reset } = useForm();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const createMutation = useCreateHashtagSet({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/hashtag-sets"] });
+        setIsAddOpen(false);
+        reset();
+        toast({ title: "Hashtag set created" });
+      }
+    }
+  });
+
+  const deleteMutation = useDeleteHashtagSet({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/hashtag-sets"] });
+        toast({ title: "Deleted" });
+      }
+    }
+  });
+
+  const onSubmit = (data: any) => {
+    createMutation.mutate({
+      data: {
+        brandId: data.brandId,
+        name: data.name,
+        category: data.category,
+        hashtags: data.hashtags.split(/[\n,]+/).map((s:string) => s.trim().replace(/^#/, '')).filter(Boolean)
+      }
+    });
+  };
+
+  const categories = ["school_specific", "campaign", "seasonal", "trending", "evergreen"];
+  
+  // Group by category
+  const grouped = sets.reduce((acc, set) => {
+    if(!acc[set.category]) acc[set.category] = [];
+    acc[set.category].push(set);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-end mb-4">
+        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <DialogTrigger asChild>
+            <Button><Plus className="w-4 h-4 mr-2"/> Create Hashtag Set</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>New Hashtag Set</DialogTitle></DialogHeader>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Brand</label>
+                <select {...register("brandId", { required: true })} className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Name</label>
+                  <Input {...register("name", { required: true })} placeholder="e.g. Match Day Base" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Category</label>
+                  <select {...register("category", { required: true })} className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+                    {categories.map(c => <option key={c} value={c}>{c.replace('_', ' ').toUpperCase()}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Hashtags (comma separated)</label>
+                <Textarea {...register("hashtags", { required: true })} rows={4} placeholder="esports, matchday, win" />
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={createMutation.isPending}>Save Set</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {sets.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-64 text-center border border-border border-dashed rounded-xl bg-card/30">
+          <Hash size={48} className="text-muted-foreground/50 mb-4" />
+          <h3 className="text-xl font-bold text-foreground mb-2">Hashtag library empty</h3>
+          <p className="text-muted-foreground mb-4">Organize your hashtags by campaign and platform.</p>
+        </div>
+      ) : (
+        categories.map(cat => {
+          const catSets = grouped[cat];
+          if(!catSets || catSets.length === 0) return null;
+          
+          return (
+            <div key={cat} className="space-y-4">
+              <h3 className="text-lg font-bold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">
+                {cat.replace('_', ' ')}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {catSets.map(set => (
+                  <div key={set.id} className="bg-card border border-border rounded-xl p-4 relative group">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-bold">{set.name}</h4>
+                        <Badge variant="outline" className="text-[10px] mt-1">{brands.find(b => b.id === set.brandId)?.name || 'Unknown'}</Badge>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="opacity-0 group-hover:opacity-100 text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8"
+                        onClick={() => {
+                          if(confirm("Delete this set?")) deleteMutation.mutate({ id: set.id });
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {set.hashtags.map((tag:string, i:number) => (
+                        <span key={i} className="text-xs text-primary bg-primary/10 px-2 py-1 rounded">#{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

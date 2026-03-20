@@ -4,9 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlatformIcon } from "@/components/ui/platform-icon";
-import { useGetBrands, useGetTemplates } from "@workspace/api-client-react";
+import { 
+  useGetBrands, 
+  useGetTemplates, 
+  useGetAssets,
+  useCreateCampaign
+} from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 
 const PREVIEW_PANELS = [
   { id: "ig-feed", name: "Instagram Feed", platform: "instagram", ratio: "1:1", ratioClass: "aspect-square" },
@@ -16,16 +22,61 @@ const PREVIEW_PANELS = [
 ];
 
 export default function CampaignStudio() {
+  const { toast } = useToast();
+  
   const { data: brands } = useGetBrands();
-  const { data: templates } = useGetTemplates();
   const [selectedBrand, setSelectedBrand] = useState<string>("");
+  
+  const { data: templates } = useGetTemplates({ brandId: selectedBrand || undefined }, { query: { enabled: !!selectedBrand } });
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+
+  const { data: approvedAssets } = useGetAssets({ brandId: selectedBrand || undefined, status: "approved" }, { query: { enabled: !!selectedBrand } });
+  const { data: briefs } = useGetAssets({ brandId: selectedBrand || undefined, type: "context" }, { query: { enabled: !!selectedBrand } });
+
+  const [campaignName, setCampaignName] = useState("");
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  const [briefText, setBriefText] = useState("");
   const [refineText, setRefineText] = useState("");
+  
+  const createCampaignMutation = useCreateCampaign();
+
+  const toggleAsset = (id: string, isPrimary: boolean) => {
+    setSelectedAssets(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(a => a !== id);
+      } else {
+        return [id, ...prev]; // naive array, in a real app might track primary vs supporting
+      }
+    });
+  };
+
+  const handleSaveDraft = () => {
+    if (!selectedBrand) {
+      toast({ variant: "destructive", title: "Brand required" });
+      return;
+    }
+    
+    createCampaignMutation.mutate({
+      data: {
+        name: campaignName || "Untitled Campaign",
+        brandId: selectedBrand,
+        templateId: selectedTemplate || null,
+        briefText,
+        selectedAssets: selectedAssets.map(id => ({ assetId: id, role: "primary" })),
+        createdBy: "current_user",
+      }
+    }, {
+      onSuccess: () => {
+        toast({ title: "Draft Saved", description: "Campaign saved successfully." });
+      }
+    });
+  };
 
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
       
       {/* LEFT PANEL: Setup */}
-      <aside className="w-[300px] shrink-0 border-r border-border bg-card/50 flex flex-col">
+      <aside className="w-[320px] shrink-0 border-r border-border bg-card/50 flex flex-col z-20 shadow-xl">
         <div className="p-4 border-b border-border">
           <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
             <Settings2 size={18} className="text-primary" />
@@ -34,6 +85,16 @@ export default function CampaignStudio() {
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campaign Name</label>
+            <Input 
+              placeholder="e.g. Fall Tournament Hype" 
+              className="bg-background border-border"
+              value={campaignName}
+              onChange={e => setCampaignName(e.target.value)}
+            />
+          </div>
+
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brand DNA</label>
             <Select value={selectedBrand} onValueChange={setSelectedBrand}>
@@ -49,14 +110,13 @@ export default function CampaignStudio() {
                     </div>
                   </SelectItem>
                 ))}
-                {!brands?.length && <SelectItem value="placeholder">Crown U</SelectItem>}
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Template</label>
-            <Select>
+            <Select value={selectedTemplate} onValueChange={setSelectedTemplate} disabled={!selectedBrand}>
               <SelectTrigger className="w-full bg-background border-border">
                 <SelectValue placeholder="Select Template" />
               </SelectTrigger>
@@ -64,7 +124,6 @@ export default function CampaignStudio() {
                 {templates?.map(t => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
-                {!templates?.length && <SelectItem value="placeholder">Esports Match Day</SelectItem>}
               </SelectContent>
             </Select>
           </div>
@@ -72,41 +131,58 @@ export default function CampaignStudio() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source Assets</label>
-              <Button variant="ghost" size="icon" className="h-6 w-6"><Plus size={14} /></Button>
             </div>
             
             <div className="grid grid-cols-3 gap-2">
-              {[1,2,3,4,5].map(i => (
-                <div 
-                  key={i} 
-                  className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group ${i === 1 ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'}`}
-                >
-                  {/* landing page hero scenic mountain landscape */}
-                  <img src={`https://images.unsplash.com/photo-1542751371-adc38448a05e?w=100&h=100&fit=crop`} alt="Asset" className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
-                  {i === 1 && <div className="absolute top-1 left-1 w-2 h-2 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)]" />}
-                </div>
-              ))}
+              {approvedAssets?.filter(a => a.type === 'visual').slice(0, 5).map(asset => {
+                const isSelected = selectedAssets.includes(asset.id);
+                return (
+                  <div 
+                    key={asset.id} 
+                    onClick={(e) => toggleAsset(asset.id, !e.shiftKey)}
+                    className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group transition-colors ${isSelected ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'}`}
+                  >
+                    {asset.thumbnailUrl || asset.fileUrl ? (
+                       <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt="Asset" className={`w-full h-full object-cover transition-opacity ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-card"><ImageIcon size={16} className="text-muted-foreground" /></div>
+                    )}
+                    {isSelected && <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)] border border-background" />}
+                  </div>
+                )
+              })}
               <div className="aspect-square rounded-md border border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-colors cursor-pointer bg-background/50">
                 <Plus size={20} />
               </div>
             </div>
+            {selectedBrand && !approvedAssets?.length && <p className="text-xs text-muted-foreground italic">No approved visual assets found.</p>}
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reference URL</label>
-            <Input placeholder="https://..." className="bg-background border-border text-sm" />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brief / Context</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Context Brief</label>
+            <Select onValueChange={(val) => {
+              const brief = briefs?.find(b => b.id === val);
+              if(brief) setBriefText(brief.content || "");
+            }} disabled={!selectedBrand || !briefs?.length}>
+              <SelectTrigger className="w-full bg-background border-border">
+                <SelectValue placeholder="Select a Brief" />
+              </SelectTrigger>
+              <SelectContent>
+                {briefs?.map(b => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Textarea 
               placeholder="Write custom brief or instructions for the AI..." 
-              className="min-h-[120px] bg-background border-border text-sm resize-y"
+              className="min-h-[120px] bg-background border-border text-sm resize-y mt-2"
+              value={briefText}
+              onChange={e => setBriefText(e.target.value)}
             />
           </div>
         </div>
         
-        <div className="p-4 border-t border-border bg-background">
+        <div className="p-4 border-t border-border bg-background shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-10">
           <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20">
             <Play size={16} className="mr-2" /> Generate Campaign
           </Button>
@@ -114,7 +190,7 @@ export default function CampaignStudio() {
       </aside>
 
       {/* CENTER PANEL: Previews */}
-      <section className="flex-1 flex flex-col min-w-0 relative">
+      <section className="flex-1 flex flex-col min-w-0 relative bg-background/50">
         <div className="h-16 px-6 border-b border-border flex items-center justify-between shrink-0 bg-background/80 backdrop-blur-md sticky top-0 z-10">
           <div className="flex-1 max-w-xl relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
@@ -162,10 +238,9 @@ export default function CampaignStudio() {
                       <Textarea 
                         className="flex-1 min-h-[100px] resize-none text-sm bg-background border-border p-3"
                         placeholder="AI generated caption will appear here..."
-                        defaultValue={`Get ready for the ultimate showdown! 🎮🔥\n\nOur team is locked and loaded for today's match. Tune in live at 5PM EST.\n\n#Esports #MatchDay`}
                       />
                       <div className="flex justify-between items-center px-1">
-                        <span className="text-[10px] text-muted-foreground">142 chars</span>
+                        <span className="text-[10px] text-muted-foreground">0 chars</span>
                         <div className="flex gap-1">
                            <Button variant="ghost" size="icon" className="h-6 w-6"><FileText size={12} /></Button>
                         </div>
@@ -187,7 +262,7 @@ export default function CampaignStudio() {
       </section>
 
       {/* RIGHT PANEL: Status & Actions */}
-      <aside className="w-[280px] shrink-0 border-l border-border bg-card/50 flex flex-col">
+      <aside className="w-[280px] shrink-0 border-l border-border bg-card/50 flex flex-col z-20 shadow-xl">
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h2 className="font-bold text-foreground">Overview</h2>
           <div className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded border border-primary/20">
@@ -199,13 +274,12 @@ export default function CampaignStudio() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Activity Log</h3>
           <div className="space-y-4">
             {[
-              { time: "Just now", text: "Campaign draft created", user: "AH" },
-              { time: "2 mins ago", text: "Assets attached to brief", user: "AH" },
+              { time: "Just now", text: "Studio session started", user: "You" },
             ].map((log, i) => (
               <div key={i} className="flex gap-3 relative">
-                {i !== 1 && <div className="absolute left-[11px] top-6 bottom-[-20px] w-px bg-border" />}
+                {i !== 0 && <div className="absolute left-[11px] top-6 bottom-[-20px] w-px bg-border" />}
                 <div className="w-6 h-6 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-[10px] font-bold text-accent shrink-0 z-10">
-                  {log.user}
+                  {log.user.charAt(0)}
                 </div>
                 <div>
                   <p className="text-sm text-foreground">{log.text}</p>
@@ -217,13 +291,19 @@ export default function CampaignStudio() {
         </div>
         
         <div className="p-4 border-t border-border space-y-2 bg-background">
-          <Button variant="outline" className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground">
-            <Save size={16} className="mr-2 text-muted-foreground" /> Save Draft
+          <Button 
+            variant="outline" 
+            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground"
+            onClick={handleSaveDraft}
+            disabled={createCampaignMutation.isPending}
+          >
+            <Save size={16} className="mr-2 text-muted-foreground" /> 
+            {createCampaignMutation.isPending ? "Saving..." : "Save Draft"}
           </Button>
-          <Button variant="outline" className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground">
+          <Button variant="outline" className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground" disabled>
             <Download size={16} className="mr-2 text-muted-foreground" /> Download All Assets
           </Button>
-          <Button className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2">
+          <Button className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2" disabled>
             Submit for Review
           </Button>
         </div>

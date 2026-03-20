@@ -9,21 +9,36 @@ import {
   ChevronRight,
   LogOut
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-
-const NAV_ITEMS = [
-  { href: "/", label: "Campaign Studio", icon: LayoutDashboard },
-  { href: "/assets", label: "Asset Library", icon: Library },
-  { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: 2 },
-  { href: "/review", label: "Review Queue", icon: CheckSquare, badge: 5 },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+import { useGetCampaigns } from "@workspace/api-client-react";
 
 export function Sidebar() {
   const [location] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { data: campaigns } = useGetCampaigns();
+  const [calendarCount, setCalendarCount] = useState(0);
+
+  const reviewCount = campaigns?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
+
+  useEffect(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    fetch(`/api/calendar-entries?start=${start.toISOString()}&end=${end.toISOString()}`)
+      .then(res => res.json())
+      .then(data => setCalendarCount(Array.isArray(data) ? data.length : 0))
+      .catch(() => {});
+  }, []);
+
+  const NAV_ITEMS = [
+    { href: "/", label: "Campaign Studio", icon: LayoutDashboard },
+    { href: "/assets", label: "Asset Library", icon: Library },
+    { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: calendarCount || undefined },
+    { href: "/review", label: "Review Queue", icon: CheckSquare, badge: reviewCount || undefined },
+    { href: "/settings", label: "Settings", icon: Settings },
+  ];
 
   return (
     <motion.aside
@@ -31,7 +46,6 @@ export function Sidebar() {
       animate={{ width: collapsed ? 72 : 240 }}
       className="h-screen flex flex-col bg-sidebar border-r border-sidebar-border relative z-20 shrink-0 transition-all duration-300 ease-in-out"
     >
-      {/* Logo Area */}
       <div className="h-16 flex items-center px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
         <img 
           src={`${import.meta.env.BASE_URL}images/sparq-logo.png`} 
@@ -45,7 +59,6 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Collapse Toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="absolute -right-3 top-20 bg-card border border-border rounded-full p-1 text-muted-foreground hover:text-foreground hover:bg-accent hover:border-accent transition-colors z-50"
@@ -53,7 +66,6 @@ export function Sidebar() {
         {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
       </button>
 
-      {/* Navigation */}
       <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -99,7 +111,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User Area */}
       <div className="p-4 border-t border-sidebar-border shrink-0">
         <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between")}>
           <div className="flex items-center overflow-hidden">

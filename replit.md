@@ -85,14 +85,15 @@ Dark mode only (no light mode):
 Complete:
 - [x] Project scaffolding with dark mode
 - [x] Database schema (all models)
-- [x] API routes for all CRUD operations
-- [x] Navigation & layout shell (sidebar with 5 sections)
-- [x] Campaign Studio 3-panel UI (mock data, no AI)
-- [x] Asset Library with 3 tabs
-- [x] Brand Settings with tabbed interface
-- [x] Calendar view
-- [x] Review Queue Kanban
-- [x] File upload endpoint
+- [x] API routes for all CRUD operations (brands, templates, assets, hashtag-sets, campaigns, campaign-variants, calendar-entries)
+- [x] Navigation & layout shell (sidebar with dynamic badge counts)
+- [x] Campaign Studio 3-panel UI with brand/template/asset selectors from API, save draft, submit for review
+- [x] Asset Library with 3 functional tabs (Visual Assets with upload, Briefs & Context with CRUD, Hashtag Library with CRUD)
+- [x] Brand Settings with full CRUD (add/edit/delete brands, all DNA fields, template management)
+- [x] Calendar view connected to real calendar entries API with month navigation and brand filtering
+- [x] Review Queue Kanban with real campaign data and status transitions (review/approve/schedule)
+- [x] File upload with multer (50MB limit, image/video/font/audio/pdf support)
+- [x] Database seeding: 4 brands, 9 templates, 2 sample campaigns, 4 variants, 4 calendar entries
 
 Not yet implemented (Phase 2+):
 - Authentication (Google OAuth via NextAuth)
