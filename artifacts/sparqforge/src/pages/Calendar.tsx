@@ -30,6 +30,7 @@ const PLATFORM_LABELS: Record<string, { label: string; icon: string }> = {
   instagram_story: { label: "IG Story", icon: "instagram" },
   twitter: { label: "X/Twitter", icon: "twitter" },
   linkedin: { label: "LinkedIn", icon: "linkedin" },
+  tiktok: { label: "TikTok", icon: "tiktok" },
 };
 
 export default function Calendar() {
