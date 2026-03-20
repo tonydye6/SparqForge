@@ -3,6 +3,11 @@ import { db, socialAccountsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { decryptToken, encryptToken } from "../services/token-encryption";
 import { logger } from "../lib/logger";
+import type {
+  TwitterTokenResponse,
+  LinkedInTokenResponse,
+  FacebookTokenResponse,
+} from "../types/oauth";
 
 const router = Router();
 
@@ -97,7 +102,7 @@ router.post("/social-accounts/:id/refresh", async (req, res) => {
         return res.status(400).json({ error: "Token refresh failed" });
       }
 
-      const tokenData = await tokenResponse.json() as any;
+      const tokenData: TwitterTokenResponse = await tokenResponse.json();
       const expiresAt = tokenData.expires_in
         ? new Date(Date.now() + tokenData.expires_in * 1000)
         : null;
@@ -140,7 +145,7 @@ router.post("/social-accounts/:id/refresh", async (req, res) => {
         return res.status(400).json({ error: "Token refresh failed" });
       }
 
-      const tokenData = await tokenResponse.json() as any;
+      const tokenData: LinkedInTokenResponse = await tokenResponse.json();
       const expiresAt = tokenData.expires_in
         ? new Date(Date.now() + tokenData.expires_in * 1000)
         : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
@@ -180,7 +185,7 @@ router.post("/social-accounts/:id/refresh", async (req, res) => {
         return res.status(400).json({ error: "Token refresh failed" });
       }
 
-      const tokenData = await tokenResponse.json() as any;
+      const tokenData: FacebookTokenResponse = await tokenResponse.json();
       const expiresIn = tokenData.expires_in || 5184000;
 
       await db

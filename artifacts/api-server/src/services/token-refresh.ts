@@ -2,6 +2,11 @@ import { db, socialAccountsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { decryptToken, encryptToken } from "./token-encryption";
 import { logger } from "../lib/logger";
+import type {
+  TwitterTokenResponse,
+  LinkedInTokenResponse,
+  FacebookTokenResponse,
+} from "../types/oauth";
 
 export async function refreshExpiringTokens(): Promise<void> {
   try {
@@ -52,8 +57,10 @@ export async function refreshExpiringTokens(): Promise<void> {
   }
 }
 
-async function refreshTwitterToken(account: any): Promise<void> {
-  const refreshTokenDecrypted = decryptToken(account.refreshToken);
+type SocialAccountRecord = typeof socialAccountsTable.$inferSelect;
+
+async function refreshTwitterToken(account: SocialAccountRecord): Promise<void> {
+  const refreshTokenDecrypted = decryptToken(account.refreshToken!);
   const clientId = process.env.X_SparqForge_X_API_Key;
 
   const response = await fetch("https://api.twitter.com/2/oauth2/token", {
@@ -70,7 +77,7 @@ async function refreshTwitterToken(account: any): Promise<void> {
     throw new Error(`Twitter refresh failed: ${response.status}`);
   }
 
-  const data = await response.json() as any;
+  const data: TwitterTokenResponse = await response.json();
   const expiresAt = data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null;
 
   await db
@@ -87,8 +94,8 @@ async function refreshTwitterToken(account: any): Promise<void> {
   logger.info({ platform: "twitter", accountName: account.accountName }, "Token refreshed successfully");
 }
 
-async function refreshLinkedInToken(account: any): Promise<void> {
-  const refreshTokenDecrypted = decryptToken(account.refreshToken);
+async function refreshLinkedInToken(account: SocialAccountRecord): Promise<void> {
+  const refreshTokenDecrypted = decryptToken(account.refreshToken!);
   const clientId = process.env.SparqForge_LinkedIn_Client_ID;
   const clientSecret = process.env.SparqForge_LinkedIn_Client_Secret;
 
@@ -107,7 +114,7 @@ async function refreshLinkedInToken(account: any): Promise<void> {
     throw new Error(`LinkedIn refresh failed: ${response.status}`);
   }
 
-  const data = await response.json() as any;
+  const data: LinkedInTokenResponse = await response.json();
   const expiresAt = data.expires_in
     ? new Date(Date.now() + data.expires_in * 1000)
     : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
@@ -126,7 +133,7 @@ async function refreshLinkedInToken(account: any): Promise<void> {
   logger.info({ platform: "linkedin", accountName: account.accountName }, "Token refreshed successfully");
 }
 
-async function refreshInstagramToken(account: any): Promise<void> {
+async function refreshInstagramToken(account: SocialAccountRecord): Promise<void> {
   const accessTokenDecrypted = decryptToken(account.accessToken);
   const appId = process.env.SparqForge_Instagram_App_ID;
   const appSecret = process.env.SparqForge_Instagram_App_Secret;
@@ -143,7 +150,7 @@ async function refreshInstagramToken(account: any): Promise<void> {
     throw new Error(`Instagram refresh failed: ${response.status}`);
   }
 
-  const data = await response.json() as any;
+  const data: FacebookTokenResponse = await response.json();
   const expiresIn = data.expires_in || 5184000;
 
   await db

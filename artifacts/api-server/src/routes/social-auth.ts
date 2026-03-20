@@ -3,6 +3,16 @@ import crypto from "crypto";
 import { db, socialAccountsTable } from "@workspace/db";
 import { encryptToken } from "../services/token-encryption";
 import { logger } from "../lib/logger";
+import type {
+  TwitterTokenResponse,
+  TwitterUserResponse,
+  FacebookTokenResponse,
+  FacebookPagesResponse,
+  FacebookPageIGResponse,
+  InstagramUserResponse,
+  LinkedInTokenResponse,
+  LinkedInProfileResponse,
+} from "../types/oauth";
 
 const router = Router();
 
@@ -111,7 +121,7 @@ router.get("/auth/twitter/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=token_exchange_failed`);
     }
 
-    const tokenData = await tokenResponse.json() as any;
+    const tokenData: TwitterTokenResponse = await tokenResponse.json();
 
     const userResponse = await fetch("https://api.twitter.com/2/users/me", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
@@ -121,7 +131,7 @@ router.get("/auth/twitter/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=user_fetch_failed`);
     }
 
-    const userData = await userResponse.json() as any;
+    const userData: TwitterUserResponse = await userResponse.json();
 
     const expiresAt = tokenData.expires_in
       ? new Date(Date.now() + tokenData.expires_in * 1000)
@@ -195,7 +205,7 @@ router.get("/auth/instagram/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=token_exchange_failed`);
     }
 
-    const tokenData = await tokenResp.json() as any;
+    const tokenData: FacebookTokenResponse = await tokenResp.json();
     const shortLivedToken = tokenData.access_token;
 
     const longLivedUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
@@ -205,14 +215,14 @@ router.get("/auth/instagram/callback", async (req, res) => {
     longLivedUrl.searchParams.set("fb_exchange_token", shortLivedToken);
 
     const longLivedResp = await fetch(longLivedUrl.toString());
-    const longLivedData = await longLivedResp.json() as any;
+    const longLivedData: FacebookTokenResponse = await longLivedResp.json();
     const accessToken = longLivedData.access_token || shortLivedToken;
     const expiresIn = longLivedData.expires_in || 5184000;
 
     const pagesResp = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
     );
-    const pagesData = await pagesResp.json() as any;
+    const pagesData: FacebookPagesResponse = await pagesResp.json();
 
     let igAccountName = "Instagram Business";
     let igAccountId = "";
@@ -222,14 +232,14 @@ router.get("/auth/instagram/callback", async (req, res) => {
       const igResp = await fetch(
         `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${accessToken}`
       );
-      const igData = await igResp.json() as any;
+      const igData: FacebookPageIGResponse = await igResp.json();
 
       if (igData.instagram_business_account) {
         igAccountId = igData.instagram_business_account.id;
         const igUserResp = await fetch(
           `https://graph.facebook.com/v19.0/${igAccountId}?fields=username&access_token=${accessToken}`
         );
-        const igUserData = await igUserResp.json() as any;
+        const igUserData: InstagramUserResponse = await igUserResp.json();
         igAccountName = `@${igUserData.username || "instagram_user"}`;
       }
     }
@@ -263,7 +273,7 @@ router.get("/auth/linkedin", (_req, res) => {
 
   const state = createOAuthState();
   const callbackUrl = `${getCallbackBaseUrl()}/api/auth/linkedin/callback`;
-  const scopes = ["openid", "profile", "w_member_social"].join(" ");
+  const scopes = ["openid", "profile", "w_member_social", "offline_access"].join(" ");
 
   const params = new URLSearchParams({
     response_type: "code",
@@ -310,7 +320,7 @@ router.get("/auth/linkedin/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=token_exchange_failed`);
     }
 
-    const tokenData = await tokenResponse.json() as any;
+    const tokenData: LinkedInTokenResponse = await tokenResponse.json();
 
     const profileResponse = await fetch("https://api.linkedin.com/v2/userinfo", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
@@ -320,7 +330,7 @@ router.get("/auth/linkedin/callback", async (req, res) => {
     let accountId = "";
 
     if (profileResponse.ok) {
-      const profileData = await profileResponse.json() as any;
+      const profileData: LinkedInProfileResponse = await profileResponse.json();
       accountName = profileData.name || `${profileData.given_name || ""} ${profileData.family_name || ""}`.trim() || "LinkedIn User";
       accountId = profileData.sub || "";
     }
