@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlatformIcon } from "@/components/ui/platform-icon";
+import { TikTokPreviewFrame } from "@/components/ui/tiktok-preview-frame";
 import { 
   useGetBrands, 
   useGetTemplates, 
@@ -46,6 +47,7 @@ const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; rati
   instagram_story: { name: "Instagram Story", platformIcon: "instagram", ratio: "9:16" },
   twitter: { name: "X (Twitter)", platformIcon: "twitter", ratio: "16:9" },
   linkedin: { name: "LinkedIn", platformIcon: "linkedin", ratio: "16:9" },
+  tiktok: { name: "TikTok", platformIcon: "tiktok", ratio: "9:16" },
 };
 
 export default function CampaignStudio() {
@@ -596,6 +598,14 @@ export default function CampaignStudio() {
                     
                     <div className="p-4 flex-1 flex flex-col gap-4">
                       <div className="flex gap-4">
+                        {variant.platform === "tiktok" ? (
+                          <div className="w-[160px] shrink-0">
+                            <TikTokPreviewFrame
+                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}` : undefined}
+                              caption={variant.caption}
+                            />
+                          </div>
+                        ) : (
                         <div className="w-[160px] shrink-0 rounded-md border border-border/50 overflow-hidden bg-muted/30">
                           {imageUrl ? (
                             <img 
@@ -610,6 +620,7 @@ export default function CampaignStudio() {
                             </div>
                           )}
                         </div>
+                        )}
                         
                         <div className="flex-1 flex flex-col gap-2">
                           {variant.headlineText && (

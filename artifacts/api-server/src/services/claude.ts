@@ -6,6 +6,7 @@ export interface CaptionResult {
   instagram_story: { caption: string; headline: string };
   twitter: { caption: string; headline: string };
   linkedin: { caption: string; headline: string };
+  tiktok: { caption: string; headline: string };
 }
 
 function buildSystemPrompt(ctx: AssembledContext): string {
@@ -80,18 +81,19 @@ function buildUserMessage(ctx: AssembledContext): string {
     message += "\n";
   }
 
-  message += `Generate captions AND headline overlay text for the following platforms: Instagram feed, Instagram story, Twitter/X, LinkedIn.
+  message += `Generate captions AND headline overlay text for the following platforms: Instagram feed, Instagram story, Twitter/X, LinkedIn, TikTok.
 
 Return ONLY valid JSON in this exact format:
 {
   "instagram_feed": { "caption": "...", "headline": "..." },
   "instagram_story": { "caption": "...", "headline": "..." },
   "twitter": { "caption": "...", "headline": "..." },
-  "linkedin": { "caption": "...", "headline": "..." }
+  "linkedin": { "caption": "...", "headline": "..." },
+  "tiktok": { "caption": "...", "headline": "..." }
 }
 
-Each headline should be punchy and different per platform (shorter for Story, more professional for LinkedIn).
-Captions must respect each platform's character limit.
+Each headline should be punchy and different per platform (shorter for Story, more professional for LinkedIn, trendy and hook-driven for TikTok).
+Captions must respect each platform's character limit (TikTok: 2200 chars).
 Select hashtags from the provided sets — do not invent new ones unless no relevant set exists.`;
 
   return message;
@@ -127,6 +129,7 @@ export async function generateCaptions(ctx: AssembledContext): Promise<CaptionRe
     instagram_story: { ...defaults, ...parsed.instagram_story },
     twitter: { ...defaults, ...parsed.twitter },
     linkedin: { ...defaults, ...parsed.linkedin },
+    tiktok: { ...defaults, ...parsed.tiktok },
   };
 }
 

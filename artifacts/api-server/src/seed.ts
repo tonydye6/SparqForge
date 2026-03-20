@@ -19,6 +19,7 @@ const DEFAULT_BRANDS = [
       instagram_feed: { char_limit: 2200, hashtag_limit: 30 },
       instagram_story: { char_limit: 2200, hashtag_limit: 10 },
       linkedin: { char_limit: 3000, hashtag_limit: 5 },
+      tiktok: { char_limit: 2200, hashtag_limit: 10 },
     },
     hashtagStrategy: {
       always_include: ["#CrownU", "#Esports"],
@@ -42,6 +43,7 @@ const DEFAULT_BRANDS = [
       instagram_feed: { char_limit: 2200, hashtag_limit: 30 },
       instagram_story: { char_limit: 2200, hashtag_limit: 10 },
       linkedin: { char_limit: 3000, hashtag_limit: 5 },
+      tiktok: { char_limit: 2200, hashtag_limit: 10 },
     },
     hashtagStrategy: {
       always_include: ["#RumbleU", "#ReadyToRumble"],
@@ -65,6 +67,7 @@ const DEFAULT_BRANDS = [
       instagram_feed: { char_limit: 2200, hashtag_limit: 30 },
       instagram_story: { char_limit: 2200, hashtag_limit: 10 },
       linkedin: { char_limit: 3000, hashtag_limit: 5 },
+      tiktok: { char_limit: 2200, hashtag_limit: 10 },
     },
     hashtagStrategy: {
       always_include: ["#MascotMayhem", "#MascotMadness"],
@@ -88,6 +91,7 @@ const DEFAULT_BRANDS = [
       instagram_feed: { char_limit: 2200, hashtag_limit: 10 },
       instagram_story: { char_limit: 2200, hashtag_limit: 5 },
       linkedin: { char_limit: 3000, hashtag_limit: 5 },
+      tiktok: { char_limit: 2200, hashtag_limit: 10 },
     },
     hashtagStrategy: {
       always_include: ["#SparqGames", "#GamingIndustry"],
@@ -244,6 +248,7 @@ export async function seedDatabase() {
         { platform: "instagram_story", aspectRatio: "9:16", caption: "GAME DAY INCOMING 🏆\n\nSwipe up to watch live!" },
         { platform: "twitter", aspectRatio: "16:9", caption: "👑 The Crown awaits. Regional Finals this Saturday at 5PM EST. Who's ready? #CrownU #Esports #MatchDay" },
         { platform: "linkedin", aspectRatio: "1.91:1", caption: "Crown U Esports is proud to announce our qualification for the Regional Finals Championship. Our student athletes have demonstrated exceptional skill and teamwork throughout the season." },
+        { platform: "tiktok", aspectRatio: "9:16", caption: "POV: Your esports team just qualified for regionals 👑🎮\n\nThe grind was REAL but we're here. Crown U is coming for that trophy 🏆\n\n#CrownU #Esports #CollegeEsports #GamingTikTok" },
       ];
 
       for (const v of platforms) {

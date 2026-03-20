@@ -1,9 +1,10 @@
-import { Instagram, Twitter, Linkedin, Facebook, Youtube } from "lucide-react";
+import { Instagram, Twitter, Linkedin, Facebook, Youtube, Music } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function PlatformIcon({ platform, className }: { platform: string; className?: string }) {
   const p = platform.toLowerCase();
   
+  if (p.includes("tiktok")) return <Music className={cn("text-[#00F2EA]", className)} />;
   if (p.includes("instagram")) return <Instagram className={cn("text-[#E1306C]", className)} />;
   if (p.includes("twitter") || p.includes("x")) return <Twitter className={cn("text-[#1DA1F2]", className)} />;
   if (p.includes("linkedin")) return <Linkedin className={cn("text-[#0A66C2]", className)} />;
