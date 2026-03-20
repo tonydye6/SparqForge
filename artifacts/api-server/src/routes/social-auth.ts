@@ -16,20 +16,27 @@ import type {
 
 const router = Router();
 
-function getCallbackBaseUrl(): string {
+function resolveBaseUrl(): string {
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
   if (devDomain) {
     return `https://${devDomain}`;
   }
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const firstDomain = domains.split(",")[0].trim();
+    if (firstDomain) {
+      return `https://${firstDomain}`;
+    }
+  }
   return "http://localhost:3000";
 }
 
+function getCallbackBaseUrl(): string {
+  return resolveBaseUrl();
+}
+
 function getSettingsRedirectUrl(): string {
-  const devDomain = process.env.REPLIT_DEV_DOMAIN;
-  if (devDomain) {
-    return `https://${devDomain}/settings?tab=accounts`;
-  }
-  return "http://localhost:3000/settings?tab=accounts";
+  return `${resolveBaseUrl()}/settings?tab=accounts`;
 }
 
 const pkceStore = new Map<string, { verifier: string; expiresAt: number }>();
@@ -245,7 +252,8 @@ router.get("/auth/instagram/callback", async (req, res) => {
     }
 
     if (!igAccountId) {
-      igAccountId = `fb_${Date.now()}`;
+      logger.error("Could not resolve Instagram Business Account from connected Facebook pages");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=no_ig_business_account`);
     }
 
     await db.insert(socialAccountsTable).values({
@@ -336,7 +344,8 @@ router.get("/auth/linkedin/callback", async (req, res) => {
     }
 
     if (!accountId) {
-      accountId = `li_${Date.now()}`;
+      logger.error("Could not resolve LinkedIn user identity from profile response");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=profile_fetch_failed`);
     }
 
     const expiresAt = tokenData.expires_in

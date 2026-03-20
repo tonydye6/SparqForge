@@ -86,8 +86,9 @@ function BrandSettingsTab() {
         setActiveBrandId(newBrand.id);
         toast({ title: "Brand created successfully" });
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Failed to create brand", description: err.message });
+      onError: (err: unknown) => {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        toast({ variant: "destructive", title: "Failed to create brand", description: message });
       }
     }
   });
@@ -204,8 +205,9 @@ function ConnectedAccountsTab() {
         queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
         toast({ title: "Account disconnected" });
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Failed to disconnect", description: err.message });
+      onError: (err: unknown) => {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        toast({ variant: "destructive", title: "Failed to disconnect", description: message });
       }
     }
   });
@@ -216,8 +218,9 @@ function ConnectedAccountsTab() {
         queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
         toast({ title: "Token refreshed successfully" });
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Token refresh failed", description: err.message });
+      onError: (err: unknown) => {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        toast({ variant: "destructive", title: "Token refresh failed", description: message });
       }
     }
   });
@@ -429,8 +432,9 @@ function BrandEditor({ brand }: { brand: Brand }) {
         queryClient.invalidateQueries({ queryKey: ["/api/brands"] });
         toast({ title: "Brand updated successfully" });
       },
-      onError: (err: any) => {
-        toast({ variant: "destructive", title: "Update failed", description: err.message });
+      onError: (err: unknown) => {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        toast({ variant: "destructive", title: "Update failed", description: message });
       }
     }
   });
