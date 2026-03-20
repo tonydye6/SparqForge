@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, campaignVariantsTable } from "@workspace/db";
+import { db, campaignVariantsTable, campaignsTable, refinementLogsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -38,7 +38,7 @@ router.post("/campaigns/:campaignId/variants", async (req, res): Promise<void> =
 });
 
 router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promise<void> => {
-  const { variantId } = req.params;
+  const { campaignId, variantId } = req.params;
   const updates: Record<string, unknown> = {};
 
   if (req.body.caption !== undefined) updates.caption = req.body.caption;
@@ -49,6 +49,9 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
 
   updates.updatedAt = new Date();
 
+  const [existingVariant] = await db.select().from(campaignVariantsTable)
+    .where(eq(campaignVariantsTable.id, variantId as string));
+
   const [variant] = await db
     .update(campaignVariantsTable)
     .set(updates)
@@ -58,6 +61,23 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
   if (!variant) {
     res.status(404).json({ error: "Variant not found" });
     return;
+  }
+
+  const newStatus = req.body.status;
+  if (existingVariant && (newStatus === "approved" || newStatus === "rejected")) {
+    const [camp] = await db.select({ templateId: campaignsTable.templateId }).from(campaignsTable)
+      .where(eq(campaignsTable.id, campaignId as string));
+    if (camp?.templateId) {
+      await db.insert(refinementLogsTable).values({
+        campaignId: campaignId as string,
+        templateId: camp.templateId,
+        editType: newStatus === "approved" ? "approval" : "rejection",
+        platform: existingVariant.platform,
+        aspectRatio: existingVariant.aspectRatio,
+        newValue: req.body.reviewerComment || null,
+        userId: "system",
+      });
+    }
   }
 
   res.json(variant);

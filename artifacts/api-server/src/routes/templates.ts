@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, templatesTable } from "@workspace/db";
+import { eq, desc, and, sql } from "drizzle-orm";
+import { db, templatesTable, templateVersionsTable, templateRecommendationsTable, refinementLogsTable } from "@workspace/db";
 import {
   GetTemplatesQueryParams,
   CreateTemplateBody,
@@ -13,6 +13,7 @@ import {
   DeleteTemplateParams,
   DeleteTemplateResponse,
 } from "@workspace/api-zod";
+import { analyzeTemplate } from "../services/refinement-analysis.js";
 
 const router: IRouter = Router();
 
@@ -69,16 +70,35 @@ router.put("/templates/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [template] = await db
-    .update(templatesTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(templatesTable.id, params.data.id))
-    .returning();
-
-  if (!template) {
+  const [existing] = await db.select().from(templatesTable).where(eq(templatesTable.id, params.data.id));
+  if (!existing) {
     res.status(404).json({ error: "Template not found" });
     return;
   }
+
+  const changedFields = Object.keys(parsed.data).filter((k) => {
+    const key = k as keyof typeof parsed.data;
+    return JSON.stringify(parsed.data[key]) !== JSON.stringify((existing as Record<string, unknown>)[key]);
+  });
+
+  if (changedFields.length > 0) {
+    const { id, createdAt, updatedAt, ...snapshotFields } = existing;
+    await db.insert(templateVersionsTable).values({
+      templateId: existing.id,
+      version: existing.version,
+      snapshot: snapshotFields,
+      changedFields,
+      changeReason: (req.body as Record<string, unknown>).changeReason as string || null,
+    });
+  }
+
+  const newVersion = changedFields.length > 0 ? existing.version + 1 : existing.version;
+
+  const [template] = await db
+    .update(templatesTable)
+    .set({ ...parsed.data, version: newVersion, updatedAt: new Date() })
+    .where(eq(templatesTable.id, params.data.id))
+    .returning();
 
   res.json(UpdateTemplateResponse.parse(template));
 });
@@ -97,6 +117,209 @@ router.delete("/templates/:id", async (req, res): Promise<void> => {
   }
 
   res.json(DeleteTemplateResponse.parse({ message: "Template deleted" }));
+});
+
+router.get("/templates/:id/versions", async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const versions = await db.select().from(templateVersionsTable)
+    .where(eq(templateVersionsTable.templateId, id))
+    .orderBy(desc(templateVersionsTable.version));
+  res.json(versions);
+});
+
+router.post("/templates/:id/rollback/:versionId", async (req, res): Promise<void> => {
+  const { id, versionId } = req.params;
+
+  const [current] = await db.select().from(templatesTable).where(eq(templatesTable.id, id));
+  if (!current) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+
+  const [targetVersion] = await db.select().from(templateVersionsTable)
+    .where(and(eq(templateVersionsTable.id, versionId), eq(templateVersionsTable.templateId, id)));
+  if (!targetVersion) {
+    res.status(404).json({ error: "Version not found" });
+    return;
+  }
+
+  const { id: _curId, createdAt: _ca, updatedAt: _ua, ...snapshotFields } = current;
+  await db.insert(templateVersionsTable).values({
+    templateId: id,
+    version: current.version,
+    snapshot: snapshotFields,
+    changedFields: ["rollback"],
+    changeReason: `Rolled back to version ${targetVersion.version}`,
+  });
+
+  const snapshot = targetVersion.snapshot as Record<string, unknown>;
+  const [restored] = await db.update(templatesTable)
+    .set({
+      ...snapshot,
+      version: current.version + 1,
+      updatedAt: new Date(),
+    })
+    .where(eq(templatesTable.id, id))
+    .returning();
+
+  res.json(restored);
+});
+
+router.get("/templates/:id/stats", async (req, res): Promise<void> => {
+  const { id } = req.params;
+
+  const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, id));
+  if (!template) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+
+  const logs = await db.select().from(refinementLogsTable)
+    .where(eq(refinementLogsTable.templateId, id));
+
+  const totalLogs = logs.length;
+  const approvals = logs.filter(l => l.editType === "approval").length;
+  const rejections = logs.filter(l => l.editType === "rejection").length;
+  const captionEdits = logs.filter(l => l.editType === "caption_edit").length;
+  const headlineEdits = logs.filter(l => l.editType === "headline_edit").length;
+  const imageRefinements = logs.filter(l => l.editType === "image_refinement").length;
+
+  const totalDecisions = approvals + rejections;
+  const approvalRate = totalDecisions > 0 ? approvals / totalDecisions : null;
+
+  const refinementPrompts = logs
+    .filter(l => l.editType === "image_refinement" && l.refinementPrompt)
+    .map(l => l.refinementPrompt!);
+
+  const promptFrequency: Record<string, number> = {};
+  for (const p of refinementPrompts) {
+    const normalized = p.toLowerCase().trim();
+    promptFrequency[normalized] = (promptFrequency[normalized] || 0) + 1;
+  }
+  const topRefinementPrompts = Object.entries(promptFrequency)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([prompt, count]) => ({ prompt, count }));
+
+  res.json({
+    templateId: id,
+    templateName: template.name,
+    totalGenerations: template.totalGenerations,
+    version: template.version,
+    totalLogs,
+    approvals,
+    rejections,
+    approvalRate,
+    captionEdits,
+    headlineEdits,
+    imageRefinements,
+    topRefinementPrompts,
+  });
+});
+
+router.post("/templates/:id/analyze", async (req, res): Promise<void> => {
+  const { id } = req.params;
+
+  const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, id));
+  if (!template) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+
+  try {
+    const recommendation = await analyzeTemplate(id, template);
+    res.json(recommendation);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Analysis failed: ${message}` });
+  }
+});
+
+router.get("/templates/:id/recommendations", async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const recommendations = await db.select().from(templateRecommendationsTable)
+    .where(eq(templateRecommendationsTable.templateId, id))
+    .orderBy(desc(templateRecommendationsTable.createdAt));
+  res.json(recommendations);
+});
+
+router.put("/templates/:id/recommendations/:recId", async (req, res): Promise<void> => {
+  const { id, recId } = req.params;
+  const { action, reviewerNotes } = req.body;
+
+  if (!action || !["apply", "dismiss"].includes(action)) {
+    res.status(400).json({ error: "action must be 'apply' or 'dismiss'" });
+    return;
+  }
+
+  const [rec] = await db.select().from(templateRecommendationsTable)
+    .where(and(eq(templateRecommendationsTable.id, recId), eq(templateRecommendationsTable.templateId, id)));
+  if (!rec) {
+    res.status(404).json({ error: "Recommendation not found" });
+    return;
+  }
+
+  if (action === "dismiss") {
+    const [updated] = await db.update(templateRecommendationsTable)
+      .set({ status: "dismissed", reviewedAt: new Date(), reviewerNotes: reviewerNotes || null })
+      .where(eq(templateRecommendationsTable.id, recId))
+      .returning();
+    res.json(updated);
+    return;
+  }
+
+  const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, id));
+  if (!template) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+
+  const { id: _tId, createdAt: _ca, updatedAt: _ua, ...snapshotFields } = template;
+  await db.insert(templateVersionsTable).values({
+    templateId: id,
+    version: template.version,
+    snapshot: snapshotFields,
+    changedFields: ["recommendation_applied"],
+    changeReason: `Applied recommendation ${recId}`,
+  });
+
+  const recommendations = rec.recommendations as Array<{
+    field: string;
+    currentValue: unknown;
+    recommendedValue: unknown;
+    reasoning: string;
+  }>;
+
+  const ALLOWED_RECOMMENDATION_FIELDS = new Set([
+    "imagenPromptAddition",
+    "imagenNegativeAddition",
+    "claudeCaptionInstruction",
+    "claudeHeadlineInstruction",
+    "layoutSpec",
+    "description",
+    "recommendedAssetTypes",
+    "targetAspectRatios",
+  ]);
+
+  const updateFields: Record<string, unknown> = {};
+  for (const r of recommendations) {
+    if (r.field && r.recommendedValue !== undefined && ALLOWED_RECOMMENDATION_FIELDS.has(r.field)) {
+      updateFields[r.field] = r.recommendedValue;
+    }
+  }
+
+  if (Object.keys(updateFields).length > 0) {
+    await db.update(templatesTable)
+      .set({ ...updateFields, version: template.version + 1, updatedAt: new Date() })
+      .where(eq(templatesTable.id, id));
+  }
+
+  const [updated] = await db.update(templateRecommendationsTable)
+    .set({ status: "applied", reviewedAt: new Date(), reviewerNotes: reviewerNotes || null })
+    .where(eq(templateRecommendationsTable.id, recId))
+    .returning();
+
+  res.json(updated);
 });
 
 export default router;

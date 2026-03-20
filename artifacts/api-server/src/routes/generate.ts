@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, costLogsTable } from "@workspace/db";
+import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
 import { generateCaptions, estimateClaudeCost } from "../services/claude.js";
 import { generateAllImages, estimateImagenCost, PLATFORM_CONFIGS } from "../services/imagen.js";
@@ -158,6 +159,12 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       .set({ status: "draft", updatedAt: new Date() })
       .where(eq(campaignsTable.id, campaignId));
 
+    if (campaign.templateId) {
+      await db.update(templatesTable)
+        .set({ totalGenerations: sql`COALESCE(${templatesTable.totalGenerations}, 0) + 1` })
+        .where(eq(templatesTable.id, campaign.templateId));
+    }
+
     const totalCost = estimateClaudeCost() + estimateImagenCost(images.length);
     await db.insert(costLogsTable).values({
       campaignId,
@@ -217,6 +224,22 @@ router.put("/campaigns/:id/variants/:variantId/caption", async (req: Request, re
     .set({ caption, updatedAt: new Date() })
     .where(eq(campaignVariantsTable.id, variantId))
     .returning();
+
+  if (variant.originalCaption && caption !== variant.originalCaption) {
+    const [camp] = await db.select({ templateId: campaignsTable.templateId }).from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+    if (camp?.templateId) {
+      await db.insert(refinementLogsTable).values({
+        campaignId,
+        templateId: camp.templateId,
+        editType: "caption_edit",
+        platform: variant.platform,
+        aspectRatio: variant.aspectRatio,
+        originalValue: variant.originalCaption,
+        newValue: caption,
+        userId: "system",
+      });
+    }
+  }
 
   res.json(updated);
 });
@@ -285,6 +308,19 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
     .set({ headlineText: headline, compositedImageUrl: compositedUrl, updatedAt: new Date() })
     .where(eq(campaignVariantsTable.id, variantId))
     .returning();
+
+  if (variant.originalHeadline && headline !== variant.originalHeadline) {
+    await db.insert(refinementLogsTable).values({
+      campaignId,
+      templateId: campaign.templateId,
+      editType: "headline_edit",
+      platform: variant.platform,
+      aspectRatio: variant.aspectRatio,
+      originalValue: variant.originalHeadline,
+      newValue: headline,
+      userId: "system",
+    });
+  }
 
   res.json(updated);
 });
@@ -374,6 +410,18 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
       model: "gemini-2.5-flash-image",
       costUsd: cost,
     });
+
+    if (campaign.templateId) {
+      await db.insert(refinementLogsTable).values({
+        campaignId,
+        templateId: campaign.templateId,
+        editType: "image_refinement",
+        platform: variant.platform,
+        aspectRatio: variant.aspectRatio,
+        refinementPrompt: instruction || null,
+        userId: "system",
+      });
+    }
 
     res.json(updated);
   } catch (error) {

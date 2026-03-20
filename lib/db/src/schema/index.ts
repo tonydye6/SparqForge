@@ -1,5 +1,7 @@
 export * from "./brands";
 export * from "./templates";
+export * from "./template-versions";
+export * from "./template-recommendations";
 export * from "./assets";
 export * from "./hashtag-sets";
 export * from "./campaigns";

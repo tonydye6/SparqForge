@@ -586,6 +586,235 @@ paths:
         "404":
           description: Account not found
 
+  /templates/{id}/versions:
+    get:
+      operationId: getTemplateVersions
+      tags: [templates]
+      summary: Get version history for a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of template versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TemplateVersion"
+
+  /templates/{id}/rollback/{versionId}:
+    post:
+      operationId: rollbackTemplate
+      tags: [templates]
+      summary: Rollback a template to a previous version
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: versionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template rolled back
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Template"
+
+  /templates/{id}/stats:
+    get:
+      operationId: getTemplateStats
+      tags: [templates]
+      summary: Get performance statistics for a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Template statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateStats"
+
+  /templates/{id}/analyze:
+    post:
+      operationId: analyzeTemplate
+      tags: [templates]
+      summary: Trigger Claude-powered refinement analysis for a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Analysis result with recommendations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateRecommendation"
+
+  /templates/{id}/recommendations:
+    get:
+      operationId: getTemplateRecommendations
+      tags: [templates]
+      summary: List recommendations for a template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of recommendations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TemplateRecommendation"
+
+  /templates/{id}/recommendations/{recId}:
+    put:
+      operationId: updateTemplateRecommendation
+      tags: [templates]
+      summary: Apply or dismiss a recommendation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: recId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecommendationActionInput"
+      responses:
+        "200":
+          description: Recommendation updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TemplateRecommendation"
+
+  /campaigns/{id}/generate-video:
+    post:
+      operationId: generateVideo
+      tags: [campaigns]
+      summary: Generate video variants for a campaign (SSE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orientations:
+                  type: array
+                  items:
+                    type: string
+                    enum: [landscape, portrait]
+      responses:
+        "200":
+          description: SSE stream of video generation progress
+
+  /campaigns/{id}/variants/{variantId}/audio:
+    post:
+      operationId: addVariantAudio
+      tags: [campaigns]
+      summary: Generate and merge AI audio onto a video variant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: variantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AudioGenerateInput"
+      responses:
+        "200":
+          description: Variant updated with merged audio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampaignVariant"
+
+  /campaigns/{id}/variants/{variantId}/audio-upload:
+    post:
+      operationId: uploadVariantAudio
+      tags: [campaigns]
+      summary: Upload custom audio and merge onto a video variant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: variantId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                audio:
+                  type: string
+                  format: binary
+                mode:
+                  type: string
+                  enum: [replace, mix]
+              required:
+                - audio
+      responses:
+        "200":
+          description: Variant updated with custom audio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CampaignVariant"
+
 components:
   schemas:
     HealthStatus:
@@ -1207,3 +1436,204 @@ components:
           type: string
       required:
         - success
+
+    TemplateVersion:
+      type: object
+      properties:
+        id:
+          type: string
+        templateId:
+          type: string
+        version:
+          type: integer
+        snapshot:
+          type: object
+          additionalProperties: true
+        changedFields:
+          type: array
+          items:
+            type: string
+          nullable: true
+        changeReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - templateId
+        - version
+        - snapshot
+        - createdAt
+
+    TemplateStats:
+      type: object
+      properties:
+        templateId:
+          type: string
+        templateName:
+          type: string
+        totalGenerations:
+          type: integer
+        version:
+          type: integer
+        totalLogs:
+          type: integer
+        approvals:
+          type: integer
+        rejections:
+          type: integer
+        approvalRate:
+          type: number
+          nullable: true
+        captionEdits:
+          type: integer
+        headlineEdits:
+          type: integer
+        imageRefinements:
+          type: integer
+        topRefinementPrompts:
+          type: array
+          items:
+            type: object
+            properties:
+              prompt:
+                type: string
+              count:
+                type: integer
+      required:
+        - templateId
+        - templateName
+        - totalGenerations
+        - version
+        - totalLogs
+        - approvals
+        - rejections
+        - captionEdits
+        - headlineEdits
+        - imageRefinements
+        - topRefinementPrompts
+
+    TemplateRecommendation:
+      type: object
+      properties:
+        id:
+          type: string
+        templateId:
+          type: string
+        analysisData:
+          type: object
+          additionalProperties: true
+        recommendations:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        status:
+          type: string
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewerNotes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - templateId
+        - recommendations
+        - status
+        - createdAt
+
+    RecommendationActionInput:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [apply, dismiss]
+        notes:
+          type: string
+          nullable: true
+      required:
+        - action
+
+    AudioGenerateInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [music, sfx, mute, veo_native]
+        prompt:
+          type: string
+          nullable: true
+        mode:
+          type: string
+          enum: [replace, mix]
+        audioVolume:
+          type: number
+        videoVolume:
+          type: number
+      required:
+        - type
+
+    CampaignVariant:
+      type: object
+      properties:
+        id:
+          type: string
+        campaignId:
+          type: string
+        platform:
+          type: string
+        aspectRatio:
+          type: string
+        rawImageUrl:
+          type: string
+          nullable: true
+        compositedImageUrl:
+          type: string
+          nullable: true
+        videoUrl:
+          type: string
+          nullable: true
+        audioSource:
+          type: string
+          nullable: true
+        audioUrl:
+          type: string
+          nullable: true
+        mergedVideoUrl:
+          type: string
+          nullable: true
+        caption:
+          type: string
+        originalCaption:
+          type: string
+          nullable: true
+        headlineText:
+          type: string
+          nullable: true
+        originalHeadline:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - campaignId
+        - platform
+        - aspectRatio
+        - caption
+        - status
+        - createdAt
+        - updatedAt

@@ -12,7 +12,7 @@ import uploadRouter from "./upload";
 import generateRouter from "./generate";
 import downloadRouter from "./download";
 import socialAuthRouter from "./social-auth";
-import socialAccountsRouter from "./social-accounts";
+import videoRouter from "./video";
 
 const router: IRouter = Router();
 
@@ -29,6 +29,6 @@ router.use(uploadRouter);
 router.use(generateRouter);
 router.use(downloadRouter);
 router.use(socialAuthRouter);
-router.use(socialAccountsRouter);
+router.use(videoRouter);
 
 export default router;

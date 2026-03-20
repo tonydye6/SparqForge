@@ -246,6 +246,114 @@ export interface SocialAccountRefreshResponse {
   message?: string;
 }
 
+export type TemplateVersionSnapshot = { [key: string]: unknown };
+
+export interface TemplateVersion {
+  id: string;
+  templateId: string;
+  version: number;
+  snapshot: TemplateVersionSnapshot;
+  changedFields?: string[] | null;
+  changeReason?: string | null;
+  createdAt: string;
+}
+
+export type TemplateStatsTopRefinementPromptsItem = {
+  prompt?: string;
+  count?: number;
+};
+
+export interface TemplateStats {
+  templateId: string;
+  templateName: string;
+  totalGenerations: number;
+  version: number;
+  totalLogs: number;
+  approvals: number;
+  rejections: number;
+  approvalRate?: number | null;
+  captionEdits: number;
+  headlineEdits: number;
+  imageRefinements: number;
+  topRefinementPrompts: TemplateStatsTopRefinementPromptsItem[];
+}
+
+export type TemplateRecommendationAnalysisData = { [key: string]: unknown };
+
+export type TemplateRecommendationRecommendationsItem = {
+  [key: string]: unknown;
+};
+
+export interface TemplateRecommendation {
+  id: string;
+  templateId: string;
+  analysisData?: TemplateRecommendationAnalysisData;
+  recommendations: TemplateRecommendationRecommendationsItem[];
+  status: string;
+  reviewedAt?: string | null;
+  reviewerNotes?: string | null;
+  createdAt: string;
+}
+
+export type RecommendationActionInputAction =
+  (typeof RecommendationActionInputAction)[keyof typeof RecommendationActionInputAction];
+
+export const RecommendationActionInputAction = {
+  apply: "apply",
+  dismiss: "dismiss",
+} as const;
+
+export interface RecommendationActionInput {
+  action: RecommendationActionInputAction;
+  notes?: string | null;
+}
+
+export type AudioGenerateInputType =
+  (typeof AudioGenerateInputType)[keyof typeof AudioGenerateInputType];
+
+export const AudioGenerateInputType = {
+  music: "music",
+  sfx: "sfx",
+  mute: "mute",
+  veo_native: "veo_native",
+} as const;
+
+export type AudioGenerateInputMode =
+  (typeof AudioGenerateInputMode)[keyof typeof AudioGenerateInputMode];
+
+export const AudioGenerateInputMode = {
+  replace: "replace",
+  mix: "mix",
+} as const;
+
+export interface AudioGenerateInput {
+  type: AudioGenerateInputType;
+  prompt?: string | null;
+  mode?: AudioGenerateInputMode;
+  audioVolume?: number;
+  videoVolume?: number;
+}
+
+export interface CampaignVariant {
+  id: string;
+  campaignId: string;
+  platform: string;
+  aspectRatio: string;
+  rawImageUrl?: string | null;
+  compositedImageUrl?: string | null;
+  videoUrl?: string | null;
+  audioSource?: string | null;
+  audioUrl?: string | null;
+  mergedVideoUrl?: string | null;
+  caption: string;
+  originalCaption?: string | null;
+  headlineText?: string | null;
+  originalHeadline?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type GetTemplatesParams = {
   brandId?: string;
 };
@@ -271,4 +379,29 @@ export type UploadFileBody = {
   file: Blob;
   brandId?: string;
   type?: string;
+};
+
+export type GenerateVideoBodyOrientationsItem =
+  (typeof GenerateVideoBodyOrientationsItem)[keyof typeof GenerateVideoBodyOrientationsItem];
+
+export const GenerateVideoBodyOrientationsItem = {
+  landscape: "landscape",
+  portrait: "portrait",
+} as const;
+
+export type GenerateVideoBody = {
+  orientations?: GenerateVideoBodyOrientationsItem[];
+};
+
+export type UploadVariantAudioBodyMode =
+  (typeof UploadVariantAudioBodyMode)[keyof typeof UploadVariantAudioBodyMode];
+
+export const UploadVariantAudioBodyMode = {
+  replace: "replace",
+  mix: "mix",
+} as const;
+
+export type UploadVariantAudioBody = {
+  audio: Blob;
+  mode?: UploadVariantAudioBodyMode;
 };

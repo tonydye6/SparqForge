@@ -2,7 +2,7 @@
 
 ## Overview
 
-SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phases 1–5B are complete.
+SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phases 1–7 are complete, Phase 6 (Video + Audio) backend services are in place.
 
 ## Stack
 
@@ -16,7 +16,9 @@ SparqForge is an AI-powered social media content generation and management tool 
 - **Validation**: Zod (zod/v4), drizzle-zod
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
-- **AI**: Claude claude-sonnet-4-6 (captions/headlines), Gemini 2.5-flash-image (image generation)
+- **AI**: Claude claude-sonnet-4-6 (captions/headlines/refinement analysis), Gemini 2.5-flash-image (image generation), Veo 2.0 (video generation)
+- **Audio**: ElevenLabs (text-to-music, text-to-SFX)
+- **Video processing**: ffmpeg (audio/video merging)
 - **Image processing**: Sharp (compositing, overlays)
 - **Export**: Archiver (ZIP generation)
 
@@ -27,7 +29,7 @@ artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server
 │   │   ├── src/routes/     # API routes including generate.ts, download.ts, calendar-entries.ts, social-auth.ts, social-accounts.ts
-│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts, token-encryption.ts, token-refresh.ts, publish-*.ts, publish-scheduler.ts)
+│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts, token-encryption.ts, token-refresh.ts, publish-*.ts, publish-scheduler.ts, refinement-analysis.ts, video-generation.ts, elevenlabs.ts, audio-merge.ts)
 │   │   └── uploads/generated/  # Generated images (raw + composited)
 │   ├── sparqforge/         # React + Vite frontend (SparqForge UI)
 │   └── mockup-sandbox/     # Component preview server
@@ -55,6 +57,8 @@ Tables (Drizzle ORM in lib/db/src/schema/):
 - **calendar_entries** — Scheduled posts (supports drag-reschedule, publish status tracking, retry count)
 - **social_accounts** — Connected social media accounts (Twitter/X, Instagram, LinkedIn) with encrypted tokens
 - **refinement_logs** — User edit tracking for template improvement
+- **template_versions** — Template version history with full snapshot for rollback
+- **template_recommendations** — Claude-generated improvement recommendations (pending/applied/dismissed)
 - **cost_logs** — API cost tracking
 - **users** — User accounts with roles (admin, editor, viewer)
 
@@ -82,6 +86,15 @@ All at `/api`:
 - `GET /social-accounts/platform/:platform` — List accounts for specific platform
 - `DELETE /social-accounts/:id` — Disconnect a social account
 - `POST /social-accounts/:id/refresh` — Refresh expired token
+- `GET /templates/:id/versions` — Template version history
+- `POST /templates/:id/rollback/:versionId` — Restore template to a previous version
+- `GET /templates/:id/stats` — Template performance statistics (approval rate, edit counts)
+- `POST /templates/:id/analyze` — Trigger Claude-powered refinement analysis
+- `GET /templates/:id/recommendations` — List AI-generated recommendations
+- `PUT /templates/:id/recommendations/:recId` — Apply or dismiss a recommendation
+- `POST /campaigns/:id/generate-video` — SSE streaming Veo video generation (landscape + portrait)
+- `POST /campaigns/:id/variants/:variantId/audio` — Generate ElevenLabs audio + ffmpeg merge
+- `POST /campaigns/:id/variants/:variantId/audio-upload` — Upload custom audio + ffmpeg merge
 - `POST /upload`, `GET /files/:filename`, `GET /files/generated/:filename`
 - `GET /auth/twitter` — Twitter/X OAuth 2.0 PKCE redirect
 - `GET /auth/twitter/callback` — Twitter/X OAuth callback
@@ -194,8 +207,30 @@ Phase 5B (Publishing Engine + Scheduled Publishing) — Complete:
 - [x] POST /api/calendar-entries/:id/retry endpoint (retry failed)
 - [x] Token decryption integration with Phase 5A encryption
 
-Not yet implemented (Phase 5B+):
+Phase 6 (Video + Audio Generation) — Backend Complete:
+- [x] Veo 2.0 video generation service (landscape + portrait orientations)
+- [x] ElevenLabs audio services (text-to-music, text-to-SFX)
+- [x] ffmpeg audio/video merging (replace, mix, mute modes)
+- [x] Video generation route with SSE streaming progress
+- [x] Audio generation + merge route (ElevenLabs music/SFX/mute)
+- [x] Custom audio upload + merge route (MP3/WAV)
+- [x] Cost tracking for video + audio generation
+- [ ] Video preview UI in Campaign Studio (frontend pending)
+- [ ] Audio source selector UI on video variant cards (frontend pending)
+
+Phase 7 (Template Refinement Loop) — Complete:
+- [x] Refinement log insertion on caption edits, headline edits, image regenerations, approvals/rejections
+- [x] Template versioning with automatic snapshots before updates
+- [x] Version history listing + rollback to previous versions
+- [x] Claude-powered refinement analysis engine (sends structured patterns to Claude, parses recommendations)
+- [x] Template recommendations table (pending/applied/dismissed status)
+- [x] Applying recommendations auto-updates template with version snapshot
+- [x] Settings UI: expandable TemplateCard with Stats, Recommendations, and Version History panels
+- [x] "Run AI Analysis" button triggers Claude analysis from Stats panel
+- [x] Side-by-side current vs recommended values with apply/dismiss actions
+- [x] OpenAPI spec updated with all Phase 7 + Phase 6 endpoints
+
+Not yet implemented:
 - TikTok OAuth (keys not available)
 - Authentication (Google OAuth)
-- Template refinement analysis
-- Video generation
+- Phase 6 frontend (video preview + audio selector in Campaign Studio)
