@@ -16,7 +16,18 @@ import { analyzeReference } from "../services/reference-analysis.js";
 import multer from "multer";
 
 const router: IRouter = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const ALLOWED_IMAGE_MIMES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files (PNG, JPEG, WebP, GIF) are allowed"));
+    }
+  },
+});
 
 router.get("/campaigns", async (req, res): Promise<void> => {
   const query = GetCampaignsQueryParams.safeParse(req.query);
