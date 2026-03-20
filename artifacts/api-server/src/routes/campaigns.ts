@@ -134,9 +134,10 @@ router.put("/campaigns/:id", async (req, res): Promise<void> => {
 
 router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
   const campaignId = req.params.id;
-  const { scheduledAt, perPlatform } = req.body as {
+  const { scheduledAt, perPlatform, socialAccounts: socialAccountsMap } = req.body as {
     scheduledAt?: string;
     perPlatform?: Record<string, string>;
+    socialAccounts?: Record<string, string>;
   };
 
   if (!scheduledAt && !perPlatform) {
@@ -163,11 +164,14 @@ router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
     const time = perPlatform?.[variant.platform] || scheduledAt;
     if (!time) continue;
 
+    const socialAccountId = socialAccountsMap?.[variant.platform] || null;
+
     const [entry] = await db.insert(calendarEntriesTable).values({
       campaignId,
       variantId: variant.id,
       platform: variant.platform,
       scheduledAt: new Date(time),
+      socialAccountId,
     }).returning();
     created.push(entry);
   }

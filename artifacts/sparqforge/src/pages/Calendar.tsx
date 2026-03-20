@@ -1,8 +1,9 @@
 import { useState, useMemo, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Filter, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGetBrands } from "@workspace/api-client-react";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { useLocation } from "wouter";
@@ -15,8 +16,12 @@ interface CalendarEntry {
   campaignId: string;
   variantId: string;
   platform: string;
+  socialAccountId?: string | null;
   scheduledAt: string;
+  publishedAt?: string | null;
   publishStatus: string;
+  publishError?: string | null;
+  retryCount?: number;
   campaignName: string;
   brandId: string;
   brandName: string;
@@ -34,6 +39,13 @@ const PLATFORM_LABELS: Record<string, { label: string; icon: string }> = {
   tiktok: { label: "TikTok", icon: "tiktok" },
 };
 
+const STATUS_CONFIG: Record<string, { color: string; bgColor: string; label: string }> = {
+  scheduled: { color: "text-blue-400", bgColor: "bg-blue-500/10 border-blue-500/20", label: "Scheduled" },
+  publishing: { color: "text-amber-400", bgColor: "bg-amber-500/10 border-amber-500/20", label: "Publishing" },
+  published: { color: "text-green-400", bgColor: "bg-green-500/10 border-green-500/20", label: "Published" },
+  failed: { color: "text-red-400", bgColor: "bg-red-500/10 border-red-500/20", label: "Failed" },
+};
+
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
@@ -44,6 +56,7 @@ export default function Calendar() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -56,7 +69,7 @@ export default function Calendar() {
   const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
   const todayDate = today.getDate();
 
-  useMemo(() => {
+  const fetchEntries = useCallback(() => {
     let start: Date, end: Date;
     if (viewMode === "month") {
       start = new Date(year, month, 1);
@@ -86,7 +99,11 @@ export default function Calendar() {
         setIsLoading(false);
       })
       .catch(() => setIsLoading(false));
-  }, [year, month, currentDate.getDate(), brandFilter, viewMode]);
+  }, [year, month, currentDate, brandFilter, viewMode]);
+
+  useMemo(() => {
+    fetchEntries();
+  }, [fetchEntries]);
 
   const entriesByDay = useMemo(() => {
     const map: Record<number, CalendarEntry[]> = {};
@@ -131,6 +148,62 @@ export default function Calendar() {
 
   const handleEntryClick = (entry: CalendarEntry) => {
     setLocation(`/?campaign=${entry.campaignId}`);
+  };
+
+  const handlePublishNow = async (e: React.MouseEvent, entryId: string) => {
+    e.stopPropagation();
+    setPublishingIds(prev => new Set(prev).add(entryId));
+    try {
+      const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Failed" }));
+        toast({ variant: "destructive", title: "Publish failed", description: err.error });
+      } else {
+        toast({ title: "Publishing initiated" });
+        setEntries(prev => prev.map(e =>
+          e.id === entryId ? { ...e, publishStatus: "publishing" } : e
+        ));
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Publish failed" });
+    } finally {
+      setPublishingIds(prev => {
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
+    }
+  };
+
+  const handleRetry = async (e: React.MouseEvent, entryId: string) => {
+    e.stopPropagation();
+    setPublishingIds(prev => new Set(prev).add(entryId));
+    try {
+      const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Failed" }));
+        toast({ variant: "destructive", title: "Retry failed", description: err.error });
+      } else {
+        toast({ title: "Retry initiated" });
+        setEntries(prev => prev.map(e =>
+          e.id === entryId ? { ...e, publishStatus: "publishing", publishError: null } : e
+        ));
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Retry failed" });
+    } finally {
+      setPublishingIds(prev => {
+        const next = new Set(prev);
+        next.delete(entryId);
+        return next;
+      });
+    }
   };
 
   const handleDragStart = useCallback((e: React.DragEvent, entry: CalendarEntry) => {
@@ -211,66 +284,156 @@ export default function Calendar() {
 
   const hours = Array.from({ length: 15 }, (_, i) => i + 8);
 
+  const renderStatusBadge = (entry: CalendarEntry) => {
+    const config = STATUS_CONFIG[entry.publishStatus] || STATUS_CONFIG.scheduled;
+    return (
+      <Badge variant="outline" className={`text-[8px] px-1 py-0 ${config.bgColor} ${config.color} border`}>
+        {entry.publishStatus === "publishing" && <Loader2 size={8} className="mr-0.5 animate-spin" />}
+        {entry.publishStatus === "published" && <CheckCircle2 size={8} className="mr-0.5" />}
+        {entry.publishStatus === "failed" && <AlertCircle size={8} className="mr-0.5" />}
+        {config.label}
+      </Badge>
+    );
+  };
+
   const renderEntryCard = (entry: CalendarEntry, compact = false) => {
     const pl = PLATFORM_LABELS[entry.platform] || { label: entry.platform, icon: "twitter" };
     const time = new Date(entry.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const isProcessing = publishingIds.has(entry.id);
+    const canPublish = entry.socialAccountId && entry.publishStatus === "scheduled";
+    const canRetry = entry.publishStatus === "failed";
 
     if (compact) {
       return (
-        <div
-          key={entry.id}
-          draggable
-          onDragStart={(e) => handleDragStart(e, entry)}
-          onClick={() => handleEntryClick(entry)}
-          className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] font-medium cursor-grab active:cursor-grabbing transition-colors border hover:brightness-110"
-          style={{
-            backgroundColor: `${entry.brandColor}15`,
-            borderColor: `${entry.brandColor}30`,
-            borderLeftWidth: "3px",
-            borderLeftColor: entry.brandColor,
-          }}
-          title={`${entry.campaignName} — ${pl.label} at ${time} (drag to reschedule)`}
-        >
-          <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
-          <span className="truncate" style={{ color: entry.brandColor }}>{entry.campaignName?.slice(0, 16) || "Untitled"}</span>
-          <span className="text-muted-foreground ml-auto shrink-0">{time}</span>
-        </div>
+        <TooltipProvider key={entry.id}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                draggable
+                onDragStart={(e) => handleDragStart(e, entry)}
+                onClick={() => handleEntryClick(entry)}
+                className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] font-medium cursor-grab active:cursor-grabbing transition-colors border hover:brightness-110"
+                style={{
+                  backgroundColor: `${entry.brandColor}15`,
+                  borderColor: `${entry.brandColor}30`,
+                  borderLeftWidth: "3px",
+                  borderLeftColor: entry.brandColor,
+                }}
+              >
+                <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
+                <span className="truncate" style={{ color: entry.brandColor }}>{entry.campaignName?.slice(0, 12) || "Untitled"}</span>
+                {renderStatusBadge(entry)}
+                <span className="text-muted-foreground ml-auto shrink-0">{time}</span>
+                {canPublish && (
+                  <button
+                    onClick={(e) => handlePublishNow(e, entry.id)}
+                    disabled={isProcessing}
+                    className="p-0.5 rounded hover:bg-primary/20 text-primary shrink-0"
+                    title="Publish Now"
+                  >
+                    {isProcessing ? <Loader2 size={10} className="animate-spin" /> : <Send size={10} />}
+                  </button>
+                )}
+                {canRetry && (
+                  <button
+                    onClick={(e) => handleRetry(e, entry.id)}
+                    disabled={isProcessing}
+                    className="p-0.5 rounded hover:bg-red-500/20 text-red-400 shrink-0"
+                    title="Retry"
+                  >
+                    {isProcessing ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
+                  </button>
+                )}
+              </div>
+            </TooltipTrigger>
+            {entry.publishStatus === "failed" && entry.publishError && (
+              <TooltipContent side="top" className="max-w-[300px] text-xs">
+                <p className="font-medium text-red-400">Publish Error:</p>
+                <p className="text-muted-foreground">{entry.publishError}</p>
+                {entry.retryCount != null && entry.retryCount > 0 && (
+                  <p className="text-muted-foreground mt-1">Retry attempts: {entry.retryCount}/3</p>
+                )}
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       );
     }
 
     return (
-      <div
-        key={entry.id}
-        onClick={() => handleEntryClick(entry)}
-        className="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors hover:brightness-110"
-        style={{
-          backgroundColor: `${entry.brandColor}08`,
-          borderColor: `${entry.brandColor}25`,
-          borderLeftWidth: "3px",
-          borderLeftColor: entry.brandColor,
-        }}
-      >
-        {entry.compositedImageUrl && (
-          <img
-            src={`${API_BASE}${entry.compositedImageUrl}`}
-            alt=""
-            className="w-8 h-8 rounded object-cover shrink-0 border border-border/30"
-          />
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1">
-            <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
-            <span className="text-[10px] text-muted-foreground">{pl.label}</span>
-          </div>
-          <p className="text-xs font-medium truncate" style={{ color: entry.brandColor }}>
-            {entry.campaignName || "Untitled"}
-          </p>
-          <div className="flex items-center gap-1 mt-0.5">
-            <Clock size={9} className="text-muted-foreground" />
-            <span className="text-[10px] text-muted-foreground">{time}</span>
-          </div>
-        </div>
-      </div>
+      <TooltipProvider key={entry.id}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              onClick={() => handleEntryClick(entry)}
+              className="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors hover:brightness-110"
+              style={{
+                backgroundColor: `${entry.brandColor}08`,
+                borderColor: `${entry.brandColor}25`,
+                borderLeftWidth: "3px",
+                borderLeftColor: entry.brandColor,
+              }}
+            >
+              {entry.compositedImageUrl && (
+                <img
+                  src={`${API_BASE}${entry.compositedImageUrl}`}
+                  alt=""
+                  className="w-8 h-8 rounded object-cover shrink-0 border border-border/30"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1">
+                  <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
+                  <span className="text-[10px] text-muted-foreground">{pl.label}</span>
+                  {renderStatusBadge(entry)}
+                </div>
+                <p className="text-xs font-medium truncate" style={{ color: entry.brandColor }}>
+                  {entry.campaignName || "Untitled"}
+                </p>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Clock size={9} className="text-muted-foreground" />
+                  <span className="text-[10px] text-muted-foreground">{time}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  {canPublish && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-5 text-[9px] px-1.5 bg-primary/10 border-primary/20 text-primary hover:bg-primary/20"
+                      onClick={(e) => handlePublishNow(e, entry.id)}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? <Loader2 size={9} className="mr-0.5 animate-spin" /> : <Send size={9} className="mr-0.5" />}
+                      Publish Now
+                    </Button>
+                  )}
+                  {canRetry && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-5 text-[9px] px-1.5 bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
+                      onClick={(e) => handleRetry(e, entry.id)}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? <Loader2 size={9} className="mr-0.5 animate-spin" /> : <RotateCcw size={9} className="mr-0.5" />}
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </TooltipTrigger>
+          {entry.publishStatus === "failed" && entry.publishError && (
+            <TooltipContent side="top" className="max-w-[300px] text-xs">
+              <p className="font-medium text-red-400">Publish Error:</p>
+              <p className="text-muted-foreground">{entry.publishError}</p>
+              {entry.retryCount != null && entry.retryCount > 0 && (
+                <p className="text-muted-foreground mt-1">Retry attempts: {entry.retryCount}/3</p>
+              )}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     );
   };
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phases 1–5A are complete.
+SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phases 1–5B are complete.
 
 ## Stack
 
@@ -27,7 +27,7 @@ artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server
 │   │   ├── src/routes/     # API routes including generate.ts, download.ts, calendar-entries.ts, social-auth.ts, social-accounts.ts
-│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts, token-encryption.ts, token-refresh.ts)
+│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts, token-encryption.ts, token-refresh.ts, publish-*.ts, publish-scheduler.ts)
 │   │   └── uploads/generated/  # Generated images (raw + composited)
 │   ├── sparqforge/         # React + Vite frontend (SparqForge UI)
 │   └── mockup-sandbox/     # Component preview server
@@ -52,11 +52,11 @@ Tables (Drizzle ORM in lib/db/src/schema/):
 - **hashtag_sets** — Reusable hashtag groupings by category (tracks usageCount)
 - **campaigns** — Content creation sessions
 - **campaign_variants** — Per-platform variants within campaigns
-- **calendar_entries** — Scheduled posts (supports drag-reschedule)
+- **calendar_entries** — Scheduled posts (supports drag-reschedule, publish status tracking, retry count)
+- **social_accounts** — Connected social media accounts (Twitter/X, Instagram, LinkedIn) with encrypted tokens
 - **refinement_logs** — User edit tracking for template improvement
 - **cost_logs** — API cost tracking
 - **users** — User accounts with roles (admin, editor, viewer)
-- **social_accounts** — Connected social media accounts (Twitter/X, Instagram, LinkedIn) with encrypted tokens
 
 ## API Endpoints
 
@@ -73,9 +73,15 @@ All at `/api`:
 - `GET /campaigns/:id/download` — ZIP export of all variants
 - `GET /campaigns/:id/variants/:variantId/download` — Individual variant download
 - `GET /campaigns/check-duplicate` — Check for duplicate campaign (templateId + primaryAssetId)
-- `POST /campaigns/:id/schedule` — Schedule campaign variants to calendar
+- `POST /campaigns/:id/schedule` — Schedule campaign variants to calendar (supports socialAccounts mapping)
 - `POST /campaigns/:id/remix` — Remix an existing campaign
 - `GET/POST /calendar-entries`, `PUT/DELETE /calendar-entries/:id` — Calendar entry CRUD (PUT supports scheduledAt for drag-reschedule)
+- `POST /calendar-entries/:id/publish` — Manual publish trigger
+- `POST /calendar-entries/:id/retry` — Retry failed publish
+- `GET /social-accounts` — List connected social accounts (with expiry status enrichment)
+- `GET /social-accounts/platform/:platform` — List accounts for specific platform
+- `DELETE /social-accounts/:id` — Disconnect a social account
+- `POST /social-accounts/:id/refresh` — Refresh expired token
 - `POST /upload`, `GET /files/:filename`, `GET /files/generated/:filename`
 - `GET /auth/twitter` — Twitter/X OAuth 2.0 PKCE redirect
 - `GET /auth/twitter/callback` — Twitter/X OAuth callback
@@ -83,9 +89,6 @@ All at `/api`:
 - `GET /auth/instagram/callback` — Instagram OAuth callback
 - `GET /auth/linkedin` — LinkedIn OAuth 2.0 redirect
 - `GET /auth/linkedin/callback` — LinkedIn OAuth callback
-- `GET /social-accounts` — List connected social accounts
-- `DELETE /social-accounts/:id` — Disconnect a social account
-- `POST /social-accounts/:id/refresh` — Refresh expired token
 
 ## AI Generation Pipeline
 
@@ -108,11 +111,19 @@ Brand identities: Crown U (#00A3FF), Rumble U (#FF4D00), Mascot Mayhem (#FFD700)
 - **Token Refresh**: Automatic check on server startup for tokens expiring within 24 hours
 - **TikTok**: Not yet implemented (API keys not available)
 
+## Publishing Engine
+
+- **Publish Scheduler**: Database-backed polling (60s interval) replaces BullMQ. Checks `calendar_entries` where `scheduledAt <= now` and `publishStatus = 'scheduled'`
+- **Platform Publishers**: Twitter API v2 (chunked media upload + tweet), Instagram Graph API (container + publish), LinkedIn Marketing API (register upload + UGC post)
+- **Retry Logic**: Exponential backoff (2^n minutes, capped at 15min), up to 3 retries
+- **Token Decryption**: Access tokens are decrypted at publish time using the same AES-256-GCM scheme from Phase 5A
+- **Status Flow**: `scheduled` → `publishing` → `published` (success) or `failed` (with error + retry)
+
 ## Frontend Pages
 
 - `/` — Campaign Studio (3-panel workspace with AI generation, live variant display, inline caption editing, per-variant refinement, save-as-hashtag-set, download)
 - `/assets` — Asset Library (3 tabs: Visual Assets, Briefs & Context, Hashtag Library)
-- `/calendar` — Content Calendar (month/week views with drag-to-reschedule in month view)
+- `/calendar` — Content Calendar (month/week views with drag-to-reschedule, publish status badges, publish/retry buttons)
 - `/review` — Review Queue (Kanban board)
 - `/settings` — Settings (2 tabs: Brand Settings, Connected Accounts)
 
@@ -170,8 +181,20 @@ Phase 5A (Social Account OAuth + Management UI) — Complete:
 - [x] Token refresh on server startup for expiring tokens
 - [x] AES-256-GCM encryption for access/refresh tokens at rest
 
+Phase 5B (Publishing Engine + Scheduled Publishing) — Complete:
+- [x] Platform-specific publishing services (Twitter, Instagram, LinkedIn)
+- [x] Database-backed publish scheduler (60s polling interval, replaces BullMQ)
+- [x] Retry logic with exponential backoff (up to 3 retries)
+- [x] Manual "Publish Now" button on calendar entries (when social account connected)
+- [x] "Retry" button for failed entries
+- [x] Publish status badges on calendar cards (blue=scheduled, amber=publishing, green=published, red=failed)
+- [x] Error messages shown via tooltip on failed entries
+- [x] Social account selection dropdown in ScheduleModal
+- [x] POST /api/calendar-entries/:id/publish endpoint (manual publish)
+- [x] POST /api/calendar-entries/:id/retry endpoint (retry failed)
+- [x] Token decryption integration with Phase 5A encryption
+
 Not yet implemented (Phase 5B+):
-- Social media publishing (Phase 5B)
 - TikTok OAuth (keys not available)
 - Authentication (Google OAuth)
 - Template refinement analysis

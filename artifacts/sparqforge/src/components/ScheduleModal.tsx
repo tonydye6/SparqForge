@@ -1,11 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CalendarIcon, Clock, Send } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { PlatformIcon } from "@/components/ui/platform-icon";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
+
+interface SocialAccount {
+  id: string;
+  platform: string;
+  accountName: string;
+  accountId: string;
+  status: string;
+  displayStatus?: string;
+}
 
 interface ScheduleModalProps {
   open: boolean;
@@ -15,11 +26,42 @@ interface ScheduleModalProps {
   onScheduled?: () => void;
 }
 
+const PLATFORM_MAP: Record<string, string> = {
+  twitter: "twitter",
+  instagram_feed: "instagram",
+  instagram_story: "instagram",
+  linkedin: "linkedin",
+};
+
 export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, onScheduled }: ScheduleModalProps) {
   const { toast } = useToast();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("12:00");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (open) {
+      fetch(`${API_BASE}/api/social-accounts`)
+        .then(res => res.json())
+        .then(data => setSocialAccounts(data || []))
+        .catch(() => setSocialAccounts([]));
+    }
+  }, [open]);
+
+  const accountsByPlatform = socialAccounts.reduce<Record<string, SocialAccount[]>>((acc, account) => {
+    if (!acc[account.platform]) acc[account.platform] = [];
+    acc[account.platform].push(account);
+    return acc;
+  }, {});
+
+  const handleAccountSelect = (platform: string, accountId: string) => {
+    setSelectedAccounts(prev => ({
+      ...prev,
+      [platform]: accountId === "none" ? "" : accountId,
+    }));
+  };
 
   const handleSchedule = async () => {
     if (!date || !time) {
@@ -34,7 +76,7 @@ export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, on
       const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduledAt }),
+        body: JSON.stringify({ scheduledAt, socialAccounts: selectedAccounts }),
       });
 
       if (!resp.ok) {
@@ -56,6 +98,9 @@ export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, on
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = tomorrow.toISOString().split("T")[0];
+
+  const platforms = Object.keys(PLATFORM_MAP);
+  const hasSocialAccounts = socialAccounts.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,6 +138,48 @@ export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, on
               />
             </div>
           </div>
+
+          {hasSocialAccounts && (
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Publish To (Optional)</label>
+              <p className="text-[11px] text-muted-foreground">Select accounts for auto-publishing when scheduled time arrives</p>
+              <div className="space-y-2">
+                {platforms.map(platform => {
+                  const mappedPlatform = PLATFORM_MAP[platform];
+                  const accounts = accountsByPlatform[mappedPlatform] || accountsByPlatform[platform] || [];
+                  if (accounts.length === 0) return null;
+
+                  const platformLabel = platform === "twitter" ? "X/Twitter" :
+                    platform === "instagram_feed" ? "Instagram Feed" :
+                    platform === "instagram_story" ? "Instagram Story" :
+                    platform === "linkedin" ? "LinkedIn" : platform;
+
+                  return (
+                    <div key={platform} className="flex items-center gap-2">
+                      <PlatformIcon platform={mappedPlatform} className="w-4 h-4 opacity-70 shrink-0" />
+                      <span className="text-xs text-muted-foreground w-24 shrink-0">{platformLabel}</span>
+                      <Select
+                        value={selectedAccounts[platform] || "none"}
+                        onValueChange={(val) => handleAccountSelect(platform, val)}
+                      >
+                        <SelectTrigger className="flex-1 h-8 text-xs bg-background border-border">
+                          <SelectValue placeholder="No account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No auto-publish</SelectItem>
+                          {accounts.filter(acc => acc.status === "connected" || acc.displayStatus === "connected" || acc.displayStatus === "expiring").map(acc => (
+                            <SelectItem key={acc.id} value={acc.id}>
+                              {acc.accountName} ({acc.accountId})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {date && time && (
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm">
