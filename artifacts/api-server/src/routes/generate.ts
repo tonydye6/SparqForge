@@ -333,7 +333,8 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
     ensureDir(UPLOADS_DIR);
 
-    const rawFilename = `${campaignId}_${variant.platform}_raw.png`;
+    const ts = Date.now();
+    const rawFilename = `${campaignId}_${variant.platform}_${ts}_raw.png`;
     const rawPath = path.join(UPLOADS_DIR, rawFilename);
     fs.writeFileSync(rawPath, imgResult.imageBuffer);
 
@@ -352,7 +353,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
       compositedBuffer = imgResult.imageBuffer;
     }
 
-    const compFilename = `${campaignId}_${variant.platform}_composited.png`;
+    const compFilename = `${campaignId}_${variant.platform}_${ts}_composited.png`;
     const compPath = path.join(UPLOADS_DIR, compFilename);
     fs.writeFileSync(compPath, compositedBuffer);
 

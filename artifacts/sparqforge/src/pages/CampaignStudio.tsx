@@ -28,6 +28,7 @@ interface GeneratedVariant {
   compositedImageUrl: string | null;
   caption: string;
   headlineText: string | null;
+  imageVersion?: number;
 }
 
 interface ActivityLog {
@@ -637,7 +638,7 @@ export default function CampaignStudio() {
       const updated = await resp.json();
       setGeneratedVariants(prev => prev.map(v =>
         v.platform === platform
-          ? { ...v, rawImageUrl: updated.rawImageUrl, compositedImageUrl: updated.compositedImageUrl, id: updated.id }
+          ? { ...v, rawImageUrl: updated.rawImageUrl, compositedImageUrl: updated.compositedImageUrl, id: updated.id, imageVersion: (v.imageVersion || 0) + 1 }
           : v
       ));
 
@@ -991,6 +992,7 @@ export default function CampaignStudio() {
               generatedVariants.map((variant) => {
                 const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, platformIcon: "twitter", ratio: variant.aspectRatio };
                 const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
+                const versionSuffix = variant.imageVersion ? `?v=${variant.imageVersion}` : "";
                 return (
                   <div key={variant.platform} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
                     <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
@@ -1022,7 +1024,7 @@ export default function CampaignStudio() {
                               </div>
                             )}
                             <TikTokPreviewFrame
-                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}` : undefined}
+                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}${versionSuffix}` : undefined}
                               caption={variant.caption}
                             />
                           </div>
@@ -1036,7 +1038,7 @@ export default function CampaignStudio() {
                           )}
                           {imageUrl ? (
                             <img 
-                              src={`${API_BASE}${imageUrl}?t=${Date.now()}`} 
+                              src={`${API_BASE}${imageUrl}${versionSuffix}`} 
                               alt={`${label.name} variant`} 
                               className="w-full h-auto object-cover"
                             />
