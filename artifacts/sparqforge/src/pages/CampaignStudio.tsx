@@ -187,6 +187,53 @@ export default function CampaignStudio() {
     }
   }, [campaignId, selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, remixId]);
 
+  const processSSEStream = useCallback(async (
+    response: Response,
+    onCaptured: (screenshots: Array<{ url: string; viewport: string }>) => void,
+    onComplete: (data: { referenceAnalysis: Record<string, string>; referenceScreenshots: Array<{ url: string; viewport: string }> }) => void,
+    onError: (message: string) => void,
+  ) => {
+    if (!response.body) {
+      onError("No response stream");
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      let currentEvent = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith("data: ") && currentEvent) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (currentEvent === "captured") {
+              onCaptured(data.referenceScreenshots || []);
+            } else if (currentEvent === "complete") {
+              onComplete({
+                referenceAnalysis: data.referenceAnalysis,
+                referenceScreenshots: data.referenceScreenshots || [],
+              });
+            } else if (currentEvent === "error") {
+              onError(data.message || "Analysis failed");
+            }
+          } catch {}
+          currentEvent = "";
+        }
+      }
+    }
+  }, []);
+
   const handleAnalyzeUrl = useCallback(async () => {
     if (!referenceUrl.trim()) return;
 
@@ -227,21 +274,30 @@ export default function CampaignStudio() {
         throw new Error(err.error || "Analysis failed");
       }
 
-      setReferenceStatus("analyzing");
-      addLog("Analyzing reference design...", "pending");
-
-      const data = await resp.json();
-      setReferenceAnalysis(data.referenceAnalysis);
-      setReferenceScreenshots(data.referenceScreenshots || []);
-      setReferenceStatus("done");
-      addLog("Reference analyzed ✓", "done");
+      await processSSEStream(
+        resp,
+        (screenshots) => {
+          setReferenceScreenshots(screenshots);
+          setReferenceStatus("analyzing");
+          addLog("Analyzing reference design...", "pending");
+        },
+        (data) => {
+          setReferenceAnalysis(data.referenceAnalysis);
+          setReferenceScreenshots(data.referenceScreenshots);
+          setReferenceStatus("done");
+          addLog("Reference analyzed ✓", "done");
+        },
+        (message) => {
+          throw new Error(message);
+        },
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Analysis failed";
       setReferenceStatus("error");
       setReferenceError(msg);
       addLog(`Reference analysis failed: ${msg}`, "error");
     }
-  }, [referenceUrl, selectedBrand, ensureCampaignId, addLog, toast]);
+  }, [referenceUrl, selectedBrand, ensureCampaignId, addLog, toast, processSSEStream]);
 
   const handleUploadScreenshot = useCallback(async (file: File) => {
     if (!selectedBrand) {
@@ -260,8 +316,7 @@ export default function CampaignStudio() {
     }
 
     try {
-      addLog("Analyzing uploaded screenshot...", "pending");
-      setReferenceStatus("analyzing");
+      addLog("Processing uploaded screenshot...", "pending");
 
       const formData = new FormData();
       formData.append("screenshot", file);
@@ -276,27 +331,47 @@ export default function CampaignStudio() {
         throw new Error(err.error || "Upload analysis failed");
       }
 
-      const data = await resp.json();
-      setReferenceAnalysis(data.referenceAnalysis);
-      setReferenceScreenshots(data.referenceScreenshots || []);
-      setReferenceStatus("done");
-      setReferenceUrl(file.name);
-      addLog("Uploaded reference analyzed ✓", "done");
+      await processSSEStream(
+        resp,
+        (screenshots) => {
+          setReferenceScreenshots(screenshots);
+          setReferenceStatus("analyzing");
+          addLog("Analyzing reference design...", "pending");
+        },
+        (data) => {
+          setReferenceAnalysis(data.referenceAnalysis);
+          setReferenceScreenshots(data.referenceScreenshots);
+          setReferenceStatus("done");
+          setReferenceUrl(file.name);
+          addLog("Uploaded reference analyzed ✓", "done");
+        },
+        (message) => {
+          throw new Error(message);
+        },
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload analysis failed";
       setReferenceStatus("error");
       setReferenceError(msg);
       addLog(`Reference analysis failed: ${msg}`, "error");
     }
-  }, [selectedBrand, ensureCampaignId, addLog, toast]);
+  }, [selectedBrand, ensureCampaignId, addLog, toast, processSSEStream]);
 
-  const handleClearReference = useCallback(() => {
+  const handleClearReference = useCallback(async () => {
     setReferenceUrl("");
     setReferenceStatus("idle");
     setReferenceAnalysis(null);
     setReferenceScreenshots([]);
     setReferenceError("");
-  }, []);
+
+    if (campaignId) {
+      try {
+        await fetch(`${API_BASE}/api/campaigns/${campaignId}/reference`, {
+          method: "DELETE",
+        });
+      } catch {}
+    }
+  }, [campaignId]);
 
   const handleSaveDraft = useCallback(async () => {
     if (!selectedBrand) {

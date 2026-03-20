@@ -12,6 +12,21 @@ export interface ReferenceAnalysisResult {
   sparq_application: string;
 }
 
+function getMimeType(filepath: string): string {
+  const ext = filepath.toLowerCase().split(".").pop();
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "gif":
+      return "image/gif";
+    default:
+      return "image/png";
+  }
+}
+
 export async function analyzeReference(
   screenshotPaths: string[],
 ): Promise<ReferenceAnalysisResult> {
@@ -22,7 +37,7 @@ export async function analyzeReference(
       return {
         inlineData: {
           data: data.toString("base64"),
-          mimeType: "image/png",
+          mimeType: getMimeType(p),
         },
       };
     });

@@ -191,8 +191,27 @@ router.post("/campaigns/:id/analyze-url", async (req, res): Promise<void> => {
     return;
   }
 
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  function sendEvent(event: string, data: Record<string, unknown>) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
   try {
+    sendEvent("progress", { phase: "capturing", message: "Capturing page screenshots..." });
     const screenshots = await captureScreenshots(url, campaignId);
+
+    const screenshotUrls = screenshots.map(s => ({ url: s.url, viewport: s.viewport }));
+    sendEvent("captured", {
+      phase: "analyzing",
+      message: "Analyzing reference design...",
+      referenceScreenshots: screenshotUrls,
+    });
 
     const screenshotPaths = screenshots.map(s => s.filepath);
     const analysis = await analyzeReference(screenshotPaths);
@@ -201,19 +220,22 @@ router.post("/campaigns/:id/analyze-url", async (req, res): Promise<void> => {
       .set({
         referenceUrl: url,
         referenceAnalysis: analysis,
-        referenceScreenshots: screenshots.map(s => ({ url: s.url, viewport: s.viewport })),
+        referenceScreenshots: screenshotUrls,
         updatedAt: new Date(),
       })
       .where(eq(campaignsTable.id, campaignId));
 
-    res.json({
+    sendEvent("complete", {
+      phase: "done",
       referenceUrl: url,
       referenceAnalysis: analysis,
-      referenceScreenshots: screenshots.map(s => ({ url: s.url, viewport: s.viewport })),
+      referenceScreenshots: screenshotUrls,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: `Reference analysis failed: ${message}` });
+    sendEvent("error", { message: `Reference analysis failed: ${message}` });
+  } finally {
+    res.end();
   }
 });
 
@@ -232,8 +254,27 @@ router.post("/campaigns/:id/analyze-upload", upload.single("screenshot"), async 
     return;
   }
 
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  function sendEvent(event: string, data: Record<string, unknown>) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
   try {
+    sendEvent("progress", { phase: "capturing", message: "Processing uploaded screenshot..." });
     const screenshot = await captureFromUpload(file.buffer, campaignId, file.originalname);
+    const screenshotUrls = [{ url: screenshot.url, viewport: screenshot.viewport }];
+
+    sendEvent("captured", {
+      phase: "analyzing",
+      message: "Analyzing reference design...",
+      referenceScreenshots: screenshotUrls,
+    });
 
     const analysis = await analyzeReference([screenshot.filepath]);
 
@@ -241,20 +282,44 @@ router.post("/campaigns/:id/analyze-upload", upload.single("screenshot"), async 
       .set({
         referenceUrl: null,
         referenceAnalysis: analysis,
-        referenceScreenshots: [{ url: screenshot.url, viewport: screenshot.viewport }],
+        referenceScreenshots: screenshotUrls,
         updatedAt: new Date(),
       })
       .where(eq(campaignsTable.id, campaignId));
 
-    res.json({
+    sendEvent("complete", {
+      phase: "done",
       referenceUrl: null,
       referenceAnalysis: analysis,
-      referenceScreenshots: [{ url: screenshot.url, viewport: screenshot.viewport }],
+      referenceScreenshots: screenshotUrls,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({ error: `Reference analysis failed: ${message}` });
+    sendEvent("error", { message: `Reference analysis failed: ${message}` });
+  } finally {
+    res.end();
   }
+});
+
+router.delete("/campaigns/:id/reference", async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  await db.update(campaignsTable)
+    .set({
+      referenceUrl: null,
+      referenceAnalysis: null,
+      referenceScreenshots: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(campaignsTable.id, campaignId));
+
+  res.json({ cleared: true });
 });
 
 export default router;
