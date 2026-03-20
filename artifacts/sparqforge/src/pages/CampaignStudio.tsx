@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { ScheduleModal } from "@/components/ScheduleModal";
+import { useSearch } from "wouter";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -32,6 +34,13 @@ interface ActivityLog {
   status: "pending" | "done" | "error";
 }
 
+interface DuplicateInfo {
+  duplicate: boolean;
+  campaignId?: string;
+  campaignName?: string;
+  createdAt?: string;
+}
+
 const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; ratio: string }> = {
   instagram_feed: { name: "Instagram Feed", platformIcon: "instagram", ratio: "1:1" },
   instagram_story: { name: "Instagram Story", platformIcon: "instagram", ratio: "9:16" },
@@ -41,6 +50,9 @@ const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; rati
 
 export default function CampaignStudio() {
   const { toast } = useToast();
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
+  const remixId = params.get("remix");
   
   const { data: brands } = useGetBrands();
   const [selectedBrand, setSelectedBrand] = useState<string>("");
@@ -62,15 +74,67 @@ export default function CampaignStudio() {
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([{ time: "Just now", text: "Studio session started", status: "done" }]);
   const [estimatedCost, setEstimatedCost] = useState(0);
   
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
+  const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+
   const abortRef = useRef<AbortController | null>(null);
+  const remixLoadedRef = useRef(false);
   
   const createCampaignMutation = useCreateCampaign();
+
+  useEffect(() => {
+    if (remixId && !remixLoadedRef.current) {
+      remixLoadedRef.current = true;
+      loadRemixCampaign(remixId);
+    }
+  }, [remixId]);
+
+  const loadRemixCampaign = async (sourceId: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${sourceId}`);
+      if (!resp.ok) return;
+      const source = await resp.json();
+
+      setCampaignName(`${source.name} (Remix)`);
+      setSelectedBrand(source.brandId);
+      setBriefText(source.briefText || "");
+
+      const assets = (source.selectedAssets || []) as Array<{ assetId: string }>;
+      setSelectedAssets(assets.map((a: { assetId: string }) => a.assetId));
+
+      addLog(`Remixing from: ${source.name}`, "done");
+      toast({ title: "Campaign loaded for remix", description: "Select a new template and generate." });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to load source campaign" });
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedTemplate || !selectedAssets.length || duplicateDismissed) return;
+
+    const primaryAssetId = selectedAssets[0];
+    if (!primaryAssetId) return;
+
+    const checkDuplicate = async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/campaigns/check-duplicate?templateId=${selectedTemplate}&primaryAssetId=${primaryAssetId}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setDuplicateInfo(data);
+        }
+      } catch {}
+    };
+
+    checkDuplicate();
+  }, [selectedTemplate, selectedAssets, duplicateDismissed]);
 
   const toggleAsset = (id: string) => {
     setSelectedAssets(prev => {
       if (prev.includes(id)) return prev.filter(a => a !== id);
       return [id, ...prev];
     });
+    setDuplicateDismissed(false);
   };
 
   const addLog = useCallback((text: string, status: ActivityLog["status"] = "pending") => {
@@ -100,6 +164,7 @@ export default function CampaignStudio() {
         templateId: selectedTemplate || null,
         briefText,
         selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
+        sourceCampaignId: remixId || null,
         createdBy: "current_user",
       }
     }, {
@@ -109,7 +174,7 @@ export default function CampaignStudio() {
         addLog("Campaign draft saved", "done");
       }
     });
-  }, [selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, createCampaignMutation, toast, addLog]);
+  }, [selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, remixId, createCampaignMutation, toast, addLog]);
 
   const handleGenerate = useCallback(async () => {
     if (!selectedBrand || !selectedTemplate) {
@@ -134,6 +199,7 @@ export default function CampaignStudio() {
             templateId: selectedTemplate,
             briefText,
             selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
+            sourceCampaignId: remixId || null,
             createdBy: "current_user",
           }),
         });
@@ -212,7 +278,7 @@ export default function CampaignStudio() {
       setIsGenerating(false);
       abortRef.current = null;
     }
-  }, [selectedBrand, selectedTemplate, campaignId, campaignName, briefText, selectedAssets, toast, addLog, updateLastLog]);
+  }, [selectedBrand, selectedTemplate, campaignId, campaignName, briefText, selectedAssets, remixId, toast, addLog, updateLastLog]);
 
   const handleSSEEvent = useCallback((event: string, data: Record<string, unknown>) => {
     switch (event) {
@@ -326,6 +392,12 @@ export default function CampaignStudio() {
             <Settings2 size={18} className="text-primary" />
             Campaign Setup
           </h2>
+          {remixId && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
+              <RefreshCw size={12} />
+              <span>Remixing from existing campaign</span>
+            </div>
+          )}
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -361,7 +433,7 @@ export default function CampaignStudio() {
 
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Template</label>
-            <Select value={selectedTemplate} onValueChange={setSelectedTemplate} disabled={!selectedBrand || isGenerating}>
+            <Select value={selectedTemplate} onValueChange={(v) => { setSelectedTemplate(v); setDuplicateDismissed(false); }} disabled={!selectedBrand || isGenerating}>
               <SelectTrigger className="w-full bg-background border-border">
                 <SelectValue placeholder="Select Template" />
               </SelectTrigger>
@@ -467,6 +539,36 @@ export default function CampaignStudio() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
+          {duplicateInfo?.duplicate && !duplicateDismissed && (
+            <div className="max-w-6xl mx-auto mb-6 bg-amber-500/5 border border-amber-500/30 rounded-lg p-4 flex items-start gap-3 border-l-4 border-l-amber-500">
+              <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Similar campaign detected
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  This looks similar to "{duplicateInfo.campaignName}" from{" "}
+                  {duplicateInfo.createdAt
+                    ? new Date(duplicateInfo.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                    : "recently"}
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                    onClick={() => setDuplicateDismissed(true)}
+                  >
+                    Dismiss and Proceed
+                  </Button>
+                </div>
+              </div>
+              <button onClick={() => setDuplicateDismissed(true)} className="text-muted-foreground hover:text-foreground">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-6xl mx-auto pb-12">
             {generatedVariants.length > 0 ? (
               generatedVariants.map((variant) => {
@@ -632,6 +734,14 @@ export default function CampaignStudio() {
             <Download size={16} className="mr-2 text-muted-foreground" /> Download All Assets
           </Button>
           <Button 
+            variant="outline" 
+            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground" 
+            disabled={generatedVariants.length === 0 || !campaignId || isGenerating}
+            onClick={() => setScheduleModalOpen(true)}
+          >
+            <CalendarIcon size={16} className="mr-2 text-muted-foreground" /> Schedule
+          </Button>
+          <Button 
             className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2" 
             disabled={generatedVariants.length === 0 || !campaignId || isGenerating}
             onClick={handleSubmitForReview}
@@ -640,6 +750,19 @@ export default function CampaignStudio() {
           </Button>
         </div>
       </aside>
+
+      {campaignId && (
+        <ScheduleModal
+          open={scheduleModalOpen}
+          onOpenChange={setScheduleModalOpen}
+          campaignId={campaignId}
+          campaignName={campaignName || "Untitled Campaign"}
+          onScheduled={() => {
+            addLog("Campaign scheduled", "done");
+            toast({ title: "Scheduled!", description: "Campaign added to calendar." });
+          }}
+        />
+      )}
     </div>
   );
 }
