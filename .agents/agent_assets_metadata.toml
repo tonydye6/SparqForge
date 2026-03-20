@@ -1,8 +1,3 @@
 uploads = []
 generated = []
-
-[[outputs]]
-id = "PHoxY2kDQan-wkmtA9yau"
-uri = "file://.local/SparqForge_Build_Analysis_vs_Discovery.md"
-type = "text"
-title = "SparqForge Build Analysis vs. Discovery Meeting"
+outputs = []

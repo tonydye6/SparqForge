@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable } from "@workspace/db";
+import { sql, gte } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
 import { generateCaptions, estimateClaudeCost } from "../services/claude.js";
 import { generateAllImages, estimateImagenCost, PLATFORM_CONFIGS } from "../services/imagen.js";
@@ -31,6 +31,28 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
   if (!campaign.templateId) {
     res.status(400).json({ error: "Campaign must have a template selected" });
     return;
+  }
+
+  const [thresholdRow] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "dailyCostThreshold"));
+  const budgetThreshold = thresholdRow ? parseFloat(thresholdRow.value) : null;
+
+  if (budgetThreshold !== null && !isNaN(budgetThreshold) && budgetThreshold > 0) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const [todayResult] = await db.select({
+      totalCost: sql<number>`COALESCE(SUM(${costLogsTable.costUsd}), 0)`,
+    }).from(costLogsTable).where(gte(costLogsTable.createdAt, todayStart));
+
+    const todaySpend = Number(todayResult?.totalCost || 0);
+    if (todaySpend >= budgetThreshold) {
+      res.status(429).json({
+        error: "Daily budget exceeded",
+        todaySpend,
+        threshold: budgetThreshold,
+        message: `Today's spend ($${todaySpend.toFixed(2)}) has reached the daily budget limit ($${budgetThreshold.toFixed(2)}). Increase the limit in Cost Dashboard settings or wait until tomorrow.`,
+      });
+      return;
+    }
   }
 
   res.writeHead(200, {
