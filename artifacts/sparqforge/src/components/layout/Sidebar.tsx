@@ -5,6 +5,7 @@ import {
   Calendar as CalendarIcon, 
   CheckSquare, 
   Settings,
+  DollarSign,
   ChevronLeft,
   ChevronRight,
   LogOut
@@ -37,6 +38,7 @@ export function Sidebar() {
     { href: "/assets", label: "Asset Library", icon: Library },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: calendarCount || undefined },
     { href: "/review", label: "Review Queue", icon: CheckSquare, badge: reviewCount || undefined },
+    { href: "/costs", label: "Cost Dashboard", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 

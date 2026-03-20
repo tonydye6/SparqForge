@@ -354,6 +354,45 @@ export interface CampaignVariant {
   updatedAt: string;
 }
 
+export interface CostLogEntry {
+  id: string;
+  campaignId?: string | null;
+  service: string;
+  operation: string;
+  model?: string | null;
+  costUsd: number;
+  inputTokens?: string | null;
+  outputTokens?: string | null;
+  createdAt: string;
+}
+
+export type CostSummaryByServiceItem = {
+  service?: string;
+  totalCost?: number;
+  count?: number;
+};
+
+export type CostSummaryByOperationItem = {
+  operation?: string;
+  service?: string;
+  totalCost?: number;
+  count?: number;
+};
+
+export type CostSummaryDailySpendItem = {
+  date?: string;
+  totalCost?: number;
+  count?: number;
+};
+
+export interface CostSummary {
+  totalCost: number;
+  totalEntries: number;
+  byService: CostSummaryByServiceItem[];
+  byOperation: CostSummaryByOperationItem[];
+  dailySpend: CostSummaryDailySpendItem[];
+}
+
 export type GetTemplatesParams = {
   brandId?: string;
 };
@@ -404,4 +443,17 @@ export const UploadVariantAudioBodyMode = {
 export type UploadVariantAudioBody = {
   audio: Blob;
   mode?: UploadVariantAudioBodyMode;
+};
+
+export type GetCostLogsParams = {
+  startDate?: string;
+  endDate?: string;
+  service?: string;
+  operation?: string;
+  limit?: number;
+};
+
+export type GetCostLogsSummaryParams = {
+  startDate?: string;
+  endDate?: string;
 };

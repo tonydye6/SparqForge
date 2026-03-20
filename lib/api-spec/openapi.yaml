@@ -23,6 +23,8 @@ tags:
     description: File upload
   - name: social-accounts
     description: Social media account management
+  - name: costs
+    description: Cost tracking and analytics
 paths:
   /healthz:
     get:
@@ -814,6 +816,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CampaignVariant"
+
+  /cost-logs:
+    get:
+      operationId: getCostLogs
+      tags: [costs]
+      summary: Get cost log entries with optional filters
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: service
+          in: query
+          schema:
+            type: string
+        - name: operation
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of cost log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CostLogEntry"
+  /cost-logs/summary:
+    get:
+      operationId: getCostLogsSummary
+      tags: [costs]
+      summary: Get cost summary with breakdowns
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostSummary"
 
 components:
   schemas:
@@ -1637,3 +1700,83 @@ components:
         - status
         - createdAt
         - updatedAt
+    CostLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        campaignId:
+          type: string
+          nullable: true
+        service:
+          type: string
+        operation:
+          type: string
+        model:
+          type: string
+          nullable: true
+        costUsd:
+          type: number
+        inputTokens:
+          type: string
+          nullable: true
+        outputTokens:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - service
+        - operation
+        - costUsd
+        - createdAt
+    CostSummary:
+      type: object
+      properties:
+        totalCost:
+          type: number
+        totalEntries:
+          type: number
+        byService:
+          type: array
+          items:
+            type: object
+            properties:
+              service:
+                type: string
+              totalCost:
+                type: number
+              count:
+                type: number
+        byOperation:
+          type: array
+          items:
+            type: object
+            properties:
+              operation:
+                type: string
+              service:
+                type: string
+              totalCost:
+                type: number
+              count:
+                type: number
+        dailySpend:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+              totalCost:
+                type: number
+              count:
+                type: number
+      required:
+        - totalCost
+        - totalEntries
+        - byService
+        - byOperation
+        - dailySpend

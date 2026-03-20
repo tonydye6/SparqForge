@@ -838,3 +838,62 @@ export const UploadVariantAudioResponse = zod.object({
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
+
+/**
+ * @summary Get cost log entries with optional filters
+ */
+export const GetCostLogsQueryParams = zod.object({
+  startDate: zod.date().optional(),
+  endDate: zod.date().optional(),
+  service: zod.coerce.string().optional(),
+  operation: zod.coerce.string().optional(),
+  limit: zod.coerce.number().optional(),
+});
+
+export const GetCostLogsResponseItem = zod.object({
+  id: zod.string(),
+  campaignId: zod.string().nullish(),
+  service: zod.string(),
+  operation: zod.string(),
+  model: zod.string().nullish(),
+  costUsd: zod.number(),
+  inputTokens: zod.string().nullish(),
+  outputTokens: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+export const GetCostLogsResponse = zod.array(GetCostLogsResponseItem);
+
+/**
+ * @summary Get cost summary with breakdowns
+ */
+export const GetCostLogsSummaryQueryParams = zod.object({
+  startDate: zod.date().optional(),
+  endDate: zod.date().optional(),
+});
+
+export const GetCostLogsSummaryResponse = zod.object({
+  totalCost: zod.number(),
+  totalEntries: zod.number(),
+  byService: zod.array(
+    zod.object({
+      service: zod.string().optional(),
+      totalCost: zod.number().optional(),
+      count: zod.number().optional(),
+    }),
+  ),
+  byOperation: zod.array(
+    zod.object({
+      operation: zod.string().optional(),
+      service: zod.string().optional(),
+      totalCost: zod.number().optional(),
+      count: zod.number().optional(),
+    }),
+  ),
+  dailySpend: zod.array(
+    zod.object({
+      date: zod.string().optional(),
+      totalCost: zod.number().optional(),
+      count: zod.number().optional(),
+    }),
+  ),
+});

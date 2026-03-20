@@ -9,6 +9,7 @@ import AssetLibrary from "@/pages/AssetLibrary";
 import Calendar from "@/pages/Calendar";
 import ReviewQueue from "@/pages/ReviewQueue";
 import Settings from "@/pages/Settings";
+import CostDashboard from "@/pages/CostDashboard";
 import NotFound from "@/pages/not-found";
 
 // The orval generated hooks will use this
@@ -30,6 +31,7 @@ function Router() {
         <Route path="/calendar" component={Calendar} />
         <Route path="/review" component={ReviewQueue} />
         <Route path="/settings" component={Settings} />
+        <Route path="/costs" component={CostDashboard} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
