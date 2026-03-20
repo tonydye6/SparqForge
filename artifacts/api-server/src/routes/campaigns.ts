@@ -11,8 +11,23 @@ import {
   UpdateCampaignBody,
   UpdateCampaignResponse,
 } from "@workspace/api-zod";
+import { captureScreenshots, captureFromUpload, validateUrl } from "../services/screenshot.js";
+import { analyzeReference } from "../services/reference-analysis.js";
+import multer from "multer";
 
 const router: IRouter = Router();
+const ALLOWED_IMAGE_MIMES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"];
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_IMAGE_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files (PNG, JPEG, WebP, GIF) are allowed"));
+    }
+  },
+});
 
 router.get("/campaigns", async (req, res): Promise<void> => {
   const query = GetCampaignsQueryParams.safeParse(req.query);
@@ -119,9 +134,10 @@ router.put("/campaigns/:id", async (req, res): Promise<void> => {
 
 router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
   const campaignId = req.params.id;
-  const { scheduledAt, perPlatform } = req.body as {
+  const { scheduledAt, perPlatform, socialAccounts: socialAccountsMap } = req.body as {
     scheduledAt?: string;
     perPlatform?: Record<string, string>;
+    socialAccounts?: Record<string, string>;
   };
 
   if (!scheduledAt && !perPlatform) {
@@ -148,11 +164,14 @@ router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
     const time = perPlatform?.[variant.platform] || scheduledAt;
     if (!time) continue;
 
+    const socialAccountId = socialAccountsMap?.[variant.platform] || null;
+
     const [entry] = await db.insert(calendarEntriesTable).values({
       campaignId,
       variantId: variant.id,
       platform: variant.platform,
       scheduledAt: new Date(time),
+      socialAccountId,
     }).returning();
     created.push(entry);
   }
@@ -162,6 +181,160 @@ router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
     .where(eq(campaignsTable.id, campaignId));
 
   res.status(201).json({ entries: created, count: created.length });
+});
+
+router.post("/campaigns/:id/analyze-url", async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+  const { url } = req.body as { url?: string };
+
+  if (!url) {
+    res.status(400).json({ error: "URL is required" });
+    return;
+  }
+
+  try {
+    validateUrl(url);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid URL";
+    res.status(400).json({ error: message });
+    return;
+  }
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  function sendEvent(event: string, data: Record<string, unknown>) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
+  try {
+    sendEvent("progress", { phase: "capturing", message: "Capturing page screenshots..." });
+    const screenshots = await captureScreenshots(url, campaignId);
+
+    const screenshotUrls = screenshots.map(s => ({ url: s.url, viewport: s.viewport }));
+    sendEvent("captured", {
+      phase: "analyzing",
+      message: "Analyzing reference design...",
+      referenceScreenshots: screenshotUrls,
+    });
+
+    const screenshotPaths = screenshots.map(s => s.filepath);
+    const analysis = await analyzeReference(screenshotPaths);
+
+    await db.update(campaignsTable)
+      .set({
+        referenceUrl: url,
+        referenceAnalysis: analysis,
+        referenceScreenshots: screenshotUrls,
+        updatedAt: new Date(),
+      })
+      .where(eq(campaignsTable.id, campaignId));
+
+    sendEvent("complete", {
+      phase: "done",
+      referenceUrl: url,
+      referenceAnalysis: analysis,
+      referenceScreenshots: screenshotUrls,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendEvent("error", { message: `Reference analysis failed: ${message}` });
+  } finally {
+    res.end();
+  }
+});
+
+router.post("/campaigns/:id/analyze-upload", upload.single("screenshot"), async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+  const file = req.file;
+
+  if (!file) {
+    res.status(400).json({ error: "Screenshot file is required" });
+    return;
+  }
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+
+  function sendEvent(event: string, data: Record<string, unknown>) {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  }
+
+  try {
+    sendEvent("progress", { phase: "capturing", message: "Processing uploaded screenshot..." });
+    const screenshot = await captureFromUpload(file.buffer, campaignId, file.originalname);
+    const screenshotUrls = [{ url: screenshot.url, viewport: screenshot.viewport }];
+
+    sendEvent("captured", {
+      phase: "analyzing",
+      message: "Analyzing reference design...",
+      referenceScreenshots: screenshotUrls,
+    });
+
+    const analysis = await analyzeReference([screenshot.filepath]);
+
+    await db.update(campaignsTable)
+      .set({
+        referenceUrl: null,
+        referenceAnalysis: analysis,
+        referenceScreenshots: screenshotUrls,
+        updatedAt: new Date(),
+      })
+      .where(eq(campaignsTable.id, campaignId));
+
+    sendEvent("complete", {
+      phase: "done",
+      referenceUrl: null,
+      referenceAnalysis: analysis,
+      referenceScreenshots: screenshotUrls,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendEvent("error", { message: `Reference analysis failed: ${message}` });
+  } finally {
+    res.end();
+  }
+});
+
+router.delete("/campaigns/:id/reference", async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  await db.update(campaignsTable)
+    .set({
+      referenceUrl: null,
+      referenceAnalysis: null,
+      referenceScreenshots: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(campaignsTable.id, campaignId));
+
+  res.json({ cleared: true });
 });
 
 export default router;

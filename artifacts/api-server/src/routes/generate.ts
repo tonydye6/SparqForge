@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, costLogsTable } from "@workspace/db";
+import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
 import { generateCaptions, estimateClaudeCost } from "../services/claude.js";
 import { generateAllImages, estimateImagenCost, PLATFORM_CONFIGS } from "../services/imagen.js";
@@ -158,6 +159,12 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       .set({ status: "draft", updatedAt: new Date() })
       .where(eq(campaignsTable.id, campaignId));
 
+    if (campaign.templateId) {
+      await db.update(templatesTable)
+        .set({ totalGenerations: sql`COALESCE(${templatesTable.totalGenerations}, 0) + 1` })
+        .where(eq(templatesTable.id, campaign.templateId));
+    }
+
     const totalCost = estimateClaudeCost() + estimateImagenCost(images.length);
     await db.insert(costLogsTable).values({
       campaignId,
@@ -217,6 +224,22 @@ router.put("/campaigns/:id/variants/:variantId/caption", async (req: Request, re
     .set({ caption, updatedAt: new Date() })
     .where(eq(campaignVariantsTable.id, variantId))
     .returning();
+
+  if (variant.originalCaption && caption !== variant.originalCaption) {
+    const [camp] = await db.select({ templateId: campaignsTable.templateId }).from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+    if (camp?.templateId) {
+      await db.insert(refinementLogsTable).values({
+        campaignId,
+        templateId: camp.templateId,
+        editType: "caption_edit",
+        platform: variant.platform,
+        aspectRatio: variant.aspectRatio,
+        originalValue: variant.originalCaption,
+        newValue: caption,
+        userId: "system",
+      });
+    }
+  }
 
   res.json(updated);
 });
@@ -286,7 +309,125 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
     .where(eq(campaignVariantsTable.id, variantId))
     .returning();
 
+  if (variant.originalHeadline && headline !== variant.originalHeadline) {
+    await db.insert(refinementLogsTable).values({
+      campaignId,
+      templateId: campaign.templateId,
+      editType: "headline_edit",
+      platform: variant.platform,
+      aspectRatio: variant.aspectRatio,
+      originalValue: variant.originalHeadline,
+      newValue: headline,
+      userId: "system",
+    });
+  }
+
   res.json(updated);
+});
+
+router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request, res: Response): Promise<void> => {
+  const { id: campaignId, variantId } = req.params;
+  const { instruction } = req.body || {};
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+  if (!campaign.templateId) {
+    res.status(400).json({ error: "Campaign must have a template" });
+    return;
+  }
+
+  const [variant] = await db.select().from(campaignVariantsTable).where(eq(campaignVariantsTable.id, variantId));
+  if (!variant || variant.campaignId !== campaignId) {
+    res.status(404).json({ error: "Variant not found" });
+    return;
+  }
+
+  const config = PLATFORM_CONFIGS[variant.platform];
+  if (!config) {
+    res.status(400).json({ error: "Unknown platform" });
+    return;
+  }
+
+  try {
+    const selectedAssets = (campaign.selectedAssets || []) as import("../services/context-assembly.js").SelectedAssetRef[];
+    const ctx = await assembleContext({
+      brandId: campaign.brandId,
+      templateId: campaign.templateId,
+      selectedAssets,
+      selectedHashtagSetIds: (campaign.selectedHashtagSets || []) as string[],
+      briefText: instruction
+        ? `${campaign.briefText || ""}\n\nADDITIONAL REFINEMENT: ${instruction}`
+        : campaign.briefText || undefined,
+      referenceAnalysis: campaign.referenceAnalysis as Record<string, unknown> | null,
+    });
+
+    const { generateImage } = await import("../services/imagen.js");
+    const imgResult = await generateImage(ctx, variant.platform);
+
+    ensureDir(UPLOADS_DIR);
+
+    const ts = Date.now();
+    const rawFilename = `${campaignId}_${variant.platform}_${ts}_raw.png`;
+    const rawPath = path.join(UPLOADS_DIR, rawFilename);
+    fs.writeFileSync(rawPath, imgResult.imageBuffer);
+
+    const layoutSpec = ctx.template.layoutSpec as Record<string, unknown> | null;
+    let compositedBuffer: Buffer;
+    try {
+      compositedBuffer = await compositeImage({
+        rawImageBuffer: imgResult.imageBuffer,
+        layoutSpec: layoutSpec as any,
+        headlineText: variant.headlineText || null,
+        logoBuffer: null,
+        width: config.width,
+        height: config.height,
+      });
+    } catch {
+      compositedBuffer = imgResult.imageBuffer;
+    }
+
+    const compFilename = `${campaignId}_${variant.platform}_${ts}_composited.png`;
+    const compPath = path.join(UPLOADS_DIR, compFilename);
+    fs.writeFileSync(compPath, compositedBuffer);
+
+    const [updated] = await db.update(campaignVariantsTable)
+      .set({
+        rawImageUrl: `/api/files/generated/${rawFilename}`,
+        compositedImageUrl: `/api/files/generated/${compFilename}`,
+        updatedAt: new Date(),
+      })
+      .where(eq(campaignVariantsTable.id, variantId))
+      .returning();
+
+    const cost = estimateImagenCost(1);
+    await db.insert(costLogsTable).values({
+      campaignId,
+      service: "gemini",
+      operation: "single_variant_regeneration",
+      model: "gemini-2.5-flash-image",
+      costUsd: cost,
+    });
+
+    if (campaign.templateId) {
+      await db.insert(refinementLogsTable).values({
+        campaignId,
+        templateId: campaign.templateId,
+        editType: "image_refinement",
+        platform: variant.platform,
+        aspectRatio: variant.aspectRatio,
+        refinementPrompt: instruction || null,
+        userId: "system",
+      });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Regeneration failed: ${message}` });
+  }
 });
 
 export default router;

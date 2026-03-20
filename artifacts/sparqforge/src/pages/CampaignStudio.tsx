@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlatformIcon } from "@/components/ui/platform-icon";
+import { TikTokPreviewFrame } from "@/components/ui/tiktok-preview-frame";
 import { 
   useGetBrands, 
   useGetTemplates, 
@@ -15,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -26,6 +28,7 @@ interface GeneratedVariant {
   compositedImageUrl: string | null;
   caption: string;
   headlineText: string | null;
+  imageVersion?: number;
 }
 
 interface ActivityLog {
@@ -46,6 +49,7 @@ const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; rati
   instagram_story: { name: "Instagram Story", platformIcon: "instagram", ratio: "9:16" },
   twitter: { name: "X (Twitter)", platformIcon: "twitter", ratio: "16:9" },
   linkedin: { name: "LinkedIn", platformIcon: "linkedin", ratio: "16:9" },
+  tiktok: { name: "TikTok", platformIcon: "tiktok", ratio: "9:16" },
 };
 
 export default function CampaignStudio() {
@@ -77,7 +81,23 @@ export default function CampaignStudio() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
+  
+  const [variantRefineOpen, setVariantRefineOpen] = useState<Record<string, boolean>>({});
+  const [variantRefineText, setVariantRefineText] = useState<Record<string, string>>({});
+  const [regeneratingVariant, setRegeneratingVariant] = useState<string | null>(null);
+  
+  const [hashtagDialogOpen, setHashtagDialogOpen] = useState(false);
+  const [hashtagSetName, setHashtagSetName] = useState("");
+  const [hashtagsToSave, setHashtagsToSave] = useState<string[]>([]);
+  const [savingHashtags, setSavingHashtags] = useState(false);
 
+  const [referenceUrl, setReferenceUrl] = useState("");
+  const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
+  const [referenceAnalysis, setReferenceAnalysis] = useState<Record<string, string> | null>(null);
+  const [referenceScreenshots, setReferenceScreenshots] = useState<Array<{ url: string; viewport: string }>>([]);
+  const [referenceError, setReferenceError] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const remixLoadedRef = useRef(false);
   
@@ -150,6 +170,219 @@ export default function CampaignStudio() {
       return updated;
     });
   }, []);
+
+  const ensureCampaignId = useCallback(async (): Promise<string | null> => {
+    if (campaignId) return campaignId;
+    if (!selectedBrand) return null;
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: campaignName || "Untitled Campaign",
+          brandId: selectedBrand,
+          templateId: selectedTemplate || null,
+          briefText,
+          selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
+          sourceCampaignId: remixId || null,
+          createdBy: "current_user",
+        }),
+      });
+      if (!resp.ok) return null;
+      const campaign = await resp.json();
+      setCampaignId(campaign.id);
+      return campaign.id;
+    } catch {
+      return null;
+    }
+  }, [campaignId, selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, remixId]);
+
+  const processSSEStream = useCallback(async (
+    response: Response,
+    onCaptured: (screenshots: Array<{ url: string; viewport: string }>) => void,
+    onComplete: (data: { referenceAnalysis: Record<string, string>; referenceScreenshots: Array<{ url: string; viewport: string }> }) => void,
+    onError: (message: string) => void,
+  ) => {
+    if (!response.body) {
+      onError("No response stream");
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      let currentEvent = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith("data: ") && currentEvent) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (currentEvent === "captured") {
+              onCaptured(data.referenceScreenshots || []);
+            } else if (currentEvent === "complete") {
+              onComplete({
+                referenceAnalysis: data.referenceAnalysis,
+                referenceScreenshots: data.referenceScreenshots || [],
+              });
+            } else if (currentEvent === "error") {
+              onError(data.message || "Analysis failed");
+            }
+          } catch {}
+          currentEvent = "";
+        }
+      }
+    }
+  }, []);
+
+  const handleAnalyzeUrl = useCallback(async () => {
+    if (!referenceUrl.trim()) return;
+
+    try {
+      new URL(referenceUrl);
+    } catch {
+      setReferenceError("Please enter a valid URL");
+      setReferenceStatus("error");
+      return;
+    }
+
+    if (!selectedBrand) {
+      toast({ variant: "destructive", title: "Select a brand first" });
+      return;
+    }
+
+    setReferenceStatus("capturing");
+    setReferenceError("");
+
+    const cId = await ensureCampaignId();
+    if (!cId) {
+      setReferenceStatus("error");
+      setReferenceError("Failed to create campaign");
+      return;
+    }
+
+    try {
+      addLog("Capturing reference page...", "pending");
+
+      const resp = await fetch(`${API_BASE}/api/campaigns/${cId}/analyze-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: referenceUrl }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Analysis failed" }));
+        throw new Error(err.error || "Analysis failed");
+      }
+
+      await processSSEStream(
+        resp,
+        (screenshots) => {
+          setReferenceScreenshots(screenshots);
+          setReferenceStatus("analyzing");
+          addLog("Analyzing reference design...", "pending");
+        },
+        (data) => {
+          setReferenceAnalysis(data.referenceAnalysis);
+          setReferenceScreenshots(data.referenceScreenshots);
+          setReferenceStatus("done");
+          addLog("Reference analyzed ✓", "done");
+        },
+        (message) => {
+          throw new Error(message);
+        },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Analysis failed";
+      setReferenceStatus("error");
+      setReferenceError(msg);
+      addLog(`Reference analysis failed: ${msg}`, "error");
+    }
+  }, [referenceUrl, selectedBrand, ensureCampaignId, addLog, toast, processSSEStream]);
+
+  const handleUploadScreenshot = useCallback(async (file: File) => {
+    if (!selectedBrand) {
+      toast({ variant: "destructive", title: "Select a brand first" });
+      return;
+    }
+
+    setReferenceStatus("capturing");
+    setReferenceError("");
+
+    const cId = await ensureCampaignId();
+    if (!cId) {
+      setReferenceStatus("error");
+      setReferenceError("Failed to create campaign");
+      return;
+    }
+
+    try {
+      addLog("Processing uploaded screenshot...", "pending");
+
+      const formData = new FormData();
+      formData.append("screenshot", file);
+
+      const resp = await fetch(`${API_BASE}/api/campaigns/${cId}/analyze-upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Upload analysis failed" }));
+        throw new Error(err.error || "Upload analysis failed");
+      }
+
+      await processSSEStream(
+        resp,
+        (screenshots) => {
+          setReferenceScreenshots(screenshots);
+          setReferenceStatus("analyzing");
+          addLog("Analyzing reference design...", "pending");
+        },
+        (data) => {
+          setReferenceAnalysis(data.referenceAnalysis);
+          setReferenceScreenshots(data.referenceScreenshots);
+          setReferenceStatus("done");
+          setReferenceUrl(file.name);
+          addLog("Uploaded reference analyzed ✓", "done");
+        },
+        (message) => {
+          throw new Error(message);
+        },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload analysis failed";
+      setReferenceStatus("error");
+      setReferenceError(msg);
+      addLog(`Reference analysis failed: ${msg}`, "error");
+    }
+  }, [selectedBrand, ensureCampaignId, addLog, toast, processSSEStream]);
+
+  const handleClearReference = useCallback(async () => {
+    setReferenceUrl("");
+    setReferenceStatus("idle");
+    setReferenceAnalysis(null);
+    setReferenceScreenshots([]);
+    setReferenceError("");
+
+    if (campaignId) {
+      try {
+        await fetch(`${API_BASE}/api/campaigns/${campaignId}/reference`, {
+          method: "DELETE",
+        });
+      } catch {}
+    }
+  }, [campaignId]);
 
   const handleSaveDraft = useCallback(async () => {
     if (!selectedBrand) {
@@ -383,6 +616,79 @@ export default function CampaignStudio() {
     }
   }, [campaignId, toast, addLog]);
 
+  const handleVariantRegenerate = useCallback(async (variantId: string, platform: string) => {
+    if (!campaignId || !variantId) return;
+    const instruction = variantRefineText[platform] || "";
+    
+    setRegeneratingVariant(platform);
+    addLog(`Regenerating ${PLATFORM_LABELS[platform]?.name || platform}...`, "pending");
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Regeneration failed" }));
+        throw new Error(err.error || "Regeneration failed");
+      }
+
+      const updated = await resp.json();
+      setGeneratedVariants(prev => prev.map(v =>
+        v.platform === platform
+          ? { ...v, rawImageUrl: updated.rawImageUrl, compositedImageUrl: updated.compositedImageUrl, id: updated.id, imageVersion: (v.imageVersion || 0) + 1 }
+          : v
+      ));
+
+      setVariantRefineText(prev => ({ ...prev, [platform]: "" }));
+      setVariantRefineOpen(prev => ({ ...prev, [platform]: false }));
+      addLog(`${PLATFORM_LABELS[platform]?.name || platform} regenerated`, "done");
+      toast({ title: "Variant regenerated" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      addLog(`Regeneration failed: ${msg}`, "error");
+      toast({ variant: "destructive", title: "Regeneration failed", description: msg });
+    } finally {
+      setRegeneratingVariant(null);
+    }
+  }, [campaignId, variantRefineText, addLog, toast]);
+
+  const extractHashtags = useCallback((caption: string): string[] => {
+    const matches = caption.match(/#[a-zA-Z0-9_]+/g);
+    return matches ? [...new Set(matches)] : [];
+  }, []);
+
+  const handleSaveHashtagSet = useCallback(async () => {
+    if (!selectedBrand || !hashtagSetName.trim() || hashtagsToSave.length === 0) return;
+    
+    setSavingHashtags(true);
+    try {
+      const resp = await fetch(`${API_BASE}/api/hashtag-sets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brandId: selectedBrand,
+          name: hashtagSetName.trim(),
+          hashtags: hashtagsToSave.map(h => h.startsWith("#") ? h.slice(1) : h),
+          category: "saved",
+        }),
+      });
+
+      if (!resp.ok) throw new Error("Failed to save");
+
+      toast({ title: "Hashtag set saved", description: `"${hashtagSetName}" saved with ${hashtagsToSave.length} hashtags.` });
+      setHashtagDialogOpen(false);
+      setHashtagSetName("");
+      setHashtagsToSave([]);
+    } catch {
+      toast({ variant: "destructive", title: "Failed to save hashtag set" });
+    } finally {
+      setSavingHashtags(false);
+    }
+  }, [selectedBrand, hashtagSetName, hashtagsToSave, toast]);
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
       
@@ -472,6 +778,118 @@ export default function CampaignStudio() {
                 <p className="text-xs text-muted-foreground italic col-span-3">No approved visual assets found.</p>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Link size={12} className="text-primary" />
+              Reference URL
+            </label>
+            {referenceStatus === "idle" || referenceStatus === "error" ? (
+              <>
+                <div className="flex gap-1.5">
+                  <Input
+                    placeholder="https://example.com"
+                    className="bg-background border-border text-sm flex-1"
+                    value={referenceUrl}
+                    onChange={e => setReferenceUrl(e.target.value)}
+                    disabled={isGenerating}
+                    onKeyDown={e => { if (e.key === "Enter") handleAnalyzeUrl(); }}
+                  />
+                  <Button
+                    size="icon"
+                    className="h-9 w-9 bg-primary hover:bg-primary/90 shrink-0"
+                    onClick={handleAnalyzeUrl}
+                    disabled={!referenceUrl.trim() || isGenerating || !selectedBrand}
+                  >
+                    <Search size={14} />
+                  </Button>
+                </div>
+                {referenceStatus === "error" && referenceError && (
+                  <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20">
+                    <AlertCircle size={12} className="text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[11px] text-red-400">{referenceError}</p>
+                      <button
+                        className="text-[11px] text-red-400 underline mt-1 hover:text-red-300"
+                        onClick={handleAnalyzeUrl}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <button
+                  className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isGenerating || !selectedBrand}
+                >
+                  <Upload size={10} />
+                  Or upload screenshot
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadScreenshot(file);
+                    e.target.value = "";
+                  }}
+                />
+              </>
+            ) : referenceStatus === "capturing" ? (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+                <Loader2 size={14} className="text-amber-400 animate-spin" />
+                <span className="text-xs text-amber-400">Capturing page...</span>
+              </div>
+            ) : referenceStatus === "analyzing" ? (
+              <div className="space-y-2">
+                {referenceScreenshots.length > 0 && (
+                  <div className="w-full h-16 rounded-md overflow-hidden border border-border/50 bg-muted/30">
+                    <img
+                      src={`${API_BASE}${referenceScreenshots[0].url}`}
+                      alt="Reference"
+                      className="w-full h-full object-cover object-top opacity-60"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 p-2 rounded-md bg-blue-500/5 border border-blue-500/20">
+                  <Loader2 size={14} className="text-blue-400 animate-spin" />
+                  <span className="text-xs text-blue-400">Analyzing reference...</span>
+                </div>
+              </div>
+            ) : referenceStatus === "done" ? (
+              <div className="space-y-2">
+                {referenceScreenshots.length > 0 && (
+                  <div className="w-full h-16 rounded-md overflow-hidden border border-green-500/20 bg-muted/30 relative group">
+                    <img
+                      src={`${API_BASE}${referenceScreenshots[0].url}`}
+                      alt="Reference"
+                      className="w-full h-full object-cover object-top"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between p-2 rounded-md bg-green-500/10 border border-green-500/20">
+                  <div className="flex items-center gap-2">
+                    <Check size={12} className="text-green-400" />
+                    <span className="text-xs text-green-400 font-medium">Analyzed ✓</span>
+                  </div>
+                  <button
+                    className="text-muted-foreground hover:text-red-400 transition-colors"
+                    onClick={handleClearReference}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                {referenceAnalysis?.visual_mood && (
+                  <p className="text-[10px] text-muted-foreground leading-tight truncate" title={referenceAnalysis.visual_mood}>
+                    Mood: {referenceAnalysis.visual_mood}
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -574,6 +992,7 @@ export default function CampaignStudio() {
               generatedVariants.map((variant) => {
                 const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, platformIcon: "twitter", ratio: variant.aspectRatio };
                 const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
+                const versionSuffix = variant.imageVersion ? `?v=${variant.imageVersion}` : "";
                 return (
                   <div key={variant.platform} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
                     <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
@@ -596,10 +1015,30 @@ export default function CampaignStudio() {
                     
                     <div className="p-4 flex-1 flex flex-col gap-4">
                       <div className="flex gap-4">
-                        <div className="w-[160px] shrink-0 rounded-md border border-border/50 overflow-hidden bg-muted/30">
+                        {variant.platform === "tiktok" ? (
+                          <div className="w-[160px] shrink-0 relative">
+                            {regeneratingVariant === variant.platform && (
+                              <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center rounded-md">
+                                <Loader2 size={24} className="animate-spin text-primary" />
+                                <span className="text-[10px] text-primary mt-1">Regenerating...</span>
+                              </div>
+                            )}
+                            <TikTokPreviewFrame
+                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}${versionSuffix}` : undefined}
+                              caption={variant.caption}
+                            />
+                          </div>
+                        ) : (
+                        <div className="w-[160px] shrink-0 rounded-md border border-border/50 overflow-hidden bg-muted/30 relative">
+                          {regeneratingVariant === variant.platform && (
+                            <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center">
+                              <Loader2 size={24} className="animate-spin text-primary" />
+                              <span className="text-[10px] text-primary mt-1">Regenerating...</span>
+                            </div>
+                          )}
                           {imageUrl ? (
                             <img 
-                              src={`${API_BASE}${imageUrl}`} 
+                              src={`${API_BASE}${imageUrl}${versionSuffix}`} 
                               alt={`${label.name} variant`} 
                               className="w-full h-auto object-cover"
                             />
@@ -610,6 +1049,7 @@ export default function CampaignStudio() {
                             </div>
                           )}
                         </div>
+                        )}
                         
                         <div className="flex-1 flex flex-col gap-2">
                           {variant.headlineText && (
@@ -626,11 +1066,65 @@ export default function CampaignStudio() {
                           <div className="flex justify-between items-center px-1">
                             <span className="text-[10px] text-muted-foreground">{variant.caption.length} chars</span>
                             <div className="flex gap-1">
-                               <Button variant="ghost" size="icon" className="h-6 w-6"><FileText size={12} /></Button>
+                              {extractHashtags(variant.caption).length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-[10px] text-muted-foreground hover:text-primary px-1.5 gap-1"
+                                  onClick={() => {
+                                    setHashtagsToSave(extractHashtags(variant.caption));
+                                    setHashtagDialogOpen(true);
+                                  }}
+                                >
+                                  <Hash size={10} />
+                                  Save as Hashtag Set
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
+
+                      {variant.id && (
+                        <div className="border-t border-border pt-2">
+                          <button
+                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full"
+                            onClick={() => setVariantRefineOpen(prev => ({ ...prev, [variant.platform]: !prev[variant.platform] }))}
+                          >
+                            {variantRefineOpen[variant.platform] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                            <Wand2 size={11} />
+                            <span>Refine this variant</span>
+                          </button>
+                          {variantRefineOpen[variant.platform] && (
+                            <div className="mt-2 flex gap-2">
+                              <Input
+                                placeholder="e.g. 'Make it brighter' or 'More dynamic angle'"
+                                className="flex-1 h-8 text-xs bg-background border-border"
+                                value={variantRefineText[variant.platform] || ""}
+                                onChange={(e) => setVariantRefineText(prev => ({ ...prev, [variant.platform]: e.target.value }))}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && variant.id) {
+                                    handleVariantRegenerate(variant.id, variant.platform);
+                                  }
+                                }}
+                                disabled={regeneratingVariant !== null}
+                              />
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 text-xs bg-primary hover:bg-primary/90"
+                                disabled={regeneratingVariant !== null}
+                                onClick={() => variant.id && handleVariantRegenerate(variant.id, variant.platform)}
+                              >
+                                {regeneratingVariant === variant.platform ? (
+                                  <Loader2 size={12} className="animate-spin" />
+                                ) : (
+                                  <><Wand2 size={12} className="mr-1" /> Refine</>
+                                )}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -763,6 +1257,51 @@ export default function CampaignStudio() {
           }}
         />
       )}
+
+      <Dialog open={hashtagDialogOpen} onOpenChange={setHashtagDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save as Hashtag Set</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Set Name</label>
+              <Input
+                placeholder="e.g. Tournament Hype Tags"
+                value={hashtagSetName}
+                onChange={(e) => setHashtagSetName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Hashtags ({hashtagsToSave.length})</label>
+              <div className="flex flex-wrap gap-1.5">
+                {hashtagsToSave.map((tag, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">
+                    {tag}
+                    <button
+                      className="ml-1 hover:text-destructive"
+                      onClick={() => setHashtagsToSave(prev => prev.filter((_, idx) => idx !== i))}
+                    >
+                      <X size={10} />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHashtagDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={handleSaveHashtagSet}
+              disabled={savingHashtags || !hashtagSetName.trim() || hashtagsToSave.length === 0}
+            >
+              {savingHashtags ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Hash size={14} className="mr-2" />}
+              Save Set
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

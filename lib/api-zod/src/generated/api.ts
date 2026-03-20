@@ -579,3 +579,262 @@ export const UploadFileResponse = zod.object({
   url: zod.string(),
   thumbnailUrl: zod.string().optional(),
 });
+
+/**
+ * @summary List all connected social accounts
+ */
+export const GetSocialAccountsResponseItem = zod.object({
+  id: zod.string(),
+  platform: zod.string(),
+  accountName: zod.string(),
+  accountId: zod.string(),
+  tokenExpiry: zod.date().nullish(),
+  brandId: zod.string().nullish(),
+  status: zod.string(),
+  displayStatus: zod.string(),
+  createdAt: zod.date().optional(),
+  updatedAt: zod.date().optional(),
+});
+export const GetSocialAccountsResponse = zod.array(
+  GetSocialAccountsResponseItem,
+);
+
+/**
+ * @summary Disconnect a social account
+ */
+export const DeleteSocialAccountParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const DeleteSocialAccountResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Refresh an expired or expiring token
+ */
+export const RefreshSocialAccountParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const RefreshSocialAccountResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Get version history for a template
+ */
+export const GetTemplateVersionsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetTemplateVersionsResponseItem = zod.object({
+  id: zod.string(),
+  templateId: zod.string(),
+  version: zod.number(),
+  snapshot: zod.record(zod.string(), zod.unknown()),
+  changedFields: zod.array(zod.string()).nullish(),
+  changeReason: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+export const GetTemplateVersionsResponse = zod.array(
+  GetTemplateVersionsResponseItem,
+);
+
+/**
+ * @summary Rollback a template to a previous version
+ */
+export const RollbackTemplateParams = zod.object({
+  id: zod.coerce.string(),
+  versionId: zod.coerce.string(),
+});
+
+export const RollbackTemplateResponse = zod.object({
+  id: zod.string(),
+  brandId: zod.string(),
+  name: zod.string(),
+  description: zod.string().nullish(),
+  version: zod.number(),
+  imagenPromptAddition: zod.string(),
+  imagenNegativeAddition: zod.string(),
+  claudeCaptionInstruction: zod.record(zod.string(), zod.unknown()),
+  claudeHeadlineInstruction: zod.string().nullish(),
+  layoutSpec: zod.record(zod.string(), zod.unknown()).nullish(),
+  recommendedAssetTypes: zod.array(zod.string()),
+  targetAspectRatios: zod.array(zod.string()),
+  totalGenerations: zod.number(),
+  isActive: zod.boolean(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Get performance statistics for a template
+ */
+export const GetTemplateStatsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetTemplateStatsResponse = zod.object({
+  templateId: zod.string(),
+  templateName: zod.string(),
+  totalGenerations: zod.number(),
+  version: zod.number(),
+  totalLogs: zod.number(),
+  approvals: zod.number(),
+  rejections: zod.number(),
+  approvalRate: zod.number().nullish(),
+  captionEdits: zod.number(),
+  headlineEdits: zod.number(),
+  imageRefinements: zod.number(),
+  topRefinementPrompts: zod.array(
+    zod.object({
+      prompt: zod.string().optional(),
+      count: zod.number().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Trigger Claude-powered refinement analysis for a template
+ */
+export const AnalyzeTemplateParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const AnalyzeTemplateResponse = zod.object({
+  id: zod.string(),
+  templateId: zod.string(),
+  analysisData: zod.record(zod.string(), zod.unknown()).optional(),
+  recommendations: zod.array(zod.record(zod.string(), zod.unknown())),
+  status: zod.string(),
+  reviewedAt: zod.date().nullish(),
+  reviewerNotes: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary List recommendations for a template
+ */
+export const GetTemplateRecommendationsParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GetTemplateRecommendationsResponseItem = zod.object({
+  id: zod.string(),
+  templateId: zod.string(),
+  analysisData: zod.record(zod.string(), zod.unknown()).optional(),
+  recommendations: zod.array(zod.record(zod.string(), zod.unknown())),
+  status: zod.string(),
+  reviewedAt: zod.date().nullish(),
+  reviewerNotes: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+export const GetTemplateRecommendationsResponse = zod.array(
+  GetTemplateRecommendationsResponseItem,
+);
+
+/**
+ * @summary Apply or dismiss a recommendation
+ */
+export const UpdateTemplateRecommendationParams = zod.object({
+  id: zod.coerce.string(),
+  recId: zod.coerce.string(),
+});
+
+export const UpdateTemplateRecommendationBody = zod.object({
+  action: zod.enum(["apply", "dismiss"]),
+  notes: zod.string().nullish(),
+});
+
+export const UpdateTemplateRecommendationResponse = zod.object({
+  id: zod.string(),
+  templateId: zod.string(),
+  analysisData: zod.record(zod.string(), zod.unknown()).optional(),
+  recommendations: zod.array(zod.record(zod.string(), zod.unknown())),
+  status: zod.string(),
+  reviewedAt: zod.date().nullish(),
+  reviewerNotes: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Generate video variants for a campaign (SSE)
+ */
+export const GenerateVideoParams = zod.object({
+  id: zod.coerce.string(),
+});
+
+export const GenerateVideoBody = zod.object({
+  orientations: zod.array(zod.enum(["landscape", "portrait"])).optional(),
+});
+
+/**
+ * @summary Generate and merge AI audio onto a video variant
+ */
+export const AddVariantAudioParams = zod.object({
+  id: zod.coerce.string(),
+  variantId: zod.coerce.string(),
+});
+
+export const AddVariantAudioBody = zod.object({
+  type: zod.enum(["music", "sfx", "mute", "veo_native"]),
+  prompt: zod.string().nullish(),
+  mode: zod.enum(["replace", "mix"]).optional(),
+  audioVolume: zod.number().optional(),
+  videoVolume: zod.number().optional(),
+});
+
+export const AddVariantAudioResponse = zod.object({
+  id: zod.string(),
+  campaignId: zod.string(),
+  platform: zod.string(),
+  aspectRatio: zod.string(),
+  rawImageUrl: zod.string().nullish(),
+  compositedImageUrl: zod.string().nullish(),
+  videoUrl: zod.string().nullish(),
+  audioSource: zod.string().nullish(),
+  audioUrl: zod.string().nullish(),
+  mergedVideoUrl: zod.string().nullish(),
+  caption: zod.string(),
+  originalCaption: zod.string().nullish(),
+  headlineText: zod.string().nullish(),
+  originalHeadline: zod.string().nullish(),
+  status: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});
+
+/**
+ * @summary Upload custom audio and merge onto a video variant
+ */
+export const UploadVariantAudioParams = zod.object({
+  id: zod.coerce.string(),
+  variantId: zod.coerce.string(),
+});
+
+export const UploadVariantAudioBody = zod.object({
+  audio: zod.instanceof(File),
+  mode: zod.enum(["replace", "mix"]).optional(),
+});
+
+export const UploadVariantAudioResponse = zod.object({
+  id: zod.string(),
+  campaignId: zod.string(),
+  platform: zod.string(),
+  aspectRatio: zod.string(),
+  rawImageUrl: zod.string().nullish(),
+  compositedImageUrl: zod.string().nullish(),
+  videoUrl: zod.string().nullish(),
+  audioSource: zod.string().nullish(),
+  audioUrl: zod.string().nullish(),
+  mergedVideoUrl: zod.string().nullish(),
+  caption: zod.string(),
+  originalCaption: zod.string().nullish(),
+  headlineText: zod.string().nullish(),
+  originalHeadline: zod.string().nullish(),
+  status: zod.string(),
+  createdAt: zod.date(),
+  updatedAt: zod.date(),
+});

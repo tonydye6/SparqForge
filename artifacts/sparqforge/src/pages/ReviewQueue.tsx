@@ -8,6 +8,7 @@ import { useGetBrands, useGetCampaigns, useUpdateCampaign } from "@workspace/api
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlatformIcon } from "@/components/ui/platform-icon";
+import { TikTokPreviewFrame } from "@/components/ui/tiktok-preview-frame";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useLocation } from "wouter";
 
@@ -37,6 +38,7 @@ const PLATFORM_LABELS: Record<string, { name: string; icon: string }> = {
   instagram_story: { name: "Instagram Story", icon: "instagram" },
   twitter: { name: "X (Twitter)", icon: "twitter" },
   linkedin: { name: "LinkedIn", icon: "linkedin" },
+  tiktok: { name: "TikTok", icon: "tiktok" },
 };
 
 export default function ReviewQueue() {
@@ -359,7 +361,14 @@ export default function ReviewQueue() {
                           </div>
                         </div>
 
-                        {imageUrl ? (
+                        {variant.platform === "tiktok" ? (
+                          <div className="flex justify-center py-3">
+                            <TikTokPreviewFrame
+                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}` : undefined}
+                              caption={variant.caption}
+                            />
+                          </div>
+                        ) : imageUrl ? (
                           <img
                             src={`${API_BASE}${imageUrl}`}
                             alt={`${label.name} variant`}

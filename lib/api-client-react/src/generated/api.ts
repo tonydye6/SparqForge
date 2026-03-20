@@ -18,13 +18,16 @@ import type {
 
 import type {
   Asset,
+  AudioGenerateInput,
   Brand,
   Campaign,
+  CampaignVariant,
   CreateAssetInput,
   CreateBrandInput,
   CreateCampaignInput,
   CreateHashtagSetInput,
   CreateTemplateInput,
+  GenerateVideoBody,
   GetAssetsParams,
   GetCampaignsParams,
   GetHashtagSetsParams,
@@ -32,11 +35,19 @@ import type {
   HashtagSet,
   HealthStatus,
   MessageResponse,
+  RecommendationActionInput,
+  SocialAccount,
+  SocialAccountDeleteResponse,
+  SocialAccountRefreshResponse,
   Template,
+  TemplateRecommendation,
+  TemplateStats,
+  TemplateVersion,
   UpdateAssetInput,
   UpdateCampaignInput,
   UploadFileBody,
   UploadResponse,
+  UploadVariantAudioBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -2201,4 +2212,1051 @@ export const useUploadFile = <
   TContext
 > => {
   return useMutation(getUploadFileMutationOptions(options));
+};
+
+/**
+ * @summary List all connected social accounts
+ */
+export const getGetSocialAccountsUrl = () => {
+  return `/api/social-accounts`;
+};
+
+export const getSocialAccounts = async (
+  options?: RequestInit,
+): Promise<SocialAccount[]> => {
+  return customFetch<SocialAccount[]>(getGetSocialAccountsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSocialAccountsQueryKey = () => {
+  return [`/api/social-accounts`] as const;
+};
+
+export const getGetSocialAccountsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSocialAccounts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSocialAccounts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSocialAccountsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getSocialAccounts>>
+  > = ({ signal }) => getSocialAccounts({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getSocialAccounts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetSocialAccountsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSocialAccounts>>
+>;
+export type GetSocialAccountsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all connected social accounts
+ */
+
+export function useGetSocialAccounts<
+  TData = Awaited<ReturnType<typeof getSocialAccounts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getSocialAccounts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetSocialAccountsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Disconnect a social account
+ */
+export const getDeleteSocialAccountUrl = (id: string) => {
+  return `/api/social-accounts/${id}`;
+};
+
+export const deleteSocialAccount = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SocialAccountDeleteResponse> => {
+  return customFetch<SocialAccountDeleteResponse>(
+    getDeleteSocialAccountUrl(id),
+    {
+      ...options,
+      method: "DELETE",
+    },
+  );
+};
+
+export const getDeleteSocialAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["deleteSocialAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSocialAccount>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteSocialAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSocialAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSocialAccount>>
+>;
+
+export type DeleteSocialAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Disconnect a social account
+ */
+export const useDeleteSocialAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getDeleteSocialAccountMutationOptions(options));
+};
+
+/**
+ * @summary Refresh an expired or expiring token
+ */
+export const getRefreshSocialAccountUrl = (id: string) => {
+  return `/api/social-accounts/${id}/refresh`;
+};
+
+export const refreshSocialAccount = async (
+  id: string,
+  options?: RequestInit,
+): Promise<SocialAccountRefreshResponse> => {
+  return customFetch<SocialAccountRefreshResponse>(
+    getRefreshSocialAccountUrl(id),
+    {
+      ...options,
+      method: "POST",
+    },
+  );
+};
+
+export const getRefreshSocialAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["refreshSocialAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshSocialAccount>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return refreshSocialAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshSocialAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshSocialAccount>>
+>;
+
+export type RefreshSocialAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Refresh an expired or expiring token
+ */
+export const useRefreshSocialAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshSocialAccount>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshSocialAccount>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getRefreshSocialAccountMutationOptions(options));
+};
+
+/**
+ * @summary Get version history for a template
+ */
+export const getGetTemplateVersionsUrl = (id: string) => {
+  return `/api/templates/${id}/versions`;
+};
+
+export const getTemplateVersions = async (
+  id: string,
+  options?: RequestInit,
+): Promise<TemplateVersion[]> => {
+  return customFetch<TemplateVersion[]>(getGetTemplateVersionsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTemplateVersionsQueryKey = (id: string) => {
+  return [`/api/templates/${id}/versions`] as const;
+};
+
+export const getGetTemplateVersionsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTemplateVersions>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTemplateVersions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTemplateVersionsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTemplateVersions>>
+  > = ({ signal }) => getTemplateVersions(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTemplateVersions>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTemplateVersionsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTemplateVersions>>
+>;
+export type GetTemplateVersionsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get version history for a template
+ */
+
+export function useGetTemplateVersions<
+  TData = Awaited<ReturnType<typeof getTemplateVersions>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTemplateVersions>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTemplateVersionsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Rollback a template to a previous version
+ */
+export const getRollbackTemplateUrl = (id: string, versionId: string) => {
+  return `/api/templates/${id}/rollback/${versionId}`;
+};
+
+export const rollbackTemplate = async (
+  id: string,
+  versionId: string,
+  options?: RequestInit,
+): Promise<Template> => {
+  return customFetch<Template>(getRollbackTemplateUrl(id, versionId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRollbackTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rollbackTemplate>>,
+    TError,
+    { id: string; versionId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof rollbackTemplate>>,
+  TError,
+  { id: string; versionId: string },
+  TContext
+> => {
+  const mutationKey = ["rollbackTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof rollbackTemplate>>,
+    { id: string; versionId: string }
+  > = (props) => {
+    const { id, versionId } = props ?? {};
+
+    return rollbackTemplate(id, versionId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RollbackTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof rollbackTemplate>>
+>;
+
+export type RollbackTemplateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Rollback a template to a previous version
+ */
+export const useRollbackTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof rollbackTemplate>>,
+    TError,
+    { id: string; versionId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof rollbackTemplate>>,
+  TError,
+  { id: string; versionId: string },
+  TContext
+> => {
+  return useMutation(getRollbackTemplateMutationOptions(options));
+};
+
+/**
+ * @summary Get performance statistics for a template
+ */
+export const getGetTemplateStatsUrl = (id: string) => {
+  return `/api/templates/${id}/stats`;
+};
+
+export const getTemplateStats = async (
+  id: string,
+  options?: RequestInit,
+): Promise<TemplateStats> => {
+  return customFetch<TemplateStats>(getGetTemplateStatsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetTemplateStatsQueryKey = (id: string) => {
+  return [`/api/templates/${id}/stats`] as const;
+};
+
+export const getGetTemplateStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTemplateStats>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTemplateStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetTemplateStatsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTemplateStats>>
+  > = ({ signal }) => getTemplateStats(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTemplateStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTemplateStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTemplateStats>>
+>;
+export type GetTemplateStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get performance statistics for a template
+ */
+
+export function useGetTemplateStats<
+  TData = Awaited<ReturnType<typeof getTemplateStats>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTemplateStats>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTemplateStatsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Trigger Claude-powered refinement analysis for a template
+ */
+export const getAnalyzeTemplateUrl = (id: string) => {
+  return `/api/templates/${id}/analyze`;
+};
+
+export const analyzeTemplate = async (
+  id: string,
+  options?: RequestInit,
+): Promise<TemplateRecommendation> => {
+  return customFetch<TemplateRecommendation>(getAnalyzeTemplateUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAnalyzeTemplateMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeTemplate>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeTemplate>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  const mutationKey = ["analyzeTemplate"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeTemplate>>,
+    { id: string }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return analyzeTemplate(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeTemplateMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeTemplate>>
+>;
+
+export type AnalyzeTemplateMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Trigger Claude-powered refinement analysis for a template
+ */
+export const useAnalyzeTemplate = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeTemplate>>,
+    TError,
+    { id: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeTemplate>>,
+  TError,
+  { id: string },
+  TContext
+> => {
+  return useMutation(getAnalyzeTemplateMutationOptions(options));
+};
+
+/**
+ * @summary List recommendations for a template
+ */
+export const getGetTemplateRecommendationsUrl = (id: string) => {
+  return `/api/templates/${id}/recommendations`;
+};
+
+export const getTemplateRecommendations = async (
+  id: string,
+  options?: RequestInit,
+): Promise<TemplateRecommendation[]> => {
+  return customFetch<TemplateRecommendation[]>(
+    getGetTemplateRecommendationsUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetTemplateRecommendationsQueryKey = (id: string) => {
+  return [`/api/templates/${id}/recommendations`] as const;
+};
+
+export const getGetTemplateRecommendationsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTemplateRecommendations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTemplateRecommendations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTemplateRecommendationsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getTemplateRecommendations>>
+  > = ({ signal }) =>
+    getTemplateRecommendations(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTemplateRecommendations>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetTemplateRecommendationsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTemplateRecommendations>>
+>;
+export type GetTemplateRecommendationsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List recommendations for a template
+ */
+
+export function useGetTemplateRecommendations<
+  TData = Awaited<ReturnType<typeof getTemplateRecommendations>>,
+  TError = ErrorType<unknown>,
+>(
+  id: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getTemplateRecommendations>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetTemplateRecommendationsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Apply or dismiss a recommendation
+ */
+export const getUpdateTemplateRecommendationUrl = (
+  id: string,
+  recId: string,
+) => {
+  return `/api/templates/${id}/recommendations/${recId}`;
+};
+
+export const updateTemplateRecommendation = async (
+  id: string,
+  recId: string,
+  recommendationActionInput: RecommendationActionInput,
+  options?: RequestInit,
+): Promise<TemplateRecommendation> => {
+  return customFetch<TemplateRecommendation>(
+    getUpdateTemplateRecommendationUrl(id, recId),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(recommendationActionInput),
+    },
+  );
+};
+
+export const getUpdateTemplateRecommendationMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTemplateRecommendation>>,
+    TError,
+    { id: string; recId: string; data: BodyType<RecommendationActionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTemplateRecommendation>>,
+  TError,
+  { id: string; recId: string; data: BodyType<RecommendationActionInput> },
+  TContext
+> => {
+  const mutationKey = ["updateTemplateRecommendation"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTemplateRecommendation>>,
+    { id: string; recId: string; data: BodyType<RecommendationActionInput> }
+  > = (props) => {
+    const { id, recId, data } = props ?? {};
+
+    return updateTemplateRecommendation(id, recId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTemplateRecommendationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTemplateRecommendation>>
+>;
+export type UpdateTemplateRecommendationMutationBody =
+  BodyType<RecommendationActionInput>;
+export type UpdateTemplateRecommendationMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Apply or dismiss a recommendation
+ */
+export const useUpdateTemplateRecommendation = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTemplateRecommendation>>,
+    TError,
+    { id: string; recId: string; data: BodyType<RecommendationActionInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTemplateRecommendation>>,
+  TError,
+  { id: string; recId: string; data: BodyType<RecommendationActionInput> },
+  TContext
+> => {
+  return useMutation(getUpdateTemplateRecommendationMutationOptions(options));
+};
+
+/**
+ * @summary Generate video variants for a campaign (SSE)
+ */
+export const getGenerateVideoUrl = (id: string) => {
+  return `/api/campaigns/${id}/generate-video`;
+};
+
+export const generateVideo = async (
+  id: string,
+  generateVideoBody: GenerateVideoBody,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getGenerateVideoUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateVideoBody),
+  });
+};
+
+export const getGenerateVideoMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateVideo>>,
+    TError,
+    { id: string; data: BodyType<GenerateVideoBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateVideo>>,
+  TError,
+  { id: string; data: BodyType<GenerateVideoBody> },
+  TContext
+> => {
+  const mutationKey = ["generateVideo"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateVideo>>,
+    { id: string; data: BodyType<GenerateVideoBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return generateVideo(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateVideoMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateVideo>>
+>;
+export type GenerateVideoMutationBody = BodyType<GenerateVideoBody>;
+export type GenerateVideoMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate video variants for a campaign (SSE)
+ */
+export const useGenerateVideo = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateVideo>>,
+    TError,
+    { id: string; data: BodyType<GenerateVideoBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateVideo>>,
+  TError,
+  { id: string; data: BodyType<GenerateVideoBody> },
+  TContext
+> => {
+  return useMutation(getGenerateVideoMutationOptions(options));
+};
+
+/**
+ * @summary Generate and merge AI audio onto a video variant
+ */
+export const getAddVariantAudioUrl = (id: string, variantId: string) => {
+  return `/api/campaigns/${id}/variants/${variantId}/audio`;
+};
+
+export const addVariantAudio = async (
+  id: string,
+  variantId: string,
+  audioGenerateInput: AudioGenerateInput,
+  options?: RequestInit,
+): Promise<CampaignVariant> => {
+  return customFetch<CampaignVariant>(getAddVariantAudioUrl(id, variantId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(audioGenerateInput),
+  });
+};
+
+export const getAddVariantAudioMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addVariantAudio>>,
+    TError,
+    { id: string; variantId: string; data: BodyType<AudioGenerateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof addVariantAudio>>,
+  TError,
+  { id: string; variantId: string; data: BodyType<AudioGenerateInput> },
+  TContext
+> => {
+  const mutationKey = ["addVariantAudio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof addVariantAudio>>,
+    { id: string; variantId: string; data: BodyType<AudioGenerateInput> }
+  > = (props) => {
+    const { id, variantId, data } = props ?? {};
+
+    return addVariantAudio(id, variantId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AddVariantAudioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addVariantAudio>>
+>;
+export type AddVariantAudioMutationBody = BodyType<AudioGenerateInput>;
+export type AddVariantAudioMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Generate and merge AI audio onto a video variant
+ */
+export const useAddVariantAudio = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof addVariantAudio>>,
+    TError,
+    { id: string; variantId: string; data: BodyType<AudioGenerateInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof addVariantAudio>>,
+  TError,
+  { id: string; variantId: string; data: BodyType<AudioGenerateInput> },
+  TContext
+> => {
+  return useMutation(getAddVariantAudioMutationOptions(options));
+};
+
+/**
+ * @summary Upload custom audio and merge onto a video variant
+ */
+export const getUploadVariantAudioUrl = (id: string, variantId: string) => {
+  return `/api/campaigns/${id}/variants/${variantId}/audio-upload`;
+};
+
+export const uploadVariantAudio = async (
+  id: string,
+  variantId: string,
+  uploadVariantAudioBody: UploadVariantAudioBody,
+  options?: RequestInit,
+): Promise<CampaignVariant> => {
+  const formData = new FormData();
+  formData.append(`audio`, uploadVariantAudioBody.audio);
+  if (uploadVariantAudioBody.mode !== undefined) {
+    formData.append(`mode`, uploadVariantAudioBody.mode);
+  }
+
+  return customFetch<CampaignVariant>(getUploadVariantAudioUrl(id, variantId), {
+    ...options,
+    method: "POST",
+    body: formData,
+  });
+};
+
+export const getUploadVariantAudioMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadVariantAudio>>,
+    TError,
+    { id: string; variantId: string; data: BodyType<UploadVariantAudioBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadVariantAudio>>,
+  TError,
+  { id: string; variantId: string; data: BodyType<UploadVariantAudioBody> },
+  TContext
+> => {
+  const mutationKey = ["uploadVariantAudio"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadVariantAudio>>,
+    { id: string; variantId: string; data: BodyType<UploadVariantAudioBody> }
+  > = (props) => {
+    const { id, variantId, data } = props ?? {};
+
+    return uploadVariantAudio(id, variantId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadVariantAudioMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadVariantAudio>>
+>;
+export type UploadVariantAudioMutationBody = BodyType<UploadVariantAudioBody>;
+export type UploadVariantAudioMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Upload custom audio and merge onto a video variant
+ */
+export const useUploadVariantAudio = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadVariantAudio>>,
+    TError,
+    { id: string; variantId: string; data: BodyType<UploadVariantAudioBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof uploadVariantAudio>>,
+  TError,
+  { id: string; variantId: string; data: BodyType<UploadVariantAudioBody> },
+  TContext
+> => {
+  return useMutation(getUploadVariantAudioMutationOptions(options));
 };

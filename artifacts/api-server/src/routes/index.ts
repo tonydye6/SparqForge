@@ -7,9 +7,12 @@ import hashtagSetsRouter from "./hashtag-sets";
 import campaignsRouter from "./campaigns";
 import campaignVariantsRouter from "./campaign-variants";
 import calendarEntriesRouter from "./calendar-entries";
+import socialAccountsRouter from "./social-accounts";
 import uploadRouter from "./upload";
 import generateRouter from "./generate";
 import downloadRouter from "./download";
+import socialAuthRouter from "./social-auth";
+import videoRouter from "./video";
 
 const router: IRouter = Router();
 
@@ -21,8 +24,11 @@ router.use(hashtagSetsRouter);
 router.use(campaignsRouter);
 router.use(campaignVariantsRouter);
 router.use(calendarEntriesRouter);
+router.use(socialAccountsRouter);
 router.use(uploadRouter);
 router.use(generateRouter);
 router.use(downloadRouter);
+router.use(socialAuthRouter);
+router.use(videoRouter);
 
 export default router;
