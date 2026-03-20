@@ -1,0 +1,82 @@
+# SparqForge™ — Add TikTok Platform Support
+
+TikTok was accidentally omitted from the original build spec. Add it everywhere the other platforms (Twitter/X, Instagram Feed, Instagram Story, LinkedIn) are referenced. Here's exactly what needs to change:
+
+---
+
+## 1. Database / Prisma Schema
+
+Anywhere the `platform` field accepts values like `twitter`, `instagram_feed`, `instagram_story`, `linkedin` — add `tiktok` as a valid option. This affects these models:
+
+- **CampaignVariant** → `platform` field (add `tiktok`)
+- **CalendarEntry** → `platform` field (add `tiktok`)
+- **SocialAccount** → `platform` field (add `tiktok`)
+
+Run `npx prisma db push` after updating if needed.
+
+---
+
+## 2. UI — Campaign Studio
+
+- **Platform selector toggles:** Add a TikTok toggle button alongside the existing Twitter, Instagram, LinkedIn toggles. Use the TikTok icon (a music note or the TikTok logo SVG).
+- **Caption/headline inputs:** When TikTok is selected, show a TikTok caption field with a 2200-character limit.
+- **Platform preview frame:** Add a TikTok preview that renders as a phone-shaped 9:16 vertical frame with:
+  - Username and avatar at top-left
+  - Music bar indicator near the headline area
+  - Action buttons on the right side (heart, comment, share, bookmark)
+  - Minimal UI chrome matching TikTok's native appearance
+
+---
+
+## 3. UI — Calendar View
+
+- **Platform filter bar:** Add TikTok to the platform show/hide filter toggles.
+- **Calendar entry badges:** TikTok entries should display with a TikTok platform badge/icon, consistent with how Twitter, Instagram, and LinkedIn entries are badged.
+
+---
+
+## 4. UI — Review Queue
+
+- **Platform filter:** Add TikTok to the filter dropdown/toggles.
+- **Variant cards:** TikTok variants should render with the TikTok preview frame (9:16 vertical) in the review interface.
+
+---
+
+## 5. Output Dimensions (for future compositing)
+
+When the app references platform-specific image dimensions, add TikTok:
+
+| Platform | Aspect Ratio | Width | Height |
+|----------|-------------|-------|--------|
+| TikTok   | 9:16        | 1080  | 1920   |
+| TikTok   | 1:1         | 1080  | 1080   |
+
+TikTok shares the same dimensions as Instagram Story (9:16) and Instagram Feed (1:1). If there's a dimensions map or config object, add TikTok entries pointing to the same values.
+
+---
+
+## 6. Export / ZIP Structure
+
+When campaigns are exported as ZIP files, add a `tiktok/` folder alongside the existing `twitter/`, `instagram_feed/`, `instagram_story/`, `linkedin/` folders in the export structure.
+
+---
+
+## 7. Environment Variables (Phase 5 — placeholder only)
+
+Add these to any env config or constants file as placeholders. The actual secrets are NOT in Replit yet — just define the variable names so the code is ready:
+
+```
+SparqForge_TikTok_Client_ID=
+SparqForge_TikTok_Client_Secret=
+```
+
+Do NOT build any TikTok OAuth or publishing logic yet. That's Phase 5. Just make sure TikTok appears as a platform option throughout the UI and data model.
+
+---
+
+## What NOT to change
+
+- Do not build TikTok OAuth or publishing flows (that's Phase 5)
+- Do not build TikTok API integration
+- Do not remove or modify any existing platform support
+- This is purely additive — add TikTok alongside what already exists
