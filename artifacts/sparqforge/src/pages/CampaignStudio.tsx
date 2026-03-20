@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,6 +80,13 @@ export default function CampaignStudio() {
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
 
+  const [referenceUrl, setReferenceUrl] = useState("");
+  const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
+  const [referenceAnalysis, setReferenceAnalysis] = useState<Record<string, string> | null>(null);
+  const [referenceScreenshots, setReferenceScreenshots] = useState<Array<{ url: string; viewport: string }>>([]);
+  const [referenceError, setReferenceError] = useState("");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const remixLoadedRef = useRef(false);
   
@@ -151,6 +158,144 @@ export default function CampaignStudio() {
       updated[0] = { ...updated[0], status };
       return updated;
     });
+  }, []);
+
+  const ensureCampaignId = useCallback(async (): Promise<string | null> => {
+    if (campaignId) return campaignId;
+    if (!selectedBrand) return null;
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: campaignName || "Untitled Campaign",
+          brandId: selectedBrand,
+          templateId: selectedTemplate || null,
+          briefText,
+          selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
+          sourceCampaignId: remixId || null,
+          createdBy: "current_user",
+        }),
+      });
+      if (!resp.ok) return null;
+      const campaign = await resp.json();
+      setCampaignId(campaign.id);
+      return campaign.id;
+    } catch {
+      return null;
+    }
+  }, [campaignId, selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, remixId]);
+
+  const handleAnalyzeUrl = useCallback(async () => {
+    if (!referenceUrl.trim()) return;
+
+    try {
+      new URL(referenceUrl);
+    } catch {
+      setReferenceError("Please enter a valid URL");
+      setReferenceStatus("error");
+      return;
+    }
+
+    if (!selectedBrand) {
+      toast({ variant: "destructive", title: "Select a brand first" });
+      return;
+    }
+
+    setReferenceStatus("capturing");
+    setReferenceError("");
+
+    const cId = await ensureCampaignId();
+    if (!cId) {
+      setReferenceStatus("error");
+      setReferenceError("Failed to create campaign");
+      return;
+    }
+
+    try {
+      addLog("Capturing reference page...", "pending");
+
+      const resp = await fetch(`${API_BASE}/api/campaigns/${cId}/analyze-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: referenceUrl }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Analysis failed" }));
+        throw new Error(err.error || "Analysis failed");
+      }
+
+      setReferenceStatus("analyzing");
+      addLog("Analyzing reference design...", "pending");
+
+      const data = await resp.json();
+      setReferenceAnalysis(data.referenceAnalysis);
+      setReferenceScreenshots(data.referenceScreenshots || []);
+      setReferenceStatus("done");
+      addLog("Reference analyzed ✓", "done");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Analysis failed";
+      setReferenceStatus("error");
+      setReferenceError(msg);
+      addLog(`Reference analysis failed: ${msg}`, "error");
+    }
+  }, [referenceUrl, selectedBrand, ensureCampaignId, addLog, toast]);
+
+  const handleUploadScreenshot = useCallback(async (file: File) => {
+    if (!selectedBrand) {
+      toast({ variant: "destructive", title: "Select a brand first" });
+      return;
+    }
+
+    setReferenceStatus("capturing");
+    setReferenceError("");
+
+    const cId = await ensureCampaignId();
+    if (!cId) {
+      setReferenceStatus("error");
+      setReferenceError("Failed to create campaign");
+      return;
+    }
+
+    try {
+      addLog("Analyzing uploaded screenshot...", "pending");
+      setReferenceStatus("analyzing");
+
+      const formData = new FormData();
+      formData.append("screenshot", file);
+
+      const resp = await fetch(`${API_BASE}/api/campaigns/${cId}/analyze-upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Upload analysis failed" }));
+        throw new Error(err.error || "Upload analysis failed");
+      }
+
+      const data = await resp.json();
+      setReferenceAnalysis(data.referenceAnalysis);
+      setReferenceScreenshots(data.referenceScreenshots || []);
+      setReferenceStatus("done");
+      setReferenceUrl(file.name);
+      addLog("Uploaded reference analyzed ✓", "done");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload analysis failed";
+      setReferenceStatus("error");
+      setReferenceError(msg);
+      addLog(`Reference analysis failed: ${msg}`, "error");
+    }
+  }, [selectedBrand, ensureCampaignId, addLog, toast]);
+
+  const handleClearReference = useCallback(() => {
+    setReferenceUrl("");
+    setReferenceStatus("idle");
+    setReferenceAnalysis(null);
+    setReferenceScreenshots([]);
+    setReferenceError("");
   }, []);
 
   const handleSaveDraft = useCallback(async () => {
@@ -474,6 +619,118 @@ export default function CampaignStudio() {
                 <p className="text-xs text-muted-foreground italic col-span-3">No approved visual assets found.</p>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Link size={12} className="text-primary" />
+              Reference URL
+            </label>
+            {referenceStatus === "idle" || referenceStatus === "error" ? (
+              <>
+                <div className="flex gap-1.5">
+                  <Input
+                    placeholder="https://example.com"
+                    className="bg-background border-border text-sm flex-1"
+                    value={referenceUrl}
+                    onChange={e => setReferenceUrl(e.target.value)}
+                    disabled={isGenerating}
+                    onKeyDown={e => { if (e.key === "Enter") handleAnalyzeUrl(); }}
+                  />
+                  <Button
+                    size="icon"
+                    className="h-9 w-9 bg-primary hover:bg-primary/90 shrink-0"
+                    onClick={handleAnalyzeUrl}
+                    disabled={!referenceUrl.trim() || isGenerating || !selectedBrand}
+                  >
+                    <Search size={14} />
+                  </Button>
+                </div>
+                {referenceStatus === "error" && referenceError && (
+                  <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20">
+                    <AlertCircle size={12} className="text-red-400 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[11px] text-red-400">{referenceError}</p>
+                      <button
+                        className="text-[11px] text-red-400 underline mt-1 hover:text-red-300"
+                        onClick={handleAnalyzeUrl}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <button
+                  className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isGenerating || !selectedBrand}
+                >
+                  <Upload size={10} />
+                  Or upload screenshot
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUploadScreenshot(file);
+                    e.target.value = "";
+                  }}
+                />
+              </>
+            ) : referenceStatus === "capturing" ? (
+              <div className="flex items-center gap-2 p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
+                <Loader2 size={14} className="text-amber-400 animate-spin" />
+                <span className="text-xs text-amber-400">Capturing page...</span>
+              </div>
+            ) : referenceStatus === "analyzing" ? (
+              <div className="space-y-2">
+                {referenceScreenshots.length > 0 && (
+                  <div className="w-full h-16 rounded-md overflow-hidden border border-border/50 bg-muted/30">
+                    <img
+                      src={`${API_BASE}${referenceScreenshots[0].url}`}
+                      alt="Reference"
+                      className="w-full h-full object-cover object-top opacity-60"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 p-2 rounded-md bg-blue-500/5 border border-blue-500/20">
+                  <Loader2 size={14} className="text-blue-400 animate-spin" />
+                  <span className="text-xs text-blue-400">Analyzing reference...</span>
+                </div>
+              </div>
+            ) : referenceStatus === "done" ? (
+              <div className="space-y-2">
+                {referenceScreenshots.length > 0 && (
+                  <div className="w-full h-16 rounded-md overflow-hidden border border-green-500/20 bg-muted/30 relative group">
+                    <img
+                      src={`${API_BASE}${referenceScreenshots[0].url}`}
+                      alt="Reference"
+                      className="w-full h-full object-cover object-top"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between p-2 rounded-md bg-green-500/10 border border-green-500/20">
+                  <div className="flex items-center gap-2">
+                    <Check size={12} className="text-green-400" />
+                    <span className="text-xs text-green-400 font-medium">Analyzed ✓</span>
+                  </div>
+                  <button
+                    className="text-muted-foreground hover:text-red-400 transition-colors"
+                    onClick={handleClearReference}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                {referenceAnalysis?.visual_mood && (
+                  <p className="text-[10px] text-muted-foreground leading-tight truncate" title={referenceAnalysis.visual_mood}>
+                    Mood: {referenceAnalysis.visual_mood}
+                  </p>
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">

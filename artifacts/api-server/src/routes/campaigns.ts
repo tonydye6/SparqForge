@@ -11,8 +11,12 @@ import {
   UpdateCampaignBody,
   UpdateCampaignResponse,
 } from "@workspace/api-zod";
+import { captureScreenshots, captureFromUpload, validateUrl } from "../services/screenshot.js";
+import { analyzeReference } from "../services/reference-analysis.js";
+import multer from "multer";
 
 const router: IRouter = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.get("/campaigns", async (req, res): Promise<void> => {
   const query = GetCampaignsQueryParams.safeParse(req.query);
@@ -162,6 +166,95 @@ router.post("/campaigns/:id/schedule", async (req, res): Promise<void> => {
     .where(eq(campaignsTable.id, campaignId));
 
   res.status(201).json({ entries: created, count: created.length });
+});
+
+router.post("/campaigns/:id/analyze-url", async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+  const { url } = req.body as { url?: string };
+
+  if (!url) {
+    res.status(400).json({ error: "URL is required" });
+    return;
+  }
+
+  try {
+    validateUrl(url);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Invalid URL";
+    res.status(400).json({ error: message });
+    return;
+  }
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  try {
+    const screenshots = await captureScreenshots(url, campaignId);
+
+    const screenshotPaths = screenshots.map(s => s.filepath);
+    const analysis = await analyzeReference(screenshotPaths);
+
+    await db.update(campaignsTable)
+      .set({
+        referenceUrl: url,
+        referenceAnalysis: analysis,
+        referenceScreenshots: screenshots.map(s => ({ url: s.url, viewport: s.viewport })),
+        updatedAt: new Date(),
+      })
+      .where(eq(campaignsTable.id, campaignId));
+
+    res.json({
+      referenceUrl: url,
+      referenceAnalysis: analysis,
+      referenceScreenshots: screenshots.map(s => ({ url: s.url, viewport: s.viewport })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Reference analysis failed: ${message}` });
+  }
+});
+
+router.post("/campaigns/:id/analyze-upload", upload.single("screenshot"), async (req, res): Promise<void> => {
+  const campaignId = req.params.id;
+  const file = req.file;
+
+  if (!file) {
+    res.status(400).json({ error: "Screenshot file is required" });
+    return;
+  }
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  try {
+    const screenshot = await captureFromUpload(file.buffer, campaignId, file.originalname);
+
+    const analysis = await analyzeReference([screenshot.filepath]);
+
+    await db.update(campaignsTable)
+      .set({
+        referenceUrl: null,
+        referenceAnalysis: analysis,
+        referenceScreenshots: [{ url: screenshot.url, viewport: screenshot.viewport }],
+        updatedAt: new Date(),
+      })
+      .where(eq(campaignsTable.id, campaignId));
+
+    res.json({
+      referenceUrl: null,
+      referenceAnalysis: analysis,
+      referenceScreenshots: [{ url: screenshot.url, viewport: screenshot.viewport }],
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Reference analysis failed: ${message}` });
+  }
 });
 
 export default router;
