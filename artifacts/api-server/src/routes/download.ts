@@ -1,0 +1,137 @@
+import { Router, type IRouter, type Request, type Response } from "express";
+import { eq } from "drizzle-orm";
+import { db, campaignsTable, campaignVariantsTable, brandsTable, templatesTable } from "@workspace/db";
+import archiver from "archiver";
+import * as fs from "fs";
+import * as path from "path";
+
+const router: IRouter = Router();
+
+const UPLOADS_DIR = path.resolve(process.cwd(), "uploads", "generated");
+
+router.get("/campaigns/:id/download", async (req: Request, res: Response): Promise<void> => {
+  const campaignId = req.params.id;
+
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  const variants = await db.select().from(campaignVariantsTable)
+    .where(eq(campaignVariantsTable.campaignId, campaignId));
+
+  if (variants.length === 0) {
+    res.status(400).json({ error: "No variants generated yet" });
+    return;
+  }
+
+  let brandName = "Unknown";
+  const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, campaign.brandId));
+  if (brand) brandName = brand.name;
+
+  let templateName = "Unknown";
+  if (campaign.templateId) {
+    const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, campaign.templateId));
+    if (template) templateName = template.name;
+  }
+
+  const date = new Date().toISOString().split("T")[0];
+  const safeName = campaign.name.replace(/[^a-zA-Z0-9]/g, "_");
+  const zipName = `SparqForge_${safeName}_${date}`;
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="${zipName}.zip"`);
+
+  const archive = archiver("zip", { zlib: { level: 6 } });
+  archive.on("error", (err) => {
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Failed to create ZIP archive" });
+    } else {
+      res.end();
+    }
+  });
+  archive.pipe(res);
+
+  for (const variant of variants) {
+    const platformDir = variant.platform.replace(/_/g, "_");
+
+    if (variant.compositedImageUrl) {
+      const filename = variant.compositedImageUrl.replace("/api/files/generated/", "");
+      const filePath = path.join(UPLOADS_DIR, filename);
+      if (fs.existsSync(filePath)) {
+        const ext = path.extname(filename) || ".png";
+        const ratioStr = variant.aspectRatio.replace(":", "x");
+        archive.file(filePath, { name: `${zipName}/${platformDir}/final_${ratioStr}${ext}` });
+      }
+    }
+
+    if (variant.rawImageUrl) {
+      const filename = variant.rawImageUrl.replace("/api/files/generated/", "");
+      const filePath = path.join(UPLOADS_DIR, filename);
+      if (fs.existsSync(filePath)) {
+        const ext = path.extname(filename) || ".png";
+        const ratioStr = variant.aspectRatio.replace(":", "x");
+        archive.file(filePath, { name: `${zipName}/${platformDir}/raw_${ratioStr}${ext}` });
+      }
+    }
+
+    if (variant.caption) {
+      archive.append(variant.caption, { name: `${zipName}/${platformDir}/caption.txt` });
+    }
+
+    const metadata = {
+      platform: variant.platform,
+      aspectRatio: variant.aspectRatio,
+      headline: variant.headlineText,
+      status: variant.status,
+      generatedAt: variant.createdAt,
+    };
+    archive.append(JSON.stringify(metadata, null, 2), { name: `${zipName}/${platformDir}/metadata.json` });
+  }
+
+  const campaignSummary = {
+    campaign: campaign.name,
+    brand: brandName,
+    template: templateName,
+    status: campaign.status,
+    brief: campaign.briefText,
+    createdAt: campaign.createdAt,
+    estimatedCost: campaign.estimatedCost,
+    variantCount: variants.length,
+    platforms: variants.map(v => v.platform),
+  };
+  archive.append(JSON.stringify(campaignSummary, null, 2), { name: `${zipName}/campaign_summary.json` });
+
+  await archive.finalize();
+});
+
+router.get("/campaigns/:id/variants/:variantId/download", async (req: Request, res: Response): Promise<void> => {
+  const { id: campaignId, variantId } = req.params;
+
+  const [variant] = await db.select().from(campaignVariantsTable)
+    .where(eq(campaignVariantsTable.id, variantId));
+  if (!variant || variant.campaignId !== campaignId) {
+    res.status(404).json({ error: "Variant not found" });
+    return;
+  }
+
+  const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
+  if (!imageUrl) {
+    res.status(400).json({ error: "No image available for download" });
+    return;
+  }
+
+  const filename = imageUrl.replace("/api/files/generated/", "");
+  const filePath = path.join(UPLOADS_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: "Image file not found" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "image/png");
+  res.setHeader("Content-Disposition", `attachment; filename="${variant.platform}_${variant.aspectRatio.replace(":", "x")}.png"`);
+  fs.createReadStream(filePath).pipe(res);
+});
+
+export default router;

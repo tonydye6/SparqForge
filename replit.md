@@ -2,7 +2,7 @@
 
 ## Overview
 
-SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Currently in Phase 1 (Foundation) — UI and data persistence are complete, no AI API calls yet.
+SparqForge is an AI-powered social media content generation and management tool for Sparq Games. Phase 1 (Foundation) and Phase 2 (AI Generation Pipeline) are complete.
 
 ## Stack
 
@@ -16,6 +16,9 @@ SparqForge is an AI-powered social media content generation and management tool 
 - **Validation**: Zod (zod/v4), drizzle-zod
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **AI**: Claude claude-sonnet-4-6 (captions/headlines), Gemini 2.5-flash-image (image generation)
+- **Image processing**: Sharp (compositing, overlays)
+- **Export**: Archiver (ZIP generation)
 
 ## Structure
 
@@ -23,6 +26,9 @@ SparqForge is an AI-powered social media content generation and management tool 
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server
+│   │   ├── src/routes/     # API routes including generate.ts, download.ts
+│   │   ├── src/services/   # AI services (claude.ts, imagen.ts, compositing.ts, context-assembly.ts)
+│   │   └── uploads/generated/  # Generated images (raw + composited)
 │   ├── sparqforge/         # React + Vite frontend (SparqForge UI)
 │   └── mockup-sandbox/     # Component preview server
 ├── lib/
@@ -59,11 +65,26 @@ All at `/api`:
 - `GET/POST /assets`, `GET/PUT/DELETE /assets/:id`
 - `GET/POST /hashtag-sets`, `PUT/DELETE /hashtag-sets/:id`
 - `GET/POST /campaigns`, `GET/PUT /campaigns/:id`
-- `POST /upload`, `GET /files/:filename`
+- `POST /campaigns/:id/generate` — SSE streaming AI generation pipeline
+- `PUT /campaigns/:id/variants/:variantId/caption` — Update variant caption
+- `PUT /campaigns/:id/variants/:variantId/headline` — Update headline + recomposite
+- `GET /campaigns/:id/download` — ZIP export of all variants
+- `GET /campaigns/:id/variants/:variantId/download` — Individual variant download
+- `POST /upload`, `GET /files/:filename`, `GET /files/generated/:filename`
+
+## AI Generation Pipeline
+
+1. **Context Assembly** (`context-assembly.ts`) — Gathers brand DNA, template config, selected assets, hashtag sets, brief text into a structured prompt package
+2. **Claude Captions** (`claude.ts`) — Generates platform-specific captions + overlay headline text using claude-sonnet-4-6 via Replit AI integrations
+3. **Gemini Images** (`imagen.ts`) — Generates images for each platform (1:1, 9:16, 16:9) using gemini-2.5-flash-image via Replit AI integrations
+4. **Compositing** (`compositing.ts`) — Overlays gradient + headline text on raw images using Sharp + inline SVG buffers
+5. **SSE Streaming** — Real-time progress events: `progress`, `image_progress`, `variant_ready`, `complete`, `error`
+
+Brand identities: Crown U (#00A3FF), Rumble U (#FF4D00), Mascot Mayhem (#FFD700), Corporate (#8B5CF6)
 
 ## Frontend Pages
 
-- `/` — Campaign Studio (3-panel workspace)
+- `/` — Campaign Studio (3-panel workspace with AI generation, live variant display, inline caption editing, download)
 - `/assets` — Asset Library (3 tabs: Visual Assets, Briefs & Context, Hashtag Library)
 - `/calendar` — Content Calendar
 - `/review` — Review Queue (Kanban board)
@@ -80,25 +101,29 @@ Dark mode only (no light mode):
 - Secondary text: #9CA3AF
 - Accent: #3B82F6
 
-## Phase 1 Status
+## Phase Status
 
-Complete:
-- [x] Project scaffolding with dark mode
-- [x] Database schema (all models)
-- [x] API routes for all CRUD operations (brands, templates, assets, hashtag-sets, campaigns, campaign-variants, calendar-entries)
-- [x] Navigation & layout shell (sidebar with dynamic badge counts)
-- [x] Campaign Studio 3-panel UI with brand/template/asset selectors from API, save draft, submit for review
-- [x] Asset Library with 3 functional tabs (Visual Assets with upload, Briefs & Context with CRUD, Hashtag Library with CRUD)
-- [x] Brand Settings with full CRUD (add/edit/delete brands, all DNA fields, template management)
-- [x] Calendar view connected to real calendar entries API with month navigation and brand filtering
-- [x] Review Queue Kanban with real campaign data and status transitions (review/approve/schedule)
-- [x] File upload with multer (50MB limit, image/video/font/audio/pdf support)
-- [x] Database seeding: 4 brands, 9 templates, 2 sample campaigns, 4 variants, 4 calendar entries
+Phase 1 (Foundation) — Complete:
+- [x] All CRUD persistence, 5 pages, database schema, seeding
 
-Not yet implemented (Phase 2+):
-- Authentication (Google OAuth via NextAuth)
-- AI integrations (Claude, Imagen, Veo, Gemini Flash)
-- Image compositing pipeline
-- Video generation
+Phase 2 (AI Generation Pipeline) — Complete:
+- [x] Replit AI integrations provisioned (Anthropic + Gemini)
+- [x] Context assembly service
+- [x] Claude caption/headline generation
+- [x] Gemini image generation (4 platforms in parallel)
+- [x] Sharp compositing (gradient overlay + headline text)
+- [x] SSE streaming generate endpoint
+- [x] Campaign Studio frontend wired to real AI
+- [x] ZIP export + individual variant download
+- [x] Inline caption editing with API persistence
+- [x] Resource scoping (campaign-variant ownership validation)
+- [x] SSE disconnect handling
+- [x] Cost tracking to cost_logs table
+
+Not yet implemented (Phase 3+):
+- Authentication (Google OAuth)
+- Reference URL pipeline (ScreenshotOne + Gemini Flash analysis)
+- Review/Calendar enhancements
 - Social media publishing
 - Template refinement analysis
+- Video generation
