@@ -10,6 +10,8 @@ import calendarEntriesRouter from "./calendar-entries";
 import uploadRouter from "./upload";
 import generateRouter from "./generate";
 import downloadRouter from "./download";
+import socialAuthRouter from "./social-auth";
+import socialAccountsRouter from "./social-accounts";
 
 const router: IRouter = Router();
 
@@ -24,5 +26,7 @@ router.use(calendarEntriesRouter);
 router.use(uploadRouter);
 router.use(generateRouter);
 router.use(downloadRouter);
+router.use(socialAuthRouter);
+router.use(socialAccountsRouter);
 
 export default router;

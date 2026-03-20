@@ -10,6 +10,9 @@ import {
   useCreateTemplate,
   useUpdateTemplate,
   useDeleteTemplate,
+  useGetSocialAccounts,
+  useDeleteSocialAccount,
+  useRefreshSocialAccount,
   type Brand
 } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,14 +20,50 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { 
-  Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate
+  Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
+  Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle2, XCircle
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useSearch } from "wouter";
 
 export default function Settings() {
+  const searchString = useSearch();
+  const params = new URLSearchParams(searchString);
+  const initialTab = params.get("tab") === "accounts" ? "accounts" : "brands";
+  const [activeSettingsTab, setActiveSettingsTab] = useState(initialTab);
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden p-6 max-w-[1200px] mx-auto w-full">
+      <div className="mb-6 shrink-0">
+        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+        <p className="text-muted-foreground mt-1">Manage your brands and connected social accounts.</p>
+      </div>
+
+      <Tabs value={activeSettingsTab} onValueChange={setActiveSettingsTab} className="flex-1 flex flex-col min-h-0">
+        <TabsList className="bg-card border border-border w-fit rounded-xl p-1 mb-6 flex-shrink-0">
+          <TabsTrigger value="brands" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2">
+            <Hexagon className="mr-2 h-4 w-4" /> Brand Settings
+          </TabsTrigger>
+          <TabsTrigger value="accounts" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-6 py-2">
+            <Share2 className="mr-2 h-4 w-4" /> Connected Accounts
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="brands" className="flex-1 flex flex-col min-h-0 mt-0">
+          <BrandSettingsTab />
+        </TabsContent>
+        <TabsContent value="accounts" className="flex-1 overflow-y-auto mt-0 pr-4 pb-12">
+          <ConnectedAccountsTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function BrandSettingsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: brands, isLoading } = useGetBrands();
@@ -80,7 +119,7 @@ export default function Settings() {
 
   if (isLoading) {
     return (
-      <div className="p-8 space-y-6">
+      <div className="space-y-6">
         <Skeleton className="h-10 w-48 bg-card" />
         <Skeleton className="h-12 w-full max-w-2xl bg-card" />
         <Skeleton className="h-[400px] w-full bg-card" />
@@ -89,11 +128,10 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden p-6 max-w-[1200px] mx-auto w-full">
-      <div className="flex items-center justify-between mb-8 shrink-0">
+    <>
+      <div className="flex items-center justify-between mb-6 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Brand Settings</h1>
-          <p className="text-muted-foreground mt-1">Configure brand DNA, rules, and AI parameters.</p>
+          <p className="text-muted-foreground">Configure brand DNA, rules, and AI parameters.</p>
         </div>
         
         <Dialog open={isAddBrandOpen} onOpenChange={setIsAddBrandOpen}>
@@ -138,6 +176,189 @@ export default function Settings() {
           </div>
         </Tabs>
       )}
+    </>
+  );
+}
+
+const PLATFORM_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
+  twitter: { label: "Twitter / X", color: "#1DA1F2", icon: "X" },
+  instagram: { label: "Instagram", color: "#E4405F", icon: "IG" },
+  linkedin: { label: "LinkedIn", color: "#0A66C2", icon: "in" },
+};
+
+const AVAILABLE_PLATFORMS = [
+  { id: "twitter", label: "Twitter / X", description: "Post tweets and threads" },
+  { id: "instagram", label: "Instagram", description: "Share photos and reels" },
+  { id: "linkedin", label: "LinkedIn", description: "Publish professional content" },
+];
+
+function ConnectedAccountsTab() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { data: accounts, isLoading } = useGetSocialAccounts();
+  const baseUrl = import.meta.env.VITE_API_URL || "";
+
+  const deleteMutation = useDeleteSocialAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+        toast({ title: "Account disconnected" });
+      },
+      onError: (err: any) => {
+        toast({ variant: "destructive", title: "Failed to disconnect", description: err.message });
+      }
+    }
+  });
+
+  const refreshMutation = useRefreshSocialAccount({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+        toast({ title: "Token refreshed successfully" });
+      },
+      onError: (err: any) => {
+        toast({ variant: "destructive", title: "Token refresh failed", description: err.message });
+      }
+    }
+  });
+
+  const handleConnect = (platform: string) => {
+    window.location.href = `${baseUrl}/api/auth/${platform}`;
+  };
+
+  const connectedPlatforms = new Set(accounts?.map(a => a.platform) || []);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-[200px] w-full bg-card" />
+        <Skeleton className="h-[200px] w-full bg-card" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {accounts && accounts.length > 0 && (
+        <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+            <Share2 className="text-primary" size={20} />
+            <h2 className="text-xl font-bold">Connected Accounts</h2>
+          </div>
+          <div className="space-y-4">
+            {accounts.map(account => {
+              const config = PLATFORM_CONFIG[account.platform] || { label: account.platform, color: "#666", icon: "?" };
+              const status = account.displayStatus || account.status;
+              return (
+                <div key={account.id} className="flex items-center justify-between p-4 border border-border bg-background rounded-lg">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                      style={{ backgroundColor: config.color }}
+                    >
+                      {config.icon}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{account.accountName}</span>
+                        <Badge variant="outline" className="text-xs">{config.label}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        {status === "connected" && (
+                          <span className="flex items-center gap-1 text-xs text-green-500">
+                            <CheckCircle2 size={12} /> Connected
+                          </span>
+                        )}
+                        {status === "expiring" && (
+                          <span className="flex items-center gap-1 text-xs text-amber-500">
+                            <AlertTriangle size={12} /> Token expiring soon
+                          </span>
+                        )}
+                        {status === "expired" && (
+                          <span className="flex items-center gap-1 text-xs text-red-500">
+                            <XCircle size={12} /> Token expired
+                          </span>
+                        )}
+                        {status === "revoked" && (
+                          <span className="flex items-center gap-1 text-xs text-red-500">
+                            <XCircle size={12} /> Revoked
+                          </span>
+                        )}
+                        {account.tokenExpiry && (
+                          <span className="text-xs text-muted-foreground">
+                            Expires: {new Date(account.tokenExpiry).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(status === "expiring" || status === "expired") && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => refreshMutation.mutate({ id: account.id })}
+                        disabled={refreshMutation.isPending}
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} /> Refresh
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => {
+                        if (confirm(`Disconnect ${account.accountName}?`)) {
+                          deleteMutation.mutate({ id: account.id });
+                        }
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Unplug className="h-4 w-4 mr-1" /> Disconnect
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+          <Plus className="text-primary" size={20} />
+          <h2 className="text-xl font-bold">Connect a Platform</h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {AVAILABLE_PLATFORMS.map(platform => {
+            const config = PLATFORM_CONFIG[platform.id];
+            const isConnected = connectedPlatforms.has(platform.id);
+            return (
+              <div
+                key={platform.id}
+                className="flex flex-col items-center p-6 border border-border bg-background rounded-lg text-center"
+              >
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-lg mb-3"
+                  style={{ backgroundColor: config.color }}
+                >
+                  {config.icon}
+                </div>
+                <h3 className="font-semibold mb-1">{platform.label}</h3>
+                <p className="text-xs text-muted-foreground mb-4">{platform.description}</p>
+                <Button
+                  variant={isConnected ? "outline" : "default"}
+                  size="sm"
+                  onClick={() => handleConnect(platform.id)}
+                  className={!isConnected ? "bg-primary hover:bg-primary/90" : ""}
+                >
+                  {isConnected ? "Connect Another" : "Connect"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }

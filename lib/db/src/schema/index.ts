@@ -4,3 +4,4 @@ export * from "./assets";
 export * from "./hashtag-sets";
 export * from "./campaigns";
 export * from "./users";
+export * from "./social-accounts";

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./seed";
+import { refreshExpiringTokens } from "./services/token-refresh";
 
 const rawPort = process.env["PORT"];
 
@@ -21,6 +22,9 @@ seedDatabase()
     app.listen(port, () => {
       logger.info({ port }, "Server listening");
     });
+    refreshExpiringTokens()
+      .then(() => logger.info("Token refresh check completed"))
+      .catch((err) => logger.error(err, "Token refresh check failed"));
   })
   .catch((err) => {
     logger.error(err, "Failed to seed database");
