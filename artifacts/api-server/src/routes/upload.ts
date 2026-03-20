@@ -66,15 +66,13 @@ router.post("/upload", upload.single("file"), (req, res): void => {
   res.json(UploadFileResponse.parse({ url }));
 });
 
-router.get("/files/:filename", (req, res): void => {
-  const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
-
+function serveFile(baseDir: string, filename: string, res: any): void {
   if (!filename || filename.includes("..") || filename.includes("/")) {
     res.status(400).json({ error: "Invalid filename" });
     return;
   }
 
-  const filePath = path.join(UPLOAD_DIR, filename);
+  const filePath = path.join(baseDir, filename);
 
   if (!fs.existsSync(filePath)) {
     res.status(404).json({ error: "File not found" });
@@ -101,6 +99,17 @@ router.get("/files/:filename", (req, res): void => {
   res.setHeader("Content-Type", mimeTypes[ext] || "application/octet-stream");
   res.setHeader("Cache-Control", "public, max-age=86400");
   res.sendFile(filePath);
+}
+
+router.get("/files/:filename", (req, res): void => {
+  const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
+  serveFile(UPLOAD_DIR, filename, res);
+});
+
+router.get("/files/generated/:filename", (req, res): void => {
+  const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
+  const generatedDir = path.join(UPLOAD_DIR, "generated");
+  serveFile(generatedDir, filename, res);
 });
 
 export default router;

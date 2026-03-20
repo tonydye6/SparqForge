@@ -8,6 +8,8 @@ import campaignsRouter from "./campaigns";
 import campaignVariantsRouter from "./campaign-variants";
 import calendarEntriesRouter from "./calendar-entries";
 import uploadRouter from "./upload";
+import generateRouter from "./generate";
+import downloadRouter from "./download";
 
 const router: IRouter = Router();
 
@@ -20,5 +22,7 @@ router.use(campaignsRouter);
 router.use(campaignVariantsRouter);
 router.use(calendarEntriesRouter);
 router.use(uploadRouter);
+router.use(generateRouter);
+router.use(downloadRouter);
 
 export default router;
