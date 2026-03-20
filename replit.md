@@ -23,8 +23,8 @@ The frontend comprises several key pages:
 - **Campaign Studio**: A 3-panel workspace for AI generation, video generation, live variant display, inline caption editing, per-variant refinement, audio controls, and download options.
 - **Asset Library**: Manages visual assets, briefs, context, and hashtag libraries.
 - **Content Calendar**: Month/week views with drag-to-reschedule functionality, publish status badges, and publish/retry buttons.
-- **Review Queue**: A Kanban board for content review and collaboration.
-- **Cost Dashboard**: Displays total spend, daily spend charts, and breakdowns by service/operation.
+- **Review Queue**: A Kanban board with per-variant approve/reject (mandatory rejection comments feed refinement_logs). Supports bulk and individual variant review actions.
+- **Cost Dashboard**: Displays total spend, daily spend charts, breakdowns by service/operation. Includes configurable daily budget threshold with pre-generation budget check and visual alerts.
 - **Settings**: Manages brand settings and connected social accounts.
 
 **Technical Implementations & Feature Specifications:**
@@ -40,7 +40,7 @@ The frontend comprises several key pages:
 - **Template Refinement Loop**: Tracks user edits (refinement logs), maintains template version history with rollback capabilities, and uses Claude for AI-powered refinement analysis and recommendations.
 
 **Database Schema:**
-The database includes tables for `brands`, `templates`, `assets`, `hashtag_sets`, `campaigns`, `campaign_variants`, `calendar_entries`, `social_accounts` (with encrypted tokens), `refinement_logs`, `template_versions`, `template_recommendations`, `cost_logs`, and `users` (with roles).
+The database includes tables for `brands`, `templates`, `assets`, `hashtag_sets`, `campaigns`, `campaign_variants`, `calendar_entries`, `social_accounts` (with encrypted tokens), `refinement_logs`, `template_versions`, `template_recommendations`, `cost_logs`, `users` (with roles), and `app_settings` (key-value store for configurable thresholds like `dailyCostThreshold`).
 
 ## External Dependencies
 - **AI Services**:

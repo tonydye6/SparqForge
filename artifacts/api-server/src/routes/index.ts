@@ -14,6 +14,7 @@ import downloadRouter from "./download";
 import socialAuthRouter from "./social-auth";
 import videoRouter from "./video";
 import costLogsRouter from "./cost-logs";
+import settingsRouter from "./settings";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(downloadRouter);
 router.use(socialAuthRouter);
 router.use(videoRouter);
 router.use(costLogsRouter);
+router.use(settingsRouter);
 
 export default router;
