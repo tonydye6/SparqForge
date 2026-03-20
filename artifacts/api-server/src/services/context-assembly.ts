@@ -1,5 +1,5 @@
 import { db, brandsTable, templatesTable, assetsTable, hashtagSetsTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 export interface SelectedAssetRef {
   assetId: string;
@@ -68,6 +68,12 @@ export async function assembleContext(params: {
   } else {
     hashtagSets = await db.select().from(hashtagSetsTable)
       .where(eq(hashtagSetsTable.brandId, params.brandId));
+  }
+
+  if (hashtagSets.length > 0 && params.selectedHashtagSetIds && params.selectedHashtagSetIds.length > 0) {
+    await db.update(hashtagSetsTable)
+      .set({ usageCount: sql`COALESCE(${hashtagSetsTable.usageCount}, 0) + 1`, updatedAt: new Date() })
+      .where(inArray(hashtagSetsTable.id, params.selectedHashtagSetIds));
   }
 
   return {
