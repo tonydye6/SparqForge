@@ -17,7 +17,7 @@ export const campaignsTable = pgTable("campaigns", {
   referenceScreenshots: json("reference_screenshots"),
   selectedAssets: json("selected_assets").notNull().default([]),
   selectedHashtagSets: json("selected_hashtag_sets"),
-  sourceCampaignId: text("source_campaign_id"),
+  sourceCampaignId: text("source_campaign_id").references((): any => campaignsTable.id, { onDelete: "set null" }),
   estimatedCost: real("estimated_cost"),
   createdBy: text("created_by").notNull(),
   reviewedBy: text("reviewed_by"),
