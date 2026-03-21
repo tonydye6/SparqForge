@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
 import { sessionMiddleware } from "./lib/session";
 import passport from "./lib/passport";
+import { getAllowedOriginStrings } from "./lib/allowed-origins";
 import { devBypassMiddleware, requireAuth } from "./middleware/auth";
 import { csrfProtection } from "./middleware/csrf";
 import authRouter from "./routes/auth";
@@ -33,53 +34,16 @@ app.use(
   }),
 );
 
-function getAllowedOrigins(): (string | RegExp)[] {
-  const origins: (string | RegExp)[] = [];
-
-  if (process.env.CORS_ORIGIN) {
-    origins.push(...process.env.CORS_ORIGIN.split(",").map(o => o.trim()));
-  }
-
-  if (process.env.APP_URL) {
-    origins.push(process.env.APP_URL);
-  }
-
-  const devDomain = process.env.REPLIT_DEV_DOMAIN;
-  if (devDomain) {
-    origins.push(`https://${devDomain}`);
-  }
-
-  const domains = process.env.REPLIT_DOMAINS;
-  if (domains) {
-    for (const d of domains.split(",")) {
-      const trimmed = d.trim();
-      if (trimmed) origins.push(`https://${trimmed}`);
-    }
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    origins.push(/^https?:\/\/localhost(:\d+)?$/);
-  }
-
-  return origins;
-}
-
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) {
       callback(null, true);
       return;
     }
-    const allowed = getAllowedOrigins();
-    const isAllowed = allowed.some(a => {
-      if (a instanceof RegExp) return a.test(origin);
-      return a === origin;
-    });
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      callback(null, false);
-    }
+    const allowed = getAllowedOriginStrings();
+    const isAllowed = allowed.some(a => a === origin) ||
+      (process.env.NODE_ENV !== "production" && /^https?:\/\/localhost(:\d+)?$/.test(origin));
+    callback(null, isAllowed);
   },
   credentials: true,
 }));
@@ -103,11 +67,11 @@ const generationLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
-app.use(csrfProtection);
 
 app.use(sessionMiddleware);
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(csrfProtection);
 app.use(devBypassMiddleware);
 
 app.use("/api", healthRouter);
