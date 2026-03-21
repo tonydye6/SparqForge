@@ -207,7 +207,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     });
     sendEvent("progress", { step: "context", message: "Context assembled", done: true });
 
-    const platforms = Object.keys(PLATFORM_CONFIGS);
+    const allPlatforms = Object.keys(PLATFORM_CONFIGS);
+    const requestedPlatforms = Array.isArray(req.body?.platforms) ? req.body.platforms.filter((p: string) => allPlatforms.includes(p)) : [];
+    const platforms = requestedPlatforms.length > 0 ? requestedPlatforms : allPlatforms;
 
     sendEvent("progress", { step: "captions", message: "Generating captions with Claude..." });
     const captionsPromise = generateCaptions(ctx);

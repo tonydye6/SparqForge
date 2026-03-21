@@ -10,7 +10,8 @@ import {
   ChevronRight,
   LogOut,
   Menu,
-  X
+  X,
+  ClipboardList
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -71,6 +72,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     { href: "/", label: "Campaign Studio", icon: LayoutDashboard },
     { href: "/assets", label: "Asset Library", icon: Library },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: calendarCount || undefined },
+    { href: "/content-plan", label: "Content Plan", icon: ClipboardList },
     { href: "/review", label: "Review Queue", icon: CheckSquare, badge: reviewCount || undefined },
     { href: "/costs", label: "Cost Dashboard", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },

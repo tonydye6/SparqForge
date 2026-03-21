@@ -15,6 +15,7 @@ import videoRouter from "./video";
 import costLogsRouter from "./cost-logs";
 import settingsRouter from "./settings";
 import rewriteRouter from "./rewrite";
+import contentPlanRouter from "./content-plan";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(videoRouter);
 router.use(costLogsRouter);
 router.use(settingsRouter);
 router.use(rewriteRouter);
+router.use(contentPlanRouter);
 
 export default router;

@@ -62,11 +62,25 @@ const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; rati
   tiktok: { name: "TikTok", platformIcon: "tiktok", ratio: "9:16" },
 };
 
+const ALL_PLATFORM_KEYS = Object.keys(PLATFORM_LABELS);
+
+const PLAN_PLATFORM_MAP: Record<string, string[]> = {
+  instagram: ["instagram_feed", "instagram_story"],
+  tiktok: ["tiktok"],
+  youtube: ["tiktok"],
+  linkedin: ["linkedin"],
+  x: ["twitter"],
+  facebook: ["instagram_feed"],
+  threads: ["instagram_feed"],
+};
+
 export default function CampaignStudio() {
   const { toast } = useToast();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const remixId = params.get("remix");
+  const fromPlanCampaignId = params.get("campaign");
+  const fromPlanPlatform = params.get("platform");
   
   const { data: brands } = useGetBrands();
   const [selectedBrand, setSelectedBrand] = useState<string>("");
@@ -81,6 +95,7 @@ export default function CampaignStudio() {
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
   const [briefText, setBriefText] = useState("");
   const [refineText, setRefineText] = useState("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(ALL_PLATFORM_KEYS);
   
   const [campaignId, setCampaignId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -128,6 +143,7 @@ export default function CampaignStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const remixLoadedRef = useRef(false);
+  const planLoadedRef = useRef(false);
   const loadingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
   const createCampaignMutation = useCreateCampaign();
@@ -138,6 +154,48 @@ export default function CampaignStudio() {
       loadRemixCampaign(remixId);
     }
   }, [remixId]);
+
+  useEffect(() => {
+    if (fromPlanCampaignId && !planLoadedRef.current) {
+      planLoadedRef.current = true;
+      loadPlanCampaign(fromPlanCampaignId);
+    }
+  }, [fromPlanCampaignId]);
+
+  const loadPlanCampaign = async (id: string) => {
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${id}`);
+      if (!resp.ok) return;
+      const campaign = await resp.json();
+
+      setCampaignId(campaign.id);
+      setCampaignName(campaign.name || "");
+      setSelectedBrand(campaign.brandId);
+      if (campaign.templateId) setSelectedTemplate(campaign.templateId);
+      setBriefText(campaign.briefText || "");
+
+      const assets = (campaign.selectedAssets || []) as Array<{ assetId: string }>;
+      setSelectedAssets(assets.map((a: { assetId: string }) => a.assetId));
+
+      if (fromPlanPlatform) {
+        const mapped = PLAN_PLATFORM_MAP[fromPlanPlatform.toLowerCase()];
+        if (mapped && mapped.length > 0) {
+          setSelectedPlatforms(mapped);
+        }
+      }
+
+      const platformNote = fromPlanPlatform ? ` (Primary platform: ${fromPlanPlatform})` : "";
+      addLog(`Loaded from content plan: ${campaign.name}${platformNote}`, "done");
+      toast({
+        title: "Campaign loaded from plan",
+        description: fromPlanPlatform
+          ? `Primary platform: ${fromPlanPlatform}. Configure and generate content.`
+          : "Configure and generate content.",
+      });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to load campaign from plan" });
+    }
+  };
 
   const loadRemixCampaign = async (sourceId: string) => {
     try {
@@ -449,7 +507,7 @@ export default function CampaignStudio() {
     loadingTimersRef.current.forEach(t => clearTimeout(t));
     loadingTimersRef.current.clear();
     setLoadingPhase({});
-    const platforms = Object.keys(PLATFORM_LABELS);
+    const platforms = selectedPlatforms.length > 0 ? selectedPlatforms : ALL_PLATFORM_KEYS;
     const initialPhase: Record<string, { caption: boolean; image: boolean }> = {};
     platforms.forEach(p => { initialPhase[p] = { caption: false, image: false }; });
     setLoadingPhase(initialPhase);
@@ -511,6 +569,8 @@ export default function CampaignStudio() {
 
       const response = await fetch(`${API_BASE}/api/campaigns/${cId}/generate`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platforms }),
         signal: controller.signal,
       });
 
@@ -555,7 +615,7 @@ export default function CampaignStudio() {
       setIsGenerating(false);
       abortRef.current = null;
     }
-  }, [selectedBrand, selectedTemplate, campaignId, campaignName, briefText, selectedAssets, remixId, toast, addLog, updateLastLog]);
+  }, [selectedBrand, selectedTemplate, campaignId, campaignName, briefText, selectedAssets, selectedPlatforms, remixId, toast, addLog, updateLastLog]);
 
   const handleSSEEvent = useCallback((event: string, data: Record<string, unknown>) => {
     switch (event) {
@@ -1227,10 +1287,44 @@ export default function CampaignStudio() {
         </div>
         
         <div className="p-4 border-t border-border bg-background shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-10 space-y-2">
+          {selectedPlatforms.length < ALL_PLATFORM_KEYS.length && (
+            <div className="flex flex-wrap gap-1 mb-1">
+              <span className="text-[10px] text-muted-foreground w-full">Platforms:</span>
+              {ALL_PLATFORM_KEYS.map(pk => {
+                const active = selectedPlatforms.includes(pk);
+                return (
+                  <button
+                    key={pk}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                      active
+                        ? "bg-primary/20 text-primary border-primary/40"
+                        : "bg-muted/30 text-muted-foreground border-border hover:border-primary/30"
+                    }`}
+                    onClick={() => {
+                      setSelectedPlatforms(prev =>
+                        active
+                          ? prev.filter(p => p !== pk)
+                          : [...prev, pk]
+                      );
+                    }}
+                    disabled={isGenerating}
+                  >
+                    {PLATFORM_LABELS[pk].name}
+                  </button>
+                );
+              })}
+              <button
+                className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
+                onClick={() => setSelectedPlatforms(ALL_PLATFORM_KEYS)}
+              >
+                All
+              </button>
+            </div>
+          )}
           <Button 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20"
             onClick={handleGenerate}
-            disabled={isGenerating || isGeneratingVideo || !selectedBrand || !selectedTemplate}
+            disabled={isGenerating || isGeneratingVideo || !selectedBrand || !selectedTemplate || selectedPlatforms.length === 0}
           >
             {isGenerating ? (
               <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>

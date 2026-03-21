@@ -11,6 +11,7 @@ import Calendar from "@/pages/Calendar";
 import ReviewQueue from "@/pages/ReviewQueue";
 import Settings from "@/pages/Settings";
 import CostDashboard from "@/pages/CostDashboard";
+import ContentPlan from "@/pages/ContentPlan";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -62,6 +63,9 @@ function Router() {
         </Route>
         <Route path="/calendar">
           <AppLayout><Calendar /></AppLayout>
+        </Route>
+        <Route path="/content-plan">
+          <AppLayout><ContentPlan /></AppLayout>
         </Route>
         <Route path="/review">
           <AppLayout><ReviewQueue /></AppLayout>
