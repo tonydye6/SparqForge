@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2 } from "lucide-react";
+import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2, Edit2, Plus, CheckSquare, Square, Tag, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+interface CampaignUsage {
+  id: string;
+  name: string;
+  status: string;
+  createdAt: string;
+}
 
 export default function AssetLibrary() {
   const queryClient = useQueryClient();
@@ -25,10 +34,11 @@ export default function AssetLibrary() {
   const [selectedBrand, setSelectedBrand] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
   
   const { data: brands } = useGetBrands();
 
-  // Queries
   const { data: visuals, isLoading: visualsLoading } = useGetAssets({ 
     type: "visual", 
     brandId: selectedBrand !== "all" ? selectedBrand : undefined,
@@ -54,10 +64,8 @@ export default function AssetLibrary() {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     acceptedFiles.forEach(file => {
-      // 1. Upload to storage
       uploadMutation.mutate({ data: { file, type: 'visual', brandId: selectedBrand !== "all" ? selectedBrand : undefined } }, {
         onSuccess: (res) => {
-          // 2. Create asset record
           createAssetMutation.mutate({
             data: {
               brandId: selectedBrand !== "all" ? selectedBrand : (brands?.[0]?.id || ""),
@@ -85,6 +93,46 @@ export default function AssetLibrary() {
   }, [uploadMutation, createAssetMutation, selectedBrand, brands, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (visuals) {
+      setSelectedIds(new Set(visuals.map(a => a.id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const bulkUpdate = async (updates: { status?: string; tags?: string[] }) => {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    try {
+      const res = await fetch("/api/assets/bulk-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds), ...updates }),
+      });
+      if (!res.ok) throw new Error("Bulk update failed");
+      const data = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      clearSelection();
+      toast({ title: `${data.updated} asset(s) updated` });
+    } catch {
+      toast({ variant: "destructive", title: "Bulk update failed" });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const bulkMode = selectedIds.size > 0;
 
   return (
     <div className="flex flex-col h-full overflow-hidden p-6 max-w-[1600px] mx-auto w-full">
@@ -145,6 +193,26 @@ export default function AssetLibrary() {
         </div>
 
         <TabsContent value="visuals" className="flex-1 overflow-y-auto mt-0 border-none p-0 outline-none pr-4 pb-10">
+          {bulkMode && (
+            <div className="mb-4 flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 sticky top-0 z-10 backdrop-blur-sm">
+              <span className="text-sm font-semibold text-primary">{selectedIds.size} selected</span>
+              <div className="flex-1" />
+              <Button size="sm" variant="outline" onClick={selectAll} className="border-primary/30 text-primary hover:bg-primary/20">
+                Select All
+              </Button>
+              <Button size="sm" onClick={() => bulkUpdate({ status: "approved" })} disabled={bulkLoading} className="bg-success hover:bg-success/90 text-white">
+                <Check className="w-3.5 h-3.5 mr-1.5" /> Approve Selected
+              </Button>
+              <Button size="sm" onClick={() => bulkUpdate({ status: "archived" })} disabled={bulkLoading} className="bg-warning hover:bg-warning/90 text-black">
+                <Archive className="w-3.5 h-3.5 mr-1.5" /> Archive Selected
+              </Button>
+              <BulkTagDialog onApply={(tags) => bulkUpdate({ tags })} disabled={bulkLoading} />
+              <Button size="sm" variant="ghost" onClick={clearSelection} className="text-muted-foreground">
+                <X className="w-3.5 h-3.5 mr-1" /> Clear
+              </Button>
+            </div>
+          )}
+
           <div 
             {...getRootProps()} 
             className={`mb-8 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
@@ -168,7 +236,13 @@ export default function AssetLibrary() {
               ))
             ) : visuals && visuals.length > 0 ? (
               visuals.map((asset) => (
-                <VisualAssetCard key={asset.id} asset={asset} />
+                <VisualAssetCard
+                  key={asset.id}
+                  asset={asset}
+                  selected={selectedIds.has(asset.id)}
+                  onToggleSelect={() => toggleSelection(asset.id)}
+                  bulkMode={bulkMode}
+                />
               ))
             ) : (
               <div className="col-span-full py-12 text-center text-muted-foreground">No visual assets found.</div>
@@ -188,7 +262,44 @@ export default function AssetLibrary() {
   );
 }
 
-function VisualAssetCard({ asset }: { asset: Asset }) {
+function BulkTagDialog({ onApply, disabled }: { onApply: (tags: string[]) => void; disabled: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+
+  const handleApply = () => {
+    const tags = tagInput.split(",").map(s => s.trim()).filter(Boolean);
+    if (tags.length > 0) {
+      onApply(tags);
+      setTagInput("");
+      setOpen(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={disabled} className="border-primary/30 text-primary hover:bg-primary/20">
+          <Tag className="w-3.5 h-3.5 mr-1.5" /> Tag Selected
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Tag Selected Assets</DialogTitle></DialogHeader>
+        <div className="space-y-4 pt-4">
+          <Input
+            value={tagInput}
+            onChange={e => setTagInput(e.target.value)}
+            placeholder="Enter tags (comma separated)"
+          />
+          <DialogFooter>
+            <Button onClick={handleApply} disabled={!tagInput.trim()}>Apply Tags</Button>
+          </DialogFooter>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset: Asset; selected: boolean; onToggleSelect: () => void; bulkMode: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -196,6 +307,19 @@ function VisualAssetCard({ asset }: { asset: Asset }) {
   const deleteMutation = useDeleteAsset();
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({ name: asset.name, description: asset.description || "", tags: asset.tags?.join(", ") || "" });
+  const [usageData, setUsageData] = useState<CampaignUsage[] | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && usageData === null) {
+      setUsageLoading(true);
+      fetch(`/api/assets/${asset.id}/usage`)
+        .then(res => res.json())
+        .then(data => setUsageData(Array.isArray(data) ? data : []))
+        .catch(() => setUsageData([]))
+        .finally(() => setUsageLoading(false));
+    }
+  }, [isOpen, asset.id, usageData]);
 
   const handleUpdate = (updates: any) => {
     updateMutation.mutate({ id: asset.id, data: updates }, {
@@ -227,10 +351,26 @@ function VisualAssetCard({ asset }: { asset: Asset }) {
     });
   };
 
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleSelect();
+  };
+
+  const statusColor = (status: string) => {
+    if (status === "draft") return "bg-muted text-muted-foreground";
+    if (status === "scheduled") return "bg-blue-500/20 text-blue-400";
+    if (status === "published" || status === "approved") return "bg-success/20 text-success";
+    if (status === "in_review" || status === "pending_review") return "bg-warning/20 text-warning";
+    return "bg-muted text-muted-foreground";
+  };
+
   return (
     <>
       <div 
-        className="group relative bg-card border border-border rounded-xl overflow-hidden shadow-md hover:shadow-xl hover:border-primary/50 transition-all duration-300 cursor-pointer"
+        className={cn(
+          "group relative bg-card border rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer",
+          selected ? "border-primary ring-2 ring-primary/30" : "border-border hover:border-primary/50"
+        )}
         onClick={() => setIsOpen(true)}
       >
         <div className="aspect-square bg-muted/30 relative overflow-hidden">
@@ -246,6 +386,23 @@ function VisualAssetCard({ asset }: { asset: Asset }) {
             </div>
           )}
           
+          <div
+            className={cn(
+              "absolute top-2 left-2 z-10 transition-opacity duration-200",
+              bulkMode || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            )}
+            onClick={handleCheckboxClick}
+          >
+            <div className={cn(
+              "w-6 h-6 rounded border-2 flex items-center justify-center transition-colors",
+              selected
+                ? "bg-primary border-primary text-white"
+                : "bg-background/80 backdrop-blur border-border hover:border-primary"
+            )}>
+              {selected && <Check size={14} />}
+            </div>
+          </div>
+
           <div className="absolute top-2 right-2 flex gap-1">
             {asset.status === 'approved' && <Badge className="bg-success text-white border-none shadow-sm text-[10px]">Approved</Badge>}
             {asset.status === 'uploaded' && <Badge className="bg-warning text-black border-none shadow-sm text-[10px]">Pending</Badge>}
@@ -264,7 +421,7 @@ function VisualAssetCard({ asset }: { asset: Asset }) {
         </div>
       </div>
 
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <Sheet open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) setUsageData(null); }}>
         <SheetContent className="w-full sm:max-w-md border-l border-border bg-card p-0 flex flex-col">
           <div className="p-6 border-b border-border bg-background">
             <SheetTitle className="text-xl">Asset Details</SheetTitle>
@@ -321,10 +478,32 @@ function VisualAssetCard({ asset }: { asset: Asset }) {
                     <span className="text-muted-foreground block text-xs uppercase mb-1">Type</span>
                     <span>{asset.mimeType || 'Unknown'}</span>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground block text-xs uppercase mb-1">Usage</span>
-                    <span>{asset.usageCount} times</span>
-                  </div>
+                </div>
+
+                <div className="bg-background p-4 rounded-lg border border-border">
+                  <h4 className="text-xs uppercase text-muted-foreground font-semibold mb-3">Used in Campaigns</h4>
+                  {usageLoading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-10 w-full" />
+                      <Skeleton className="h-10 w-full" />
+                    </div>
+                  ) : usageData && usageData.length > 0 ? (
+                    <div className="space-y-2">
+                      {usageData.map(c => (
+                        <div key={c.id} className="flex items-center justify-between p-2.5 rounded-md bg-card border border-border">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</p>
+                          </div>
+                          <Badge className={cn("ml-2 text-[10px] shrink-0", statusColor(c.status))}>
+                            {c.status.replace('_', ' ')}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not used in any campaigns yet.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -499,7 +678,6 @@ function HashtagsTab({ sets, brands }: { sets: any[], brands: any[] }) {
 
   const categories = ["school_specific", "campaign", "seasonal", "trending", "evergreen"];
   
-  // Group by category
   const grouped = sets.reduce((acc, set) => {
     if(!acc[set.category]) acc[set.category] = [];
     acc[set.category].push(set);

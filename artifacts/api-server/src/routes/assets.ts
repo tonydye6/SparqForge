@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, or } from "drizzle-orm";
-import { db, assetsTable } from "@workspace/db";
+import { eq, and, ilike, or, inArray } from "drizzle-orm";
+import { db, assetsTable, campaignsTable } from "@workspace/db";
 import {
   GetAssetsQueryParams,
   CreateAssetBody,
@@ -53,6 +53,72 @@ router.post("/assets", async (req, res): Promise<void> => {
 
   const [asset] = await db.insert(assetsTable).values(parsed.data).returning();
   res.status(201).json(GetAssetResponse.parse(asset));
+});
+
+const VALID_ASSET_STATUSES = ["uploaded", "approved", "archived"];
+
+router.post("/assets/bulk-update", async (req, res): Promise<void> => {
+  const { ids, status, tags } = req.body as {
+    ids?: string[];
+    status?: string;
+    tags?: string[];
+  };
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids array is required and must not be empty" });
+    return;
+  }
+
+  if (status && !VALID_ASSET_STATUSES.includes(status)) {
+    res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_ASSET_STATUSES.join(", ")}` });
+    return;
+  }
+
+  if (tags && (!Array.isArray(tags) || tags.some(t => typeof t !== "string"))) {
+    res.status(400).json({ error: "tags must be an array of strings" });
+    return;
+  }
+
+  if (!status && (!tags || tags.length === 0)) {
+    res.status(400).json({ error: "At least one of status or tags must be provided" });
+    return;
+  }
+
+  if (tags && tags.length > 0) {
+    const existing = await db.select().from(assetsTable).where(inArray(assetsTable.id, ids));
+    const allResults = [];
+    for (const asset of existing) {
+      const existingTags = (asset.tags || []) as string[];
+      const merged = [...new Set([...existingTags, ...tags])];
+      const updateData: Record<string, unknown> = { tags: merged, updatedAt: new Date() };
+      if (status) {
+        updateData.status = status;
+        if (status === "approved") updateData.approvedAt = new Date();
+      }
+      const [updated] = await db
+        .update(assetsTable)
+        .set(updateData)
+        .where(eq(assetsTable.id, asset.id))
+        .returning();
+      if (updated) allResults.push(updated);
+    }
+    res.json({ updated: allResults.length, assets: allResults });
+    return;
+  }
+
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (status) {
+    updateData.status = status;
+    if (status === "approved") updateData.approvedAt = new Date();
+  }
+
+  const results = await db
+    .update(assetsTable)
+    .set(updateData)
+    .where(inArray(assetsTable.id, ids))
+    .returning();
+
+  res.json({ updated: results.length, assets: results });
 });
 
 router.get("/assets/:id", async (req, res): Promise<void> => {
@@ -118,6 +184,30 @@ router.delete("/assets/:id", async (req, res): Promise<void> => {
   }
 
   res.json(DeleteAssetResponse.parse({ message: "Asset deleted" }));
+});
+
+router.get("/assets/:id/usage", async (req, res): Promise<void> => {
+  const assetId = req.params.id;
+
+  const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, assetId));
+  if (!asset) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
+
+  const allCampaigns = await db.select().from(campaignsTable).orderBy(campaignsTable.createdAt);
+
+  const usedIn = allCampaigns.filter(campaign => {
+    const selectedAssets = (campaign.selectedAssets || []) as Array<{ assetId: string; role: string }>;
+    return selectedAssets.some(a => a.assetId === assetId);
+  });
+
+  res.json(usedIn.map(c => ({
+    id: c.id,
+    name: c.name,
+    status: c.status,
+    createdAt: c.createdAt,
+  })));
 });
 
 export default router;
