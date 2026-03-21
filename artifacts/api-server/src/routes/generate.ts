@@ -390,8 +390,10 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
           .where(eq(templatesTable.id, campaign.templateId));
       }
 
-      await tx.delete(costLogsTable)
-        .where(eq(costLogsTable.id, reservationId));
+      if (reservationId) {
+        await tx.delete(costLogsTable)
+          .where(eq(costLogsTable.id, reservationId));
+      }
 
       await tx.insert(costLogsTable).values({
         campaignId,
