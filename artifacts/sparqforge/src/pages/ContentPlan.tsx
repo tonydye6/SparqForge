@@ -471,7 +471,7 @@ export default function ContentPlan() {
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_140px_140px_120px_100px_120px] gap-0 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="grid grid-cols-[1fr_120px_140px_90px_100px_220px] gap-0 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             <SortHeader field="title" label="Title" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
             <SortHeader field="primaryPlatform" label="Platform" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
             <SortHeader field="pillar" label="Pillar" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
@@ -483,7 +483,7 @@ export default function ContentPlan() {
           {filteredItems.map(item => (
             <div key={item.id} className="border-b border-border last:border-b-0">
               <div
-                className="grid grid-cols-[1fr_140px_140px_120px_100px_120px] gap-0 px-4 py-3 items-center hover:bg-muted/30 cursor-pointer transition-colors"
+                className="grid grid-cols-[1fr_120px_140px_90px_100px_220px] gap-0 px-4 py-3 items-center hover:bg-muted/30 cursor-pointer transition-colors"
                 onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
               >
                 <div className="flex items-center gap-2 min-w-0">
@@ -507,15 +507,29 @@ export default function ContentPlan() {
                     {item.status.replace("_", " ")}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
                   {item.status === "planned" && !item.linkedCampaignId && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => handleCreateCampaign(item.id)}
                       title="Create Campaign"
+                      className="text-primary border-primary/40 hover:bg-primary/10 gap-1.5"
                     >
-                      <Rocket className="w-4 h-4" />
+                      <Rocket className="w-3.5 h-3.5" />
+                      <span className="text-xs">Create Campaign</span>
+                    </Button>
+                  )}
+                  {item.linkedCampaignId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation(`/?campaign=${item.linkedCampaignId}`)}
+                      title="Open Campaign"
+                      className="text-green-400 border-green-400/40 hover:bg-green-400/10 gap-1.5"
+                    >
+                      <Rocket className="w-3.5 h-3.5" />
+                      <span className="text-xs">Open Campaign</span>
                     </Button>
                   )}
                   <Button
