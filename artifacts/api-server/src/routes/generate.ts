@@ -130,6 +130,8 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
+    const estimatedGenerationCost = estimateClaudeCost() + estimateImagenCost(Object.keys(PLATFORM_CONFIGS).length);
+
     const budgetCheckResult = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(42)`);
       const [todayResult] = await tx.select({
@@ -137,7 +139,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       }).from(costLogsTable).where(gte(costLogsTable.createdAt, todayStart));
       const currentSpend = Number(todayResult?.totalCost || 0);
 
-      if (currentSpend >= budgetThreshold) {
+      if (currentSpend + estimatedGenerationCost > budgetThreshold) {
         return { exceeded: true as const, todaySpend: currentSpend };
       }
 
@@ -146,9 +148,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         service: "system",
         operation: "budget_reservation",
         model: null,
-        costUsd: 0,
+        costUsd: estimatedGenerationCost,
       });
-      return { exceeded: false as const, todaySpend: currentSpend };
+      return { exceeded: false as const, todaySpend: currentSpend, reservationInserted: true as const };
     });
 
     if (budgetCheckResult.exceeded) {
@@ -341,7 +343,8 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         originalCaption: captionData.caption,
         headlineText: captionData.headline,
         originalHeadline: captionData.headline,
-        status: compositingFailed ? "compositing_failed" : "generated",
+        status: "generated",
+        compositingFailed: compositingFailed ? `Compositing failed for ${img.platform}. Using raw image as fallback.` : null,
       });
 
       sendEvent("image_ready", {
@@ -382,6 +385,12 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
           .set({ totalGenerations: sql`COALESCE(${templatesTable.totalGenerations}, 0) + 1` })
           .where(eq(templatesTable.id, campaign.templateId));
       }
+
+      await tx.delete(costLogsTable)
+        .where(and(
+          eq(costLogsTable.campaignId, campaignId),
+          eq(costLogsTable.operation, "budget_reservation"),
+        ));
 
       await tx.insert(costLogsTable).values({
         campaignId,
@@ -443,6 +452,13 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     await db.update(campaignsTable)
       .set({ status: "draft", updatedAt: new Date() })
       .where(eq(campaignsTable.id, campaignId));
+    try {
+      await db.delete(costLogsTable)
+        .where(and(
+          eq(costLogsTable.campaignId, campaignId),
+          eq(costLogsTable.operation, "budget_reservation"),
+        ));
+    } catch {}
     try {
       if (tmpDir) {
         fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -674,17 +690,13 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     const compPath = path.join(UPLOADS_DIR, compFilename);
     fs.writeFileSync(compPath, compositedBuffer);
 
-    const updateData: Record<string, unknown> = {
-      rawImageUrl: `/api/files/generated/${rawFilename}`,
-      compositedImageUrl: `/api/files/generated/${compFilename}`,
-      updatedAt: new Date(),
-    };
-    if (compositingFailed) {
-      updateData.status = "compositing_failed";
-    }
-
     const [updated] = await db.update(campaignVariantsTable)
-      .set(updateData)
+      .set({
+        rawImageUrl: `/api/files/generated/${rawFilename}`,
+        compositedImageUrl: `/api/files/generated/${compFilename}`,
+        compositingFailed: compositingFailed ? `Compositing failed during regeneration for ${variant.platform}. Using raw image as fallback.` : null,
+        updatedAt: new Date(),
+      })
       .where(eq(campaignVariantsTable.id, variantId))
       .returning();
 

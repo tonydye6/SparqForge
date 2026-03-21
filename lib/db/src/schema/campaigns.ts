@@ -3,7 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { brandsTable } from "./brands";
 import { templatesTable } from "./templates";
-import { usersTable } from "./users";
+import { socialAccountsTable } from "./social-accounts";
 
 export const campaignsTable = pgTable("campaigns", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -55,6 +55,7 @@ export const campaignVariantsTable = pgTable("campaign_variants", {
   headlineText: text("headline_text"),
   originalHeadline: text("original_headline"),
   status: text("status").notNull().default("generated"),
+  compositingFailed: text("compositing_failed"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
@@ -66,7 +67,7 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
   campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
   variantId: text("variant_id").notNull().references(() => campaignVariantsTable.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
-  socialAccountId: text("social_account_id"),
+  socialAccountId: text("social_account_id").references(() => socialAccountsTable.id, { onDelete: "set null" }),
   scheduledAt: timestamp("scheduled_at").notNull(),
   publishedAt: timestamp("published_at"),
   publishStatus: text("publish_status").notNull().default("scheduled"),
