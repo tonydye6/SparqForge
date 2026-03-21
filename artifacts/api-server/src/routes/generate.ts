@@ -135,7 +135,8 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     reservationId = crypto.randomUUID();
 
     const budgetCheckResult = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(42)`);
+      const BUDGET_LOCK_KEY = 100001;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${BUDGET_LOCK_KEY})`);
       const [todayResult] = await tx.select({
         totalCost: sql<number>`COALESCE(SUM(${costLogsTable.costUsd}), 0)`,
       }).from(costLogsTable).where(gte(costLogsTable.createdAt, todayStart));
@@ -729,9 +730,23 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
       return [result];
     });
 
-    fs.copyFileSync(rawTmpPath, rawFinalPath);
-    fs.copyFileSync(compTmpPath, compFinalPath);
+    try {
+      fs.copyFileSync(rawTmpPath, rawFinalPath);
+      fs.copyFileSync(compTmpPath, compFinalPath);
+    } catch (copyErr) {
+      console.error("File copy failed after DB commit, rolling back variant URLs:", copyErr instanceof Error ? copyErr.message : copyErr);
+      await db.update(campaignVariantsTable)
+        .set({
+          rawImageUrl: variant.rawImageUrl,
+          compositedImageUrl: variant.compositedImageUrl,
+          compositingFailed: "File copy failed after generation. Please regenerate.",
+          updatedAt: new Date(),
+        })
+        .where(eq(campaignVariantsTable.id, variantId));
+      throw new Error("Failed to save generated files. Please try again.");
+    }
     fs.rmSync(regenTmpDir, { recursive: true, force: true });
+    regenTmpDir = null;
 
     res.json(updated);
   } catch (error) {
