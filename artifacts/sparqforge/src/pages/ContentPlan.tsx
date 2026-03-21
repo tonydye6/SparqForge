@@ -471,7 +471,7 @@ export default function ContentPlan() {
         </div>
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_120px_140px_90px_100px_220px] gap-0 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="grid grid-cols-[1fr_100px_130px_80px_90px_280px] gap-2 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
             <SortHeader field="title" label="Title" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
             <SortHeader field="primaryPlatform" label="Platform" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
             <SortHeader field="pillar" label="Pillar" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
@@ -483,7 +483,7 @@ export default function ContentPlan() {
           {filteredItems.map(item => (
             <div key={item.id} className="border-b border-border last:border-b-0">
               <div
-                className="grid grid-cols-[1fr_120px_140px_90px_100px_220px] gap-0 px-4 py-3 items-center hover:bg-muted/30 cursor-pointer transition-colors"
+                className="grid grid-cols-[1fr_100px_130px_80px_90px_280px] gap-2 px-4 py-3 items-center hover:bg-muted/30 cursor-pointer transition-colors"
                 onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
               >
                 <div className="flex items-center gap-2 min-w-0">
