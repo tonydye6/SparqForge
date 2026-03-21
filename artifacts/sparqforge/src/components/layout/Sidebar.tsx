@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useGetCampaigns } from "@workspace/api-client-react";
+import { useAuth } from "@/hooks/useAuth";
 
 type SidebarMode = "mobile" | "tablet" | "desktop";
 
@@ -52,6 +53,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [tabletExpanded, setTabletExpanded] = useState(false);
   const { data: campaigns } = useGetCampaigns();
   const [calendarCount, setCalendarCount] = useState(0);
+  const { user, logout } = useAuth();
 
   const reviewCount = campaigns?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
 
@@ -76,6 +78,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const collapsed = mode === "tablet" ? !tabletExpanded : mode === "desktop" ? desktopCollapsed : false;
   const sidebarWidth = collapsed ? 64 : 220;
+
+  const displayName = user?.name || user?.email || "User";
+  const displayRole = user?.role || "viewer";
+  const avatarUrl = user?.image || `${import.meta.env.BASE_URL}images/avatar.png`;
 
   const handleNavClick = () => {
     if (mode === "mobile") {
@@ -185,19 +191,24 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         <div className={cn("flex items-center", collapsed && mode !== "mobile" ? "justify-center" : "justify-between")}>
           <div className="flex items-center overflow-hidden">
             <img 
-              src={`${import.meta.env.BASE_URL}images/avatar.png`}
+              src={avatarUrl}
               alt="User Avatar"
               className="w-9 h-9 rounded-full object-cover border border-border"
+              referrerPolicy="no-referrer"
             />
             {(mode === "mobile" || !collapsed) && (
               <div className="ml-3 truncate">
-                <p className="text-sm font-semibold text-foreground truncate">Alex Hunter</p>
-                <p className="text-xs text-muted-foreground truncate">Creator</p>
+                <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
+                <p className="text-xs text-muted-foreground truncate capitalize">{displayRole}</p>
               </div>
             )}
           </div>
           {(mode === "mobile" || !collapsed) && (
-            <button className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-destructive/10">
+            <button
+              onClick={logout}
+              className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded-md hover:bg-destructive/10"
+              title="Sign out"
+            >
               <LogOut size={16} />
             </button>
           )}

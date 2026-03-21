@@ -30,5 +30,8 @@ timeoutMs = 20000
 
 [userenv.shared]
 
+[userenv.development]
+DEV_AUTH_BYPASS = "true"
+
 [nix]
 channel = "stable-25_05"

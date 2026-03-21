@@ -1,40 +1,82 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useAuth } from "@/hooks/useAuth";
 import CampaignStudio from "@/pages/CampaignStudio";
 import AssetLibrary from "@/pages/AssetLibrary";
 import Calendar from "@/pages/Calendar";
 import ReviewQueue from "@/pages/ReviewQueue";
 import Settings from "@/pages/Settings";
 import CostDashboard from "@/pages/CostDashboard";
+import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
-// The orval generated hooks will use this
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
     },
   },
 });
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { authenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center space-y-4">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    const currentPath = window.location.pathname;
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+    const relativePath = currentPath.replace(basePath, "") || "/";
+    if (relativePath !== "/login") {
+      return <Redirect to={`/login?returnTo=${encodeURIComponent(relativePath)}`} />;
+    }
+  }
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
-    <AppLayout>
+    <AuthGate>
       <Switch>
-        <Route path="/" component={CampaignStudio} />
-        <Route path="/assets" component={AssetLibrary} />
-        <Route path="/calendar" component={Calendar} />
-        <Route path="/review" component={ReviewQueue} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/costs" component={CostDashboard} />
-        <Route component={NotFound} />
+        <Route path="/login" component={Login} />
+        <Route path="/">
+          <AppLayout><CampaignStudio /></AppLayout>
+        </Route>
+        <Route path="/assets">
+          <AppLayout><AssetLibrary /></AppLayout>
+        </Route>
+        <Route path="/calendar">
+          <AppLayout><Calendar /></AppLayout>
+        </Route>
+        <Route path="/review">
+          <AppLayout><ReviewQueue /></AppLayout>
+        </Route>
+        <Route path="/settings">
+          <AppLayout><Settings /></AppLayout>
+        </Route>
+        <Route path="/costs">
+          <AppLayout><CostDashboard /></AppLayout>
+        </Route>
+        <Route>
+          <AppLayout><NotFound /></AppLayout>
+        </Route>
       </Switch>
-    </AppLayout>
+    </AuthGate>
   );
 }
 

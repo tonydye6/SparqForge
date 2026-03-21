@@ -51,7 +51,8 @@ router.post("/assets", async (req, res): Promise<void> => {
     return;
   }
 
-  const [asset] = await db.insert(assetsTable).values(parsed.data).returning();
+  const userId = (req as any).user?.id || "system";
+  const [asset] = await db.insert(assetsTable).values({ ...parsed.data, uploadedBy: userId }).returning();
   res.status(201).json(GetAssetResponse.parse(asset));
 });
 

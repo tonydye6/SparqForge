@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./health";
 import brandsRouter from "./brands";
 import templatesRouter from "./templates";
 import assetsRouter from "./assets";
@@ -19,7 +18,6 @@ import rewriteRouter from "./rewrite";
 
 const router: IRouter = Router();
 
-router.use(healthRouter);
 router.use(brandsRouter);
 router.use(templatesRouter);
 router.use(assetsRouter);

@@ -85,7 +85,8 @@ router.post("/campaigns", async (req, res): Promise<void> => {
     return;
   }
 
-  const [campaign] = await db.insert(campaignsTable).values(parsed.data).returning();
+  const userId = (req as any).user?.id || "system";
+  const [campaign] = await db.insert(campaignsTable).values({ ...parsed.data, createdBy: userId }).returning();
   res.status(201).json(GetCampaignResponse.parse(campaign));
 });
 

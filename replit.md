@@ -39,8 +39,11 @@ The frontend comprises several key pages:
 - **Publishing Engine**: A database-backed scheduler polls for scheduled posts, and platform-specific services handle publishing to Twitter, Instagram, and LinkedIn. Includes retry logic with exponential backoff.
 - **Template Refinement Loop**: Tracks user edits (refinement logs), maintains template version history with rollback capabilities, and uses Claude for AI-powered refinement analysis and recommendations.
 
+**Authentication:**
+Google OAuth sign-in via Passport.js with cookie-based sessions stored in PostgreSQL (connect-pg-simple). In development, `DEV_AUTH_BYPASS=true` auto-authenticates as a dev user without requiring login. API routes are protected by `requireAuth` middleware (returns 401 for unauthenticated requests in production). Auth routes (`/api/auth/me`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/logout`) are mounted before the auth middleware. Health endpoint is also public. The frontend redirects unauthenticated users to `/login` in production. The sidebar displays the authenticated user's name and avatar from the session. Campaign creation uses the authenticated user's ID for `createdBy`, and asset creation uses it for `uploadedBy`.
+
 **Database Schema:**
-The database includes tables for `brands`, `templates`, `assets`, `hashtag_sets`, `campaigns`, `campaign_variants`, `calendar_entries`, `social_accounts` (with encrypted tokens), `refinement_logs`, `template_versions`, `template_recommendations`, `cost_logs`, `users` (with roles), and `app_settings` (key-value store for configurable thresholds like `dailyCostThreshold`).
+The database includes tables for `brands`, `templates`, `assets`, `hashtag_sets`, `campaigns`, `campaign_variants`, `calendar_entries`, `social_accounts` (with encrypted tokens), `refinement_logs`, `template_versions`, `template_recommendations`, `cost_logs`, `users` (with roles), `session` (auto-created by connect-pg-simple), and `app_settings` (key-value store for configurable thresholds like `dailyCostThreshold`).
 
 ## External Dependencies
 - **AI Services**:
