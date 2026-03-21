@@ -133,22 +133,20 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: string | null;
   usageCount: number;
-  assetClass?: string | null;
+  assetClass: string;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
-  approvedChannels?: string[] | null;
-  approvedTemplates?: string[] | null;
-  subjectIdentityScore?: number | null;
-  styleStrengthScore?: number | null;
-  compositingOnly?: boolean | null;
-  generationAllowed?: boolean | null;
-  approvedForCompositing?: boolean | null;
-  referencePriorityDefault?: number | null;
-  conflictTags?: string[] | null;
-  freshnessScore?: number | null;
-  fontWeight?: string | null;
-  fontName?: string | null;
+  approvedChannels: string[];
+  approvedTemplates: string[];
+  subjectIdentityScore: number;
+  styleStrengthScore: number;
+  compositingOnly: boolean;
+  generationAllowed: boolean;
+  approvedForCompositing: boolean;
+  referencePriorityDefault: number;
+  conflictTags: string[];
+  freshnessScore: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -166,21 +164,13 @@ export interface CreateAssetInput {
   mimeType?: string | null;
   fileSizeBytes?: number | null;
   uploadedBy: string;
-  assetClass?: string | null;
+  assetClass?: string;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
-  approvedChannels?: string[] | null;
-  approvedTemplates?: string[] | null;
-  subjectIdentityScore?: number | null;
-  styleStrengthScore?: number | null;
-  compositingOnly?: boolean | null;
-  generationAllowed?: boolean | null;
-  approvedForCompositing?: boolean | null;
-  conflictTags?: string[] | null;
-  freshnessScore?: number | null;
-  fontWeight?: string | null;
-  fontName?: string | null;
+  compositingOnly?: boolean;
+  generationAllowed?: boolean;
+  approvedForCompositing?: boolean;
 }
 
 export interface UpdateAssetInput {
@@ -191,22 +181,17 @@ export interface UpdateAssetInput {
   content?: string | null;
   subType?: string | null;
   approvedBy?: string | null;
-  assetClass?: string | null;
+  assetClass?: string;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
-  approvedChannels?: string[] | null;
-  approvedTemplates?: string[] | null;
-  subjectIdentityScore?: number | null;
-  styleStrengthScore?: number | null;
-  compositingOnly?: boolean | null;
-  generationAllowed?: boolean | null;
-  approvedForCompositing?: boolean | null;
-  referencePriorityDefault?: number | null;
-  conflictTags?: string[] | null;
-  freshnessScore?: number | null;
-  fontWeight?: string | null;
-  fontName?: string | null;
+  compositingOnly?: boolean;
+  generationAllowed?: boolean;
+  approvedForCompositing?: boolean;
+  subjectIdentityScore?: number;
+  styleStrengthScore?: number;
+  referencePriorityDefault?: number;
+  freshnessScore?: number;
 }
 
 export interface HashtagSet {
