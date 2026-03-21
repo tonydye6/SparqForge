@@ -17,6 +17,9 @@ import type {
 const router = Router();
 
 function resolveBaseUrl(): string {
+  if (process.env.APP_URL) {
+    return process.env.APP_URL.replace(/\/$/, "");
+  }
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
   if (devDomain) {
     return `https://${devDomain}`;
@@ -227,7 +230,8 @@ router.get("/auth/instagram/callback", async (req, res) => {
     const expiresIn = longLivedData.expires_in || 5184000;
 
     const pagesResp = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
+      "https://graph.facebook.com/v19.0/me/accounts",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     const pagesData: FacebookPagesResponse = await pagesResp.json();
 
@@ -237,14 +241,16 @@ router.get("/auth/instagram/callback", async (req, res) => {
     if (pagesData.data && pagesData.data.length > 0) {
       const page = pagesData.data[0];
       const igResp = await fetch(
-        `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${accessToken}`
+        `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const igData: FacebookPageIGResponse = await igResp.json();
 
       if (igData.instagram_business_account) {
         igAccountId = igData.instagram_business_account.id;
         const igUserResp = await fetch(
-          `https://graph.facebook.com/v19.0/${igAccountId}?fields=username&access_token=${accessToken}`
+          `https://graph.facebook.com/v19.0/${igAccountId}?fields=username`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
         );
         const igUserData: InstagramUserResponse = await igUserResp.json();
         igAccountName = `@${igUserData.username || "instagram_user"}`;

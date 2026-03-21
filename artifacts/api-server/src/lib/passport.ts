@@ -39,8 +39,8 @@ passport.deserializeUser(async (id: string, done) => {
   }
 });
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CLIENT_ID = process.env.SparqForge_Google_Client_ID || process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.SparqForge_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback";
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
@@ -107,7 +107,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   );
   logger.info("Google OAuth strategy configured");
 } else {
-  logger.warn("Google OAuth not configured: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
+  logger.warn("Google OAuth not configured: missing SparqForge_Google_Client_ID / GOOGLE_CLIENT_ID or SparqForge_Google_Client_Secret / GOOGLE_CLIENT_SECRET");
 }
 
 export default passport;

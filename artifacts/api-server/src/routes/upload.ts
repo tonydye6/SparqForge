@@ -38,7 +38,6 @@ const ALLOWED_MIMES = [
   "font/ttf",
   "application/x-font-woff2",
   "application/x-font-ttf",
-  "application/octet-stream",
   "audio/mpeg",
   "audio/wav",
   "application/pdf",
