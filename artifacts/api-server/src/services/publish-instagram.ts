@@ -5,6 +5,7 @@ interface PublishInstagramOptions {
   igUserId: string;
   caption: string;
   imageUrl: string;
+  platform?: string;
 }
 
 interface PublishResult {
@@ -13,68 +14,155 @@ interface PublishResult {
   error?: string;
 }
 
-export async function publishToInstagram(options: PublishInstagramOptions): Promise<PublishResult> {
-  const { accessToken, igUserId, caption, imageUrl } = options;
+function resolvePublicImageUrl(imageUrl: string): string {
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+    return imageUrl;
+  }
 
-  try {
-    const containerResp = await fetch(
-      `https://graph.facebook.com/v19.0/${igUserId}/media`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_url: imageUrl,
-          caption,
-          access_token: accessToken,
-        }),
-      }
+  const appUrl = process.env.APP_URL;
+  if (appUrl) {
+    return `${appUrl.replace(/\/$/, "")}${imageUrl}`;
+  }
+
+  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  if (devDomain) {
+    return `https://${devDomain}${imageUrl}`;
+  }
+
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const firstDomain = domains.split(",")[0].trim();
+    if (firstDomain) {
+      return `https://${firstDomain}${imageUrl}`;
+    }
+  }
+
+  return imageUrl;
+}
+
+async function waitForContainer(containerId: string, accessToken: string): Promise<{ ready: boolean; error?: string }> {
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (attempts < maxAttempts) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    const statusResp = await fetch(
+      `https://graph.facebook.com/v19.0/${containerId}?fields=status_code`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
     );
 
-    if (!containerResp.ok) {
-      const errBody = await containerResp.text();
-      logger.error({ status: containerResp.status, body: errBody }, "Instagram container creation failed");
-      return { success: false, error: `Instagram API error (${containerResp.status}): ${errBody}` };
-    }
-
-    const containerData = await containerResp.json() as { id: string };
-    const containerId = containerData.id;
-
-    let attempts = 0;
-    const maxAttempts = 10;
-    let containerReady = false;
-    while (attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      const statusResp = await fetch(
-        `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`
-      );
-      if (statusResp.ok) {
-        const statusData = await statusResp.json() as { status_code: string };
-        if (statusData.status_code === "FINISHED") {
-          containerReady = true;
-          break;
-        }
-        if (statusData.status_code === "ERROR") {
-          return { success: false, error: "Instagram media container processing failed" };
-        }
+    if (statusResp.ok) {
+      const statusData = await statusResp.json() as { status_code: string };
+      if (statusData.status_code === "FINISHED") {
+        return { ready: true };
       }
-      attempts++;
+      if (statusData.status_code === "ERROR") {
+        return { ready: false, error: "Instagram media container processing failed" };
+      }
+    }
+    attempts++;
+  }
+
+  return { ready: false, error: "Instagram media container processing timed out" };
+}
+
+async function createFeedContainer(
+  igUserId: string,
+  accessToken: string,
+  imageUrl: string,
+  caption: string,
+): Promise<{ id: string } | { error: string }> {
+  const resp = await fetch(
+    `https://graph.facebook.com/v19.0/${igUserId}/media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        caption,
+      }),
+    },
+  );
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    logger.error({ status: resp.status, body: errBody }, "Instagram feed container creation failed");
+    return { error: `Instagram API error (${resp.status}): ${errBody}` };
+  }
+
+  return await resp.json() as { id: string };
+}
+
+async function createStoryContainer(
+  igUserId: string,
+  accessToken: string,
+  imageUrl: string,
+): Promise<{ id: string } | { error: string }> {
+  const resp = await fetch(
+    `https://graph.facebook.com/v19.0/${igUserId}/media`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        image_url: imageUrl,
+        media_type: "STORIES",
+      }),
+    },
+  );
+
+  if (!resp.ok) {
+    const errBody = await resp.text();
+    logger.error({ status: resp.status, body: errBody }, "Instagram story container creation failed");
+    return { error: `Instagram API error (${resp.status}): ${errBody}` };
+  }
+
+  return await resp.json() as { id: string };
+}
+
+export async function publishToInstagram(options: PublishInstagramOptions): Promise<PublishResult> {
+  const { accessToken, igUserId, caption, platform } = options;
+  const publicImageUrl = resolvePublicImageUrl(options.imageUrl);
+  const isStory = platform === "instagram_story";
+
+  try {
+    let containerResult: { id: string } | { error: string };
+
+    if (isStory) {
+      containerResult = await createStoryContainer(igUserId, accessToken, publicImageUrl);
+    } else {
+      containerResult = await createFeedContainer(igUserId, accessToken, publicImageUrl, caption);
     }
 
-    if (!containerReady) {
-      return { success: false, error: "Instagram media container processing timed out" };
+    if ("error" in containerResult) {
+      return { success: false, error: containerResult.error };
+    }
+
+    const containerId = containerResult.id;
+
+    const containerStatus = await waitForContainer(containerId, accessToken);
+    if (!containerStatus.ready) {
+      return { success: false, error: containerStatus.error };
     }
 
     const publishResp = await fetch(
       `https://graph.facebook.com/v19.0/${igUserId}/media_publish`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
           creation_id: containerId,
-          access_token: accessToken,
         }),
-      }
+      },
     );
 
     if (!publishResp.ok) {
@@ -84,7 +172,8 @@ export async function publishToInstagram(options: PublishInstagramOptions): Prom
     }
 
     const publishData = await publishResp.json() as { id: string };
-    logger.info({ postId: publishData.id }, "Instagram post published successfully");
+    const postType = isStory ? "story" : "post";
+    logger.info({ postId: publishData.id, postType }, `Instagram ${postType} published successfully`);
     return { success: true, platformPostId: publishData.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

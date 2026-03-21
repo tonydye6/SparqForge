@@ -37,8 +37,8 @@ The frontend comprises several key pages:
     5. **Compositing**: Overlays gradients, headline text, and brand logos onto raw images using Sharp. Auto-fetches the brand's primary logo asset for compositing when the layout spec includes logo_placement.
     6. **SSE Streaming**: Provides real-time progress updates during generation.
 - **Video and Audio Generation**: Integrates Veo for video generation and ElevenLabs for text-to-music and SFX. ffmpeg handles audio/video merging.
-- **Social Account OAuth**: Supports Twitter/X (OAuth 2.0 PKCE), Instagram (via Facebook Login), and LinkedIn (OAuth 2.0). Tokens are encrypted using AES-256-GCM and automatically refreshed.
-- **Publishing Engine**: A database-backed scheduler polls for scheduled posts, and platform-specific services handle publishing to Twitter, Instagram, and LinkedIn. Includes retry logic with exponential backoff.
+- **Social Account OAuth**: Supports Twitter/X (OAuth 2.0 PKCE + OAuth 1.0a for media upload), Instagram (via Facebook Login), and LinkedIn (OAuth 2.0). Tokens are encrypted using AES-256-GCM and automatically refreshed.
+- **Publishing Engine**: A database-backed scheduler polls for scheduled posts, and platform-specific services handle publishing to Twitter (OAuth 1.0a media upload signing), Instagram (Feed + Stories, Authorization header auth), and LinkedIn (Community Management API v202401, `/rest/posts` + `/rest/images`). Includes retry logic with exponential backoff.
 - **Template Refinement Loop**: Tracks user edits (refinement logs), maintains template version history with rollback capabilities, and uses Claude for AI-powered refinement analysis and recommendations.
 
 **Authentication & Security:**
@@ -59,6 +59,6 @@ The database includes tables for `brands` (with `brandAssetConfig` JSON field), 
 - **Video Processing**: ffmpeg (for audio/video merging).
 - **Archiving**: Archiver (for ZIP generation of content).
 - **Social Media APIs**:
-    - Twitter API v2
-    - Instagram Graph API
-    - LinkedIn Marketing API
+    - Twitter API v2 (with OAuth 1.0a media upload via `oauth-1.0a` package)
+    - Instagram Graph API (Authorization header auth, Feed + Stories)
+    - LinkedIn Community Management API (v202401)

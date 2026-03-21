@@ -354,6 +354,8 @@ router.get("/auth/linkedin/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=profile_fetch_failed`);
     }
 
+    const fullAccountId = accountId.startsWith("urn:li:") ? accountId : `urn:li:person:${accountId}`;
+
     const expiresAt = tokenData.expires_in
       ? new Date(Date.now() + tokenData.expires_in * 1000)
       : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
@@ -361,7 +363,7 @@ router.get("/auth/linkedin/callback", async (req, res) => {
     await db.insert(socialAccountsTable).values({
       platform: "linkedin",
       accountName,
-      accountId,
+      accountId: fullAccountId,
       accessToken: encryptToken(tokenData.access_token),
       refreshToken: tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : null,
       tokenExpiry: expiresAt,

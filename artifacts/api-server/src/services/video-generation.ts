@@ -41,6 +41,7 @@ export interface VideoGenerationResult {
 export async function generateVideo(
   ctx: AssembledContext,
   orientation: "landscape" | "portrait",
+  signal?: AbortSignal,
 ): Promise<VideoGenerationResult> {
   const config = VIDEO_CONFIGS[orientation];
   if (!config) throw new Error(`Unknown orientation: ${orientation}`);
@@ -63,6 +64,9 @@ export async function generateVideo(
 
   let result = operation;
   while (!result.done) {
+    if (signal?.aborted) {
+      throw new Error("Video generation cancelled: client disconnected");
+    }
     await new Promise((resolve) => setTimeout(resolve, 5000));
     result = await ai.operations.get({ operation: result });
   }
@@ -77,7 +81,7 @@ export async function generateVideo(
     throw new Error(`No video URI in response for ${orientation}`);
   }
 
-  const videoResponse = await fetch(video.video.uri);
+  const videoResponse = await fetch(video.video.uri, { signal });
   if (!videoResponse.ok) {
     throw new Error(`Failed to download video: ${videoResponse.status}`);
   }

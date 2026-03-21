@@ -116,12 +116,22 @@ export async function generateCaptions(ctx: AssembledContext): Promise<CaptionRe
     throw new Error("No text response from Claude");
   }
 
-  const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
+  const rawText = textBlock.text
+    .replace(/```json\s*/g, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
-    throw new Error("Could not parse JSON from Claude response");
+    throw new Error(`Could not parse JSON from Claude response: ${rawText.slice(0, 200)}`);
   }
 
-  const parsed = JSON.parse(jsonMatch[0]) as CaptionResult;
+  let parsed: CaptionResult;
+  try {
+    parsed = JSON.parse(jsonMatch[0]) as CaptionResult;
+  } catch (parseErr) {
+    throw new Error(`Invalid JSON from Claude: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
+  }
 
   const defaults = { caption: "", headline: "" };
   return {

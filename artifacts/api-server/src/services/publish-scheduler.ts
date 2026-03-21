@@ -15,9 +15,25 @@ function getBackoffMs(retryCount: number): number {
 
 function getPublicImageUrl(compositedImageUrl: string | null): string | null {
   if (!compositedImageUrl) return null;
-  const domain = process.env["REPLIT_DEV_DOMAIN"] || process.env["REPLIT_DOMAINS"]?.split(",")[0];
-  if (!domain) return null;
-  return `https://${domain}${compositedImageUrl}`;
+  if (compositedImageUrl.startsWith("http://") || compositedImageUrl.startsWith("https://")) {
+    return compositedImageUrl;
+  }
+  const appUrl = process.env.APP_URL;
+  if (appUrl) {
+    return `${appUrl.replace(/\/$/, "")}${compositedImageUrl}`;
+  }
+  const devDomain = process.env.REPLIT_DEV_DOMAIN;
+  if (devDomain) {
+    return `https://${devDomain}${compositedImageUrl}`;
+  }
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const firstDomain = domains.split(",")[0].trim();
+    if (firstDomain) {
+      return `https://${firstDomain}${compositedImageUrl}`;
+    }
+  }
+  return null;
 }
 
 function getImageFilePath(compositedImageUrl: string | null): string | null {
@@ -152,6 +168,7 @@ async function publishEntry(entryId: string): Promise<void> {
           igUserId: socialAccount.accountId,
           caption,
           imageUrl: publicImageUrl,
+          platform,
         });
       }
     } else if (platform === "linkedin") {

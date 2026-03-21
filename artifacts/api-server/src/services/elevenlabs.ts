@@ -9,12 +9,12 @@ export interface AudioGenerationResult {
   type: AudioType;
 }
 
-export async function generateMusic(prompt: string, durationSeconds: number = 8): Promise<AudioGenerationResult> {
+export async function generateMusic(prompt: string, durationSeconds: number = 8, signal?: AbortSignal): Promise<AudioGenerationResult> {
   if (!ELEVENLABS_API_KEY) {
     throw new Error("ElevenLabs API key not configured");
   }
 
-  const response = await fetch(`${BASE_URL}/text-to-sound-effects`, {
+  const response = await fetch(`${BASE_URL}/text-to-music`, {
     method: "POST",
     headers: {
       "xi-api-key": ELEVENLABS_API_KEY,
@@ -24,6 +24,7 @@ export async function generateMusic(prompt: string, durationSeconds: number = 8)
       text: prompt,
       duration_seconds: durationSeconds,
     }),
+    signal,
   });
 
   if (!response.ok) {
@@ -40,7 +41,7 @@ export async function generateMusic(prompt: string, durationSeconds: number = 8)
   };
 }
 
-export async function generateSFX(prompt: string, durationSeconds: number = 3): Promise<AudioGenerationResult> {
+export async function generateSFX(prompt: string, durationSeconds: number = 3, signal?: AbortSignal): Promise<AudioGenerationResult> {
   if (!ELEVENLABS_API_KEY) {
     throw new Error("ElevenLabs API key not configured");
   }
@@ -55,6 +56,7 @@ export async function generateSFX(prompt: string, durationSeconds: number = 3): 
       text: prompt,
       duration_seconds: durationSeconds,
     }),
+    signal,
   });
 
   if (!response.ok) {

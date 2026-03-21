@@ -1,3 +1,5 @@
+import OAuth from "oauth-1.0a";
+import crypto from "crypto";
 import { logger } from "../lib/logger";
 
 interface PublishTwitterOptions {
@@ -11,6 +13,38 @@ interface PublishResult {
   success: boolean;
   platformPostId?: string;
   error?: string;
+}
+
+function getOAuth1Credentials() {
+  const consumerKey = process.env.X_SparqForge_X_API_Key;
+  const consumerSecret = process.env.X_SparqForge_X_API_Secret;
+  const oauthToken = process.env.X_SparqForge_X_Access_Token;
+  const oauthTokenSecret = process.env.X_SparqForge_X_Access_Token_Secret;
+
+  if (!consumerKey || !consumerSecret || !oauthToken || !oauthTokenSecret) {
+    return null;
+  }
+
+  return { consumerKey, consumerSecret, oauthToken, oauthTokenSecret };
+}
+
+function createOAuth1Header(
+  url: string,
+  method: string,
+  creds: NonNullable<ReturnType<typeof getOAuth1Credentials>>,
+  data?: Record<string, string>,
+): string {
+  const oauth = new OAuth({
+    consumer: { key: creds.consumerKey, secret: creds.consumerSecret },
+    signature_method: "HMAC-SHA1",
+    hash_function(baseString, key) {
+      return crypto.createHmac("sha1", key).update(baseString).digest("base64");
+    },
+  });
+
+  const token = { key: creds.oauthToken, secret: creds.oauthTokenSecret };
+  const authHeader = oauth.toHeader(oauth.authorize({ url, method, data }, token));
+  return authHeader.Authorization;
 }
 
 async function uploadMedia(accessToken: string, imagePath: string): Promise<string | null> {
@@ -28,17 +62,33 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
     const base64 = imageBuffer.toString("base64");
     const mimeType = fullPath.endsWith(".png") ? "image/png" : "image/jpeg";
 
-    const initResp = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-      method: "POST",
-      headers: {
+    const oauth1Creds = getOAuth1Credentials();
+
+    const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
+
+    const initData_params: Record<string, string> = {
+      command: "INIT",
+      total_bytes: String(imageBuffer.length),
+      media_type: mimeType,
+    };
+
+    let initHeaders: Record<string, string>;
+    if (oauth1Creds) {
+      initHeaders = {
+        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, initData_params),
+        "Content-Type": "application/x-www-form-urlencoded",
+      };
+    } else {
+      initHeaders = {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        command: "INIT",
-        total_bytes: String(imageBuffer.length),
-        media_type: mimeType,
-      }),
+      };
+    }
+
+    const initResp = await fetch(mediaUploadUrl, {
+      method: "POST",
+      headers: initHeaders,
+      body: new URLSearchParams(initData_params),
     });
 
     if (!initResp.ok) {
@@ -50,18 +100,30 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
     const initData = await initResp.json() as { media_id_string: string };
     const mediaId = initData.media_id_string;
 
-    const appendResp = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-      method: "POST",
-      headers: {
+    const appendParams: Record<string, string> = {
+      command: "APPEND",
+      media_id: mediaId,
+      segment_index: "0",
+      media_data: base64,
+    };
+
+    let appendHeaders: Record<string, string>;
+    if (oauth1Creds) {
+      appendHeaders = {
+        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, appendParams),
+        "Content-Type": "application/x-www-form-urlencoded",
+      };
+    } else {
+      appendHeaders = {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        command: "APPEND",
-        media_id: mediaId,
-        segment_index: "0",
-        media_data: base64,
-      }),
+      };
+    }
+
+    const appendResp = await fetch(mediaUploadUrl, {
+      method: "POST",
+      headers: appendHeaders,
+      body: new URLSearchParams(appendParams),
     });
 
     if (!appendResp.ok) {
@@ -70,16 +132,28 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
       return null;
     }
 
-    const finalizeResp = await fetch("https://upload.twitter.com/1.1/media/upload.json", {
-      method: "POST",
-      headers: {
+    const finalizeParams: Record<string, string> = {
+      command: "FINALIZE",
+      media_id: mediaId,
+    };
+
+    let finalizeHeaders: Record<string, string>;
+    if (oauth1Creds) {
+      finalizeHeaders = {
+        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, finalizeParams),
+        "Content-Type": "application/x-www-form-urlencoded",
+      };
+    } else {
+      finalizeHeaders = {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        command: "FINALIZE",
-        media_id: mediaId,
-      }),
+      };
+    }
+
+    const finalizeResp = await fetch(mediaUploadUrl, {
+      method: "POST",
+      headers: finalizeHeaders,
+      body: new URLSearchParams(finalizeParams),
     });
 
     if (!finalizeResp.ok) {

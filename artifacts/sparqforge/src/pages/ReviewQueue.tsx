@@ -111,13 +111,13 @@ export default function ReviewQueue() {
 
   const handleStatusChange = (campaignId: string, newStatus: string) => {
     updateCampaign.mutate(
-      { id: campaignId, data: { status: newStatus } as any },
+      { id: campaignId, data: { status: newStatus } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
           toast({ title: `Campaign moved to ${newStatus.replace(/_/g, " ")}` });
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
           toast({ variant: "destructive", title: "Failed to update", description: err.message });
         },
       }
@@ -127,7 +127,7 @@ export default function ReviewQueue() {
   const handleApprove = () => {
     if (!expandedCampaignId) return;
     updateCampaign.mutate(
-      { id: expandedCampaignId, data: { status: "approved", reviewedBy: "current_user", reviewComment: "Approved" } as any },
+      { id: expandedCampaignId, data: { status: "approved", reviewedBy: "current_user", reviewComment: "Approved" } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
@@ -144,7 +144,7 @@ export default function ReviewQueue() {
       return;
     }
     updateCampaign.mutate(
-      { id: expandedCampaignId, data: { status: "draft", reviewedBy: "current_user", reviewComment: rejectComment } as any },
+      { id: expandedCampaignId, data: { status: "draft", reviewedBy: "current_user", reviewComment: rejectComment } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });

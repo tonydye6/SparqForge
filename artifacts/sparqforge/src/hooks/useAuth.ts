@@ -1,4 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import type { ReactNode } from "react";
+import { createElement } from "react";
 
 export interface AuthUser {
   id: string;
@@ -14,66 +16,62 @@ interface AuthState {
   loading: boolean;
 }
 
-let cachedState: AuthState | null = null;
-let listeners: Array<() => void> = [];
-
-function notifyListeners() {
-  listeners.forEach((l) => l());
+interface AuthContextValue extends AuthState {
+  refresh: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-export function useAuth() {
-  const [state, setState] = useState<AuthState>(
-    cachedState || { authenticated: false, user: null, loading: true },
-  );
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    authenticated: false,
+    user: null,
+    loading: true,
+  });
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
+      const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
       const data = await res.json();
-      const newState: AuthState = {
+      setState({
         authenticated: data.authenticated,
         user: data.user || null,
         loading: false,
-      };
-      cachedState = newState;
-      setState(newState);
-      notifyListeners();
+      });
     } catch {
-      const newState: AuthState = { authenticated: false, user: null, loading: false };
-      cachedState = newState;
-      setState(newState);
-      notifyListeners();
+      setState({ authenticated: false, user: null, loading: false });
     }
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await fetch("/api/auth/logout", {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
-    } catch {
-    }
-    cachedState = { authenticated: false, user: null, loading: false };
-    setState(cachedState);
-    notifyListeners();
+    } catch {}
+    setState({ authenticated: false, user: null, loading: false });
     window.location.href = import.meta.env.BASE_URL + "login";
   }, []);
 
   useEffect(() => {
-    const listener = () => {
-      if (cachedState) setState(cachedState);
-    };
-    listeners.push(listener);
-
-    if (!cachedState) {
-      refresh();
-    }
-
-    return () => {
-      listeners = listeners.filter((l) => l !== listener);
-    };
+    refresh();
   }, [refresh]);
 
-  return { ...state, refresh, logout };
+  return createElement(
+    AuthContext.Provider,
+    { value: { ...state, refresh, logout } },
+    children,
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return ctx;
 }

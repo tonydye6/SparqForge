@@ -230,6 +230,28 @@ export default function CampaignStudio() {
         }
       }
 
+      try {
+        const variantsResp = await fetch(`${API_BASE}/api/campaigns/${id}/variants`);
+        if (variantsResp.ok) {
+          const variantsData = await variantsResp.json() as Array<Record<string, unknown>>;
+          if (variantsData.length > 0) {
+            setGeneratedVariants(variantsData.map(v => ({
+              id: v.id as string | undefined,
+              platform: v.platform as string,
+              aspectRatio: v.aspectRatio as string,
+              rawImageUrl: v.rawImageUrl as string | null,
+              compositedImageUrl: v.compositedImageUrl as string | null,
+              caption: v.caption as string,
+              headlineText: v.headlineText as string | null,
+              videoUrl: v.videoUrl as string | null ?? null,
+              audioSource: v.audioSource as string | null ?? null,
+              audioUrl: v.audioUrl as string | null ?? null,
+              mergedVideoUrl: v.mergedVideoUrl as string | null ?? null,
+            })));
+          }
+        }
+      } catch {}
+
       const platformNote = fromPlanPlatform ? ` (Primary platform: ${fromPlanPlatform})` : "";
       addLog(`Loaded from content plan: ${campaign.name}${platformNote}`, "done");
       toast({
@@ -740,21 +762,21 @@ export default function CampaignStudio() {
         break;
       }
       case "complete": {
-        const variants = data.variants as GeneratedVariant[] | undefined;
+        const variants = data.variants as Array<Record<string, unknown>> | undefined;
         const cost = data.estimatedCost as number | undefined;
         if (variants) {
           setGeneratedVariants(variants.map(v => ({
-            id: (v as any).id,
-            platform: v.platform,
-            aspectRatio: v.aspectRatio,
-            rawImageUrl: v.rawImageUrl,
-            compositedImageUrl: v.compositedImageUrl,
-            caption: v.caption,
-            headlineText: v.headlineText,
-            videoUrl: (v as any).videoUrl || null,
-            audioSource: (v as any).audioSource || null,
-            audioUrl: (v as any).audioUrl || null,
-            mergedVideoUrl: (v as any).mergedVideoUrl || null,
+            id: v.id as string | undefined,
+            platform: v.platform as string,
+            aspectRatio: v.aspectRatio as string,
+            rawImageUrl: v.rawImageUrl as string | null,
+            compositedImageUrl: v.compositedImageUrl as string | null,
+            caption: v.caption as string,
+            headlineText: v.headlineText as string | null,
+            videoUrl: v.videoUrl as string | null ?? null,
+            audioSource: v.audioSource as string | null ?? null,
+            audioUrl: v.audioUrl as string | null ?? null,
+            mergedVideoUrl: v.mergedVideoUrl as string | null ?? null,
           })));
         }
         if (cost) setEstimatedCost(cost);

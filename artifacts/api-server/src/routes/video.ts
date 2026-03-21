@@ -53,8 +53,13 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
     "X-Accel-Buffering": "no",
   });
 
+  const abortController = new AbortController();
   let clientDisconnected = false;
-  req.on("close", () => { clientDisconnected = true; });
+
+  req.on("close", () => {
+    clientDisconnected = true;
+    abortController.abort();
+  });
 
   function sendEvent(event: string, data: Record<string, unknown>) {
     if (clientDisconnected) return;
@@ -87,11 +92,15 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
     ensureDir(UPLOADS_DIR);
 
     for (const orientation of selectedOrientations) {
+      if (clientDisconnected) break;
+
       sendEvent("video_progress", { orientation, status: "started", message: `Generating ${orientation} video...` });
 
       let videoTmpDir: string | null = null;
       try {
-        const result = await generateVideo(ctx, orientation);
+        const result = await generateVideo(ctx, orientation, abortController.signal);
+
+        if (clientDisconnected) break;
 
         videoTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-video-"));
         const videoFilename = `${campaignId}_video_${orientation}_${Date.now()}.mp4`;
@@ -144,6 +153,7 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
           costUsd: cost,
         });
       } catch (error) {
+        if (clientDisconnected) break;
         const message = error instanceof Error ? error.message : String(error);
         sendEvent("video_progress", { orientation, status: "failed", error: message });
         if (videoTmpDir) {
@@ -152,10 +162,14 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
       }
     }
 
-    sendEvent("complete", { message: "Video generation complete!" });
+    if (!clientDisconnected) {
+      sendEvent("complete", { message: "Video generation complete!" });
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    sendEvent("error", { message: `Video generation failed: ${message}` });
+    if (!clientDisconnected) {
+      const message = error instanceof Error ? error.message : String(error);
+      sendEvent("error", { message: `Video generation failed: ${message}` });
+    }
   } finally {
     res.end();
   }

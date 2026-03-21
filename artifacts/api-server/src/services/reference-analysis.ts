@@ -27,11 +27,21 @@ function getMimeType(filepath: string): string {
   }
 }
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 export async function analyzeReference(
   screenshotPaths: string[],
 ): Promise<ReferenceAnalysisResult> {
   const imageParts = screenshotPaths
-    .filter((p) => fs.existsSync(p))
+    .filter((p) => {
+      if (!fs.existsSync(p)) return false;
+      const stats = fs.statSync(p);
+      if (stats.size > MAX_FILE_SIZE_BYTES) {
+        console.warn(`Skipping reference file ${p}: size ${(stats.size / 1024 / 1024).toFixed(1)}MB exceeds 10MB limit`);
+        return false;
+      }
+      return true;
+    })
     .map((p) => {
       const data = fs.readFileSync(p);
       return {

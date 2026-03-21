@@ -1,5 +1,7 @@
 import { logger } from "../lib/logger";
 
+const LINKEDIN_API_VERSION = "202401";
+
 interface PublishLinkedInOptions {
   accessToken: string;
   authorUrn: string;
@@ -13,6 +15,16 @@ interface PublishResult {
   error?: string;
 }
 
+function ensurePersonUrn(accountId: string): string {
+  if (accountId.startsWith("urn:li:person:")) {
+    return accountId;
+  }
+  if (accountId.startsWith("urn:li:")) {
+    return accountId;
+  }
+  return `urn:li:person:${accountId}`;
+}
+
 async function uploadImage(accessToken: string, authorUrn: string, imagePath: string): Promise<string | null> {
   try {
     const fs = await import("fs");
@@ -24,45 +36,35 @@ async function uploadImage(accessToken: string, authorUrn: string, imagePath: st
       return null;
     }
 
-    const registerResp = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
+    const initResp = await fetch("https://api.linkedin.com/rest/images?action=initializeUpload", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        "LinkedIn-Version": LINKEDIN_API_VERSION,
       },
       body: JSON.stringify({
-        registerUploadRequest: {
-          recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+        initializeUploadRequest: {
           owner: authorUrn,
-          serviceRelationships: [
-            {
-              relationshipType: "OWNER",
-              identifier: "urn:li:userGeneratedContent",
-            },
-          ],
         },
       }),
     });
 
-    if (!registerResp.ok) {
-      const err = await registerResp.text();
-      logger.error({ status: registerResp.status, body: err }, "LinkedIn register upload failed");
+    if (!initResp.ok) {
+      const err = await initResp.text();
+      logger.error({ status: initResp.status, body: err }, "LinkedIn image upload init failed");
       return null;
     }
 
-    const registerData = await registerResp.json() as {
+    const initData = await initResp.json() as {
       value: {
-        uploadMechanism: {
-          "com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest": {
-            uploadUrl: string;
-          };
-        };
-        asset: string;
+        uploadUrl: string;
+        image: string;
       };
     };
 
-    const uploadUrl = registerData.value.uploadMechanism["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"].uploadUrl;
-    const asset = registerData.value.asset;
+    const uploadUrl = initData.value.uploadUrl;
+    const imageUrn = initData.value.image;
 
     const imageBuffer = fs.readFileSync(fullPath);
     const uploadResp = await fetch(uploadUrl, {
@@ -80,7 +82,7 @@ async function uploadImage(accessToken: string, authorUrn: string, imagePath: st
       return null;
     }
 
-    return asset;
+    return imageUrn;
   } catch (err) {
     logger.error({ err }, "LinkedIn image upload error");
     return null;
@@ -88,43 +90,43 @@ async function uploadImage(accessToken: string, authorUrn: string, imagePath: st
 }
 
 export async function publishToLinkedIn(options: PublishLinkedInOptions): Promise<PublishResult> {
-  const { accessToken, authorUrn, text, imagePath } = options;
+  const { accessToken, text, imagePath } = options;
+  const authorUrn = ensurePersonUrn(options.authorUrn);
 
   try {
-    let asset: string | null = null;
+    let imageUrn: string | null = null;
 
     if (imagePath) {
-      asset = await uploadImage(accessToken, authorUrn, imagePath);
+      imageUrn = await uploadImage(accessToken, authorUrn, imagePath);
     }
 
     const postBody: Record<string, unknown> = {
       author: authorUrn,
+      commentary: text,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
       lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text },
-          shareMediaCategory: asset ? "IMAGE" : "NONE",
-          ...(asset && {
-            media: [
-              {
-                status: "READY",
-                media: asset,
-              },
-            ],
-          }),
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
     };
 
-    const resp = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+    if (imageUrn) {
+      postBody.content = {
+        media: {
+          title: "Post image",
+          id: imageUrn,
+        },
+      };
+    }
+
+    const resp = await fetch("https://api.linkedin.com/rest/posts", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
+        "LinkedIn-Version": LINKEDIN_API_VERSION,
       },
       body: JSON.stringify(postBody),
     });
@@ -135,7 +137,7 @@ export async function publishToLinkedIn(options: PublishLinkedInOptions): Promis
       return { success: false, error: `LinkedIn API error (${resp.status}): ${errBody}` };
     }
 
-    const postId = resp.headers.get("x-restli-id") || "unknown";
+    const postId = resp.headers.get("x-restli-id") || resp.headers.get("x-linkedin-id") || "unknown";
     logger.info({ postId }, "LinkedIn post published successfully");
     return { success: true, platformPostId: postId };
   } catch (err) {

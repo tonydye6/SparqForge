@@ -390,19 +390,18 @@ router.get("/assets/:id/usage", async (req, res): Promise<void> => {
     return;
   }
 
-  const allCampaigns = await db.select().from(campaignsTable).orderBy(campaignsTable.createdAt);
+  const usedIn = await db
+    .select({
+      id: campaignsTable.id,
+      name: campaignsTable.name,
+      status: campaignsTable.status,
+      createdAt: campaignsTable.createdAt,
+    })
+    .from(campaignsTable)
+    .where(sql`${campaignsTable.selectedAssets}::jsonb @> ${JSON.stringify([{ assetId }])}::jsonb`)
+    .orderBy(campaignsTable.createdAt);
 
-  const usedIn = allCampaigns.filter(campaign => {
-    const selectedAssets = (campaign.selectedAssets || []) as Array<{ assetId: string; role: string }>;
-    return selectedAssets.some(a => a.assetId === assetId);
-  });
-
-  res.json(usedIn.map(c => ({
-    id: c.id,
-    name: c.name,
-    status: c.status,
-    createdAt: c.createdAt,
-  })));
+  res.json(usedIn);
 });
 
 router.post("/assets/backfill", async (_req, res): Promise<void> => {
