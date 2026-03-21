@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
+import path from "path";
 import { sessionMiddleware } from "./lib/session";
 import passport from "./lib/passport";
 import { getAllowedOriginStrings } from "./lib/allowed-origins";
@@ -76,6 +77,21 @@ app.use(devBypassMiddleware);
 
 app.use("/api", healthRouter);
 app.use("/api", authRouter);
+
+const UPLOAD_DIR = path.join(process.cwd(), "uploads");
+app.get("/api/files/generated/:filename", (req, res) => {
+  const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
+  if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    res.status(400).json({ error: "Invalid filename" });
+    return;
+  }
+  const filePath = path.join(UPLOAD_DIR, "generated", filename);
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      res.status(404).json({ error: "File not found" });
+    }
+  });
+});
 
 app.use("/api/campaigns/:id/generate", generationLimiter);
 app.use("/api/campaigns/:id/generate-video", generationLimiter);

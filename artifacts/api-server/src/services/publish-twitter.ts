@@ -63,6 +63,10 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
     const mimeType = fullPath.endsWith(".png") ? "image/png" : "image/jpeg";
 
     const oauth1Creds = getOAuth1Credentials();
+    if (!oauth1Creds) {
+      logger.error("Twitter media upload requires OAuth 1.0a credentials (X_SparqForge_X_API_Key, X_SparqForge_X_API_Secret, X_SparqForge_X_Access_Token, X_SparqForge_X_Access_Token_Secret). Bearer tokens cannot authenticate v1.1 media upload.");
+      return null;
+    }
 
     const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
 
@@ -72,22 +76,12 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
       media_type: mimeType,
     };
 
-    let initHeaders: Record<string, string>;
-    if (oauth1Creds) {
-      initHeaders = {
-        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, initData_params),
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-    } else {
-      initHeaders = {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-    }
-
     const initResp = await fetch(mediaUploadUrl, {
       method: "POST",
-      headers: initHeaders,
+      headers: {
+        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, initData_params),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
       body: new URLSearchParams(initData_params),
     });
 
@@ -107,22 +101,12 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
       media_data: base64,
     };
 
-    let appendHeaders: Record<string, string>;
-    if (oauth1Creds) {
-      appendHeaders = {
-        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, appendParams),
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-    } else {
-      appendHeaders = {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-    }
-
     const appendResp = await fetch(mediaUploadUrl, {
       method: "POST",
-      headers: appendHeaders,
+      headers: {
+        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, appendParams),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
       body: new URLSearchParams(appendParams),
     });
 
@@ -137,22 +121,12 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
       media_id: mediaId,
     };
 
-    let finalizeHeaders: Record<string, string>;
-    if (oauth1Creds) {
-      finalizeHeaders = {
-        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, finalizeParams),
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-    } else {
-      finalizeHeaders = {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-    }
-
     const finalizeResp = await fetch(mediaUploadUrl, {
       method: "POST",
-      headers: finalizeHeaders,
+      headers: {
+        Authorization: createOAuth1Header(mediaUploadUrl, "POST", oauth1Creds, finalizeParams),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
       body: new URLSearchParams(finalizeParams),
     });
 
