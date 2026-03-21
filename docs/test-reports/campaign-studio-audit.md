@@ -131,3 +131,14 @@
 - **1 test blocked** (Schedule Modal, blocked by Bug #1)
 
 The core form interactions, navigation, brand/template selection, platform toggles, save draft flow, and campaign loading (metadata) all work correctly. The critical gap is that returning to a previously-generated campaign does not restore the generated variants, making all post-generation workflows inaccessible.
+
+## Coverage Caveats
+
+The following test areas remain N/A and require follow-up validation with seeded fixture data (pre-generated variants and uploaded brand assets) to achieve full coverage without incurring expensive AI generation costs:
+
+- Variant Management (5 tests): Regenerate, Download, Delete, HeadlineOverlayEditor
+- Modals (2 tests): Audio Settings, Hashtag Save Dialog
+- Asset selection interactions (2 tests): Subject/Style reference click-to-select
+- Preview Generation Packet toggle (1 test): Requires selected assets
+
+Recommended approach: seed test variants directly via `POST /api/campaigns/:id/variants` and upload test assets via `POST /api/assets` to enable these flows without triggering the full AI pipeline.
