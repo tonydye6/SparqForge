@@ -1,12 +1,16 @@
+function normalizeOrigin(origin: string): string {
+  return origin.trim().replace(/\/+$/, "");
+}
+
 export function getAllowedOriginStrings(): string[] {
   const origins: string[] = [];
 
   if (process.env.CORS_ORIGIN) {
-    origins.push(...process.env.CORS_ORIGIN.split(",").map(o => o.trim()));
+    origins.push(...process.env.CORS_ORIGIN.split(",").map(normalizeOrigin));
   }
 
   if (process.env.APP_URL) {
-    origins.push(process.env.APP_URL);
+    origins.push(normalizeOrigin(process.env.APP_URL));
   }
 
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
