@@ -64,9 +64,10 @@ async function uploadMedia(accessToken: string, imagePath: string): Promise<stri
 
     const oauth1Creds = getOAuth1Credentials();
     if (!oauth1Creds) {
-      logger.error("Twitter media upload requires OAuth 1.0a credentials. Set env vars: X_SparqForge_X_API_Key, X_SparqForge_X_API_Secret, X_SparqForge_X_Access_Token, X_SparqForge_X_Access_Token_Secret. The access token must belong to the same account used for tweeting.");
+      logger.error("Twitter media upload requires OAuth 1.0a credentials. Set env vars: X_SparqForge_X_API_Key, X_SparqForge_X_API_Secret, X_SparqForge_X_Access_Token, X_SparqForge_X_Access_Token_Secret. These must belong to the same account whose OAuth2 Bearer token is used for tweet creation.");
       return null;
     }
+    logger.info("Using OAuth 1.0a for Twitter media upload. Ensure the OAuth 1.0a access token belongs to the same account as the OAuth2 Bearer token used for tweet creation.");
 
     const mediaUploadUrl = "https://upload.twitter.com/1.1/media/upload.json";
 
@@ -161,16 +162,10 @@ export async function publishToTwitter(options: PublishTwitterOptions): Promise<
       tweetBody.media = { media_ids: mediaIds };
     }
 
-    const tweetUrl = "https://api.twitter.com/2/tweets";
-    const oauth1Creds = getOAuth1Credentials();
-    const tweetAuth = oauth1Creds
-      ? createOAuth1Header(tweetUrl, "POST", oauth1Creds)
-      : `Bearer ${accessToken}`;
-
-    const resp = await fetch(tweetUrl, {
+    const resp = await fetch("https://api.twitter.com/2/tweets", {
       method: "POST",
       headers: {
-        Authorization: tweetAuth,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(tweetBody),
