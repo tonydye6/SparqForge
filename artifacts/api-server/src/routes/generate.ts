@@ -690,6 +690,12 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     const compTmpPath = path.join(regenTmpDir, compFilename);
     fs.writeFileSync(compTmpPath, compositedBuffer);
 
+    const rawFinalPath = path.join(UPLOADS_DIR, rawFilename);
+    const compFinalPath = path.join(UPLOADS_DIR, compFilename);
+    fs.copyFileSync(rawTmpPath, rawFinalPath);
+    fs.copyFileSync(compTmpPath, compFinalPath);
+    fs.rmSync(regenTmpDir, { recursive: true, force: true });
+
     const [updated] = await db.update(campaignVariantsTable)
       .set({
         rawImageUrl: `/api/files/generated/${rawFilename}`,
@@ -699,10 +705,6 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
       })
       .where(eq(campaignVariantsTable.id, variantId))
       .returning();
-
-    fs.copyFileSync(rawTmpPath, path.join(UPLOADS_DIR, rawFilename));
-    fs.copyFileSync(compTmpPath, path.join(UPLOADS_DIR, compFilename));
-    fs.rmSync(regenTmpDir, { recursive: true, force: true });
 
     const cost = estimateImagenCost(1);
     await db.insert(costLogsTable).values({
