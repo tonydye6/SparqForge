@@ -42,6 +42,7 @@ async function uploadImage(accessToken: string, authorUrn: string, imagePath: st
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "LinkedIn-Version": LINKEDIN_API_VERSION,
+        "X-Restli-Protocol-Version": "2.0.0",
       },
       body: JSON.stringify({
         initializeUploadRequest: {
@@ -127,6 +128,7 @@ export async function publishToLinkedIn(options: PublishLinkedInOptions): Promis
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         "LinkedIn-Version": LINKEDIN_API_VERSION,
+        "X-Restli-Protocol-Version": "2.0.0",
       },
       body: JSON.stringify(postBody),
     });
