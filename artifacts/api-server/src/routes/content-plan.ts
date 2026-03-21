@@ -310,11 +310,20 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
   let brandId: string | null = null;
   if (planItem.brandLayer) {
     const brands = await db.select().from(brandsTable);
-    const match = brands.find(b =>
-      b.name.toLowerCase().includes(planItem.brandLayer!.toLowerCase()) ||
-      planItem.brandLayer!.toLowerCase().includes(b.name.toLowerCase()) ||
-      b.slug.toLowerCase() === planItem.brandLayer!.toLowerCase()
-    );
+    const brandLayerMap: Record<string, string[]> = {
+      parent_brand: ["sparq", "corporate", "parent"],
+      game_brand: ["crown u", "rumble u", "mascot mayhem"],
+      platform_product: ["playmaker", "brandweave", "platform"],
+      partnership: ["partner", "partnership"],
+    };
+    const layerKey = planItem.brandLayer.toLowerCase();
+    const matchNames = brandLayerMap[layerKey] || [layerKey];
+    const match = brands.find(b => {
+      const bName = b.name.toLowerCase();
+      const bSlug = b.slug.toLowerCase();
+      return matchNames.some(m => bName.includes(m) || m.includes(bName) || bSlug === m) ||
+        bName.includes(layerKey) || layerKey.includes(bName) || bSlug === layerKey;
+    });
     if (match) brandId = match.id;
   }
 
