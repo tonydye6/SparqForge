@@ -106,6 +106,17 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
 
         const matchingVariant = existingVariants.find(v => v.platform === platform);
 
+        try {
+          fs.copyFileSync(videoTmpPath, path.join(UPLOADS_DIR, videoFilename));
+        } catch (copyErr) {
+          console.error(`Video file copy failed for ${orientation}:`, copyErr instanceof Error ? copyErr.message : copyErr);
+          fs.rmSync(videoTmpDir, { recursive: true, force: true });
+          videoTmpDir = null;
+          throw new Error(`Failed to save video file for ${orientation}. Please try again.`);
+        }
+        fs.rmSync(videoTmpDir, { recursive: true, force: true });
+        videoTmpDir = null;
+
         if (matchingVariant) {
           await db.update(campaignVariantsTable)
             .set({ videoUrl, audioSource: "veo_native", updatedAt: new Date() })
@@ -121,10 +132,6 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
             status: "generated",
           });
         }
-
-        fs.copyFileSync(videoTmpPath, path.join(UPLOADS_DIR, videoFilename));
-        fs.rmSync(videoTmpDir, { recursive: true, force: true });
-        videoTmpDir = null;
 
         sendEvent("video_progress", { orientation, status: "completed", videoUrl });
 

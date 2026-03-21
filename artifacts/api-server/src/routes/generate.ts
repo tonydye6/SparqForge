@@ -411,14 +411,25 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       return inserted;
     });
 
+    const failedCopies: string[] = [];
     for (const staged of stagedFiles) {
       try {
         fs.copyFileSync(staged.tmpPath, staged.finalPath);
       } catch (err) {
-        console.error(`Failed to move staged file ${staged.tmpPath}:`, err instanceof Error ? err.message : err);
+        console.error(`Failed to copy staged file ${staged.tmpPath}:`, err instanceof Error ? err.message : err);
+        failedCopies.push(staged.tmpPath);
       }
     }
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+
+    if (failedCopies.length > 0) {
+      sendEvent("compositing_warning", { message: `${failedCopies.length} file(s) could not be saved to disk. Some variants may show broken images.` });
+      for (const v of insertedVariants) {
+        await db.update(campaignVariantsTable)
+          .set({ compositingFailed: "File promotion failed. Please regenerate this variant." })
+          .where(eq(campaignVariantsTable.id, v.id));
+      }
+    }
 
     if (packet && packet.generationAssets.length >= 2) {
       try {
