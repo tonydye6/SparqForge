@@ -950,6 +950,10 @@ components:
             type: object
             additionalProperties: true
           nullable: true
+        brandAssetConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
         isActive:
           type: boolean
         createdAt:
@@ -1185,6 +1189,43 @@ components:
           nullable: true
         usageCount:
           type: integer
+        assetClass:
+          type: string
+        generationRole:
+          type: string
+          nullable: true
+        brandLayer:
+          type: string
+          nullable: true
+        franchise:
+          type: string
+          nullable: true
+        approvedChannels:
+          type: array
+          items:
+            type: string
+        approvedTemplates:
+          type: array
+          items:
+            type: string
+        subjectIdentityScore:
+          type: integer
+        styleStrengthScore:
+          type: integer
+        compositingOnly:
+          type: boolean
+        generationAllowed:
+          type: boolean
+        approvedForCompositing:
+          type: boolean
+        referencePriorityDefault:
+          type: integer
+        conflictTags:
+          type: array
+          items:
+            type: string
+        freshnessScore:
+          type: integer
         createdAt:
           type: string
           format: date-time
@@ -1200,6 +1241,17 @@ components:
         - tags
         - uploadedBy
         - usageCount
+        - assetClass
+        - approvedChannels
+        - approvedTemplates
+        - subjectIdentityScore
+        - styleStrengthScore
+        - compositingOnly
+        - generationAllowed
+        - approvedForCompositing
+        - referencePriorityDefault
+        - conflictTags
+        - freshnessScore
         - createdAt
         - updatedAt
 
@@ -1239,6 +1291,23 @@ components:
           nullable: true
         uploadedBy:
           type: string
+        assetClass:
+          type: string
+        generationRole:
+          type: string
+          nullable: true
+        brandLayer:
+          type: string
+          nullable: true
+        franchise:
+          type: string
+          nullable: true
+        compositingOnly:
+          type: boolean
+        generationAllowed:
+          type: boolean
+        approvedForCompositing:
+          type: boolean
       required:
         - brandId
         - type
@@ -1269,6 +1338,31 @@ components:
         approvedBy:
           type: string
           nullable: true
+        assetClass:
+          type: string
+        generationRole:
+          type: string
+          nullable: true
+        brandLayer:
+          type: string
+          nullable: true
+        franchise:
+          type: string
+          nullable: true
+        compositingOnly:
+          type: boolean
+        generationAllowed:
+          type: boolean
+        approvedForCompositing:
+          type: boolean
+        subjectIdentityScore:
+          type: integer
+        styleStrengthScore:
+          type: integer
+        referencePriorityDefault:
+          type: integer
+        freshnessScore:
+          type: integer
 
     HashtagSet:
       type: object

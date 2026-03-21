@@ -14,4 +14,15 @@ export interface UpdateAssetInput {
   content?: string | null;
   subType?: string | null;
   approvedBy?: string | null;
+  assetClass?: string;
+  generationRole?: string | null;
+  brandLayer?: string | null;
+  franchise?: string | null;
+  compositingOnly?: boolean;
+  generationAllowed?: boolean;
+  approvedForCompositing?: boolean;
+  subjectIdentityScore?: number;
+  styleStrengthScore?: number;
+  referencePriorityDefault?: number;
+  freshnessScore?: number;
 }

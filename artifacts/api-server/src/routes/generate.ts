@@ -1,11 +1,12 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable, assetsTable, assetPairingsTable, brandsTable, generationPacketLogsTable } from "@workspace/db";
 import { sql, gte } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
 import { generateCaptions, estimateClaudeCost } from "../services/claude.js";
-import { generateAllImages, estimateImagenCost, PLATFORM_CONFIGS } from "../services/imagen.js";
+import { generateAllImages, generateImage, estimateImagenCost, PLATFORM_CONFIGS, type ReferenceImage } from "../services/imagen.js";
 import { compositeImage } from "../services/compositing.js";
+import { buildGenerationPacket } from "../services/packet-assembly.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -17,6 +18,94 @@ function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
+}
+
+function resolveLocalFilePath(fileUrl: string): string | null {
+  if (!fileUrl || fileUrl.startsWith("http")) return null;
+  const resolved = path.resolve(process.cwd(), fileUrl.replace(/^\/api\/files\//, "uploads/"));
+  const uploadsRoot = path.resolve(process.cwd(), "uploads");
+  if (!resolved.startsWith(uploadsRoot)) return null;
+  return resolved;
+}
+
+async function fetchLogoBuffer(brandId: string): Promise<Buffer | null> {
+  try {
+    const logoAssets = await db.select().from(assetsTable)
+      .where(and(
+        eq(assetsTable.brandId, brandId),
+        eq(assetsTable.assetClass, "compositing"),
+        eq(assetsTable.type, "image"),
+      ));
+
+    const [logoAsset] = logoAssets
+      .filter(a => a.generationRole === "compositing_logo" || (a.subType && a.subType.includes("logo")))
+      .sort((a, b) => {
+        if (a.subType?.includes("primary")) return -1;
+        if (b.subType?.includes("primary")) return 1;
+        return 0;
+      });
+
+    if (logoAsset?.fileUrl) {
+      const logoPath = resolveLocalFilePath(logoAsset.fileUrl);
+      if (logoPath && fs.existsSync(logoPath)) {
+        return fs.readFileSync(logoPath);
+      }
+    }
+
+    const [brand] = await db.select().from(brandsTable)
+      .where(eq(brandsTable.id, brandId));
+    if (brand?.logoFileUrl) {
+      const logoPath = resolveLocalFilePath(brand.logoFileUrl);
+      if (logoPath && fs.existsSync(logoPath)) {
+        return fs.readFileSync(logoPath);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch logo buffer:", err instanceof Error ? err.message : err);
+  }
+  return null;
+}
+
+async function fetchBrandFontFamily(brandId: string): Promise<string | undefined> {
+  try {
+    const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, brandId));
+    const fonts = (brand?.brandFonts || []) as Array<{ name?: string; assetId?: string }>;
+    if (fonts.length > 0 && fonts[0].name) {
+      return fonts[0].name;
+    }
+  } catch (err) {
+    console.error("Failed to fetch brand font:", err instanceof Error ? err.message : err);
+  }
+  return undefined;
+}
+
+async function buildReferenceImages(packet: Awaited<ReturnType<typeof buildGenerationPacket>>): Promise<ReferenceImage[]> {
+  const refs: ReferenceImage[] = [];
+
+  for (const entry of packet.generationAssets.slice(0, 3)) {
+    if (!entry.asset.fileUrl) continue;
+
+    try {
+      let buffer: Buffer | null = null;
+      const localPath = resolveLocalFilePath(entry.asset.fileUrl);
+      if (localPath && fs.existsSync(localPath)) {
+        buffer = fs.readFileSync(localPath);
+      }
+
+      if (buffer) {
+        refs.push({
+          imageBuffer: buffer,
+          mimeType: entry.asset.mimeType || "image/png",
+          role: entry.role === "style_reference" ? "style_reference" : "subject_reference",
+          description: entry.asset.description || entry.asset.name,
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to load reference image for asset ${entry.asset.id}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return refs;
 }
 
 router.post("/campaigns/:id/generate", async (req: Request, res: Response): Promise<void> => {
@@ -76,8 +165,37 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       .where(eq(campaignsTable.id, campaignId));
     sendEvent("status", { status: "generating", message: "Starting generation..." });
 
-    sendEvent("progress", { step: "context", message: "Assembling context from brand DNA..." });
+    sendEvent("progress", { step: "packet", message: "Building generation packet..." });
     const selectedAssets = (campaign.selectedAssets || []) as SelectedAssetRef[];
+    const selectedAssetIds = selectedAssets.map(a => a.assetId);
+
+    let packet: Awaited<ReturnType<typeof buildGenerationPacket>> | null = null;
+    let referenceImages: ReferenceImage[] = [];
+
+    if (selectedAssetIds.length > 0) {
+      packet = await buildGenerationPacket({
+        campaignId,
+        brandId: campaign.brandId,
+        templateId: campaign.templateId,
+        platform: "all",
+        selectedAssetIds,
+      });
+      sendEvent("progress", {
+        step: "packet",
+        message: `Packet assembled: ${packet.generationAssets.length} generation, ${packet.compositingAssets.length} compositing`,
+        done: true,
+        reasoning: packet.reasoning.strategy,
+      });
+
+      referenceImages = await buildReferenceImages(packet);
+      if (referenceImages.length > 0) {
+        sendEvent("progress", { step: "references", message: `${referenceImages.length} reference image(s) loaded for AI generation` });
+      }
+    } else {
+      sendEvent("progress", { step: "packet", message: "No assets selected, using text-only generation", done: true });
+    }
+
+    sendEvent("progress", { step: "context", message: "Assembling context from brand DNA..." });
     const ctx = await assembleContext({
       brandId: campaign.brandId,
       templateId: campaign.templateId,
@@ -85,6 +203,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       selectedHashtagSetIds: (campaign.selectedHashtagSets || []) as string[],
       briefText: campaign.briefText || undefined,
       referenceAnalysis: campaign.referenceAnalysis as Record<string, unknown> | null,
+      generationPacket: packet,
     });
     sendEvent("progress", { step: "context", message: "Context assembled", done: true });
 
@@ -96,7 +215,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     sendEvent("progress", { step: "images", message: "Generating images for all platforms..." });
     const imagesPromise = generateAllImages(ctx, platforms, (platform, status, error) => {
       sendEvent("image_progress", { platform, status, error });
-    });
+    }, referenceImages);
 
     const captions = await captionsPromise;
     sendEvent("progress", { step: "captions", message: "Captions generated", done: true });
@@ -119,6 +238,14 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     sendEvent("progress", { step: "compositing", message: "Compositing images with overlays..." });
     const layoutSpec = ctx.template.layoutSpec as Record<string, unknown> | null;
 
+    const [logoBuffer, brandFontFamily] = await Promise.all([
+      fetchLogoBuffer(campaign.brandId),
+      fetchBrandFontFamily(campaign.brandId),
+    ]);
+    if (logoBuffer) {
+      sendEvent("progress", { step: "compositing", message: "Brand logo loaded for compositing" });
+    }
+
     ensureDir(UPLOADS_DIR);
 
     const variantRecords = [];
@@ -138,12 +265,34 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
           rawImageBuffer: img.imageBuffer,
           layoutSpec: layoutSpec as any,
           headlineText: captionData.headline || null,
-          logoBuffer: null,
+          logoBuffer,
           width: config.width,
           height: config.height,
+          fontFamily: brandFontFamily,
         });
-      } catch {
+      } catch (err) {
+        console.error(`Compositing failed for ${img.platform}, using raw image:`, err instanceof Error ? err.message : err);
         compositedBuffer = img.imageBuffer;
+      }
+
+      if (packet && referenceImages.length > 0) {
+        try {
+          await db.insert(generationPacketLogsTable).values({
+            campaignId,
+            platform: img.platform,
+            templateId: campaign.templateId,
+            packetType: "reference_guided",
+            primaryAssetId: packet.generationAssets[0]?.asset.id || null,
+            supportingAssetIds: packet.generationAssets.slice(1).map(a => a.asset.id),
+            styleAssetIds: packet.generationAssets.filter(a => a.role === "style_reference").map(a => a.asset.id),
+            contextAssetIds: packet.contextAssets.map(a => a.asset.id),
+            compositingAssetIds: packet.compositingAssets.map(a => a.asset.id),
+            excludedAssetIds: packet.excludedAssets.map(a => a.asset.id),
+            packetReasoning: { ...packet.reasoning, platform: img.platform, aspectRatio: img.aspectRatio },
+          });
+        } catch (err) {
+          console.error(`Failed to log per-platform packet for ${img.platform}:`, err instanceof Error ? err.message : err);
+        }
       }
 
       const compFilename = `${campaignId}_${img.platform}_composited.png`;
@@ -196,6 +345,27 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       await db.update(templatesTable)
         .set({ totalGenerations: sql`COALESCE(${templatesTable.totalGenerations}, 0) + 1` })
         .where(eq(templatesTable.id, campaign.templateId));
+    }
+
+    if (packet && packet.generationAssets.length >= 2) {
+      try {
+        const primary = packet.generationAssets[0];
+        for (let i = 1; i < packet.generationAssets.length; i++) {
+          const secondary = packet.generationAssets[i];
+          await db.insert(assetPairingsTable).values({
+            campaignId,
+            primaryAssetId: primary.asset.id,
+            secondaryAssetId: secondary.asset.id,
+            templateId: campaign.templateId,
+            platform: "all",
+            usageCount: 1,
+            firstPassApproved: null,
+            finalStatus: "generated",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to log asset pairings:", err instanceof Error ? err.message : err);
+      }
     }
 
     const totalCost = estimateClaudeCost() + estimateImagenCost(images.length);
@@ -319,13 +489,19 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
           selectedAssets: [],
         });
 
+        const [logoBuffer, fontFamily] = await Promise.all([
+          fetchLogoBuffer(campaign.brandId),
+          fetchBrandFontFamily(campaign.brandId),
+        ]);
+
         const newComposited = await compositeImage({
           rawImageBuffer: rawBuffer,
           layoutSpec: ctx.template.layoutSpec as any,
           headlineText: headline,
-          logoBuffer: null,
+          logoBuffer,
           width: config.width,
           height: config.height,
+          fontFamily,
         });
 
         const compFilename = `${campaignId}_${variant.platform}_composited.png`;
@@ -333,7 +509,8 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
         fs.writeFileSync(compPath, newComposited);
         compositedUrl = `/api/files/generated/${compFilename}`;
       }
-    } catch {
+    } catch (err) {
+      console.error("Failed to recomposite for headline update:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -386,6 +563,22 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
   try {
     const selectedAssets = (campaign.selectedAssets || []) as import("../services/context-assembly.js").SelectedAssetRef[];
+    const selectedAssetIds = selectedAssets.map(a => a.assetId);
+
+    let packet: Awaited<ReturnType<typeof buildGenerationPacket>> | null = null;
+    let referenceImages: ReferenceImage[] = [];
+
+    if (selectedAssetIds.length > 0) {
+      packet = await buildGenerationPacket({
+        campaignId,
+        brandId: campaign.brandId,
+        templateId: campaign.templateId,
+        platform: variant.platform,
+        selectedAssetIds,
+      });
+      referenceImages = await buildReferenceImages(packet);
+    }
+
     const ctx = await assembleContext({
       brandId: campaign.brandId,
       templateId: campaign.templateId,
@@ -395,10 +588,10 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
         ? `${campaign.briefText || ""}\n\nADDITIONAL REFINEMENT: ${instruction}`
         : campaign.briefText || undefined,
       referenceAnalysis: campaign.referenceAnalysis as Record<string, unknown> | null,
+      generationPacket: packet,
     });
 
-    const { generateImage } = await import("../services/imagen.js");
-    const imgResult = await generateImage(ctx, variant.platform);
+    const imgResult = await generateImage(ctx, variant.platform, referenceImages);
 
     ensureDir(UPLOADS_DIR);
 
@@ -408,17 +601,24 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     fs.writeFileSync(rawPath, imgResult.imageBuffer);
 
     const layoutSpec = ctx.template.layoutSpec as Record<string, unknown> | null;
+    const [logoBuffer, brandFontFamily] = await Promise.all([
+      fetchLogoBuffer(campaign.brandId),
+      fetchBrandFontFamily(campaign.brandId),
+    ]);
+
     let compositedBuffer: Buffer;
     try {
       compositedBuffer = await compositeImage({
         rawImageBuffer: imgResult.imageBuffer,
         layoutSpec: layoutSpec as any,
         headlineText: variant.headlineText || null,
-        logoBuffer: null,
+        logoBuffer,
         width: config.width,
         height: config.height,
+        fontFamily: brandFontFamily,
       });
-    } catch {
+    } catch (err) {
+      console.error(`Compositing failed during regeneration for ${variant.platform}, using raw image:`, err instanceof Error ? err.message : err);
       compositedBuffer = imgResult.imageBuffer;
     }
 

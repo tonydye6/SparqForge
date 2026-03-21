@@ -112,4 +112,10 @@ router.get("/files/generated/:filename", (req, res): void => {
   serveFile(generatedDir, filename, res);
 });
 
+router.get("/files/brand-assets/:filename", (req, res): void => {
+  const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
+  const brandAssetsDir = path.join(UPLOAD_DIR, "brand-assets");
+  serveFile(brandAssetsDir, filename, res);
+});
+
 export default router;

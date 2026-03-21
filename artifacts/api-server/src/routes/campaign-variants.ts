@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, campaignVariantsTable, campaignsTable, refinementLogsTable } from "@workspace/db";
+import { eq, and, sql } from "drizzle-orm";
+import { db, campaignVariantsTable, campaignsTable, refinementLogsTable, assetPairingsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -97,6 +97,39 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
           newValue: req.body.reviewerComment || null,
           userId: "system",
         });
+
+        try {
+          const pairings = await db.select().from(assetPairingsTable)
+            .where(and(
+              eq(assetPairingsTable.campaignId, campaignId as string),
+              eq(assetPairingsTable.templateId, camp.templateId),
+            ));
+
+          for (const pairing of pairings) {
+            if (pairing.finalStatus === "approved") continue;
+
+            const updates: Record<string, unknown> = {
+              updatedAt: new Date(),
+            };
+
+            if (pairing.firstPassApproved === null) {
+              updates.firstPassApproved = newStatus === "approved";
+            }
+
+            if (newStatus === "approved") {
+              updates.finalStatus = "approved";
+            } else if (newStatus === "rejected") {
+              updates.totalRefinements = sql`${assetPairingsTable.totalRefinements} + 1`;
+              updates.finalStatus = "needs_refinement";
+            }
+
+            await db.update(assetPairingsTable)
+              .set(updates)
+              .where(eq(assetPairingsTable.id, pairing.id));
+          }
+        } catch (err) {
+          console.error("Failed to update asset pairings:", err instanceof Error ? err.message : err);
+        }
       }
     }
 

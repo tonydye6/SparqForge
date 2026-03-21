@@ -19,6 +19,7 @@ export const brandsTable = pgTable("brands", {
   platformRules: json("platform_rules").notNull().default({}),
   logoFileUrl: text("logo_file_url"),
   brandFonts: json("brand_fonts"),
+  brandAssetConfig: json("brand_asset_config"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),

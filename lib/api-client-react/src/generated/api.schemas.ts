@@ -24,6 +24,8 @@ export type BrandPlatformRules = { [key: string]: unknown };
 
 export type BrandBrandFontsItem = { [key: string]: unknown };
 
+export type BrandBrandAssetConfig = { [key: string]: unknown } | null;
+
 export interface Brand {
   id: string;
   name: string;
@@ -41,6 +43,7 @@ export interface Brand {
   platformRules: BrandPlatformRules;
   logoFileUrl?: string | null;
   brandFonts?: BrandBrandFontsItem[] | null;
+  brandAssetConfig?: BrandBrandAssetConfig;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -130,6 +133,20 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: string | null;
   usageCount: number;
+  assetClass: string;
+  generationRole?: string | null;
+  brandLayer?: string | null;
+  franchise?: string | null;
+  approvedChannels: string[];
+  approvedTemplates: string[];
+  subjectIdentityScore: number;
+  styleStrengthScore: number;
+  compositingOnly: boolean;
+  generationAllowed: boolean;
+  approvedForCompositing: boolean;
+  referencePriorityDefault: number;
+  conflictTags: string[];
+  freshnessScore: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,6 +164,13 @@ export interface CreateAssetInput {
   mimeType?: string | null;
   fileSizeBytes?: number | null;
   uploadedBy: string;
+  assetClass?: string;
+  generationRole?: string | null;
+  brandLayer?: string | null;
+  franchise?: string | null;
+  compositingOnly?: boolean;
+  generationAllowed?: boolean;
+  approvedForCompositing?: boolean;
 }
 
 export interface UpdateAssetInput {
@@ -157,6 +181,17 @@ export interface UpdateAssetInput {
   content?: string | null;
   subType?: string | null;
   approvedBy?: string | null;
+  assetClass?: string;
+  generationRole?: string | null;
+  brandLayer?: string | null;
+  franchise?: string | null;
+  compositingOnly?: boolean;
+  generationAllowed?: boolean;
+  approvedForCompositing?: boolean;
+  subjectIdentityScore?: number;
+  styleStrengthScore?: number;
+  referencePriorityDefault?: number;
+  freshnessScore?: number;
 }
 
 export interface HashtagSet {

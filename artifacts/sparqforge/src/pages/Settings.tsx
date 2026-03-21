@@ -22,7 +22,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
   Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle2, XCircle,
-  BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon
+  BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon,
+  Image, Upload, FileType
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -510,6 +511,12 @@ function BrandEditor({ brand }: { brand: Brand }) {
         </div>
       </section>
 
+      {/* Brand Logos */}
+      <BrandLogosSection brandId={brand.id} />
+
+      {/* Font Management */}
+      <BrandFontsSection brandId={brand.id} />
+
       {/* Voice & Tone */}
       <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
@@ -601,6 +608,241 @@ function ColorField({ name, label, value, register, setValue }: any) {
         <Input {...register(name)} className="font-mono bg-background border-border" />
       </div>
     </div>
+  );
+}
+
+const LOGO_ROLES = [
+  { value: "primary", label: "Primary Logo" },
+  { value: "alternate", label: "Alternate Logo" },
+  { value: "icon", label: "Icon / Favicon" },
+  { value: "wordmark", label: "Wordmark" },
+];
+
+function BrandLogosSection({ brandId }: { brandId: string }) {
+  const { toast } = useToast();
+  const [logos, setLogos] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("primary");
+  const apiBase = import.meta.env.VITE_API_URL || "";
+
+  const loadLogos = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/brands/${brandId}/logos`);
+      if (res.ok) {
+        const data = await res.json();
+        setLogos(data);
+        if (data.length > 0 && selectedRole === "primary") {
+          setSelectedRole("alternate");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load logos:", err);
+    }
+  };
+
+  useEffect(() => { loadLogos(); }, [brandId]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("role", selectedRole);
+      formData.append("name", file.name.replace(/\.[^.]+$/, ""));
+
+      const res = await fetch(`${apiBase}/api/brands/${brandId}/logos`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        toast({ title: "Logo uploaded" });
+        loadLogos();
+      } else {
+        const err = await res.json();
+        toast({ variant: "destructive", title: "Upload failed", description: err.error });
+      }
+    } catch (err) {
+      console.error("Upload failed:", err);
+      toast({ variant: "destructive", title: "Upload failed" });
+    }
+    setIsUploading(false);
+    e.target.value = "";
+  };
+
+  const handleDelete = async (assetId: string) => {
+    if (!confirm("Delete this logo?")) return;
+    try {
+      await fetch(`${apiBase}/api/brands/${brandId}/logos/${assetId}`, { method: "DELETE" });
+      toast({ title: "Logo deleted" });
+      loadLogos();
+    } catch (err) {
+      console.error("Failed to delete logo:", err);
+    }
+  };
+
+  return (
+    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
+        <div className="flex items-center gap-2">
+          <Image className="text-primary" size={20} />
+          <h2 className="text-xl font-bold">Brand Logos</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            className="text-xs bg-background border border-border rounded px-2 py-1.5 text-foreground"
+          >
+            {LOGO_ROLES.map(r => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+          <label className="cursor-pointer">
+            <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
+            <Button variant="outline" size="sm" asChild disabled={isUploading}>
+              <span><Upload className="h-4 w-4 mr-2" />{isUploading ? "Uploading..." : "Upload Logo"}</span>
+            </Button>
+          </label>
+        </div>
+      </div>
+
+      {logos.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">No logos uploaded. Upload a logo to use in compositing.</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {logos.map((logo: any) => (
+            <div key={logo.id} className="relative group border border-border rounded-lg p-3 bg-background">
+              <div className="aspect-square flex items-center justify-center mb-2 bg-card rounded overflow-hidden">
+                {logo.fileUrl ? (
+                  <img src={`${apiBase}${logo.fileUrl}`} alt={logo.name} className="max-w-full max-h-full object-contain" />
+                ) : (
+                  <Image className="h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+              <div className="text-xs font-medium truncate">{logo.name}</div>
+              <Badge variant="outline" className="text-[10px] mt-1">
+                {logo.subType?.replace("logo_", "") || "logo"}
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
+                onClick={() => handleDelete(logo.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BrandFontsSection({ brandId }: { brandId: string }) {
+  const { toast } = useToast();
+  const [fonts, setFonts] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const apiBase = import.meta.env.VITE_API_URL || "";
+
+  const loadFonts = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/brands/${brandId}/fonts`);
+      if (res.ok) setFonts(await res.json());
+    } catch {}
+  };
+
+  useEffect(() => { loadFonts(); }, [brandId]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("name", file.name.replace(/\.[^.]+$/, ""));
+      formData.append("weight", "400");
+
+      const res = await fetch(`${apiBase}/api/brands/${brandId}/fonts`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        toast({ title: "Font uploaded" });
+        loadFonts();
+      } else {
+        const err = await res.json();
+        toast({ variant: "destructive", title: "Upload failed", description: err.error });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Upload failed" });
+    }
+    setIsUploading(false);
+    e.target.value = "";
+  };
+
+  const handleDelete = async (assetId: string) => {
+    if (!confirm("Delete this font?")) return;
+    try {
+      await fetch(`${apiBase}/api/brands/${brandId}/fonts/${assetId}`, { method: "DELETE" });
+      toast({ title: "Font deleted" });
+      loadFonts();
+    } catch {}
+  };
+
+  return (
+    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
+        <div className="flex items-center gap-2">
+          <FileType className="text-primary" size={20} />
+          <h2 className="text-xl font-bold">Font Management</h2>
+        </div>
+        <label className="cursor-pointer">
+          <input type="file" accept=".woff2,.ttf,.otf,.woff" onChange={handleUpload} className="hidden" />
+          <Button variant="outline" size="sm" asChild disabled={isUploading}>
+            <span><Upload className="h-4 w-4 mr-2" />{isUploading ? "Uploading..." : "Upload Font"}</span>
+          </Button>
+        </label>
+      </div>
+
+      {fonts.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">No fonts uploaded. Upload font files to use in compositing.</p>
+      ) : (
+        <div className="space-y-3">
+          {fonts.map((font: any) => (
+            <div key={font.id} className="flex items-center justify-between p-3 border border-border bg-background rounded-lg">
+              <div className="flex items-center gap-3">
+                <FileType className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="font-medium text-sm">{font.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {font.mimeType} {font.fileSizeBytes ? `(${(font.fileSizeBytes / 1024).toFixed(1)} KB)` : ""}
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-[10px]">
+                  Weight: {font.subType?.replace("weight_", "") || "400"}
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => handleDelete(font.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

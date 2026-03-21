@@ -3,6 +3,8 @@ export * from "./templates";
 export * from "./template-versions";
 export * from "./template-recommendations";
 export * from "./assets";
+export * from "./asset-pairings";
+export * from "./generation-packet-logs";
 export * from "./hashtag-sets";
 export * from "./campaigns";
 export * from "./users";

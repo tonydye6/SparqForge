@@ -5,6 +5,7 @@
  * SparqForge API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { BrandBrandAssetConfig } from "./brandBrandAssetConfig";
 import type { BrandBrandFontsItem } from "./brandBrandFontsItem";
 import type { BrandHashtagStrategy } from "./brandHashtagStrategy";
 import type { BrandPlatformRules } from "./brandPlatformRules";
@@ -26,6 +27,7 @@ export interface Brand {
   platformRules: BrandPlatformRules;
   logoFileUrl?: string | null;
   brandFonts?: BrandBrandFontsItem[] | null;
+  brandAssetConfig?: BrandBrandAssetConfig;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

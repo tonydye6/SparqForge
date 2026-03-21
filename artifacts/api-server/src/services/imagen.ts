@@ -10,8 +10,28 @@ export const PLATFORM_CONFIGS: Record<string, { platform: string; aspectRatio: s
   tiktok: { platform: "tiktok", aspectRatio: "9:16", width: 1080, height: 1920 },
 };
 
-function buildImagePrompt(ctx: AssembledContext): string {
+export interface ReferenceImage {
+  imageBuffer: Buffer;
+  mimeType: string;
+  role: "subject_reference" | "style_reference";
+  description?: string;
+}
+
+function buildImagePrompt(ctx: AssembledContext, referenceImages?: ReferenceImage[]): string {
   const parts: string[] = [];
+
+  if (referenceImages && referenceImages.length > 0) {
+    const refDescriptions: string[] = [];
+    referenceImages.forEach((ref, i) => {
+      const ordinal = i === 0 ? "first" : i === 1 ? "second" : "third";
+      if (ref.role === "subject_reference") {
+        refDescriptions.push(`The ${ordinal} image is the primary subject that must remain recognizable.${ref.description ? ` ${ref.description}` : ""}`);
+      } else if (ref.role === "style_reference") {
+        refDescriptions.push(`The ${ordinal} image defines the visual mood and style to emulate.${ref.description ? ` ${ref.description}` : ""}`);
+      }
+    });
+    parts.push("REFERENCE IMAGES:\n" + refDescriptions.join("\n"));
+  }
 
   if (ctx.brand.imagenPrefix) {
     parts.push(ctx.brand.imagenPrefix);
@@ -48,16 +68,35 @@ export interface ImageGenerationResult {
 export async function generateImage(
   ctx: AssembledContext,
   platformKey: string,
+  referenceImages?: ReferenceImage[],
 ): Promise<ImageGenerationResult> {
   const config = PLATFORM_CONFIGS[platformKey];
   if (!config) throw new Error(`Unknown platform: ${platformKey}`);
 
-  const prompt = buildImagePrompt(ctx);
+  const prompt = buildImagePrompt(ctx, referenceImages);
   const fullPrompt = `${prompt}\n\nGenerate this as a ${config.aspectRatio} aspect ratio image suitable for ${config.platform.replace(/_/g, " ")}.`;
+
+  const contentParts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [];
+
+  const refs = (referenceImages || []).slice(0, 3);
+  const subjectRefs = refs.filter(r => r.role === "subject_reference");
+  const styleRefs = refs.filter(r => r.role === "style_reference");
+  const orderedRefs = [...subjectRefs, ...styleRefs];
+
+  for (const ref of orderedRefs) {
+    contentParts.push({
+      inlineData: {
+        data: ref.imageBuffer.toString("base64"),
+        mimeType: ref.mimeType || "image/png",
+      },
+    });
+  }
+
+  contentParts.push({ text: fullPrompt });
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-image",
-    contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+    contents: [{ role: "user", parts: contentParts }],
     config: {
       responseModalities: [Modality.TEXT, Modality.IMAGE],
     },
@@ -84,13 +123,14 @@ export async function generateAllImages(
   ctx: AssembledContext,
   platforms: string[],
   onProgress?: (platform: string, status: "started" | "completed" | "failed", error?: string) => void,
+  referenceImages?: ReferenceImage[],
 ): Promise<ImageGenerationResult[]> {
   const results: ImageGenerationResult[] = [];
 
   const promises = platforms.map(async (platform) => {
     onProgress?.(platform, "started");
     try {
-      const result = await generateImage(ctx, platform);
+      const result = await generateImage(ctx, platform, referenceImages);
       onProgress?.(platform, "completed");
       return result;
     } catch (error) {

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ilike, or, inArray } from "drizzle-orm";
+import { eq, and, ilike, or, inArray, desc, sql, arrayContains } from "drizzle-orm";
 import { db, assetsTable, campaignsTable } from "@workspace/db";
 import {
   GetAssetsQueryParams,
@@ -34,6 +34,26 @@ router.get("/assets", async (req, res): Promise<void> => {
     }
   }
 
+  const assetClass = req.query.assetClass as string | undefined;
+  if (assetClass) conditions.push(eq(assetsTable.assetClass, assetClass));
+
+  const generationAllowed = req.query.generationAllowed as string | undefined;
+  if (generationAllowed === "true") conditions.push(eq(assetsTable.generationAllowed, true));
+  if (generationAllowed === "false") conditions.push(eq(assetsTable.generationAllowed, false));
+
+  const compositingOnly = req.query.compositingOnly as string | undefined;
+  if (compositingOnly === "true") conditions.push(eq(assetsTable.compositingOnly, true));
+  if (compositingOnly === "false") conditions.push(eq(assetsTable.compositingOnly, false));
+
+  const franchise = req.query.franchise as string | undefined;
+  if (franchise) conditions.push(eq(assetsTable.franchise, franchise));
+
+  const approvedTemplate = req.query.approvedTemplate as string | undefined;
+  if (approvedTemplate) conditions.push(sql`${assetsTable.approvedTemplates} @> ARRAY[${approvedTemplate}]::text[]`);
+
+  const approvedChannel = req.query.approvedChannel as string | undefined;
+  if (approvedChannel) conditions.push(sql`${assetsTable.approvedChannels} @> ARRAY[${approvedChannel}]::text[]`);
+
   let results;
   if (conditions.length > 0) {
     results = await db.select().from(assetsTable).where(and(...conditions)).orderBy(assetsTable.createdAt);
@@ -42,6 +62,67 @@ router.get("/assets", async (req, res): Promise<void> => {
   }
 
   res.json(GetAssetsResponse.parse(results));
+});
+
+router.get("/assets/recommended", async (req, res): Promise<void> => {
+  const brandId = req.query.brandId as string;
+  const templateId = req.query.templateId as string | undefined;
+  const platform = req.query.platform as string | undefined;
+
+  if (!brandId) {
+    res.status(400).json({ error: "brandId is required" });
+    return;
+  }
+
+  const conditions = [
+    eq(assetsTable.brandId, brandId),
+    eq(assetsTable.generationAllowed, true),
+  ];
+
+  const allEligible = await db.select().from(assetsTable).where(and(...conditions));
+
+  const isTemplateCompatible = (asset: typeof allEligible[0]) => {
+    const approved = asset.approvedTemplates || [];
+    return approved.length === 0 || !templateId || approved.includes(templateId);
+  };
+
+  const isChannelCompatible = (asset: typeof allEligible[0]) => {
+    const approved = asset.approvedChannels || [];
+    return approved.length === 0 || !platform || approved.includes(platform);
+  };
+
+  const eligible = allEligible.filter(a =>
+    isTemplateCompatible(a) && isChannelCompatible(a) &&
+    (a.status === "approved" || a.status === "uploaded")
+  );
+
+  const subjectRefs = eligible
+    .filter(a => a.assetClass === "subject_reference")
+    .sort((a, b) => {
+      const scoreA = (a.subjectIdentityScore || 3) * 2 + (a.freshnessScore || 3) + (a.status === "approved" ? 3 : 0);
+      const scoreB = (b.subjectIdentityScore || 3) * 2 + (b.freshnessScore || 3) + (b.status === "approved" ? 3 : 0);
+      return scoreB - scoreA;
+    })
+    .slice(0, 5);
+
+  const styleRefs = eligible
+    .filter(a => a.assetClass === "style_reference")
+    .sort((a, b) => {
+      const scoreA = (a.styleStrengthScore || 3) * 2 + (a.freshnessScore || 3) + (a.status === "approved" ? 3 : 0);
+      const scoreB = (b.styleStrengthScore || 3) * 2 + (b.freshnessScore || 3) + (b.status === "approved" ? 3 : 0);
+      return scoreB - scoreA;
+    })
+    .slice(0, 3);
+
+  const contextCards = eligible
+    .filter(a => a.assetClass === "context")
+    .slice(0, 5);
+
+  res.json({
+    subjectReferences: subjectRefs,
+    styleReferences: styleRefs,
+    contextCards,
+  });
 });
 
 router.post("/assets", async (req, res): Promise<void> => {
@@ -171,6 +252,78 @@ router.put("/assets/:id", async (req, res): Promise<void> => {
   res.json(UpdateAssetResponse.parse(asset));
 });
 
+router.put("/assets/:id/metadata", async (req, res): Promise<void> => {
+  const assetId = req.params.id;
+  const {
+    assetClass,
+    generationRole,
+    brandLayer,
+    franchise,
+    approvedChannels,
+    approvedTemplates,
+    subjectIdentityScore,
+    styleStrengthScore,
+    compositingOnly,
+    generationAllowed,
+    approvedForCompositing,
+    referencePriorityDefault,
+    conflictTags,
+    freshnessScore,
+  } = req.body;
+
+  const validAssetClasses = ["compositing", "subject_reference", "style_reference", "context"];
+  if (assetClass !== undefined && !validAssetClasses.includes(assetClass)) {
+    res.status(400).json({ error: `Invalid assetClass. Must be one of: ${validAssetClasses.join(", ")}` });
+    return;
+  }
+
+  const scoreFields = { subjectIdentityScore, styleStrengthScore, referencePriorityDefault, freshnessScore };
+  for (const [field, value] of Object.entries(scoreFields)) {
+    if (value !== undefined && (typeof value !== "number" || value < 1 || value > 5)) {
+      res.status(400).json({ error: `${field} must be a number between 1 and 5` });
+      return;
+    }
+  }
+
+  if (approvedChannels !== undefined && !Array.isArray(approvedChannels)) {
+    res.status(400).json({ error: "approvedChannels must be an array of strings" });
+    return;
+  }
+  if (approvedTemplates !== undefined && !Array.isArray(approvedTemplates)) {
+    res.status(400).json({ error: "approvedTemplates must be an array of strings" });
+    return;
+  }
+
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (assetClass !== undefined) updateData.assetClass = assetClass;
+  if (generationRole !== undefined) updateData.generationRole = generationRole;
+  if (brandLayer !== undefined) updateData.brandLayer = brandLayer;
+  if (franchise !== undefined) updateData.franchise = franchise;
+  if (approvedChannels !== undefined) updateData.approvedChannels = approvedChannels;
+  if (approvedTemplates !== undefined) updateData.approvedTemplates = approvedTemplates;
+  if (subjectIdentityScore !== undefined) updateData.subjectIdentityScore = subjectIdentityScore;
+  if (styleStrengthScore !== undefined) updateData.styleStrengthScore = styleStrengthScore;
+  if (compositingOnly !== undefined) updateData.compositingOnly = compositingOnly;
+  if (generationAllowed !== undefined) updateData.generationAllowed = generationAllowed;
+  if (approvedForCompositing !== undefined) updateData.approvedForCompositing = approvedForCompositing;
+  if (referencePriorityDefault !== undefined) updateData.referencePriorityDefault = referencePriorityDefault;
+  if (conflictTags !== undefined) updateData.conflictTags = conflictTags;
+  if (freshnessScore !== undefined) updateData.freshnessScore = freshnessScore;
+
+  const [asset] = await db
+    .update(assetsTable)
+    .set(updateData)
+    .where(eq(assetsTable.id, assetId))
+    .returning();
+
+  if (!asset) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
+
+  res.json(asset);
+});
+
 router.delete("/assets/:id", async (req, res): Promise<void> => {
   const params = DeleteAssetParams.safeParse(req.params);
   if (!params.success) {
@@ -209,6 +362,17 @@ router.get("/assets/:id/usage", async (req, res): Promise<void> => {
     status: c.status,
     createdAt: c.createdAt,
   })));
+});
+
+router.post("/assets/backfill", async (_req, res): Promise<void> => {
+  try {
+    const { backfillAssetClassifications } = await import("../services/backfill-assets.js");
+    const result = await backfillAssetClassifications();
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: `Backfill failed: ${message}` });
+  }
 });
 
 export default router;

@@ -11,6 +11,7 @@ export * from "./audioGenerateInput";
 export * from "./audioGenerateInputMode";
 export * from "./audioGenerateInputType";
 export * from "./brand";
+export * from "./brandBrandAssetConfig";
 export * from "./brandBrandFontsItem";
 export * from "./brandHashtagStrategy";
 export * from "./brandPlatformRules";

@@ -34,6 +34,7 @@ interface CompositingInput {
   logoBuffer: Buffer | null;
   width: number;
   height: number;
+  fontFamily?: string;
 }
 
 function resolveLayout(layoutSpec: LayoutSpec | null, _aspectRatio: string): LayoutSpec {
@@ -92,6 +93,7 @@ function createTextSvg(
   width: number,
   height: number,
   zone: LayoutSpec["headline_zone"],
+  fontFamily: string = "sans-serif",
 ): Buffer {
   if (!zone || !text) return Buffer.from("");
 
@@ -148,7 +150,7 @@ function createTextSvg(
 
   const textElements = escapedLines.map((line, i) => {
     const y = yStart + i * lineHeight;
-    return `<text x="${xPos}" y="${y}" font-family="sans-serif" font-size="${fontSize}" font-weight="800" fill="${color}" text-anchor="${textAnchor}" filter="url(#shadow)">${line}</text>`;
+    return `<text x="${xPos}" y="${y}" font-family="${fontFamily}" font-size="${fontSize}" font-weight="800" fill="${color}" text-anchor="${textAnchor}" filter="url(#shadow)">${line}</text>`;
   }).join("\n    ");
 
   const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
@@ -164,7 +166,7 @@ function createTextSvg(
 }
 
 export async function compositeImage(input: CompositingInput): Promise<Buffer> {
-  const { rawImageBuffer, layoutSpec, headlineText, logoBuffer, width, height } = input;
+  const { rawImageBuffer, layoutSpec, headlineText, logoBuffer, width, height, fontFamily } = input;
 
   const resolved = resolveLayout(layoutSpec, `${width}:${height}`);
 
@@ -180,7 +182,7 @@ export async function compositeImage(input: CompositingInput): Promise<Buffer> {
   }
 
   if (headlineText && resolved.headline_zone) {
-    const textSvg = createTextSvg(headlineText, width, height, resolved.headline_zone);
+    const textSvg = createTextSvg(headlineText, width, height, resolved.headline_zone, fontFamily);
     if (textSvg.length > 0) {
       overlays.push({ input: textSvg, top: 0, left: 0 });
     }
@@ -208,7 +210,8 @@ export async function compositeImage(input: CompositingInput): Promise<Buffer> {
       else if (placement.position === "bottom_left") { left = offset; }
 
       overlays.push({ input: resizedLogo, top, left });
-    } catch {
+    } catch (err) {
+      console.error("Failed to process logo for compositing:", err instanceof Error ? err.message : err);
     }
   }
 

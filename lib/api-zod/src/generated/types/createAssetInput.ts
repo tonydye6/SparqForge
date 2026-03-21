@@ -19,4 +19,11 @@ export interface CreateAssetInput {
   mimeType?: string | null;
   fileSizeBytes?: number | null;
   uploadedBy: string;
+  assetClass?: string;
+  generationRole?: string | null;
+  brandLayer?: string | null;
+  franchise?: string | null;
+  compositingOnly?: boolean;
+  generationAllowed?: boolean;
+  approvedForCompositing?: boolean;
 }

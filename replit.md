@@ -29,11 +29,12 @@ The frontend comprises several key pages:
 
 **Technical Implementations & Feature Specifications:**
 - **AI Generation Pipeline**:
-    1. **Context Assembly**: Gathers brand DNA, template config, assets, hashtag sets, and brief text into a structured prompt.
-    2. **Caption Generation**: Uses Claude to generate platform-specific captions and overlay headline text.
-    3. **Image Generation**: Uses Gemini to generate images for various platform aspect ratios (1:1, 9:16, 16:9).
-    4. **Compositing**: Overlays gradients and headline text onto raw images using Sharp.
-    5. **SSE Streaming**: Provides real-time progress updates during generation.
+    1. **Context Assembly**: Gathers brand DNA, template config, assets, hashtag sets, and brief text into a structured prompt. Accepts role-aware generation packets.
+    2. **Packet Assembly**: `buildGenerationPacket` classifies assets by role (subject_reference, style_reference, compositing, context), scores candidates, selects optimal 2-3 reference images, excludes compositing-only assets from Imagen calls, and logs decisions to `generation_packet_logs`.
+    3. **Caption Generation**: Uses Claude to generate platform-specific captions and overlay headline text.
+    4. **Image Generation**: Uses Gemini to generate images for various platform aspect ratios (1:1, 9:16, 16:9). Supports up to 3 reference images (base64 inlineData) injected alongside the text prompt. Subject references go first, then style references.
+    5. **Compositing**: Overlays gradients, headline text, and brand logos onto raw images using Sharp. Auto-fetches the brand's primary logo asset for compositing when the layout spec includes logo_placement.
+    6. **SSE Streaming**: Provides real-time progress updates during generation.
 - **Video and Audio Generation**: Integrates Veo for video generation and ElevenLabs for text-to-music and SFX. ffmpeg handles audio/video merging.
 - **Social Account OAuth**: Supports Twitter/X (OAuth 2.0 PKCE), Instagram (via Facebook Login), and LinkedIn (OAuth 2.0). Tokens are encrypted using AES-256-GCM and automatically refreshed.
 - **Publishing Engine**: A database-backed scheduler polls for scheduled posts, and platform-specific services handle publishing to Twitter, Instagram, and LinkedIn. Includes retry logic with exponential backoff.
@@ -43,7 +44,7 @@ The frontend comprises several key pages:
 Google OAuth sign-in via Passport.js with cookie-based sessions stored in PostgreSQL (connect-pg-simple). In development, `DEV_AUTH_BYPASS=true` auto-authenticates as a dev user without requiring login. API routes are protected by `requireAuth` middleware (returns 401 for unauthenticated requests in production). Auth routes (`/api/auth/me`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/logout`) are mounted before the auth middleware. Health endpoint is also public. The frontend redirects unauthenticated users to `/login` in production. The sidebar displays the authenticated user's name and avatar from the session. Campaign creation uses the authenticated user's ID for `createdBy`, and asset creation uses it for `uploadedBy`.
 
 **Database Schema:**
-The database includes tables for `brands`, `templates`, `assets`, `hashtag_sets`, `campaigns`, `campaign_variants`, `calendar_entries`, `social_accounts` (with encrypted tokens), `refinement_logs`, `template_versions`, `template_recommendations`, `cost_logs`, `users` (with roles), `session` (auto-created by connect-pg-simple), and `app_settings` (key-value store for configurable thresholds like `dailyCostThreshold`).
+The database includes tables for `brands` (with `brandAssetConfig` JSON field), `templates`, `assets` (with four-class taxonomy: `assetClass` [compositing/subject_reference/style_reference/context], scoring fields, generation flags), `asset_pairings` (tracks which asset combinations produced good results), `generation_packet_logs` (records which assets were sent to each generation call), `hashtag_sets`, `campaigns`, `campaign_variants`, `calendar_entries`, `social_accounts` (with encrypted tokens), `refinement_logs`, `template_versions`, `template_recommendations`, `cost_logs`, `users` (with roles), `session` (auto-created by connect-pg-simple), and `app_settings` (key-value store for configurable thresholds like `dailyCostThreshold`).
 
 ## External Dependencies
 - **AI Services**:
