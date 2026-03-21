@@ -7,6 +7,7 @@ import { generateMusic, generateSFX, estimateElevenLabsCost } from "../services/
 import { mergeAudioVideo, type MergeMode } from "../services/audio-merge.js";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import multer from "multer";
 
 const router: IRouter = Router();
@@ -88,12 +89,14 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
     for (const orientation of selectedOrientations) {
       sendEvent("video_progress", { orientation, status: "started", message: `Generating ${orientation} video...` });
 
+      let videoTmpDir: string | null = null;
       try {
         const result = await generateVideo(ctx, orientation);
 
+        videoTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-video-"));
         const videoFilename = `${campaignId}_video_${orientation}_${Date.now()}.mp4`;
-        const videoPath = path.join(UPLOADS_DIR, videoFilename);
-        fs.writeFileSync(videoPath, result.videoBuffer);
+        const videoTmpPath = path.join(videoTmpDir, videoFilename);
+        fs.writeFileSync(videoTmpPath, result.videoBuffer);
 
         const videoUrl = `/api/files/generated/${videoFilename}`;
 
@@ -119,6 +122,10 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
           });
         }
 
+        fs.copyFileSync(videoTmpPath, path.join(UPLOADS_DIR, videoFilename));
+        fs.rmSync(videoTmpDir, { recursive: true, force: true });
+        videoTmpDir = null;
+
         sendEvent("video_progress", { orientation, status: "completed", videoUrl });
 
         const cost = estimateVideoCost(1);
@@ -132,6 +139,9 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         sendEvent("video_progress", { orientation, status: "failed", error: message });
+        if (videoTmpDir) {
+          try { fs.rmSync(videoTmpDir, { recursive: true, force: true }); } catch {}
+        }
       }
     }
 

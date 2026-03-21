@@ -125,12 +125,14 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
 
   const [thresholdRow] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "dailyCostThreshold"));
   const budgetThreshold = thresholdRow ? parseFloat(thresholdRow.value) : null;
+  let reservationId: string | null = null;
 
   if (budgetThreshold !== null && !isNaN(budgetThreshold) && budgetThreshold > 0) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
     const estimatedGenerationCost = estimateClaudeCost() + estimateImagenCost(Object.keys(PLATFORM_CONFIGS).length);
+    reservationId = crypto.randomUUID();
 
     const budgetCheckResult = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(42)`);
@@ -144,13 +146,14 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       }
 
       await tx.insert(costLogsTable).values({
+        id: reservationId,
         campaignId,
         service: "system",
         operation: "budget_reservation",
         model: null,
         costUsd: estimatedGenerationCost,
       });
-      return { exceeded: false as const, todaySpend: currentSpend, reservationInserted: true as const };
+      return { exceeded: false as const, todaySpend: currentSpend };
     });
 
     if (budgetCheckResult.exceeded) {
@@ -387,10 +390,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       }
 
       await tx.delete(costLogsTable)
-        .where(and(
-          eq(costLogsTable.campaignId, campaignId),
-          eq(costLogsTable.operation, "budget_reservation"),
-        ));
+        .where(eq(costLogsTable.id, reservationId));
 
       await tx.insert(costLogsTable).values({
         campaignId,
@@ -452,13 +452,12 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     await db.update(campaignsTable)
       .set({ status: "draft", updatedAt: new Date() })
       .where(eq(campaignsTable.id, campaignId));
-    try {
-      await db.delete(costLogsTable)
-        .where(and(
-          eq(costLogsTable.campaignId, campaignId),
-          eq(costLogsTable.operation, "budget_reservation"),
-        ));
-    } catch {}
+    if (reservationId) {
+      try {
+        await db.delete(costLogsTable)
+          .where(eq(costLogsTable.id, reservationId));
+      } catch {}
+    }
     try {
       if (tmpDir) {
         fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -657,10 +656,11 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
     ensureDir(UPLOADS_DIR);
 
+    const regenTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-regen-"));
     const ts = Date.now();
     const rawFilename = `${campaignId}_${variant.platform}_${ts}_raw.png`;
-    const rawPath = path.join(UPLOADS_DIR, rawFilename);
-    fs.writeFileSync(rawPath, imgResult.imageBuffer);
+    const rawTmpPath = path.join(regenTmpDir, rawFilename);
+    fs.writeFileSync(rawTmpPath, imgResult.imageBuffer);
 
     const layoutSpec = ctx.template.layoutSpec as Record<string, unknown> | null;
     const [logoBuffer, brandFontFamily] = await Promise.all([
@@ -687,8 +687,8 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     }
 
     const compFilename = `${campaignId}_${variant.platform}_${ts}_composited.png`;
-    const compPath = path.join(UPLOADS_DIR, compFilename);
-    fs.writeFileSync(compPath, compositedBuffer);
+    const compTmpPath = path.join(regenTmpDir, compFilename);
+    fs.writeFileSync(compTmpPath, compositedBuffer);
 
     const [updated] = await db.update(campaignVariantsTable)
       .set({
@@ -699,6 +699,10 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
       })
       .where(eq(campaignVariantsTable.id, variantId))
       .returning();
+
+    fs.copyFileSync(rawTmpPath, path.join(UPLOADS_DIR, rawFilename));
+    fs.copyFileSync(compTmpPath, path.join(UPLOADS_DIR, compFilename));
+    fs.rmSync(regenTmpDir, { recursive: true, force: true });
 
     const cost = estimateImagenCost(1);
     await db.insert(costLogsTable).values({
