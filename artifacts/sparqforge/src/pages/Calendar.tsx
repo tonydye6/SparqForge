@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ToastAction } from "@/components/ui/toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGetBrands } from "@workspace/api-client-react";
@@ -31,6 +32,12 @@ interface CalendarEntry {
   compositedImageUrl?: string | null;
 }
 
+interface PendingReschedule {
+  entryId: string;
+  entry: CalendarEntry;
+  newDate: Date;
+}
+
 const PLATFORM_LABELS: Record<string, { label: string; icon: string }> = {
   instagram_feed: { label: "IG Feed", icon: "instagram" },
   instagram_story: { label: "IG Story", icon: "instagram" },
@@ -46,6 +53,17 @@ const STATUS_CONFIG: Record<string, { color: string; bgColor: string; label: str
   failed: { color: "text-red-400", bgColor: "bg-red-500/10 border-red-500/20", label: "Failed" },
 };
 
+const HOUR_START = 8;
+const HOUR_END = 22;
+const HOURS = Array.from({ length: HOUR_END - HOUR_START + 1 }, (_, i) => i + HOUR_START);
+const HOUR_HEIGHT = 60;
+
+function formatHour(hour: number): string {
+  if (hour === 0 || hour === 24) return "12AM";
+  if (hour === 12) return "12PM";
+  return hour > 12 ? `${hour - 12}PM` : `${hour}AM`;
+}
+
 export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
@@ -56,8 +74,21 @@ export default function Calendar() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [dragOverDay, setDragOverDay] = useState<number | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
+
+  const touchDragRef = useRef<{
+    entry: CalendarEntry;
+    startX: number;
+    startY: number;
+    ghostEl: HTMLDivElement | null;
+    isDragging: boolean;
+    lastTarget: Element | null;
+  } | null>(null);
+  const didTouchDragRef = useRef(false);
+  const [nowIndicatorTop, setNowIndicatorTop] = useState<number | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -116,16 +147,42 @@ export default function Calendar() {
     return map;
   }, [entries]);
 
-  const entriesByHour = useMemo(() => {
-    const map: Record<string, CalendarEntry[]> = {};
-    for (const entry of entries) {
-      const d = new Date(entry.scheduledAt);
-      const key = `${d.getDay()}-${d.getHours()}`;
-      if (!map[key]) map[key] = [];
-      map[key].push(entry);
+  const weekDays = useMemo(() => {
+    const dayOfWeek = currentDate.getDay();
+    const startOfWeek = new Date(year, month, currentDate.getDate() - dayOfWeek);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, [currentDate, year, month]);
+
+  const isCurrentWeek = useMemo(() => {
+    if (viewMode !== "week" || weekDays.length === 0) return false;
+    const todayStr = today.toDateString();
+    return weekDays.some(d => d.toDateString() === todayStr);
+  }, [viewMode, weekDays, today]);
+
+  useEffect(() => {
+    if (!isCurrentWeek || viewMode !== "week") {
+      setNowIndicatorTop(null);
+      return;
     }
-    return map;
-  }, [entries]);
+    const updateNow = () => {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      if (h < HOUR_START || h > HOUR_END) {
+        setNowIndicatorTop(null);
+        return;
+      }
+      const top = (h - HOUR_START) * HOUR_HEIGHT + (m / 60) * HOUR_HEIGHT;
+      setNowIndicatorTop(top);
+    };
+    updateNow();
+    const interval = setInterval(updateNow, 60000);
+    return () => clearInterval(interval);
+  }, [isCurrentWeek, viewMode]);
 
   const prevMonth = () => {
     if (viewMode === "week") {
@@ -148,6 +205,10 @@ export default function Calendar() {
   const goToday = () => setCurrentDate(new Date());
 
   const handleEntryClick = (entry: CalendarEntry) => {
+    if (didTouchDragRef.current) {
+      didTouchDragRef.current = false;
+      return;
+    }
     setLocation(`/?campaign=${entry.campaignId}`);
   };
 
@@ -207,6 +268,48 @@ export default function Calendar() {
     }
   };
 
+  const commitReschedule = useCallback(async (entryId: string, newDate: Date) => {
+    const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduledAt: newDate.toISOString() }),
+    });
+
+    if (!resp.ok) {
+      toast({ variant: "destructive", title: "Failed to reschedule" });
+      return;
+    }
+
+    setEntries(prev => prev.map(entry =>
+      entry.id === entryId
+        ? { ...entry, scheduledAt: newDate.toISOString() }
+        : entry
+    ));
+
+    toast({
+      title: "Rescheduled",
+      description: `Moved to ${newDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${newDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+    });
+  }, [toast]);
+
+  useEffect(() => {
+    if (!pendingReschedule) return;
+    const { entryId, entry, newDate } = pendingReschedule;
+    const dateLabel = newDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    const timeLabel = newDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    toast({
+      title: "Reschedule?",
+      description: `Move "${entry.campaignName}" to ${dateLabel} at ${timeLabel}?`,
+      action: (
+        <ToastAction altText="Confirm reschedule" onClick={() => {
+          commitReschedule(entryId, newDate);
+        }}>Confirm</ToastAction>
+      ),
+      duration: 10000,
+    });
+    setPendingReschedule(null);
+  }, [pendingReschedule, commitReschedule, toast]);
+
   const handleDragStart = useCallback((e: React.DragEvent, entry: CalendarEntry) => {
     e.dataTransfer.setData("application/json", JSON.stringify({ entryId: entry.id, scheduledAt: entry.scheduledAt }));
     e.dataTransfer.effectAllowed = "move";
@@ -237,45 +340,170 @@ export default function Calendar() {
         return;
       }
 
-      const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduledAt: newDate.toISOString() }),
-      });
-
-      if (!resp.ok) {
-        toast({ variant: "destructive", title: "Failed to reschedule" });
-        return;
+      const entry = entries.find(e => e.id === entryId);
+      if (entry) {
+        setPendingReschedule({ entryId, entry, newDate });
       }
-
-      setEntries(prev => prev.map(entry =>
-        entry.id === entryId
-          ? { ...entry, scheduledAt: newDate.toISOString() }
-          : entry
-      ));
-
-      toast({
-        title: "Rescheduled",
-        description: `Moved to ${newDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-      });
     } catch {
       toast({ variant: "destructive", title: "Failed to reschedule" });
     }
-  }, [year, month, toast]);
+  }, [year, month, toast, entries]);
 
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const daysShort = ["S", "M", "T", "W", "T", "F", "S"];
-  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+  const handleWeekDragOver = useCallback((e: React.DragEvent, slotKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverSlot(slotKey);
+  }, []);
 
-  const weekDays = useMemo(() => {
-    const dayOfWeek = currentDate.getDay();
-    const startOfWeek = new Date(year, month, currentDate.getDate() - dayOfWeek);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(d.getDate() + i);
-      return d;
-    });
-  }, [currentDate, year, month]);
+  const handleWeekDragLeave = useCallback(() => {
+    setDragOverSlot(null);
+  }, []);
+
+  const handleWeekDrop = useCallback(async (e: React.DragEvent, dayDate: Date, hour: number) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData("application/json"));
+      const { entryId, scheduledAt } = data as { entryId: string; scheduledAt: string };
+
+      const oldDate = new Date(scheduledAt);
+      const newDate = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), hour, oldDate.getMinutes(), oldDate.getSeconds());
+
+      if (oldDate.getTime() === newDate.getTime()) return;
+
+      const entry = entries.find(e => e.id === entryId);
+      if (entry) {
+        setPendingReschedule({ entryId, entry, newDate });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to reschedule" });
+    }
+  }, [toast, entries]);
+
+  const createTouchGhost = useCallback((entry: CalendarEntry): HTMLDivElement => {
+    const ghost = document.createElement("div");
+    ghost.style.position = "fixed";
+    ghost.style.zIndex = "9999";
+    ghost.style.pointerEvents = "none";
+    ghost.style.opacity = "0.85";
+    ghost.style.width = "140px";
+    ghost.style.padding = "6px 8px";
+    ghost.style.borderRadius = "6px";
+    ghost.style.fontSize = "11px";
+    ghost.style.fontWeight = "600";
+    ghost.style.backgroundColor = entry.brandColor + "30";
+    ghost.style.border = `2px solid ${entry.brandColor}`;
+    ghost.style.color = entry.brandColor;
+    ghost.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
+    ghost.style.transform = "translate(-50%, -50%)";
+    const pl = PLATFORM_LABELS[entry.platform] || { label: entry.platform };
+    ghost.textContent = `${pl.label}: ${entry.campaignName?.slice(0, 15) || "Untitled"}`;
+    document.body.appendChild(ghost);
+    return ghost;
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent, entry: CalendarEntry) => {
+    const touch = e.touches[0];
+    touchDragRef.current = {
+      entry,
+      startX: touch.clientX,
+      startY: touch.clientY,
+      ghostEl: null,
+      isDragging: false,
+      lastTarget: null,
+    };
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const ref = touchDragRef.current;
+    if (!ref) return;
+
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - ref.startX);
+    const dy = Math.abs(touch.clientY - ref.startY);
+
+    if (!ref.isDragging && (dx > 10 || dy > 10)) {
+      ref.isDragging = true;
+      didTouchDragRef.current = true;
+      ref.ghostEl = createTouchGhost(ref.entry);
+      e.preventDefault();
+    }
+
+    if (ref.isDragging && ref.ghostEl) {
+      e.preventDefault();
+      ref.ghostEl.style.left = `${touch.clientX}px`;
+      ref.ghostEl.style.top = `${touch.clientY}px`;
+
+      const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (elemBelow) {
+        const dropTarget = elemBelow.closest("[data-drop-day]") || elemBelow.closest("[data-drop-slot]");
+        if (ref.lastTarget && ref.lastTarget !== dropTarget) {
+          ref.lastTarget.classList.remove("ring-2", "ring-primary/40", "bg-primary/10");
+        }
+        if (dropTarget) {
+          dropTarget.classList.add("ring-2", "ring-primary/40", "bg-primary/10");
+          ref.lastTarget = dropTarget;
+        }
+      }
+    }
+  }, [createTouchGhost]);
+
+  const cleanupTouchDrag = useCallback(() => {
+    const ref = touchDragRef.current;
+    if (!ref) return;
+    touchDragRef.current = null;
+    if (ref.lastTarget) {
+      ref.lastTarget.classList.remove("ring-2", "ring-primary/40", "bg-primary/10");
+    }
+    if (ref.ghostEl) {
+      document.body.removeChild(ref.ghostEl);
+    }
+  }, []);
+
+  const handleTouchCancel = useCallback(() => {
+    cleanupTouchDrag();
+  }, [cleanupTouchDrag]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const ref = touchDragRef.current;
+    if (!ref) return;
+
+    const wasDragging = ref.isDragging;
+    cleanupTouchDrag();
+
+    if (!wasDragging) return;
+
+    const touch = e.changedTouches[0];
+    const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!elemBelow) return;
+
+    const dropDayEl = elemBelow.closest("[data-drop-day]");
+    const dropSlotEl = elemBelow.closest("[data-drop-slot]");
+
+    const oldDate = new Date(ref.entry.scheduledAt);
+
+    if (dropSlotEl) {
+      const slotData = dropSlotEl.getAttribute("data-drop-slot");
+      if (slotData) {
+        const [dayStr, hourStr] = slotData.split("|");
+        const [slotYear, slotMonth, slotDay] = dayStr.split("-").map(Number);
+        const hour = parseInt(hourStr, 10);
+        const newDate = new Date(slotYear, slotMonth, slotDay, hour, oldDate.getMinutes(), oldDate.getSeconds());
+        if (oldDate.getTime() !== newDate.getTime()) {
+          setPendingReschedule({ entryId: ref.entry.id, entry: ref.entry, newDate });
+        }
+      }
+    } else if (dropDayEl) {
+      const targetDay = parseInt(dropDayEl.getAttribute("data-drop-day") || "", 10);
+      if (!isNaN(targetDay)) {
+        const newDate = new Date(year, month, targetDay, oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
+        if (oldDate.getDate() !== targetDay || oldDate.getMonth() !== month || oldDate.getFullYear() !== year) {
+          setPendingReschedule({ entryId: ref.entry.id, entry: ref.entry, newDate });
+        }
+      }
+    }
+  }, [year, month]);
 
   const weekLabel = useMemo(() => {
     if (viewMode !== "week" || weekDays.length === 0) return "";
@@ -284,12 +512,14 @@ export default function Calendar() {
     return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
   }, [viewMode, weekDays]);
 
-  const hours = Array.from({ length: 15 }, (_, i) => i + 8);
-
   const selectedDayEntries = useMemo(() => {
     if (selectedDay === null) return [];
     return entriesByDay[selectedDay] || [];
   }, [selectedDay, entriesByDay]);
+
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const daysShort = ["S", "M", "T", "W", "T", "F", "S"];
+  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
 
   const renderStatusBadge = (entry: CalendarEntry) => {
     const config = STATUS_CONFIG[entry.publishStatus] || STATUS_CONFIG.scheduled;
@@ -318,8 +548,12 @@ export default function Calendar() {
               <div
                 draggable
                 onDragStart={(e) => handleDragStart(e, entry)}
+                onTouchStart={(e) => handleTouchStart(e, entry)}
+                onTouchMove={(e) => handleTouchMove(e)}
+                onTouchEnd={(e) => handleTouchEnd(e)}
+                onTouchCancel={handleTouchCancel}
                 onClick={() => handleEntryClick(entry)}
-                className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] font-medium cursor-grab active:cursor-grabbing transition-colors border hover:brightness-110"
+                className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] font-medium cursor-grab active:cursor-grabbing transition-colors border hover:brightness-110 touch-none"
                 style={{
                   backgroundColor: `${entry.brandColor}15`,
                   borderColor: `${entry.brandColor}30`,
@@ -444,6 +678,57 @@ export default function Calendar() {
     );
   };
 
+  const renderWeekEntryCard = (entry: CalendarEntry) => {
+    const pl = PLATFORM_LABELS[entry.platform] || { label: entry.platform, icon: "twitter" };
+    const time = new Date(entry.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    const config = STATUS_CONFIG[entry.publishStatus] || STATUS_CONFIG.scheduled;
+
+    return (
+      <div
+        key={entry.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, entry)}
+        onTouchStart={(e) => handleTouchStart(e, entry)}
+        onTouchMove={(e) => handleTouchMove(e)}
+        onTouchEnd={(e) => handleTouchEnd(e)}
+        onTouchCancel={handleTouchCancel}
+        onClick={() => handleEntryClick(entry)}
+        className="absolute left-0.5 right-0.5 sm:left-1 sm:right-1 rounded px-1 sm:px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium cursor-grab active:cursor-grabbing transition-all border hover:brightness-110 hover:shadow-md overflow-hidden touch-none z-10"
+        style={{
+          backgroundColor: `${entry.brandColor}20`,
+          borderColor: `${entry.brandColor}40`,
+          borderLeftWidth: "3px",
+          borderLeftColor: entry.brandColor,
+          top: `${((new Date(entry.scheduledAt).getMinutes()) / 60) * HOUR_HEIGHT}px`,
+          minHeight: "22px",
+          height: "auto",
+          maxHeight: `${HOUR_HEIGHT - 4}px`,
+        }}
+      >
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          <PlatformIcon platform={pl.icon} className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-70 shrink-0" />
+          <span className="truncate" style={{ color: entry.brandColor }}>{entry.campaignName?.slice(0, 10) || "Untitled"}</span>
+        </div>
+        <div className="flex items-center gap-0.5 mt-0.5">
+          <span className="text-muted-foreground text-[8px] sm:text-[9px]">{time}</span>
+          <span className={`text-[7px] sm:text-[8px] ${config.color}`}>{config.label}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const weekEntriesByDayHour = useMemo(() => {
+    const map: Record<string, CalendarEntry[]> = {};
+    for (const entry of entries) {
+      const d = new Date(entry.scheduledAt);
+      const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const hourKey = `${dayKey}-${d.getHours()}`;
+      if (!map[hourKey]) map[hourKey] = [];
+      map[hourKey].push(entry);
+    }
+    return map;
+  }, [entries]);
+
   return (
     <div className="flex flex-col h-full overflow-hidden p-3 sm:p-6 max-w-[1400px] mx-auto w-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 shrink-0 gap-3">
@@ -525,6 +810,7 @@ export default function Calendar() {
                 return (
                   <div
                     key={i}
+                    data-drop-day={isValid ? dayNum : undefined}
                     className={`border-r border-b border-border p-1 sm:p-2 min-h-[48px] sm:min-h-[100px] transition-colors ${!isValid ? 'bg-background/40 opacity-40' : 'hover:bg-muted/30 cursor-pointer'} ${isToday ? 'bg-primary/5' : ''} ${isDragOver && isValid ? 'bg-primary/10 ring-2 ring-inset ring-primary/40' : ''} ${isSelected ? 'ring-2 ring-inset ring-primary/60 bg-primary/10' : ''}`}
                     onClick={() => isValid && dayEntries.length > 0 && setSelectedDay(isSelected ? null : dayNum)}
                     onDragOver={isValid ? (e) => handleDragOver(e, dayNum) : undefined}
@@ -585,39 +871,71 @@ export default function Calendar() {
         </>
       ) : (
         <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden flex flex-col shadow-lg">
-          <div className="grid grid-cols-[40px_repeat(7,1fr)] sm:grid-cols-[60px_repeat(7,1fr)] border-b border-border bg-background/50">
+          <div className="grid grid-cols-[40px_repeat(7,1fr)] sm:grid-cols-[60px_repeat(7,1fr)] border-b border-border bg-background/50 sticky top-0 z-20">
             <div className="py-2 sm:py-3 text-center text-xs font-semibold text-muted-foreground" />
             {weekDays.map((d, i) => {
-              const isToday = d.toDateString() === today.toDateString();
+              const isDayToday = d.toDateString() === today.toDateString();
               return (
-                <div key={i} className={`py-2 sm:py-3 text-center ${isToday ? 'bg-primary/5' : ''}`}>
+                <div key={i} className={`py-2 sm:py-3 text-center border-l border-border ${isDayToday ? 'bg-primary/5' : ''}`}>
                   <div className="text-[10px] sm:text-xs font-semibold text-muted-foreground uppercase">
                     <span className="hidden sm:inline">{days[d.getDay()]}</span>
                     <span className="sm:hidden">{daysShort[d.getDay()]}</span>
                   </div>
-                  <div className={`text-sm sm:text-lg font-bold ${isToday ? 'text-primary' : 'text-foreground'}`}>{d.getDate()}</div>
+                  <div className={`text-sm sm:text-lg font-bold ${isDayToday ? 'text-primary' : 'text-foreground'}`}>
+                    {d.getDate()}
+                  </div>
                 </div>
               );
             })}
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            {hours.map(hour => (
-              <div key={hour} className="grid grid-cols-[40px_repeat(7,1fr)] sm:grid-cols-[60px_repeat(7,1fr)] border-b border-border min-h-[48px] sm:min-h-[60px]">
-                <div className="p-0.5 sm:p-1 text-[9px] sm:text-[10px] text-muted-foreground text-right pr-1 sm:pr-2 pt-1">
-                  {hour > 12 ? `${hour - 12}PM` : hour === 12 ? "12PM" : `${hour}AM`}
+          <div className="flex-1 overflow-y-auto relative">
+            <div className="relative" style={{ height: `${HOURS.length * HOUR_HEIGHT}px` }}>
+              {HOURS.map((hour, hourIdx) => (
+                <div
+                  key={hour}
+                  className="absolute left-0 right-0 grid grid-cols-[40px_repeat(7,1fr)] sm:grid-cols-[60px_repeat(7,1fr)]"
+                  style={{ top: `${hourIdx * HOUR_HEIGHT}px`, height: `${HOUR_HEIGHT}px` }}
+                >
+                  <div className="relative text-[9px] sm:text-[10px] text-muted-foreground text-right pr-1 sm:pr-2">
+                    <span className="absolute top-[-6px] right-1 sm:right-2">{formatHour(hour)}</span>
+                  </div>
+                  {weekDays.map((d, dayIdx) => {
+                    const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                    const hourKey = `${dayKey}-${hour}`;
+                    const slotEntries = weekEntriesByDayHour[hourKey] || [];
+                    const slotKey = `${dayIdx}-${hour}`;
+                    const isDayToday = d.toDateString() === today.toDateString();
+                    const isEvenHour = hour % 2 === 0;
+                    const isDragOverThis = dragOverSlot === slotKey;
+
+                    return (
+                      <div
+                        key={dayIdx}
+                        data-drop-slot={`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}|${hour}`}
+                        className={`border-l border-t border-border relative transition-colors ${isEvenHour ? 'bg-muted/5' : ''} ${isDayToday ? 'bg-primary/[0.02]' : ''} ${isDragOverThis ? 'bg-primary/10 ring-1 ring-inset ring-primary/30' : ''}`}
+                        style={{ height: `${HOUR_HEIGHT}px` }}
+                        onDragOver={(e) => handleWeekDragOver(e, slotKey)}
+                        onDragLeave={handleWeekDragLeave}
+                        onDrop={(e) => handleWeekDrop(e, d, hour)}
+                      >
+                        {slotEntries.map(entry => renderWeekEntryCard(entry))}
+                      </div>
+                    );
+                  })}
                 </div>
-                {weekDays.map((d, dayIdx) => {
-                  const key = `${d.getDay()}-${hour}`;
-                  const slotEntries = entriesByHour[key] || [];
-                  return (
-                    <div key={dayIdx} className="border-l border-border p-0.5 sm:p-1 space-y-1 hover:bg-muted/20 transition-colors">
-                      {slotEntries.map(entry => renderEntryCard(entry))}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+              ))}
+
+              {nowIndicatorTop !== null && (
+                <div
+                  className="absolute left-[40px] sm:left-[60px] right-0 z-30 pointer-events-none flex items-center"
+                  style={{ top: `${nowIndicatorTop}px` }}
+                >
+                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shrink-0" />
+                  <div className="flex-1 h-[2px] bg-red-500/70" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
