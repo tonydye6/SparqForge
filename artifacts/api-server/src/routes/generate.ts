@@ -622,6 +622,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     return;
   }
 
+  let regenTmpDir: string | null = null;
   try {
     const selectedAssets = (campaign.selectedAssets || []) as import("../services/context-assembly.js").SelectedAssetRef[];
     const selectedAssetIds = selectedAssets.map(a => a.assetId);
@@ -656,7 +657,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
     ensureDir(UPLOADS_DIR);
 
-    const regenTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-regen-"));
+    regenTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-regen-"));
     const ts = Date.now();
     const rawFilename = `${campaignId}_${variant.platform}_${ts}_raw.png`;
     const rawTmpPath = path.join(regenTmpDir, rawFilename);

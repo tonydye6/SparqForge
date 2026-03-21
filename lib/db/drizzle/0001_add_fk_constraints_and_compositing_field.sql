@@ -1,9 +1,34 @@
 -- Incremental migration: Add all FK constraints and compositing_failed column
--- Safe to run on existing data — uses IF NOT EXISTS guards throughout.
--- All orphan data cleaned before FK application.
+-- Safe to run on existing data — IF NOT EXISTS guards + orphan cleanup before each FK.
 
 -- Add compositing_failed column to campaign_variants
 ALTER TABLE "campaign_variants" ADD COLUMN IF NOT EXISTS "compositing_failed" text;
+
+-- Orphan cleanup: nullify/delete rows with dangling references before adding FKs
+UPDATE "campaigns" SET "source_campaign_id" = NULL WHERE "source_campaign_id" IS NOT NULL AND "source_campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+UPDATE "campaigns" SET "template_id" = NULL WHERE "template_id" IS NOT NULL AND "template_id" NOT IN (SELECT "id" FROM "templates");
+DELETE FROM "campaigns" WHERE "brand_id" NOT IN (SELECT "id" FROM "brands");
+DELETE FROM "campaign_variants" WHERE "campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+DELETE FROM "calendar_entries" WHERE "campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+DELETE FROM "calendar_entries" WHERE "variant_id" NOT IN (SELECT "id" FROM "campaign_variants");
+UPDATE "calendar_entries" SET "social_account_id" = NULL WHERE "social_account_id" IS NOT NULL AND "social_account_id" NOT IN (SELECT "id" FROM "social_accounts");
+DELETE FROM "assets" WHERE "brand_id" NOT IN (SELECT "id" FROM "brands");
+DELETE FROM "templates" WHERE "brand_id" NOT IN (SELECT "id" FROM "brands");
+DELETE FROM "hashtag_sets" WHERE "brand_id" NOT IN (SELECT "id" FROM "brands");
+UPDATE "social_accounts" SET "brand_id" = NULL WHERE "brand_id" IS NOT NULL AND "brand_id" NOT IN (SELECT "id" FROM "brands");
+UPDATE "cost_logs" SET "campaign_id" = NULL WHERE "campaign_id" IS NOT NULL AND "campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+UPDATE "refinement_logs" SET "campaign_id" = NULL WHERE "campaign_id" IS NOT NULL AND "campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+DELETE FROM "refinement_logs" WHERE "template_id" NOT IN (SELECT "id" FROM "templates");
+DELETE FROM "generation_packet_logs" WHERE "campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+UPDATE "generation_packet_logs" SET "template_id" = NULL WHERE "template_id" IS NOT NULL AND "template_id" NOT IN (SELECT "id" FROM "templates");
+UPDATE "generation_packet_logs" SET "primary_asset_id" = NULL WHERE "primary_asset_id" IS NOT NULL AND "primary_asset_id" NOT IN (SELECT "id" FROM "assets");
+DELETE FROM "asset_pairings" WHERE "campaign_id" NOT IN (SELECT "id" FROM "campaigns");
+DELETE FROM "asset_pairings" WHERE "primary_asset_id" NOT IN (SELECT "id" FROM "assets");
+DELETE FROM "asset_pairings" WHERE "secondary_asset_id" NOT IN (SELECT "id" FROM "assets");
+UPDATE "asset_pairings" SET "template_id" = NULL WHERE "template_id" IS NOT NULL AND "template_id" NOT IN (SELECT "id" FROM "templates");
+DELETE FROM "template_versions" WHERE "template_id" NOT IN (SELECT "id" FROM "templates");
+DELETE FROM "template_recommendations" WHERE "template_id" NOT IN (SELECT "id" FROM "templates");
+UPDATE "social_content_plan_items" SET "linked_campaign_id" = NULL WHERE "linked_campaign_id" IS NOT NULL AND "linked_campaign_id" NOT IN (SELECT "id" FROM "campaigns");
 
 -- campaigns.source_campaign_id → campaigns.id (self-ref)
 DO $$ BEGIN

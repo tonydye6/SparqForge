@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, json, index, real, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, json, index, real, integer, foreignKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { brandsTable } from "./brands";
@@ -28,6 +28,11 @@ export const campaignsTable = pgTable("campaigns", {
 }, (table) => [
   index("campaigns_brand_status_idx").on(table.brandId, table.status),
   index("campaigns_template_created_idx").on(table.templateId, table.createdAt),
+  foreignKey({
+    columns: [table.sourceCampaignId],
+    foreignColumns: [table.id],
+    name: "campaigns_source_campaign_id_campaigns_id_fk",
+  }).onDelete("set null"),
 ]);
 
 export const insertCampaignSchema = createInsertSchema(campaignsTable).omit({
