@@ -1,11 +1,14 @@
 import { pgTable, text, timestamp, json, index, real, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { brandsTable } from "./brands";
+import { templatesTable } from "./templates";
+import { usersTable } from "./users";
 
 export const campaignsTable = pgTable("campaigns", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  brandId: text("brand_id").notNull(),
-  templateId: text("template_id"),
+  brandId: text("brand_id").notNull().references(() => brandsTable.id, { onDelete: "cascade" }),
+  templateId: text("template_id").references(() => templatesTable.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   status: text("status").notNull().default("draft"),
   briefText: text("brief_text"),
@@ -38,7 +41,7 @@ export type Campaign = typeof campaignsTable.$inferSelect;
 
 export const campaignVariantsTable = pgTable("campaign_variants", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull(),
+  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
   aspectRatio: text("aspect_ratio").notNull(),
   rawImageUrl: text("raw_image_url"),
@@ -60,8 +63,8 @@ export const campaignVariantsTable = pgTable("campaign_variants", {
 
 export const calendarEntriesTable = pgTable("calendar_entries", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull(),
-  variantId: text("variant_id").notNull(),
+  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").notNull().references(() => campaignVariantsTable.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
   socialAccountId: text("social_account_id"),
   scheduledAt: timestamp("scheduled_at").notNull(),
@@ -77,8 +80,8 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
 
 export const refinementLogsTable = pgTable("refinement_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id"),
-  templateId: text("template_id").notNull(),
+  campaignId: text("campaign_id").references(() => campaignsTable.id, { onDelete: "set null" }),
+  templateId: text("template_id").notNull().references(() => templatesTable.id, { onDelete: "cascade" }),
   editType: text("edit_type").notNull(),
   platform: text("platform"),
   aspectRatio: text("aspect_ratio"),
@@ -93,7 +96,7 @@ export const refinementLogsTable = pgTable("refinement_logs", {
 
 export const costLogsTable = pgTable("cost_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id"),
+  campaignId: text("campaign_id").references(() => campaignsTable.id, { onDelete: "set null" }),
   service: text("service").notNull(),
   operation: text("operation").notNull(),
   model: text("model"),

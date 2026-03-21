@@ -1,8 +1,9 @@
 import { pgTable, text, integer, json, timestamp } from "drizzle-orm/pg-core";
+import { templatesTable } from "./templates";
 
 export const templateVersionsTable = pgTable("template_versions", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  templateId: text("template_id").notNull(),
+  templateId: text("template_id").notNull().references(() => templatesTable.id, { onDelete: "cascade" }),
   version: integer("version").notNull(),
   snapshot: json("snapshot").notNull(),
   changedFields: text("changed_fields").array().notNull().default([]),

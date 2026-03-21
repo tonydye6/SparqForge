@@ -24,20 +24,20 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: Date | null;
   usageCount: number;
-  assetClass: string;
+  assetClass?: string;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
-  approvedChannels: string[];
-  approvedTemplates: string[];
-  subjectIdentityScore: number;
-  styleStrengthScore: number;
+  approvedChannels?: string[];
+  approvedTemplates?: string[];
+  subjectIdentityScore?: number | null;
+  styleStrengthScore?: number | null;
   compositingOnly: boolean;
   generationAllowed: boolean;
   approvedForCompositing: boolean;
-  referencePriorityDefault: number;
+  referencePriorityDefault?: number | null;
   conflictTags: string[];
-  freshnessScore: number;
+  freshnessScore?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }

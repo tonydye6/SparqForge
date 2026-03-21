@@ -1,10 +1,11 @@
 import { pgTable, text, boolean, timestamp, integer, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { brandsTable } from "./brands";
 
 export const assetsTable = pgTable("assets", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  brandId: text("brand_id").notNull(),
+  brandId: text("brand_id").notNull().references(() => brandsTable.id, { onDelete: "cascade" }),
   type: text("type").notNull(),
   subType: text("sub_type"),
   status: text("status").notNull().default("uploaded"),

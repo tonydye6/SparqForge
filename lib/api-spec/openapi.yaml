@@ -1209,9 +1209,11 @@ components:
           items:
             type: string
         subjectIdentityScore:
-          type: integer
+          type: number
+          nullable: true
         styleStrengthScore:
-          type: integer
+          type: number
+          nullable: true
         compositingOnly:
           type: boolean
         generationAllowed:
@@ -1219,13 +1221,15 @@ components:
         approvedForCompositing:
           type: boolean
         referencePriorityDefault:
-          type: integer
+          type: number
+          nullable: true
         conflictTags:
           type: array
           items:
             type: string
         freshnessScore:
-          type: integer
+          type: number
+          nullable: true
         createdAt:
           type: string
           format: date-time
@@ -1241,17 +1245,10 @@ components:
         - tags
         - uploadedBy
         - usageCount
-        - assetClass
-        - approvedChannels
-        - approvedTemplates
-        - subjectIdentityScore
-        - styleStrengthScore
         - compositingOnly
         - generationAllowed
         - approvedForCompositing
-        - referencePriorityDefault
         - conflictTags
-        - freshnessScore
         - createdAt
         - updatedAt
 
@@ -1356,13 +1353,17 @@ components:
         approvedForCompositing:
           type: boolean
         subjectIdentityScore:
-          type: integer
+          type: number
+          nullable: true
         styleStrengthScore:
-          type: integer
+          type: number
+          nullable: true
         referencePriorityDefault:
-          type: integer
+          type: number
+          nullable: true
         freshnessScore:
-          type: integer
+          type: number
+          nullable: true
 
     HashtagSet:
       type: object

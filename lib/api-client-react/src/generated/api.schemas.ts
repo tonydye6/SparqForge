@@ -133,20 +133,20 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: string | null;
   usageCount: number;
-  assetClass: string;
+  assetClass?: string;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
-  approvedChannels: string[];
-  approvedTemplates: string[];
-  subjectIdentityScore: number;
-  styleStrengthScore: number;
+  approvedChannels?: string[];
+  approvedTemplates?: string[];
+  subjectIdentityScore?: number | null;
+  styleStrengthScore?: number | null;
   compositingOnly: boolean;
   generationAllowed: boolean;
   approvedForCompositing: boolean;
-  referencePriorityDefault: number;
+  referencePriorityDefault?: number | null;
   conflictTags: string[];
-  freshnessScore: number;
+  freshnessScore?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -188,10 +188,10 @@ export interface UpdateAssetInput {
   compositingOnly?: boolean;
   generationAllowed?: boolean;
   approvedForCompositing?: boolean;
-  subjectIdentityScore?: number;
-  styleStrengthScore?: number;
-  referencePriorityDefault?: number;
-  freshnessScore?: number;
+  subjectIdentityScore?: number | null;
+  styleStrengthScore?: number | null;
+  referencePriorityDefault?: number | null;
+  freshnessScore?: number | null;
 }
 
 export interface HashtagSet {

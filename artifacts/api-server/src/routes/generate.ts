@@ -9,6 +9,7 @@ import { compositeImage } from "../services/compositing.js";
 import { buildGenerationPacket } from "../services/packet-assembly.js";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 
 const router: IRouter = Router();
 
@@ -128,17 +129,34 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
   if (budgetThreshold !== null && !isNaN(budgetThreshold) && budgetThreshold > 0) {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const [todayResult] = await db.select({
-      totalCost: sql<number>`COALESCE(SUM(${costLogsTable.costUsd}), 0)`,
-    }).from(costLogsTable).where(gte(costLogsTable.createdAt, todayStart));
 
-    const todaySpend = Number(todayResult?.totalCost || 0);
-    if (todaySpend >= budgetThreshold) {
+    const budgetCheckResult = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(42)`);
+      const [todayResult] = await tx.select({
+        totalCost: sql<number>`COALESCE(SUM(${costLogsTable.costUsd}), 0)`,
+      }).from(costLogsTable).where(gte(costLogsTable.createdAt, todayStart));
+      const currentSpend = Number(todayResult?.totalCost || 0);
+
+      if (currentSpend >= budgetThreshold) {
+        return { exceeded: true as const, todaySpend: currentSpend };
+      }
+
+      await tx.insert(costLogsTable).values({
+        campaignId,
+        service: "system",
+        operation: "budget_reservation",
+        model: null,
+        costUsd: 0,
+      });
+      return { exceeded: false as const, todaySpend: currentSpend };
+    });
+
+    if (budgetCheckResult.exceeded) {
       res.status(429).json({
         error: "Daily budget exceeded",
-        todaySpend,
+        todaySpend: budgetCheckResult.todaySpend,
         threshold: budgetThreshold,
-        message: `Today's spend ($${todaySpend.toFixed(2)}) has reached the daily budget limit ($${budgetThreshold.toFixed(2)}). Increase the limit in Cost Dashboard settings or wait until tomorrow.`,
+        message: `Today's spend ($${budgetCheckResult.todaySpend.toFixed(2)}) has reached the daily budget limit ($${budgetThreshold.toFixed(2)}). Increase the limit in Cost Dashboard settings or wait until tomorrow.`,
       });
       return;
     }
@@ -159,6 +177,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   }
 
+  let tmpDir: string | null = null;
   try {
     await db.update(campaignsTable)
       .set({ status: "generating", updatedAt: new Date() })
@@ -250,6 +269,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
 
     ensureDir(UPLOADS_DIR);
 
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sparqforge-gen-${campaignId}-`));
+    const stagedFiles: Array<{ tmpPath: string; finalPath: string }> = [];
+
     const variantRecords = [];
 
     for (const img of images) {
@@ -258,10 +280,12 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       const config = PLATFORM_CONFIGS[img.platform];
 
       const rawFilename = `${campaignId}_${img.platform}_raw.png`;
-      const rawPath = path.join(UPLOADS_DIR, rawFilename);
-      fs.writeFileSync(rawPath, img.imageBuffer);
+      const rawTmpPath = path.join(tmpDir, rawFilename);
+      fs.writeFileSync(rawTmpPath, img.imageBuffer);
+      stagedFiles.push({ tmpPath: rawTmpPath, finalPath: path.join(UPLOADS_DIR, rawFilename) });
 
       let compositedBuffer: Buffer;
+      let compositingFailed = false;
       try {
         compositedBuffer = await compositeImage({
           rawImageBuffer: img.imageBuffer,
@@ -275,6 +299,11 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       } catch (err) {
         console.error(`Compositing failed for ${img.platform}, using raw image:`, err instanceof Error ? err.message : err);
         compositedBuffer = img.imageBuffer;
+        compositingFailed = true;
+        sendEvent("compositing_warning", {
+          platform: img.platform,
+          message: `Compositing failed for ${img.platform}: ${err instanceof Error ? err.message : "unknown error"}. Using raw image as fallback.`,
+        });
       }
 
       if (packet && referenceImages.length > 0) {
@@ -298,8 +327,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       }
 
       const compFilename = `${campaignId}_${img.platform}_composited.png`;
-      const compPath = path.join(UPLOADS_DIR, compFilename);
-      fs.writeFileSync(compPath, compositedBuffer);
+      const compTmpPath = path.join(tmpDir, compFilename);
+      fs.writeFileSync(compTmpPath, compositedBuffer);
+      stagedFiles.push({ tmpPath: compTmpPath, finalPath: path.join(UPLOADS_DIR, compFilename) });
 
       variantRecords.push({
         campaignId,
@@ -311,7 +341,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         originalCaption: captionData.caption,
         headlineText: captionData.headline,
         originalHeadline: captionData.headline,
-        status: "generated",
+        status: compositingFailed ? "compositing_failed" : "generated",
       });
 
       sendEvent("image_ready", {
@@ -325,29 +355,60 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     sendEvent("progress", { step: "compositing", message: "Compositing complete", done: true });
 
     sendEvent("progress", { step: "saving", message: "Saving variants to database..." });
-    const existingVariants = await db.select().from(campaignVariantsTable)
-      .where(eq(campaignVariantsTable.campaignId, campaignId));
-    if (existingVariants.length > 0) {
-      for (const v of existingVariants) {
-        await db.delete(campaignVariantsTable).where(eq(campaignVariantsTable.id, v.id));
+
+    const totalCost = estimateClaudeCost() + estimateImagenCost(images.length);
+
+    const insertedVariants = await db.transaction(async (tx) => {
+      const existingVariants = await tx.select().from(campaignVariantsTable)
+        .where(eq(campaignVariantsTable.campaignId, campaignId));
+
+      if (existingVariants.length > 0) {
+        await tx.delete(campaignVariantsTable)
+          .where(eq(campaignVariantsTable.campaignId, campaignId));
+      }
+
+      const inserted = [];
+      for (const record of variantRecords) {
+        const [row] = await tx.insert(campaignVariantsTable).values(record).returning();
+        inserted.push(row);
+      }
+
+      await tx.update(campaignsTable)
+        .set({ status: "draft", estimatedCost: totalCost, updatedAt: new Date() })
+        .where(eq(campaignsTable.id, campaignId));
+
+      if (campaign.templateId) {
+        await tx.update(templatesTable)
+          .set({ totalGenerations: sql`COALESCE(${templatesTable.totalGenerations}, 0) + 1` })
+          .where(eq(templatesTable.id, campaign.templateId));
+      }
+
+      await tx.insert(costLogsTable).values({
+        campaignId,
+        service: "anthropic",
+        operation: "caption_generation",
+        model: "claude-sonnet-4-6",
+        costUsd: estimateClaudeCost(),
+      });
+      await tx.insert(costLogsTable).values({
+        campaignId,
+        service: "gemini",
+        operation: "image_generation",
+        model: "gemini-2.5-flash-image",
+        costUsd: estimateImagenCost(images.length),
+      });
+
+      return inserted;
+    });
+
+    for (const staged of stagedFiles) {
+      try {
+        fs.copyFileSync(staged.tmpPath, staged.finalPath);
+      } catch (err) {
+        console.error(`Failed to move staged file ${staged.tmpPath}:`, err instanceof Error ? err.message : err);
       }
     }
-
-    const insertedVariants = [];
-    for (const record of variantRecords) {
-      const [inserted] = await db.insert(campaignVariantsTable).values(record).returning();
-      insertedVariants.push(inserted);
-    }
-
-    await db.update(campaignsTable)
-      .set({ status: "draft", updatedAt: new Date() })
-      .where(eq(campaignsTable.id, campaignId));
-
-    if (campaign.templateId) {
-      await db.update(templatesTable)
-        .set({ totalGenerations: sql`COALESCE(${templatesTable.totalGenerations}, 0) + 1` })
-        .where(eq(templatesTable.id, campaign.templateId));
-    }
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
 
     if (packet && packet.generationAssets.length >= 2) {
       try {
@@ -370,28 +431,6 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       }
     }
 
-    const totalCost = estimateClaudeCost() + estimateImagenCost(images.length);
-    await db.insert(costLogsTable).values({
-      campaignId,
-      service: "anthropic",
-      operation: "caption_generation",
-      model: "claude-sonnet-4-6",
-      costUsd: estimateClaudeCost(),
-    });
-    await db.insert(costLogsTable).values({
-      campaignId,
-      service: "gemini",
-      operation: "image_generation",
-      model: "gemini-2.5-flash-image",
-      costUsd: estimateImagenCost(images.length),
-    });
-
-    if (campaign.estimatedCost !== totalCost) {
-      await db.update(campaignsTable)
-        .set({ estimatedCost: totalCost, updatedAt: new Date() })
-        .where(eq(campaignsTable.id, campaignId));
-    }
-
     sendEvent("complete", {
       message: "Generation complete!",
       variantCount: insertedVariants.length,
@@ -404,6 +443,11 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     await db.update(campaignsTable)
       .set({ status: "draft", updatedAt: new Date() })
       .where(eq(campaignsTable.id, campaignId));
+    try {
+      if (tmpDir) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    } catch {}
   } finally {
     res.end();
   }
@@ -609,6 +653,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     ]);
 
     let compositedBuffer: Buffer;
+    let compositingFailed = false;
     try {
       compositedBuffer = await compositeImage({
         rawImageBuffer: imgResult.imageBuffer,
@@ -622,18 +667,24 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     } catch (err) {
       console.error(`Compositing failed during regeneration for ${variant.platform}, using raw image:`, err instanceof Error ? err.message : err);
       compositedBuffer = imgResult.imageBuffer;
+      compositingFailed = true;
     }
 
     const compFilename = `${campaignId}_${variant.platform}_${ts}_composited.png`;
     const compPath = path.join(UPLOADS_DIR, compFilename);
     fs.writeFileSync(compPath, compositedBuffer);
 
+    const updateData: Record<string, unknown> = {
+      rawImageUrl: `/api/files/generated/${rawFilename}`,
+      compositedImageUrl: `/api/files/generated/${compFilename}`,
+      updatedAt: new Date(),
+    };
+    if (compositingFailed) {
+      updateData.status = "compositing_failed";
+    }
+
     const [updated] = await db.update(campaignVariantsTable)
-      .set({
-        rawImageUrl: `/api/files/generated/${rawFilename}`,
-        compositedImageUrl: `/api/files/generated/${compFilename}`,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
       .where(eq(campaignVariantsTable.id, variantId))
       .returning();
 

@@ -1,13 +1,16 @@
 import { pgTable, text, boolean, timestamp, integer, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { campaignsTable } from "./campaigns";
+import { assetsTable } from "./assets";
+import { templatesTable } from "./templates";
 
 export const assetPairingsTable = pgTable("asset_pairings", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull(),
-  primaryAssetId: text("primary_asset_id").notNull(),
-  secondaryAssetId: text("secondary_asset_id").notNull(),
-  templateId: text("template_id"),
+  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
+  primaryAssetId: text("primary_asset_id").notNull().references(() => assetsTable.id, { onDelete: "cascade" }),
+  secondaryAssetId: text("secondary_asset_id").notNull().references(() => assetsTable.id, { onDelete: "cascade" }),
+  templateId: text("template_id").references(() => templatesTable.id, { onDelete: "set null" }),
   platform: text("platform"),
   firstPassApproved: boolean("first_pass_approved"),
   totalRefinements: integer("total_refinements").notNull().default(0),

@@ -1,8 +1,9 @@
 import { pgTable, text, json, timestamp, index } from "drizzle-orm/pg-core";
+import { templatesTable } from "./templates";
 
 export const templateRecommendationsTable = pgTable("template_recommendations", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  templateId: text("template_id").notNull(),
+  templateId: text("template_id").notNull().references(() => templatesTable.id, { onDelete: "cascade" }),
   analysisData: json("analysis_data").notNull(),
   recommendations: json("recommendations").notNull(),
   status: text("status").notNull().default("pending"),

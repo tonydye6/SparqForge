@@ -21,8 +21,8 @@ export interface UpdateAssetInput {
   compositingOnly?: boolean;
   generationAllowed?: boolean;
   approvedForCompositing?: boolean;
-  subjectIdentityScore?: number;
-  styleStrengthScore?: number;
-  referencePriorityDefault?: number;
-  freshnessScore?: number;
+  subjectIdentityScore?: number | null;
+  styleStrengthScore?: number | null;
+  referencePriorityDefault?: number | null;
+  freshnessScore?: number | null;
 }

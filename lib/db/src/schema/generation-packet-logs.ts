@@ -1,14 +1,17 @@
 import { pgTable, text, timestamp, json, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { campaignsTable } from "./campaigns";
+import { templatesTable } from "./templates";
+import { assetsTable } from "./assets";
 
 export const generationPacketLogsTable = pgTable("generation_packet_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull(),
+  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
   platform: text("platform"),
-  templateId: text("template_id"),
+  templateId: text("template_id").references(() => templatesTable.id, { onDelete: "set null" }),
   packetType: text("packet_type"),
-  primaryAssetId: text("primary_asset_id"),
+  primaryAssetId: text("primary_asset_id").references(() => assetsTable.id, { onDelete: "set null" }),
   supportingAssetIds: json("supporting_asset_ids"),
   styleAssetIds: json("style_asset_ids"),
   contextAssetIds: json("context_asset_ids"),
