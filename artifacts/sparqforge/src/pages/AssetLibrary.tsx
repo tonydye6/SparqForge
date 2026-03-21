@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2, Edit2, Plus, CheckSquare, Square, Tag, Archive } from "lucide-react";
+import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2, Edit2, Plus, CheckSquare, Square, Tag, Archive, Star, Shield, Layers, Eye, EyeOff, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { useForm } from "react-hook-form";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+
+const ASSET_CLASS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  compositing: { label: "Compositing", color: "text-purple-400", bg: "bg-purple-500/20" },
+  subject_reference: { label: "Subject Ref", color: "text-blue-400", bg: "bg-blue-500/20" },
+  style_reference: { label: "Style Ref", color: "text-green-400", bg: "bg-green-500/20" },
+  context: { label: "Context", color: "text-amber-400", bg: "bg-amber-500/20" },
+};
+
+function StarRating({ value, onChange, max = 5, size = 14 }: { value: number; onChange?: (v: number) => void; max?: number; size?: number }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: max }).map((_, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onChange?.(i + 1)}
+          disabled={!onChange}
+          className={cn(
+            "transition-colors",
+            onChange ? "cursor-pointer hover:text-yellow-400" : "cursor-default",
+            i < value ? "text-yellow-400" : "text-muted-foreground/30"
+          )}
+        >
+          <Star size={size} fill={i < value ? "currentColor" : "none"} />
+        </button>
+      ))}
+    </div>
+  );
+}
 
 interface CampaignUsage {
   id: string;
@@ -327,6 +357,9 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
         queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
         toast({ title: "Asset updated" });
         setEditMode(false);
+      },
+      onError: () => {
+        toast({ variant: "destructive", title: "Failed to update asset" });
       }
     });
   };
@@ -338,6 +371,9 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
           queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
           setIsOpen(false);
           toast({ title: "Asset deleted" });
+        },
+        onError: () => {
+          toast({ variant: "destructive", title: "Failed to delete asset" });
         }
       });
     }
@@ -404,6 +440,11 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
           </div>
 
           <div className="absolute top-2 right-2 flex gap-1">
+            {asset.assetClass && ASSET_CLASS_CONFIG[asset.assetClass] && (
+              <Badge className={cn("border-none shadow-sm text-[10px]", ASSET_CLASS_CONFIG[asset.assetClass].bg, ASSET_CLASS_CONFIG[asset.assetClass].color)}>
+                {ASSET_CLASS_CONFIG[asset.assetClass].label}
+              </Badge>
+            )}
             {asset.status === 'approved' && <Badge className="bg-success text-white border-none shadow-sm text-[10px]">Approved</Badge>}
             {asset.status === 'uploaded' && <Badge className="bg-warning text-black border-none shadow-sm text-[10px]">Pending</Badge>}
             {asset.status === 'archived' && <Badge variant="secondary" className="border-none shadow-sm text-[10px]">Archived</Badge>}
@@ -415,9 +456,15 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
         </div>
         <div className="p-3">
           <h4 className="text-sm font-semibold text-foreground truncate" title={asset.name}>{asset.name}</h4>
-          <p className="text-xs text-muted-foreground mt-1 flex justify-between items-center">
-            <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
-          </p>
+          <div className="flex justify-between items-center mt-1">
+            <span className="text-xs text-muted-foreground">{new Date(asset.createdAt).toLocaleDateString()}</span>
+            {(asset.subjectIdentityScore || asset.styleStrengthScore) ? (
+              <StarRating
+                value={Math.round((asset.subjectIdentityScore || asset.styleStrengthScore || 0) * 5)}
+                size={10}
+              />
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -478,7 +525,17 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
                     <span className="text-muted-foreground block text-xs uppercase mb-1">Type</span>
                     <span>{asset.mimeType || 'Unknown'}</span>
                   </div>
+                  {asset.assetClass && (
+                    <div>
+                      <span className="text-muted-foreground block text-xs uppercase mb-1">Class</span>
+                      <Badge className={cn("text-[10px]", ASSET_CLASS_CONFIG[asset.assetClass]?.bg, ASSET_CLASS_CONFIG[asset.assetClass]?.color)}>
+                        {ASSET_CLASS_CONFIG[asset.assetClass]?.label || asset.assetClass}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
+
+                <IntelligenceEditor asset={asset} onUpdate={handleUpdate} isPending={updateMutation.isPending} />
 
                 <div className="bg-background p-4 rounded-lg border border-border">
                   <h4 className="text-xs uppercase text-muted-foreground font-semibold mb-3">Used in Campaigns</h4>
@@ -633,6 +690,155 @@ function BriefsTab({ briefs, brands, isLoading }: { briefs: Asset[], brands: any
           <FileText size={48} className="text-muted-foreground/50 mb-4" />
           <h3 className="text-xl font-bold text-foreground mb-2">No briefs yet</h3>
           <p className="text-muted-foreground mb-4">Create context documents to guide AI generation.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUpdate: (updates: any) => void; isPending: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const [assetClass, setAssetClass] = useState(asset.assetClass || "");
+  const [generationRole, setGenerationRole] = useState(asset.generationRole || "");
+  const [brandLayer, setBrandLayer] = useState(asset.brandLayer || "");
+  const [franchise, setFranchise] = useState(asset.franchise || "");
+  const [subjectScore, setSubjectScore] = useState(Math.round((asset.subjectIdentityScore || 0) * 5));
+  const [styleScore, setStyleScore] = useState(Math.round((asset.styleStrengthScore || 0) * 5));
+  const [freshnessScoreVal, setFreshnessScoreVal] = useState(Math.round((asset.freshnessScore || 0) * 5));
+  const [compositingOnly, setCompositingOnly] = useState(asset.compositingOnly || false);
+  const [generationAllowed, setGenerationAllowed] = useState(asset.generationAllowed !== false);
+  const [conflictTagsStr, setConflictTagsStr] = useState((asset.conflictTags || []).join(", "));
+  const [approvedChannelsStr, setApprovedChannelsStr] = useState((asset.approvedChannels || []).join(", "));
+  const [approvedTemplatesStr, setApprovedTemplatesStr] = useState((asset.approvedTemplates || []).join(", "));
+
+  const handleSave = () => {
+    onUpdate({
+      assetClass: assetClass || null,
+      generationRole: generationRole || null,
+      brandLayer: brandLayer || null,
+      franchise: franchise || null,
+      subjectIdentityScore: subjectScore / 5,
+      styleStrengthScore: styleScore / 5,
+      freshnessScore: freshnessScoreVal / 5,
+      compositingOnly,
+      generationAllowed,
+      conflictTags: conflictTagsStr.split(",").map(s => s.trim()).filter(Boolean),
+      approvedChannels: approvedChannelsStr.split(",").map(s => s.trim()).filter(Boolean),
+      approvedTemplates: approvedTemplatesStr.split(",").map(s => s.trim()).filter(Boolean),
+    });
+  };
+
+  return (
+    <div className="bg-background rounded-lg border border-border overflow-hidden">
+      <button
+        className="w-full p-4 flex items-center justify-between text-left hover:bg-muted/30 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <Zap size={14} className="text-primary" />
+          <span className="text-xs uppercase font-semibold text-muted-foreground">Asset Intelligence</span>
+        </div>
+        <span className="text-xs text-muted-foreground">{expanded ? "Collapse" : "Expand"}</span>
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Asset Class</label>
+              <Select value={assetClass} onValueChange={setAssetClass}>
+                <SelectTrigger className="h-8 text-xs bg-card border-border">
+                  <SelectValue placeholder="Select class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compositing">Compositing</SelectItem>
+                  <SelectItem value="subject_reference">Subject Reference</SelectItem>
+                  <SelectItem value="style_reference">Style Reference</SelectItem>
+                  <SelectItem value="context">Context</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Generation Role</label>
+              <Select value={generationRole} onValueChange={setGenerationRole}>
+                <SelectTrigger className="h-8 text-xs bg-card border-border">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="primary_subject">Primary Subject</SelectItem>
+                  <SelectItem value="supporting">Supporting</SelectItem>
+                  <SelectItem value="background">Background</SelectItem>
+                  <SelectItem value="overlay">Overlay</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Brand Layer</label>
+              <Select value={brandLayer} onValueChange={setBrandLayer}>
+                <SelectTrigger className="h-8 text-xs bg-card border-border">
+                  <SelectValue placeholder="Select layer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="primary_logo">Primary Logo</SelectItem>
+                  <SelectItem value="secondary_mark">Secondary Mark</SelectItem>
+                  <SelectItem value="watermark">Watermark</SelectItem>
+                  <SelectItem value="partner">Partner</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Franchise</label>
+              <Input value={franchise} onChange={e => setFranchise(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="e.g. Crown U" />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Subject Identity Score</label>
+              <StarRating value={subjectScore} onChange={setSubjectScore} size={12} />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Style Strength Score</label>
+              <StarRating value={styleScore} onChange={setStyleScore} size={12} />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Freshness Score</label>
+              <StarRating value={freshnessScoreVal} onChange={setFreshnessScoreVal} size={12} />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Compositing Only</label>
+              <Switch checked={compositingOnly} onCheckedChange={setCompositingOnly} />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Generation Allowed</label>
+              <Switch checked={generationAllowed} onCheckedChange={setGenerationAllowed} />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Approved Channels (comma separated)</label>
+            <Input value={approvedChannelsStr} onChange={e => setApprovedChannelsStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="twitter, instagram, linkedin" />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Approved Templates (comma separated)</label>
+            <Input value={approvedTemplatesStr} onChange={e => setApprovedTemplatesStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="Template IDs" />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Conflict Tags (comma separated)</label>
+            <Input value={conflictTagsStr} onChange={e => setConflictTagsStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="e.g. competitor_a, rival_brand" />
+          </div>
+
+          <Button size="sm" onClick={handleSave} disabled={isPending} className="w-full">
+            {isPending ? "Saving..." : "Save Intelligence Data"}
+          </Button>
         </div>
       )}
     </div>

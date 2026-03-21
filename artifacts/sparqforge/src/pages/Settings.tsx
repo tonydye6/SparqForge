@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { 
@@ -13,7 +13,12 @@ import {
   useGetSocialAccounts,
   useDeleteSocialAccount,
   useRefreshSocialAccount,
-  type Brand
+  useGetAssets,
+  useUpdateAsset,
+  useUploadFile,
+  useCreateAsset,
+  type Brand,
+  type Asset
 } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -23,13 +28,15 @@ import {
   Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
   Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle2, XCircle,
   BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon,
-  Image, Upload, FileType
+  Image as ImageIcon, Layers, FileType, Upload
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { useSearch } from "wouter";
+import { useDropzone } from "react-dropzone";
+import { cn } from "@/lib/utils";
 
 export default function Settings() {
   const searchString = useSearch();
@@ -511,11 +518,9 @@ function BrandEditor({ brand }: { brand: Brand }) {
         </div>
       </section>
 
-      {/* Brand Logos */}
-      <BrandLogosSection brandId={brand.id} />
+      <BrandAssetGroups brandId={brand.id} />
 
-      {/* Font Management */}
-      <BrandFontsSection brandId={brand.id} />
+      <BrandFontManagement brandId={brand.id} />
 
       {/* Voice & Tone */}
       <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
@@ -572,6 +577,10 @@ function BrandEditor({ brand }: { brand: Brand }) {
         </div>
       </section>
 
+      <BrandAssetGroups brandId={brand.id} />
+
+      <BrandFontManagement brandId={brand.id} />
+
       {/* Templates */}
       <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
@@ -589,6 +598,324 @@ function BrandEditor({ brand }: { brand: Brand }) {
       </div>
 
     </form>
+  );
+}
+
+const BRAND_ASSET_GROUPS = [
+  { key: "logos", label: "Logos & Marks", assetClass: "compositing", role: null, description: "Primary and secondary logos for compositing" },
+  { key: "characters", label: "Character References", assetClass: "subject_reference", role: "primary_subject", description: "Character images for AI generation" },
+  { key: "styles", label: "Style Plates & Backgrounds", assetClass: "style_reference", role: null, description: "Mood boards, textures, and backgrounds" },
+  { key: "gameplay", label: "Gameplay References", assetClass: "subject_reference", role: "supporting", description: "In-game screenshots and action shots" },
+  { key: "partner", label: "Partner / Compliance Marks", assetClass: "compositing", role: "overlay", description: "Sponsor logos and compliance marks" },
+];
+
+function BrandAssetGroups({ brandId }: { brandId: string }) {
+  const { data: allAssets } = useGetAssets({ brandId });
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const updateMutation = useUpdateAsset();
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState<string | null>(null);
+
+  const getGroupAssets = (group: typeof BRAND_ASSET_GROUPS[0]) => {
+    if (!allAssets) return [];
+    return allAssets.filter(a => {
+      if (a.assetClass !== group.assetClass) return false;
+      if (group.role && a.generationRole !== group.role) return false;
+      return true;
+    });
+  };
+
+  const getUnassignedVisuals = () => {
+    if (!allAssets) return [];
+    return allAssets.filter(a => a.type === "visual" && !a.assetClass);
+  };
+
+  const assignToGroup = (assetId: string, group: typeof BRAND_ASSET_GROUPS[0]) => {
+    updateMutation.mutate({ id: assetId, data: {
+      assetClass: group.assetClass,
+      generationRole: group.role || undefined,
+    }}, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        toast({ title: "Asset assigned to group" });
+      },
+      onError: () => {
+        toast({ variant: "destructive", title: "Failed to assign asset" });
+      }
+    });
+  };
+
+  const removeFromGroup = (assetId: string) => {
+    updateMutation.mutate({ id: assetId, data: {
+      assetClass: null,
+      generationRole: null,
+    }}, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        toast({ title: "Asset removed from group" });
+      },
+      onError: () => {
+        toast({ variant: "destructive", title: "Failed to remove asset" });
+      }
+    });
+  };
+
+  return (
+    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+        <Layers className="text-primary" size={20} />
+        <h2 className="text-xl font-bold">Brand Assets</h2>
+      </div>
+
+      <div className="space-y-3">
+        {BRAND_ASSET_GROUPS.map(group => {
+          const assets = getGroupAssets(group);
+          const isExpanded = expandedGroup === group.key;
+          return (
+            <div key={group.key} className="border border-border rounded-lg overflow-hidden bg-background">
+              <button
+                className="w-full p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                onClick={() => setExpandedGroup(isExpanded ? null : group.key)}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-sm">{group.label}</span>
+                  <Badge variant="outline" className="text-[10px]">{assets.length}</Badge>
+                </div>
+                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground mb-3">{group.description}</p>
+                  {assets.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2 mb-3">
+                      {assets.map(asset => (
+                        <div key={asset.id} className="relative group aspect-square rounded-md overflow-hidden border border-border bg-muted/30">
+                          {asset.thumbnailUrl || asset.fileUrl ? (
+                            <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt={asset.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-muted-foreground" /></div>
+                          )}
+                          <button
+                            onClick={() => removeFromGroup(asset.id)}
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <XIcon size={10} className="text-white" />
+                          </button>
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
+                            <p className="text-[9px] text-white truncate">{asset.name}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic mb-3">No assets in this group yet.</p>
+                  )}
+                  <Dialog open={addDialogOpen === group.key} onOpenChange={(v) => setAddDialogOpen(v ? group.key : null)}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm"><Plus className="w-3.5 h-3.5 mr-1" /> Add Asset</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader><DialogTitle>Add to {group.label}</DialogTitle></DialogHeader>
+                      <div className="grid grid-cols-4 gap-2 max-h-[300px] overflow-y-auto pt-4">
+                        {getUnassignedVisuals().map(asset => (
+                          <button
+                            key={asset.id}
+                            onClick={() => { assignToGroup(asset.id, group); setAddDialogOpen(null); }}
+                            className="aspect-square rounded-md overflow-hidden border border-border bg-muted/30 hover:border-primary transition-colors"
+                          >
+                            {asset.thumbnailUrl || asset.fileUrl ? (
+                              <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt={asset.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-muted-foreground" /></div>
+                            )}
+                          </button>
+                        ))}
+                        {getUnassignedVisuals().length === 0 && (
+                          <p className="col-span-4 text-center text-sm text-muted-foreground py-8">No unassigned visual assets available.</p>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function BrandFontManagement({ brandId }: { brandId: string }) {
+  const { data: allAssets } = useGetAssets({ brandId, type: "font" });
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const uploadMutation = useUploadFile();
+  const createAssetMutation = useCreateAsset();
+  const updateMutation = useUpdateAsset();
+
+  const fontAssets = allAssets || [];
+
+  const [editingFont, setEditingFont] = useState<string | null>(null);
+  const [fontNameEdit, setFontNameEdit] = useState("");
+  const [fontWeightEdit, setFontWeightEdit] = useState("");
+
+  const onDrop = useCallback((files: File[]) => {
+    files.forEach(file => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (!['woff2', 'ttf', 'otf'].includes(ext || '')) {
+        toast({ variant: "destructive", title: "Invalid font file", description: "Only .woff2, .ttf, and .otf files are supported." });
+        return;
+      }
+
+      uploadMutation.mutate({ data: { file, type: 'font', brandId } }, {
+        onSuccess: (res) => {
+          createAssetMutation.mutate({
+            data: {
+              brandId,
+              type: "font",
+              name: file.name.replace(/\.[^.]+$/, ''),
+              status: "approved",
+              fileUrl: res.url,
+              mimeType: file.type || `font/${ext}`,
+              fileSizeBytes: file.size,
+              uploadedBy: "current_user",
+              tags: [],
+              fontName: file.name.replace(/\.[^.]+$/, ''),
+              fontWeight: "400",
+            }
+          }, {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+              toast({ title: "Font uploaded", description: file.name });
+            }
+          });
+        },
+        onError: (err: any) => {
+          toast({ variant: "destructive", title: "Upload failed", description: err.message });
+        }
+      });
+    });
+  }, [uploadMutation, createAssetMutation, brandId, toast, queryClient]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'font/woff2': ['.woff2'], 'font/ttf': ['.ttf'], 'font/otf': ['.otf'], 'application/x-font-ttf': ['.ttf'], 'application/x-font-opentype': ['.otf'] }
+  });
+
+  const saveFontEdit = (assetId: string) => {
+    updateMutation.mutate({ id: assetId, data: { name: fontNameEdit, fontName: fontNameEdit, fontWeight: fontWeightEdit } }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        setEditingFont(null);
+        toast({ title: "Font updated" });
+      },
+      onError: () => {
+        toast({ variant: "destructive", title: "Failed to update font" });
+      }
+    });
+  };
+
+  const deleteFont = async (assetId: string) => {
+    if (!confirm("Delete this font?")) return;
+    try {
+      const res = await fetch(`/api/assets/${assetId}`, { method: "DELETE" });
+      if (res.ok) {
+        queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        toast({ title: "Font deleted" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to delete font" });
+    }
+  };
+
+  return (
+    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
+      <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+        <FileType className="text-primary" size={20} />
+        <h2 className="text-xl font-bold">Font Management</h2>
+      </div>
+
+      <div
+        {...getRootProps()}
+        className={cn(
+          "mb-6 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+          isDragActive ? "border-primary bg-primary/5" : "border-border bg-background hover:border-primary/50"
+        )}
+      >
+        <input {...getInputProps()} />
+        <Upload size={20} className="text-primary mx-auto mb-2" />
+        <p className="text-sm font-medium">{uploadMutation.isPending ? "Uploading..." : "Drop font files here"}</p>
+        <p className="text-xs text-muted-foreground">.woff2, .ttf, .otf</p>
+      </div>
+
+      {fontAssets.length > 0 ? (
+        <div className="space-y-3">
+          {fontAssets.map(font => {
+            const isEditing = editingFont === font.id;
+            return (
+              <div key={font.id} className="flex items-center gap-4 p-4 border border-border bg-background rounded-lg">
+                <div className="w-10 h-10 bg-muted rounded flex items-center justify-center shrink-0">
+                  <FileType size={20} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {isEditing ? (
+                    <div className="flex gap-2 items-center">
+                      <Input
+                        value={fontNameEdit}
+                        onChange={e => setFontNameEdit(e.target.value)}
+                        className="h-8 text-sm flex-1"
+                        placeholder="Font name"
+                      />
+                      <Input
+                        value={fontWeightEdit}
+                        onChange={e => setFontWeightEdit(e.target.value)}
+                        className="h-8 text-sm w-20"
+                        placeholder="Weight"
+                      />
+                      <Button size="sm" className="h-8" onClick={() => saveFontEdit(font.id)}>Save</Button>
+                      <Button size="sm" variant="ghost" className="h-8" onClick={() => setEditingFont(null)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-sm truncate">{font.fontName || font.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="outline" className="text-[10px]">Weight: {font.fontWeight || "400"}</Badge>
+                        <span className="text-[10px] text-muted-foreground">{font.mimeType}</span>
+                        {font.fileSizeBytes && (
+                          <span className="text-[10px] text-muted-foreground">{(font.fileSizeBytes / 1024).toFixed(0)} KB</span>
+                        )}
+                      </div>
+                      {font.fileUrl && (
+                        <>
+                          <style>{`@font-face { font-family: 'preview-${font.id}'; src: url('${font.fileUrl}'); }`}</style>
+                          <p className="mt-2 text-sm" style={{ fontFamily: `'preview-${font.id}'` }}>
+                            The quick brown fox jumps over the lazy dog
+                          </p>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                {!isEditing && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setEditingFont(font.id); setFontNameEdit(font.fontName || font.name); setFontWeightEdit(font.fontWeight || "400"); }}>
+                      <Edit2 size={14} />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteFont(font.id)}>
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-4">No fonts uploaded yet. Upload .woff2, .ttf, or .otf files to use in compositing.</p>
+      )}
+    </section>
   );
 }
 
@@ -611,240 +938,6 @@ function ColorField({ name, label, value, register, setValue }: any) {
   );
 }
 
-const LOGO_ROLES = [
-  { value: "primary", label: "Primary Logo" },
-  { value: "alternate", label: "Alternate Logo" },
-  { value: "icon", label: "Icon / Favicon" },
-  { value: "wordmark", label: "Wordmark" },
-];
-
-function BrandLogosSection({ brandId }: { brandId: string }) {
-  const { toast } = useToast();
-  const [logos, setLogos] = useState<any[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [selectedRole, setSelectedRole] = useState("primary");
-  const apiBase = import.meta.env.VITE_API_URL || "";
-
-  const loadLogos = async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/logos`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogos(data);
-        if (data.length > 0 && selectedRole === "primary") {
-          setSelectedRole("alternate");
-        }
-      }
-    } catch (err) {
-      console.error("Failed to load logos:", err);
-    }
-  };
-
-  useEffect(() => { loadLogos(); }, [brandId]);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("role", selectedRole);
-      formData.append("name", file.name.replace(/\.[^.]+$/, ""));
-
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/logos`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        toast({ title: "Logo uploaded" });
-        loadLogos();
-      } else {
-        const err = await res.json();
-        toast({ variant: "destructive", title: "Upload failed", description: err.error });
-      }
-    } catch (err) {
-      console.error("Upload failed:", err);
-      toast({ variant: "destructive", title: "Upload failed" });
-    }
-    setIsUploading(false);
-    e.target.value = "";
-  };
-
-  const handleDelete = async (assetId: string) => {
-    if (!confirm("Delete this logo?")) return;
-    try {
-      await fetch(`${apiBase}/api/brands/${brandId}/logos/${assetId}`, { method: "DELETE" });
-      toast({ title: "Logo deleted" });
-      loadLogos();
-    } catch (err) {
-      console.error("Failed to delete logo:", err);
-    }
-  };
-
-  return (
-    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-        <div className="flex items-center gap-2">
-          <Image className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Brand Logos</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
-            className="text-xs bg-background border border-border rounded px-2 py-1.5 text-foreground"
-          >
-            {LOGO_ROLES.map(r => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
-          <label className="cursor-pointer">
-            <input type="file" accept="image/*" onChange={handleUpload} className="hidden" />
-            <Button variant="outline" size="sm" asChild disabled={isUploading}>
-              <span><Upload className="h-4 w-4 mr-2" />{isUploading ? "Uploading..." : "Upload Logo"}</span>
-            </Button>
-          </label>
-        </div>
-      </div>
-
-      {logos.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">No logos uploaded. Upload a logo to use in compositing.</p>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {logos.map((logo: any) => (
-            <div key={logo.id} className="relative group border border-border rounded-lg p-3 bg-background">
-              <div className="aspect-square flex items-center justify-center mb-2 bg-card rounded overflow-hidden">
-                {logo.fileUrl ? (
-                  <img src={`${apiBase}${logo.fileUrl}`} alt={logo.name} className="max-w-full max-h-full object-contain" />
-                ) : (
-                  <Image className="h-8 w-8 text-muted-foreground" />
-                )}
-              </div>
-              <div className="text-xs font-medium truncate">{logo.name}</div>
-              <Badge variant="outline" className="text-[10px] mt-1">
-                {logo.subType?.replace("logo_", "") || "logo"}
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10 h-7 w-7 p-0"
-                onClick={() => handleDelete(logo.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function BrandFontsSection({ brandId }: { brandId: string }) {
-  const { toast } = useToast();
-  const [fonts, setFonts] = useState<any[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const apiBase = import.meta.env.VITE_API_URL || "";
-
-  const loadFonts = async () => {
-    try {
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/fonts`);
-      if (res.ok) setFonts(await res.json());
-    } catch {}
-  };
-
-  useEffect(() => { loadFonts(); }, [brandId]);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("name", file.name.replace(/\.[^.]+$/, ""));
-      formData.append("weight", "400");
-
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/fonts`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.ok) {
-        toast({ title: "Font uploaded" });
-        loadFonts();
-      } else {
-        const err = await res.json();
-        toast({ variant: "destructive", title: "Upload failed", description: err.error });
-      }
-    } catch {
-      toast({ variant: "destructive", title: "Upload failed" });
-    }
-    setIsUploading(false);
-    e.target.value = "";
-  };
-
-  const handleDelete = async (assetId: string) => {
-    if (!confirm("Delete this font?")) return;
-    try {
-      await fetch(`${apiBase}/api/brands/${brandId}/fonts/${assetId}`, { method: "DELETE" });
-      toast({ title: "Font deleted" });
-      loadFonts();
-    } catch {}
-  };
-
-  return (
-    <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-      <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-        <div className="flex items-center gap-2">
-          <FileType className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Font Management</h2>
-        </div>
-        <label className="cursor-pointer">
-          <input type="file" accept=".woff2,.ttf,.otf,.woff" onChange={handleUpload} className="hidden" />
-          <Button variant="outline" size="sm" asChild disabled={isUploading}>
-            <span><Upload className="h-4 w-4 mr-2" />{isUploading ? "Uploading..." : "Upload Font"}</span>
-          </Button>
-        </label>
-      </div>
-
-      {fonts.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">No fonts uploaded. Upload font files to use in compositing.</p>
-      ) : (
-        <div className="space-y-3">
-          {fonts.map((font: any) => (
-            <div key={font.id} className="flex items-center justify-between p-3 border border-border bg-background rounded-lg">
-              <div className="flex items-center gap-3">
-                <FileType className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-medium text-sm">{font.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {font.mimeType} {font.fileSizeBytes ? `(${(font.fileSizeBytes / 1024).toFixed(1)} KB)` : ""}
-                  </div>
-                </div>
-                <Badge variant="outline" className="text-[10px]">
-                  Weight: {font.subType?.replace("weight_", "") || "400"}
-                </Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => handleDelete(font.id)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
 
 function BrandTemplates({ brandId }: { brandId: string }) {
   const { data: templates } = useGetTemplates({ brandId });

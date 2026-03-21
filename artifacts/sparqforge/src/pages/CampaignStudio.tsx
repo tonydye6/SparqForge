@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2, Video, Volume2, VolumeX, Music } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2, Video, Volume2, VolumeX, Music, Layers, Star, Eye, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,6 +115,52 @@ export default function CampaignStudio() {
   const [hashtagSetName, setHashtagSetName] = useState("");
   const [hashtagsToSave, setHashtagsToSave] = useState<string[]>([]);
   const [savingHashtags, setSavingHashtags] = useState(false);
+
+  const [subjectAssetId, setSubjectAssetId] = useState<string | null>(null);
+  const [styleAssetIds, setStyleAssetIds] = useState<string[]>([]);
+  const [contextAssetIds, setContextAssetIds] = useState<string[]>([]);
+  const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
+
+  const [recommendedSubjects, setRecommendedSubjects] = useState<any[]>([]);
+  const [recommendedStyles, setRecommendedStyles] = useState<any[]>([]);
+  const [compositingAssets, setCompositingAssets] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedBrand) return;
+    const fetchRecommended = async () => {
+      try {
+        const [subRes, styRes, compRes] = await Promise.all([
+          fetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=subject_reference${selectedTemplate ? `&templateId=${selectedTemplate}` : ''}`),
+          fetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=style_reference${selectedTemplate ? `&templateId=${selectedTemplate}` : ''}`),
+          fetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=compositing`),
+        ]);
+        if (subRes.ok) setRecommendedSubjects(await subRes.json());
+        if (styRes.ok) setRecommendedStyles(await styRes.json());
+        if (compRes.ok) setCompositingAssets(await compRes.json());
+      } catch {}
+    };
+    fetchRecommended();
+  }, [selectedBrand, selectedTemplate]);
+
+  useEffect(() => {
+    const allIds: string[] = [];
+    if (subjectAssetId) allIds.push(subjectAssetId);
+    allIds.push(...styleAssetIds);
+    allIds.push(...contextAssetIds);
+    setSelectedAssets(allIds);
+  }, [subjectAssetId, styleAssetIds, contextAssetIds]);
+
+  const toggleStyleAsset = (id: string) => {
+    setStyleAssetIds(prev => {
+      if (prev.includes(id)) return prev.filter(a => a !== id);
+      if (prev.length >= 2) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const toggleContextAsset = (id: string) => {
+    setContextAssetIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  };
 
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [videoProgress, setVideoProgress] = useState<Record<string, string>>({});
@@ -1120,34 +1166,199 @@ export default function CampaignStudio() {
             </Select>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Source Assets</label>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Star size={10} /> Subject Reference <span className="text-muted-foreground">(pick 1)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(recommendedSubjects.length > 0 ? recommendedSubjects : (approvedAssets?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
+                  const isSelected = subjectAssetId === asset.id;
+                  const isRecommended = idx < 3 && recommendedSubjects.length > 0;
+                  return (
+                    <div
+                      key={asset.id}
+                      onClick={() => !isGenerating && setSubjectAssetId(isSelected ? null : asset.id)}
+                      className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group transition-colors ${isSelected ? 'border-blue-400 ring-1 ring-blue-400/30' : isRecommended ? 'border-blue-400/30 hover:border-blue-400/60' : 'border-transparent hover:border-muted-foreground/50'} ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      {asset.thumbnailUrl || asset.fileUrl ? (
+                        <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt="Asset" className={`w-full h-full object-cover transition-opacity ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-card"><ImageIcon size={16} className="text-muted-foreground" /></div>
+                      )}
+                      {isSelected && <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(96,165,250,0.8)] border border-background" />}
+                      {isRecommended && !isSelected && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-blue-500/80 text-center">
+                          <span className="text-[8px] text-white font-semibold uppercase">Recommended</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            
-            <div className="grid grid-cols-3 gap-2">
-              {approvedAssets?.filter(a => a.type === 'visual').slice(0, 8).map(asset => {
-                const isSelected = selectedAssets.includes(asset.id);
-                return (
-                  <div 
-                    key={asset.id} 
-                    onClick={() => !isGenerating && toggleAsset(asset.id)}
-                    className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group transition-colors ${isSelected ? 'border-primary' : 'border-transparent hover:border-muted-foreground/50'} ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
-                  >
-                    {asset.thumbnailUrl || asset.fileUrl ? (
-                       <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt="Asset" className={`w-full h-full object-cover transition-opacity ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`} />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-card"><ImageIcon size={16} className="text-muted-foreground" /></div>
-                    )}
-                    {isSelected && <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-primary rounded-full shadow-[0_0_8px_rgba(59,130,246,0.8)] border border-background" />}
-                  </div>
-                );
-              })}
-              {selectedBrand && !approvedAssets?.filter(a => a.type === 'visual').length && (
-                <p className="text-xs text-muted-foreground italic col-span-3">No approved visual assets found.</p>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-green-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Layers size={10} /> Style Reference <span className="text-muted-foreground">(pick 1-2)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(recommendedStyles.length > 0 ? recommendedStyles : (approvedAssets?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
+                  const isSelected = styleAssetIds.includes(asset.id);
+                  const isRecommended = idx < 3 && recommendedStyles.length > 0;
+                  return (
+                    <div
+                      key={asset.id}
+                      onClick={() => !isGenerating && toggleStyleAsset(asset.id)}
+                      className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group transition-colors ${isSelected ? 'border-green-400 ring-1 ring-green-400/30' : isRecommended ? 'border-green-400/30 hover:border-green-400/60' : 'border-transparent hover:border-muted-foreground/50'} ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      {asset.thumbnailUrl || asset.fileUrl ? (
+                        <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt="Asset" className={`w-full h-full object-cover transition-opacity ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`} />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-card"><ImageIcon size={16} className="text-muted-foreground" /></div>
+                      )}
+                      {isSelected && <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-green-400 rounded-full shadow-[0_0_8px_rgba(74,222,128,0.8)] border border-background" />}
+                      {isRecommended && !isSelected && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-green-500/80 text-center">
+                          <span className="text-[8px] text-white font-semibold uppercase">Recommended</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText size={10} /> Context Cards <span className="text-muted-foreground">(optional)</span>
+              </label>
+              {briefs && briefs.length > 0 ? (
+                <div className="space-y-1">
+                  {briefs.slice(0, 4).map(brief => {
+                    const isSelected = contextAssetIds.includes(brief.id);
+                    return (
+                      <button
+                        key={brief.id}
+                        onClick={() => !isGenerating && toggleContextAsset(brief.id)}
+                        className={`w-full text-left p-2 rounded border text-xs transition-colors ${isSelected ? 'border-amber-400/50 bg-amber-500/10 text-amber-200' : 'border-border bg-background hover:border-amber-400/30 text-muted-foreground'}`}
+                      >
+                        <span className="font-medium truncate block">{brief.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">No context briefs available.</p>
               )}
             </div>
+
+            {compositingAssets.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Layers size={10} /> Compositing <span className="text-muted-foreground">(auto)</span>
+                </label>
+                <div className="flex gap-1.5">
+                  {compositingAssets.slice(0, 4).map(asset => (
+                    <div key={asset.id} className="w-8 h-8 rounded border border-purple-400/30 bg-purple-500/10 overflow-hidden" title={asset.name}>
+                      {asset.thumbnailUrl || asset.fileUrl ? (
+                        <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt={asset.name} className="w-full h-full object-cover opacity-80" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center"><Layers size={10} className="text-purple-400" /></div>
+                      )}
+                    </div>
+                  ))}
+                  <span className="text-[10px] text-purple-400 self-center ml-1">Auto-applied</span>
+                </div>
+              </div>
+            )}
+
+            {(subjectAssetId || styleAssetIds.length > 0) && (
+              <button
+                onClick={() => setPacketPreviewOpen(!packetPreviewOpen)}
+                className="w-full text-xs text-primary hover:text-primary/80 flex items-center justify-center gap-1.5 py-2 border border-primary/20 rounded-md hover:bg-primary/5 transition-colors"
+              >
+                <Package size={12} />
+                {packetPreviewOpen ? "Hide" : "Preview"} Generation Packet
+              </button>
+            )}
           </div>
+
+          {packetPreviewOpen && (
+            <div className="bg-background border border-primary/20 rounded-lg p-3 space-y-3">
+              <h4 className="text-xs font-semibold text-primary uppercase flex items-center gap-1.5">
+                <Package size={12} /> Generation Packet Preview
+              </h4>
+
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase text-muted-foreground font-semibold">To AI Generation</p>
+                <div className="space-y-1">
+                  {subjectAssetId && (() => {
+                    const asset = approvedAssets?.find(a => a.id === subjectAssetId) || recommendedSubjects.find(a => a.id === subjectAssetId);
+                    return asset ? (
+                      <div className="flex items-center gap-2 p-1.5 rounded bg-blue-500/10 border border-blue-500/20">
+                        <div className="w-6 h-6 rounded overflow-hidden shrink-0">
+                          {asset.thumbnailUrl || asset.fileUrl ? <img src={asset.thumbnailUrl || asset.fileUrl || ""} className="w-full h-full object-cover" /> : <ImageIcon size={12} />}
+                        </div>
+                        <span className="text-[10px] text-blue-300 truncate flex-1">{asset.name}</span>
+                        <Badge className="text-[8px] bg-blue-500/20 text-blue-300 border-none">Subject</Badge>
+                      </div>
+                    ) : null;
+                  })()}
+                  {styleAssetIds.map(id => {
+                    const asset = approvedAssets?.find(a => a.id === id) || recommendedStyles.find(a => a.id === id);
+                    return asset ? (
+                      <div key={id} className="flex items-center gap-2 p-1.5 rounded bg-green-500/10 border border-green-500/20">
+                        <div className="w-6 h-6 rounded overflow-hidden shrink-0">
+                          {asset.thumbnailUrl || asset.fileUrl ? <img src={asset.thumbnailUrl || asset.fileUrl || ""} className="w-full h-full object-cover" /> : <ImageIcon size={12} />}
+                        </div>
+                        <span className="text-[10px] text-green-300 truncate flex-1">{asset.name}</span>
+                        <Badge className="text-[8px] bg-green-500/20 text-green-300 border-none">Style</Badge>
+                      </div>
+                    ) : null;
+                  })}
+                  {!subjectAssetId && styleAssetIds.length === 0 && (
+                    <p className="text-[10px] text-muted-foreground italic">No assets selected for generation</p>
+                  )}
+                </div>
+              </div>
+
+              {compositingAssets.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase text-muted-foreground font-semibold">To Compositing (Post-Generation)</p>
+                  <div className="space-y-1">
+                    {compositingAssets.slice(0, 3).map(asset => (
+                      <div key={asset.id} className="flex items-center gap-2 p-1.5 rounded bg-purple-500/10 border border-purple-500/20">
+                        <div className="w-6 h-6 rounded overflow-hidden shrink-0">
+                          {asset.thumbnailUrl || asset.fileUrl ? <img src={asset.thumbnailUrl || asset.fileUrl || ""} className="w-full h-full object-cover" /> : <Layers size={12} />}
+                        </div>
+                        <span className="text-[10px] text-purple-300 truncate flex-1">{asset.name}</span>
+                        <Badge className="text-[8px] bg-purple-500/20 text-purple-300 border-none">Logo</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {contextAssetIds.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase text-muted-foreground font-semibold">Text Context</p>
+                  <div className="space-y-1">
+                    {contextAssetIds.map(id => {
+                      const brief = briefs?.find(b => b.id === id);
+                      return brief ? (
+                        <div key={id} className="flex items-center gap-2 p-1.5 rounded bg-amber-500/10 border border-amber-500/20">
+                          <FileText size={12} className="text-amber-400 shrink-0" />
+                          <span className="text-[10px] text-amber-300 truncate flex-1">{brief.name}</span>
+                          <Badge className="text-[8px] bg-amber-500/20 text-amber-300 border-none">Brief</Badge>
+                        </div>
+                      ) : null;
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">

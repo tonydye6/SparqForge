@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, index, real } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -20,22 +20,22 @@ export const assetsTable = pgTable("assets", {
   approvedBy: text("approved_by"),
   approvedAt: timestamp("approved_at"),
   usageCount: integer("usage_count").notNull().default(0),
-
-  assetClass: text("asset_class").notNull().default("subject_reference"),
+  assetClass: text("asset_class"),
   generationRole: text("generation_role"),
   brandLayer: text("brand_layer"),
   franchise: text("franchise"),
-  approvedChannels: text("approved_channels").array().notNull().default([]),
-  approvedTemplates: text("approved_templates").array().notNull().default([]),
-  subjectIdentityScore: integer("subject_identity_score").notNull().default(3),
-  styleStrengthScore: integer("style_strength_score").notNull().default(3),
-  compositingOnly: boolean("compositing_only").notNull().default(false),
-  generationAllowed: boolean("generation_allowed").notNull().default(true),
-  approvedForCompositing: boolean("approved_for_compositing").notNull().default(false),
-  referencePriorityDefault: integer("reference_priority_default").notNull().default(3),
-  conflictTags: text("conflict_tags").array().notNull().default([]),
-  freshnessScore: integer("freshness_score").notNull().default(3),
-
+  approvedChannels: text("approved_channels").array().default([]),
+  approvedTemplates: text("approved_templates").array().default([]),
+  subjectIdentityScore: real("subject_identity_score"),
+  styleStrengthScore: real("style_strength_score"),
+  compositingOnly: boolean("compositing_only").default(false),
+  generationAllowed: boolean("generation_allowed").default(true),
+  approvedForCompositing: boolean("approved_for_compositing").default(false),
+  referencePriorityDefault: real("reference_priority_default"),
+  conflictTags: text("conflict_tags").array().default([]),
+  freshnessScore: real("freshness_score"),
+  fontWeight: text("font_weight"),
+  fontName: text("font_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

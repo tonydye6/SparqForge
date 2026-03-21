@@ -203,6 +203,47 @@ router.post("/assets/bulk-update", async (req, res): Promise<void> => {
   res.json({ updated: results.length, assets: results });
 });
 
+router.get("/assets/recommended", async (req, res): Promise<void> => {
+  const { brandId, templateId, role } = req.query as { brandId?: string; templateId?: string; role?: string };
+
+  const conditions = [];
+  if (brandId) conditions.push(eq(assetsTable.brandId, brandId));
+  conditions.push(eq(assetsTable.status, "approved"));
+  if (role === "subject_reference") {
+    conditions.push(eq(assetsTable.assetClass, "subject_reference"));
+  } else if (role === "style_reference") {
+    conditions.push(eq(assetsTable.assetClass, "style_reference"));
+  } else if (role === "compositing") {
+    conditions.push(eq(assetsTable.assetClass, "compositing"));
+  }
+
+  let results;
+  if (conditions.length > 0) {
+    results = await db.select().from(assetsTable).where(and(...conditions)).orderBy(assetsTable.createdAt);
+  } else {
+    results = await db.select().from(assetsTable).where(eq(assetsTable.status, "approved")).orderBy(assetsTable.createdAt);
+  }
+
+  const scored = results.map((asset, index) => {
+    let relevanceScore = 0.5;
+    if (role === "subject_reference" && asset.subjectIdentityScore) {
+      relevanceScore = asset.subjectIdentityScore;
+    } else if (role === "style_reference" && asset.styleStrengthScore) {
+      relevanceScore = asset.styleStrengthScore;
+    } else if (asset.assetClass === role) {
+      relevanceScore = 0.8;
+    }
+    if (asset.generationAllowed === false) relevanceScore *= 0.1;
+    if (templateId && asset.approvedTemplates && (asset.approvedTemplates as string[]).includes(templateId)) {
+      relevanceScore += 0.2;
+    }
+    return { ...asset, relevanceScore: Math.min(relevanceScore, 1) };
+  });
+
+  scored.sort((a, b) => b.relevanceScore - a.relevanceScore);
+  res.json(scored);
+});
+
 router.get("/assets/:id", async (req, res): Promise<void> => {
   const params = GetAssetParams.safeParse(req.params);
   if (!params.success) {
