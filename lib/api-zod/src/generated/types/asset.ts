@@ -24,12 +24,12 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: Date | null;
   usageCount: number;
-  assetClass?: string;
+  assetClass: string;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
-  approvedChannels?: string[];
-  approvedTemplates?: string[];
+  approvedChannels: string[];
+  approvedTemplates: string[];
   subjectIdentityScore?: number | null;
   styleStrengthScore?: number | null;
   compositingOnly: boolean;

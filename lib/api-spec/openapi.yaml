@@ -1245,6 +1245,9 @@ components:
         - tags
         - uploadedBy
         - usageCount
+        - assetClass
+        - approvedChannels
+        - approvedTemplates
         - compositingOnly
         - generationAllowed
         - approvedForCompositing

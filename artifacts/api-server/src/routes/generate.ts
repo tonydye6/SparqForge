@@ -692,43 +692,51 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
     const rawFinalPath = path.join(UPLOADS_DIR, rawFilename);
     const compFinalPath = path.join(UPLOADS_DIR, compFilename);
+
+    const [updated] = await db.transaction(async (tx) => {
+      const [result] = await tx.update(campaignVariantsTable)
+        .set({
+          rawImageUrl: `/api/files/generated/${rawFilename}`,
+          compositedImageUrl: `/api/files/generated/${compFilename}`,
+          compositingFailed: compositingFailed ? `Compositing failed during regeneration for ${variant.platform}. Using raw image as fallback.` : null,
+          updatedAt: new Date(),
+        })
+        .where(eq(campaignVariantsTable.id, variantId))
+        .returning();
+
+      const cost = estimateImagenCost(1);
+      await tx.insert(costLogsTable).values({
+        campaignId,
+        service: "gemini",
+        operation: "single_variant_regeneration",
+        model: "gemini-2.5-flash-image",
+        costUsd: cost,
+      });
+
+      if (campaign.templateId) {
+        await tx.insert(refinementLogsTable).values({
+          campaignId,
+          templateId: campaign.templateId,
+          editType: "image_refinement",
+          platform: variant.platform,
+          aspectRatio: variant.aspectRatio,
+          refinementPrompt: instruction || null,
+          userId: "system",
+        });
+      }
+
+      return [result];
+    });
+
     fs.copyFileSync(rawTmpPath, rawFinalPath);
     fs.copyFileSync(compTmpPath, compFinalPath);
     fs.rmSync(regenTmpDir, { recursive: true, force: true });
 
-    const [updated] = await db.update(campaignVariantsTable)
-      .set({
-        rawImageUrl: `/api/files/generated/${rawFilename}`,
-        compositedImageUrl: `/api/files/generated/${compFilename}`,
-        compositingFailed: compositingFailed ? `Compositing failed during regeneration for ${variant.platform}. Using raw image as fallback.` : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(campaignVariantsTable.id, variantId))
-      .returning();
-
-    const cost = estimateImagenCost(1);
-    await db.insert(costLogsTable).values({
-      campaignId,
-      service: "gemini",
-      operation: "single_variant_regeneration",
-      model: "gemini-2.5-flash-image",
-      costUsd: cost,
-    });
-
-    if (campaign.templateId) {
-      await db.insert(refinementLogsTable).values({
-        campaignId,
-        templateId: campaign.templateId,
-        editType: "image_refinement",
-        platform: variant.platform,
-        aspectRatio: variant.aspectRatio,
-        refinementPrompt: instruction || null,
-        userId: "system",
-      });
-    }
-
     res.json(updated);
   } catch (error) {
+    if (regenTmpDir) {
+      try { fs.rmSync(regenTmpDir, { recursive: true, force: true }); } catch {}
+    }
     const message = error instanceof Error ? error.message : String(error);
     res.status(500).json({ error: `Regeneration failed: ${message}` });
   }
