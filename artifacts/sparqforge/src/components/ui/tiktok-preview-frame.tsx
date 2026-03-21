@@ -5,9 +5,10 @@ interface TikTokPreviewFrameProps {
   username?: string;
   caption?: string;
   children?: React.ReactNode;
+  overlay?: React.ReactNode;
 }
 
-export function TikTokPreviewFrame({ imageUrl, username = "@sparqgames", caption, children }: TikTokPreviewFrameProps) {
+export function TikTokPreviewFrame({ imageUrl, username = "@sparqgames", caption, children, overlay }: TikTokPreviewFrameProps) {
   return (
     <div className="relative w-full max-w-[270px] mx-auto aspect-[9/16] rounded-[2rem] border-2 border-border bg-black overflow-hidden shadow-xl">
       {imageUrl ? (
@@ -50,6 +51,8 @@ export function TikTokPreviewFrame({ imageUrl, username = "@sparqgames", caption
           <span className="text-[9px] text-white">Share</span>
         </div>
       </div>
+
+      {overlay}
 
       <div className="absolute bottom-3 left-3 right-14 space-y-1.5">
         <p className="text-white text-xs font-bold">{username}</p>

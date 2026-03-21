@@ -5,6 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { TikTokPreviewFrame } from "@/components/ui/tiktok-preview-frame";
+import { InstagramFeedPreviewFrame } from "@/components/ui/instagram-feed-preview-frame";
+import { InstagramStoryPreviewFrame } from "@/components/ui/instagram-story-preview-frame";
+import { TwitterPreviewFrame } from "@/components/ui/twitter-preview-frame";
+import { LinkedInPreviewFrame } from "@/components/ui/linkedin-preview-frame";
+import { RewriteToolbar } from "@/components/ui/rewrite-toolbar";
+import { HeadlineOverlayEditor } from "@/components/ui/headline-editor";
 import { 
   useGetBrands, 
   useGetTemplates, 
@@ -104,6 +110,15 @@ export default function CampaignStudio() {
   const [audioMergeMode, setAudioMergeMode] = useState<"replace" | "mix">("replace");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
+  const [rewriteToolbar, setRewriteToolbar] = useState<{
+    platform: string;
+    selectedText: string;
+    selectionStart: number;
+    selectionEnd: number;
+    position: { top: number; left: number };
+  } | null>(null);
+  const [loadingPhase, setLoadingPhase] = useState<Record<string, { caption: boolean; image: boolean }>>({});
+
   const [referenceUrl, setReferenceUrl] = useState("");
   const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
   const [referenceAnalysis, setReferenceAnalysis] = useState<Record<string, string> | null>(null);
@@ -113,6 +128,7 @@ export default function CampaignStudio() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const remixLoadedRef = useRef(false);
+  const loadingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
   const createCampaignMutation = useCreateCampaign();
 
@@ -430,6 +446,21 @@ export default function CampaignStudio() {
 
     setIsGenerating(true);
     setGeneratedVariants([]);
+    loadingTimersRef.current.forEach(t => clearTimeout(t));
+    loadingTimersRef.current.clear();
+    setLoadingPhase({});
+    const platforms = Object.keys(PLATFORM_LABELS);
+    const initialPhase: Record<string, { caption: boolean; image: boolean }> = {};
+    platforms.forEach(p => { initialPhase[p] = { caption: false, image: false }; });
+    setLoadingPhase(initialPhase);
+    setGeneratedVariants(platforms.map(p => ({
+      platform: p,
+      aspectRatio: PLATFORM_LABELS[p].ratio,
+      rawImageUrl: null,
+      compositedImageUrl: null,
+      caption: "",
+      headlineText: null,
+    })));
     addLog("Creating campaign...", "pending");
 
     try {
@@ -551,16 +582,55 @@ export default function CampaignStudio() {
         }
         break;
       }
+      case "caption_ready": {
+        const platform = data.platform as string;
+        setLoadingPhase(prev => ({
+          ...prev,
+          [platform]: { ...prev[platform], caption: true },
+        }));
+        setGeneratedVariants(prev => prev.map(v =>
+          v.platform === platform ? {
+            ...v,
+            caption: data.caption as string,
+            headlineText: data.headline as string | null,
+            aspectRatio: data.aspectRatio as string || v.aspectRatio,
+          } : v
+        ));
+        addLog(`${PLATFORM_LABELS[platform]?.name || platform} caption ready`, "done");
+        break;
+      }
+      case "image_ready": {
+        const platform = data.platform as string;
+        setGeneratedVariants(prev => prev.map(v =>
+          v.platform === platform ? {
+            ...v,
+            rawImageUrl: data.rawImageUrl as string | null,
+            compositedImageUrl: data.compositedImageUrl as string | null,
+            aspectRatio: data.aspectRatio as string || v.aspectRatio,
+          } : v
+        ));
+        setLoadingPhase(prev => ({
+          ...prev,
+          [platform]: { ...prev[platform], image: true },
+        }));
+        break;
+      }
       case "variant_ready": {
-        const variant: GeneratedVariant = {
-          platform: data.platform as string,
-          aspectRatio: data.aspectRatio as string,
-          rawImageUrl: data.rawImageUrl as string | null,
-          compositedImageUrl: data.compositedImageUrl as string | null,
-          caption: data.caption as string,
-          headlineText: data.headline as string | null,
-        };
-        setGeneratedVariants(prev => [...prev, variant]);
+        const platform = data.platform as string;
+        setLoadingPhase(prev => ({
+          ...prev,
+          [platform]: { caption: true, image: true },
+        }));
+        setGeneratedVariants(prev => prev.map(v =>
+          v.platform === platform ? {
+            ...v,
+            caption: data.caption as string,
+            headlineText: data.headline as string | null,
+            rawImageUrl: data.rawImageUrl as string | null,
+            compositedImageUrl: data.compositedImageUrl as string | null,
+            aspectRatio: data.aspectRatio as string || v.aspectRatio,
+          } : v
+        ));
         break;
       }
       case "complete": {
@@ -582,6 +652,7 @@ export default function CampaignStudio() {
           })));
         }
         if (cost) setEstimatedCost(cost);
+        setLoadingPhase({});
         addLog("Generation complete!", "done");
         break;
       }
@@ -607,6 +678,69 @@ export default function CampaignStudio() {
       } catch {}
     }
   }, [campaignId]);
+
+  const handleRewrite = useCallback(async (text: string, instruction: string): Promise<string> => {
+    const resp = await fetch(`${API_BASE}/api/rewrite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, instruction }),
+    });
+    if (!resp.ok) throw new Error("Rewrite failed");
+    const data = await resp.json();
+    return data.rewritten;
+  }, []);
+
+  const handleTextSelect = useCallback((platform: string, textarea: HTMLTextAreaElement) => {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const rawSelected = textarea.value.substring(start, end);
+
+    if (!rawSelected.trim() || rawSelected.trim().length < 3) {
+      setRewriteToolbar(null);
+      return;
+    }
+
+    const rect = textarea.getBoundingClientRect();
+    const parentRect = textarea.closest(".relative")?.getBoundingClientRect() || rect;
+    setRewriteToolbar({
+      platform,
+      selectedText: rawSelected.trim(),
+      selectionStart: start,
+      selectionEnd: end,
+      position: {
+        top: rect.top - parentRect.top - 40,
+        left: (rect.width) / 2,
+      },
+    });
+  }, []);
+
+  const handleHeadlineSave = useCallback(async (variantId: string | undefined, platform: string, newHeadline: string) => {
+    if (!variantId || !campaignId) {
+      throw new Error("Cannot save yet");
+    }
+
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/headline`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ headline: newHeadline }),
+      });
+      if (!resp.ok) throw new Error("Failed to save headline");
+      const updated = await resp.json();
+      setGeneratedVariants(prev => prev.map(v =>
+        v.platform === platform ? {
+          ...v,
+          headlineText: newHeadline,
+          compositedImageUrl: updated.compositedImageUrl,
+          imageVersion: (v.imageVersion || 0) + 1,
+        } : v
+      ));
+      toast({ title: "Headline updated", description: "Image re-composited with new text." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to update headline" });
+      throw err;
+    }
+  }, [campaignId, toast]);
 
   const handleDownloadAll = useCallback(() => {
     if (!campaignId) return;
@@ -1180,6 +1314,43 @@ export default function CampaignStudio() {
                 const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, platformIcon: "twitter", ratio: variant.aspectRatio };
                 const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
                 const versionSuffix = variant.imageVersion ? `?v=${variant.imageVersion}` : "";
+                const phase = loadingPhase[variant.platform];
+                const isLoading = phase && (!phase.caption || !phase.image);
+                const hasCaption = phase ? phase.caption : !!variant.caption;
+                const hasImage = phase ? phase.image : !!imageUrl;
+
+                const headlineOverlay = variant.headlineText && hasImage ? (
+                  <HeadlineOverlayEditor
+                    headline={variant.headlineText}
+                    disabled={!variant.id}
+                    onSave={(newHeadline) => handleHeadlineSave(variant.id, variant.platform, newHeadline)}
+                  />
+                ) : undefined;
+
+                const renderPreviewFrame = () => {
+                  const frameImageUrl = hasImage && imageUrl ? `${API_BASE}${imageUrl}${versionSuffix}` : undefined;
+                  const frameCaption = variant.caption;
+
+                  if (variant.platform === "tiktok") {
+                    return <TikTokPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
+                  }
+                  if (variant.platform === "instagram_feed") {
+                    return <InstagramFeedPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
+                  }
+                  if (variant.platform === "instagram_story") {
+                    return <InstagramStoryPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
+                  }
+                  if (variant.platform === "twitter") {
+                    return <TwitterPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
+                  }
+                  if (variant.platform === "linkedin") {
+                    return <LinkedInPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
+                  }
+                  return frameImageUrl ? (
+                    <img src={frameImageUrl} alt={`${label.name} variant`} className="w-full h-auto object-cover" />
+                  ) : null;
+                };
+
                 return (
                   <div key={variant.platform} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
                     <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
@@ -1187,6 +1358,9 @@ export default function CampaignStudio() {
                         <PlatformIcon platform={label.platformIcon} />
                         <span className="font-semibold text-sm">{label.name}</span>
                         <span className="text-xs text-muted-foreground ml-2 px-1.5 py-0.5 bg-muted rounded">{label.ratio}</span>
+                        {isLoading && (
+                          <Loader2 size={12} className="animate-spin text-primary ml-1" />
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         {variant.id && (
@@ -1202,54 +1376,74 @@ export default function CampaignStudio() {
                     
                     <div className="p-4 flex-1 flex flex-col gap-4">
                       <div className="flex gap-4">
-                        {variant.platform === "tiktok" ? (
-                          <div className="w-[160px] shrink-0 relative">
-                            {regeneratingVariant === variant.platform && (
-                              <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center rounded-md">
-                                <Loader2 size={24} className="animate-spin text-primary" />
-                                <span className="text-[10px] text-primary mt-1">Regenerating...</span>
-                              </div>
-                            )}
-                            <TikTokPreviewFrame
-                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}${versionSuffix}` : undefined}
-                              caption={variant.caption}
-                            />
-                          </div>
-                        ) : (
-                        <div className="w-[160px] shrink-0 rounded-md border border-border/50 overflow-hidden bg-muted/30 relative">
+                        <div className="w-[160px] shrink-0 relative">
                           {regeneratingVariant === variant.platform && (
-                            <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center">
+                            <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center rounded-md">
                               <Loader2 size={24} className="animate-spin text-primary" />
                               <span className="text-[10px] text-primary mt-1">Regenerating...</span>
                             </div>
                           )}
-                          {imageUrl ? (
-                            <img 
-                              src={`${API_BASE}${imageUrl}${versionSuffix}`} 
-                              alt={`${label.name} variant`} 
-                              className="w-full h-auto object-cover"
-                            />
+                          {!hasImage && !imageUrl ? (
+                            <div className={`w-full rounded-md border border-border/50 overflow-hidden bg-muted/30 relative ${
+                              variant.platform === "instagram_feed" ? "aspect-square" :
+                              variant.platform === "instagram_story" || variant.platform === "tiktok" ? "aspect-[9/16]" :
+                              "aspect-video"
+                            }`}>
+                              <div className="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden">
+                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                              </div>
+                            </div>
                           ) : (
-                            <div className="w-full aspect-square flex flex-col items-center justify-center text-muted-foreground">
-                              <Loader2 size={24} className="mb-2 animate-spin opacity-30" />
-                              <span className="text-[10px] uppercase tracking-wider opacity-50">Generating</span>
+                            <div className={`${hasImage ? "animate-crossfade-in" : ""}`}>
+                              {renderPreviewFrame()}
                             </div>
                           )}
                         </div>
-                        )}
                         
-                        <div className="flex-1 flex flex-col gap-2">
-                          {variant.headlineText && (
-                            <div className="bg-primary/5 border border-primary/20 rounded-md px-3 py-2">
-                              <span className="text-[10px] text-primary uppercase tracking-wider font-semibold">Headline</span>
-                              <p className="text-sm font-bold text-foreground mt-0.5">{variant.headlineText}</p>
+                        <div className="flex-1 flex flex-col gap-2 relative">
+                          {!hasCaption && isLoading ? (
+                            <div className="bg-muted/20 border border-border/30 rounded-md px-3 py-2">
+                              <div className="w-16 h-2 bg-muted/50 rounded animate-pulse mb-1.5" />
+                              <div className="w-24 h-3 bg-muted/40 rounded animate-pulse" />
+                            </div>
+                          ) : null}
+                          {hasCaption && variant.caption ? (
+                            <>
+                              <Textarea 
+                                className="flex-1 min-h-[80px] resize-none text-sm bg-background border-border p-3 animate-in fade-in duration-500"
+                                value={variant.caption}
+                                onChange={(e) => handleCaptionChange(variant.id, variant.platform, e.target.value)}
+                                onMouseUp={(e) => handleTextSelect(variant.platform, e.currentTarget)}
+                                onKeyUp={(e) => handleTextSelect(variant.platform, e.currentTarget)}
+                              />
+                              {rewriteToolbar && rewriteToolbar.platform === variant.platform && (
+                                <RewriteToolbar
+                                  selectedText={rewriteToolbar.selectedText}
+                                  position={rewriteToolbar.position}
+                                  onRewrite={(instruction) => handleRewrite(rewriteToolbar.selectedText, instruction)}
+                                  onApply={(newText) => {
+                                    const before = variant.caption.substring(0, rewriteToolbar.selectionStart);
+                                    const after = variant.caption.substring(rewriteToolbar.selectionEnd);
+                                    const updated = before + newText + after;
+                                    handleCaptionChange(variant.id, variant.platform, updated);
+                                  }}
+                                  onClose={() => setRewriteToolbar(null)}
+                                />
+                              )}
+                            </>
+                          ) : (
+                            <div className="flex-1 min-h-[80px] bg-background border border-border/30 rounded-md p-3 space-y-2">
+                              <div className="h-2.5 bg-muted/50 rounded w-full animate-pulse relative overflow-hidden">
+                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite_0.1s] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                              </div>
+                              <div className="h-2.5 bg-muted/50 rounded w-4/5 animate-pulse relative overflow-hidden">
+                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite_0.2s] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                              </div>
+                              <div className="h-2.5 bg-muted/50 rounded w-3/5 animate-pulse relative overflow-hidden">
+                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite_0.3s] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                              </div>
                             </div>
                           )}
-                          <Textarea 
-                            className="flex-1 min-h-[80px] resize-none text-sm bg-background border-border p-3"
-                            value={variant.caption}
-                            onChange={(e) => handleCaptionChange(variant.id, variant.platform, e.target.value)}
-                          />
                           <div className="flex justify-between items-center px-1">
                             <span className="text-[10px] text-muted-foreground">{variant.caption.length} chars</span>
                             <div className="flex gap-1">
@@ -1376,17 +1570,8 @@ export default function CampaignStudio() {
                   <div className="p-4 flex-1 flex flex-col gap-4">
                     <div className="flex gap-4">
                       <div className="w-[120px] shrink-0 bg-muted/30 rounded-md border border-border/50 flex flex-col items-center justify-center text-muted-foreground aspect-square">
-                        {isGenerating ? (
-                          <>
-                            <Loader2 size={24} className="mb-2 animate-spin opacity-30" />
-                            <span className="text-[10px] uppercase tracking-wider opacity-50">Generating</span>
-                          </>
-                        ) : (
-                          <>
-                            <ImageIcon size={24} className="mb-2 opacity-20" />
-                            <span className="text-[10px] font-medium uppercase tracking-wider opacity-50">Placeholder</span>
-                          </>
-                        )}
+                        <ImageIcon size={24} className="mb-2 opacity-20" />
+                        <span className="text-[10px] font-medium uppercase tracking-wider opacity-50">Placeholder</span>
                       </div>
                       
                       <div className="flex-1 flex flex-col gap-2">

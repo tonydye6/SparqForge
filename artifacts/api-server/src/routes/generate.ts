@@ -98,9 +98,22 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       sendEvent("image_progress", { platform, status, error });
     });
 
-    const [captions, images] = await Promise.all([captionsPromise, imagesPromise]);
-
+    const captions = await captionsPromise;
     sendEvent("progress", { step: "captions", message: "Captions generated", done: true });
+
+    for (const platform of platforms) {
+      const platformKey = platform as keyof typeof captions;
+      const captionData = captions[platformKey] || { caption: "", headline: "" };
+      const config = PLATFORM_CONFIGS[platform];
+      sendEvent("caption_ready", {
+        platform,
+        aspectRatio: config ? `${config.width}:${config.height}` : "1:1",
+        caption: captionData.caption,
+        headline: captionData.headline,
+      });
+    }
+
+    const images = await imagesPromise;
     sendEvent("progress", { step: "images", message: `${images.length} images generated`, done: true });
 
     sendEvent("progress", { step: "compositing", message: "Compositing images with overlays..." });
@@ -150,13 +163,11 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         status: "generated",
       });
 
-      sendEvent("variant_ready", {
+      sendEvent("image_ready", {
         platform: img.platform,
         aspectRatio: img.aspectRatio,
         rawImageUrl: `/api/files/generated/${rawFilename}`,
         compositedImageUrl: `/api/files/generated/${compFilename}`,
-        caption: captionData.caption,
-        headline: captionData.headline,
       });
     }
 

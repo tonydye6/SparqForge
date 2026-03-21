@@ -20,7 +20,7 @@ The application features a dark mode only UI with a specific color palette:
 - Accent: `#3B82F6`
 
 The frontend comprises several key pages:
-- **Campaign Studio**: A 3-panel workspace for AI generation, video generation, live variant display, inline caption editing, per-variant refinement, audio controls, and download options.
+- **Campaign Studio**: A 3-panel workspace for AI generation, video generation, live variant display, inline caption editing, per-variant refinement, audio controls, and download options. Features platform-specific preview frames (IG Feed/Story, Twitter/X, LinkedIn, TikTok), inline AI rewrite toolbar for captions, clickable headline overlay editing with automatic re-compositing, and progressive loading with skeleton shimmers and crossfade animations.
 - **Asset Library**: Manages visual assets, briefs, context, and hashtag libraries.
 - **Content Calendar**: Month/week views with drag-to-reschedule functionality, publish status badges, and publish/retry buttons.
 - **Review Queue**: A Kanban board with per-variant approve/reject (mandatory rejection comments feed refinement_logs). Supports bulk and individual variant review actions.
