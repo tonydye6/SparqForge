@@ -64,67 +64,6 @@ router.get("/assets", async (req, res): Promise<void> => {
   res.json(GetAssetsResponse.parse(results));
 });
 
-router.get("/assets/recommended", async (req, res): Promise<void> => {
-  const brandId = req.query.brandId as string;
-  const templateId = req.query.templateId as string | undefined;
-  const platform = req.query.platform as string | undefined;
-
-  if (!brandId) {
-    res.status(400).json({ error: "brandId is required" });
-    return;
-  }
-
-  const conditions = [
-    eq(assetsTable.brandId, brandId),
-    eq(assetsTable.generationAllowed, true),
-  ];
-
-  const allEligible = await db.select().from(assetsTable).where(and(...conditions));
-
-  const isTemplateCompatible = (asset: typeof allEligible[0]) => {
-    const approved = asset.approvedTemplates || [];
-    return approved.length === 0 || !templateId || approved.includes(templateId);
-  };
-
-  const isChannelCompatible = (asset: typeof allEligible[0]) => {
-    const approved = asset.approvedChannels || [];
-    return approved.length === 0 || !platform || approved.includes(platform);
-  };
-
-  const eligible = allEligible.filter(a =>
-    isTemplateCompatible(a) && isChannelCompatible(a) &&
-    (a.status === "approved" || a.status === "uploaded")
-  );
-
-  const subjectRefs = eligible
-    .filter(a => a.assetClass === "subject_reference")
-    .sort((a, b) => {
-      const scoreA = (a.subjectIdentityScore || 3) * 2 + (a.freshnessScore || 3) + (a.status === "approved" ? 3 : 0);
-      const scoreB = (b.subjectIdentityScore || 3) * 2 + (b.freshnessScore || 3) + (b.status === "approved" ? 3 : 0);
-      return scoreB - scoreA;
-    })
-    .slice(0, 5);
-
-  const styleRefs = eligible
-    .filter(a => a.assetClass === "style_reference")
-    .sort((a, b) => {
-      const scoreA = (a.styleStrengthScore || 3) * 2 + (a.freshnessScore || 3) + (a.status === "approved" ? 3 : 0);
-      const scoreB = (b.styleStrengthScore || 3) * 2 + (b.freshnessScore || 3) + (b.status === "approved" ? 3 : 0);
-      return scoreB - scoreA;
-    })
-    .slice(0, 3);
-
-  const contextCards = eligible
-    .filter(a => a.assetClass === "context")
-    .slice(0, 5);
-
-  res.json({
-    subjectReferences: subjectRefs,
-    styleReferences: styleRefs,
-    contextCards,
-  });
-});
-
 router.post("/assets", async (req, res): Promise<void> => {
   const parsed = CreateAssetBody.safeParse(req.body);
   if (!parsed.success) {
