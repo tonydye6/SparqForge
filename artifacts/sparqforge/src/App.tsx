@@ -13,6 +13,7 @@ import Settings from "@/pages/Settings";
 import CostDashboard from "@/pages/CostDashboard";
 import ContentPlan from "@/pages/ContentPlan";
 import Login from "@/pages/Login";
+import SetupWizard from "@/pages/SetupWizard";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient({
@@ -55,6 +56,9 @@ function Router() {
     <AuthGate>
       <Switch>
         <Route path="/login" component={Login} />
+        <Route path="/setup">
+          <SetupWizard />
+        </Route>
         <Route path="/">
           <AppLayout><CampaignStudio /></AppLayout>
         </Route>
