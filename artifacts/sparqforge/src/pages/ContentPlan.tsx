@@ -109,10 +109,10 @@ export default function ContentPlan() {
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/content-plan`);
+      const res = await fetch(`${API_BASE}/api/content-plan?limit=200`);
       if (res.ok) {
         const data = await res.json();
-        setItems(data);
+        setItems(Array.isArray(data) ? data : data.items || []);
       }
     } catch {
     } finally {

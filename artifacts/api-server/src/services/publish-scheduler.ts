@@ -74,14 +74,12 @@ async function publishEntry(entryId: string): Promise<void> {
       return null;
     }
 
-    const newRetryCount = (entry.retryCount || 0) + 1;
-
     if (!entry.socialAccountId) {
       await tx.update(calendarEntriesTable)
         .set({
           publishStatus: "failed",
           publishError: "No social account connected for this entry",
-          retryCount: newRetryCount,
+          retryCount: (entry.retryCount || 0) + 1,
           updatedAt: new Date(),
         })
         .where(eq(calendarEntriesTable.id, entryId));
@@ -96,7 +94,7 @@ async function publishEntry(entryId: string): Promise<void> {
         .set({
           publishStatus: "failed",
           publishError: "Social account not found",
-          retryCount: newRetryCount,
+          retryCount: (entry.retryCount || 0) + 1,
           updatedAt: new Date(),
         })
         .where(eq(calendarEntriesTable.id, entryId));
@@ -115,7 +113,7 @@ async function publishEntry(entryId: string): Promise<void> {
         .set({
           publishStatus: "failed",
           publishError: `Platform mismatch: entry is ${entry.platform} but account is ${socialAccount.platform}`,
-          retryCount: newRetryCount,
+          retryCount: (entry.retryCount || 0) + 1,
           updatedAt: new Date(),
         })
         .where(eq(calendarEntriesTable.id, entryId));
@@ -130,19 +128,20 @@ async function publishEntry(entryId: string): Promise<void> {
         .set({
           publishStatus: "failed",
           publishError: "Campaign variant not found",
-          retryCount: newRetryCount,
+          retryCount: (entry.retryCount || 0) + 1,
           updatedAt: new Date(),
         })
         .where(eq(calendarEntriesTable.id, entryId));
       return null;
     }
 
-    return { entry, socialAccount, variant, newRetryCount };
+    return { entry, socialAccount, variant };
   });
 
   if (!claimed) return;
 
-  const { entry, socialAccount, variant, newRetryCount } = claimed;
+  const { entry, socialAccount, variant } = claimed;
+  const newRetryCount = (entry.retryCount || 0) + 1;
   const caption = variant.caption || "";
   const imagePath = getImageFilePath(variant.compositedImageUrl);
   const publicImageUrl = getPublicImageUrl(variant.compositedImageUrl);

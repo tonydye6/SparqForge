@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, SQL } from "drizzle-orm";
+import { eq, and, or, sql, SQL } from "drizzle-orm";
 import { db, socialContentPlanItemsTable, brandsTable, templatesTable, campaignsTable, type PlanItem } from "@workspace/db";
 import multer from "multer";
 import { parse as csvParseSync } from "csv-parse/sync";
@@ -138,12 +138,18 @@ router.get("/content-plan", async (req, res): Promise<void> => {
   if (plannedWeek) conditions.push(eq(socialContentPlanItemsTable.plannedWeek, plannedWeek));
   if (brandLayer) conditions.push(eq(socialContentPlanItemsTable.brandLayer, brandLayer));
 
-  let query = db.select().from(socialContentPlanItemsTable);
-  const results = conditions.length > 0
-    ? await query.where(and(...conditions)).orderBy(socialContentPlanItemsTable.createdAt).limit(limit).offset(offset)
-    : await query.orderBy(socialContentPlanItemsTable.createdAt).limit(limit).offset(offset);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  res.json(results);
+  const [items, [{ total }]] = await Promise.all([
+    whereClause
+      ? db.select().from(socialContentPlanItemsTable).where(whereClause).orderBy(socialContentPlanItemsTable.createdAt).limit(limit).offset(offset)
+      : db.select().from(socialContentPlanItemsTable).orderBy(socialContentPlanItemsTable.createdAt).limit(limit).offset(offset),
+    whereClause
+      ? db.select({ total: sql<number>`count(*)::int` }).from(socialContentPlanItemsTable).where(whereClause)
+      : db.select({ total: sql<number>`count(*)::int` }).from(socialContentPlanItemsTable),
+  ]);
+
+  res.json({ items, total, limit, offset });
 });
 
 router.get("/content-plan/:id", async (req, res): Promise<void> => {
