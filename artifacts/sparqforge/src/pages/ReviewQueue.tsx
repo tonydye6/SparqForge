@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { MoreHorizontal, MessageSquare, Clock, Eye, CheckCircle, Send, X, ChevronRight, ThumbsUp, ThumbsDown, Image as ImageIcon, CalendarIcon, RefreshCw, Check, XCircle, ClipboardCheck } from "lucide-react";
+import { MoreHorizontal, MessageSquare, Clock, Eye, CheckCircle, Send, X, ChevronRight, ThumbsUp, ThumbsDown, Image as ImageIcon, CalendarIcon, RefreshCw, Check, XCircle, ClipboardCheck, LayoutGrid, Columns } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PlatformPreviewWrapper } from "@/components/review/PlatformPreviewWrapper";
 import { RejectReasonDialog } from "@/components/review/RejectReasonDialog";
 import { BulkActionBar } from "@/components/review/BulkActionBar";
+import { VariantComparisonView } from "@/components/review/VariantComparisonView";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useLocation } from "wouter";
@@ -89,6 +90,14 @@ export default function ReviewQueue() {
 
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleCampaign, setScheduleCampaign] = useState<{ id: string; name: string } | null>(null);
+
+  const [viewMode, setViewMode] = useState<"grid" | "compare">(() =>
+    (localStorage.getItem("reviewViewMode") as "grid" | "compare") || "grid"
+  );
+
+  useEffect(() => {
+    localStorage.setItem("reviewViewMode", viewMode);
+  }, [viewMode]);
 
   const filteredCampaigns = useMemo(() => {
     if (!campaigns?.data) return [];
@@ -518,9 +527,29 @@ export default function ReviewQueue() {
                   </span>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setExpandedCampaignId(null)}>
-                <X size={16} />
-              </Button>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${viewMode === "grid" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                  onClick={() => setViewMode("grid")}
+                  title="Grid view"
+                >
+                  <LayoutGrid size={16} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${viewMode === "compare" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                  onClick={() => setViewMode("compare")}
+                  title="Comparison view"
+                >
+                  <Columns size={16} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedCampaignId(null)}>
+                  <X size={16} />
+                </Button>
+              </div>
             </div>
 
             {expandedCampaign.briefText && (
@@ -603,136 +632,146 @@ export default function ReviewQueue() {
                     </div>
                   );
                 })()}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {variants.map(variant => {
-                    const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
-                    const isReviewable = expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review";
-                    const isSelected = selectedVariantIds.has(variant.id);
+                {viewMode === "compare" ? (
+                  <VariantComparisonView
+                    variants={variants}
+                    selectedIds={selectedVariantIds}
+                    onToggleSelect={toggleVariantSelection}
+                    onApprove={handleVariantApprove}
+                    onReject={openRejectDialogSingle}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                    {variants.map(variant => {
+                      const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
+                      const isReviewable = expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review";
+                      const isSelected = selectedVariantIds.has(variant.id);
 
-                    // Parse reject comment for display
-                    const parsedComment = variant.status === "rejected" && variant.reviewerComment
-                      ? parseRejectComment(variant.reviewerComment)
-                      : null;
+                      // Parse reject comment for display
+                      const parsedComment = variant.status === "rejected" && variant.reviewerComment
+                        ? parseRejectComment(variant.reviewerComment)
+                        : null;
 
-                    return (
-                      <div key={variant.id} className={`bg-background border rounded-lg overflow-hidden transition-colors ${
-                        isSelected ? "border-primary ring-1 ring-primary/30" :
-                        variant.status === "approved" ? "border-green-500/40" :
-                        variant.status === "rejected" ? "border-red-500/40" :
-                        "border-border"
-                      }`}>
-                        <div className="p-2 sm:p-2.5 border-b border-border flex items-center justify-between bg-card/50">
-                          <div className="flex items-center gap-2">
-                            {isReviewable && (
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => toggleVariantSelection(variant.id)}
-                                className="shrink-0"
-                              />
-                            )}
-                            <PlatformIcon platform={label.icon} />
-                            <span className="font-semibold text-xs">{label.name}</span>
-                            <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded">{variant.aspectRatio}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {variant.status === "approved" && (
-                              <Badge className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">
-                                <Check size={10} className="mr-0.5" /> Approved
-                              </Badge>
-                            )}
-                            {variant.status === "rejected" && (
-                              <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px]">
-                                <XCircle size={10} className="mr-0.5" /> Rejected
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex justify-center">
-                          <PlatformPreviewWrapper
-                            platform={variant.platform}
-                            imageUrl={variant.compositedImageUrl || variant.rawImageUrl}
-                            caption={variant.caption}
-                            headlineText={variant.headlineText}
-                          />
-                        </div>
-
-                        <div className="p-2 sm:p-3 space-y-2">
-                          {variant.headlineText && (
-                            <div className="bg-primary/5 border border-primary/20 rounded px-2 py-1.5">
-                              <span className="text-[10px] text-primary uppercase tracking-wider font-semibold">Headline</span>
-                              <p className="text-xs font-bold text-foreground mt-0.5">{variant.headlineText}</p>
+                      return (
+                        <div key={variant.id} className={`bg-background border rounded-lg overflow-hidden transition-colors ${
+                          isSelected ? "border-primary ring-1 ring-primary/30" :
+                          variant.status === "approved" ? "border-green-500/40" :
+                          variant.status === "rejected" ? "border-red-500/40" :
+                          "border-border"
+                        }`}>
+                          <div className="p-2 sm:p-2.5 border-b border-border flex items-center justify-between bg-card/50">
+                            <div className="flex items-center gap-2">
+                              {isReviewable && (
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleVariantSelection(variant.id)}
+                                  className="shrink-0"
+                                />
+                              )}
+                              <PlatformIcon platform={label.icon} />
+                              <span className="font-semibold text-xs">{label.name}</span>
+                              <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded">{variant.aspectRatio}</span>
                             </div>
-                          )}
-                          <p className="text-xs text-muted-foreground line-clamp-4">{variant.caption}</p>
-
-                          {/* Show parsed reject reason for rejected variants */}
-                          {variant.status === "rejected" && parsedComment && (
-                            <div className="bg-red-500/5 border border-red-500/20 rounded px-2 py-1.5 space-y-1">
-                              {parsedComment.category && (
-                                <Badge
-                                  variant="outline"
-                                  className={`text-[10px] ${CATEGORY_COLORS[parsedComment.category] || CATEGORY_COLORS.other}`}
-                                >
-                                  {getCategoryLabel(parsedComment.category)}
+                            <div className="flex items-center gap-1">
+                              {variant.status === "approved" && (
+                                <Badge className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">
+                                  <Check size={10} className="mr-0.5" /> Approved
                                 </Badge>
                               )}
-                              <p className="text-xs text-muted-foreground">{parsedComment.comment}</p>
+                              {variant.status === "rejected" && (
+                                <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px]">
+                                  <XCircle size={10} className="mr-0.5" /> Rejected
+                                </Badge>
+                              )}
                             </div>
-                          )}
+                          </div>
 
-                          {isReviewable && variant.status !== "approved" && variant.status !== "rejected" && (
-                            <div className="flex gap-2 pt-2 border-t border-border">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-400"
-                                onClick={() => openRejectDialogSingle(variant.id)}
-                              >
-                                <ThumbsDown size={12} className="mr-1" /> Reject
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => handleVariantApprove(variant.id)}
-                              >
-                                <ThumbsUp size={12} className="mr-1" /> Approve
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex justify-center">
+                            <PlatformPreviewWrapper
+                              platform={variant.platform}
+                              imageUrl={variant.compositedImageUrl || variant.rawImageUrl}
+                              caption={variant.caption}
+                              headlineText={variant.headlineText}
+                            />
+                          </div>
 
-                          {(variant.status === "approved" || variant.status === "rejected") && isReviewable && (
-                            <div className="pt-2 border-t border-border">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 text-[10px] text-muted-foreground w-full"
-                                onClick={async () => {
-                                  try {
-                                    const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variant.id}`, {
-                                      method: "PUT",
-                                      headers: { "Content-Type": "application/json" },
-                                      credentials: "include",
-                                      body: JSON.stringify({ status: "generated" }),
-                                    });
-                                    if (resp.ok) {
-                                      setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, status: "generated", reviewerComment: null } : v));
-                                      toast({ title: "Variant reset to pending" });
+                          <div className="p-2 sm:p-3 space-y-2">
+                            {variant.headlineText && (
+                              <div className="bg-primary/5 border border-primary/20 rounded px-2 py-1.5">
+                                <span className="text-[10px] text-primary uppercase tracking-wider font-semibold">Headline</span>
+                                <p className="text-xs font-bold text-foreground mt-0.5">{variant.headlineText}</p>
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground line-clamp-4">{variant.caption}</p>
+
+                            {/* Show parsed reject reason for rejected variants */}
+                            {variant.status === "rejected" && parsedComment && (
+                              <div className="bg-red-500/5 border border-red-500/20 rounded px-2 py-1.5 space-y-1">
+                                {parsedComment.category && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] ${CATEGORY_COLORS[parsedComment.category] || CATEGORY_COLORS.other}`}
+                                  >
+                                    {getCategoryLabel(parsedComment.category)}
+                                  </Badge>
+                                )}
+                                <p className="text-xs text-muted-foreground">{parsedComment.comment}</p>
+                              </div>
+                            )}
+
+                            {isReviewable && variant.status !== "approved" && variant.status !== "rejected" && (
+                              <div className="flex gap-2 pt-2 border-t border-border">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-400"
+                                  onClick={() => openRejectDialogSingle(variant.id)}
+                                >
+                                  <ThumbsDown size={12} className="mr-1" /> Reject
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => handleVariantApprove(variant.id)}
+                                >
+                                  <ThumbsUp size={12} className="mr-1" /> Approve
+                                </Button>
+                              </div>
+                            )}
+
+                            {(variant.status === "approved" || variant.status === "rejected") && isReviewable && (
+                              <div className="pt-2 border-t border-border">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-[10px] text-muted-foreground w-full"
+                                  onClick={async () => {
+                                    try {
+                                      const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variant.id}`, {
+                                        method: "PUT",
+                                        headers: { "Content-Type": "application/json" },
+                                        credentials: "include",
+                                        body: JSON.stringify({ status: "generated" }),
+                                      });
+                                      if (resp.ok) {
+                                        setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, status: "generated", reviewerComment: null } : v));
+                                        toast({ title: "Variant reset to pending" });
+                                      }
+                                    } catch {
+                                      toast({ variant: "destructive", title: "Failed to reset variant" });
                                     }
-                                  } catch {
-                                    toast({ variant: "destructive", title: "Failed to reset variant" });
-                                  }
-                                }}
-                              >
-                                Reset to Pending
-                              </Button>
-                            </div>
-                          )}
+                                  }}
+                                >
+                                  Reset to Pending
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {(expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review") && (
                   <BulkActionBar
                     selectedCount={selectedVariantIds.size}
