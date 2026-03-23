@@ -55,6 +55,10 @@ function resolveGoogleCallbackUrl(): string {
 
 const GOOGLE_CALLBACK_URL = resolveGoogleCallbackUrl();
 
+if (!GOOGLE_CALLBACK_URL.startsWith("http")) {
+  logger.warn("Google OAuth callback URL is relative — set APP_URL or GOOGLE_CALLBACK_URL for reliable behavior behind proxies");
+}
+
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(
     new GoogleStrategy(

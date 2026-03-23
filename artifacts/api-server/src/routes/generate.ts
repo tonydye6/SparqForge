@@ -522,7 +522,7 @@ router.put("/campaigns/:id/variants/:variantId/caption", async (req: Request, re
         aspectRatio: variant.aspectRatio,
         originalValue: variant.originalCaption,
         newValue: caption,
-        userId: "system",
+        userId: (req as any).user?.id || "system",
       });
     }
   }
@@ -611,7 +611,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
       aspectRatio: variant.aspectRatio,
       originalValue: variant.originalHeadline,
       newValue: headline,
-      userId: "system",
+      userId: (req as any).user?.id || "system",
     });
   }
 
@@ -717,55 +717,55 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     const rawFinalPath = path.join(UPLOADS_DIR, rawFilename);
     const compFinalPath = path.join(UPLOADS_DIR, compFilename);
 
-    const [updated] = await db.transaction(async (tx) => {
-      const [result] = await tx.update(campaignVariantsTable)
-        .set({
-          rawImageUrl: `/api/files/generated/${rawFilename}`,
-          compositedImageUrl: `/api/files/generated/${compFilename}`,
-          compositingFailed: compositingFailed ? `Compositing failed during regeneration for ${variant.platform}. Using raw image as fallback.` : null,
-          updatedAt: new Date(),
-        })
-        .where(eq(campaignVariantsTable.id, variantId))
-        .returning();
-
-      const cost = estimateImagenCost(1);
-      await tx.insert(costLogsTable).values({
-        campaignId,
-        service: "gemini",
-        operation: "single_variant_regeneration",
-        model: AI_MODELS.GEMINI_FLASH_IMAGE,
-        costUsd: cost,
-      });
-
-      if (campaign.templateId) {
-        await tx.insert(refinementLogsTable).values({
-          campaignId,
-          templateId: campaign.templateId,
-          editType: "image_refinement",
-          platform: variant.platform,
-          aspectRatio: variant.aspectRatio,
-          refinementPrompt: instruction || null,
-          userId: "system",
-        });
-      }
-
-      return [result];
-    });
-
     try {
       fs.copyFileSync(rawTmpPath, rawFinalPath);
       fs.copyFileSync(compTmpPath, compFinalPath);
     } catch (copyErr) {
-      console.error("File copy failed after DB commit, rolling back variant URLs:", copyErr instanceof Error ? copyErr.message : copyErr);
-      await db.update(campaignVariantsTable)
-        .set({
-          rawImageUrl: variant.rawImageUrl,
-          compositedImageUrl: variant.compositedImageUrl,
-          compositingFailed: "File copy failed after generation. Please regenerate.",
-          updatedAt: new Date(),
-        })
-        .where(eq(campaignVariantsTable.id, variantId));
+      try { fs.unlinkSync(rawFinalPath); } catch {}
+      try { fs.unlinkSync(compFinalPath); } catch {}
       throw new Error("Failed to save generated files. Please try again.");
+    }
+
+    let updated;
+    try {
+      [updated] = await db.transaction(async (tx) => {
+        const [result] = await tx.update(campaignVariantsTable)
+          .set({
+            rawImageUrl: `/api/files/generated/${rawFilename}`,
+            compositedImageUrl: `/api/files/generated/${compFilename}`,
+            compositingFailed: compositingFailed ? `Compositing failed during regeneration for ${variant.platform}. Using raw image as fallback.` : null,
+            updatedAt: new Date(),
+          })
+          .where(eq(campaignVariantsTable.id, variantId))
+          .returning();
+
+        const cost = estimateImagenCost(1);
+        await tx.insert(costLogsTable).values({
+          campaignId,
+          service: "gemini",
+          operation: "single_variant_regeneration",
+          model: AI_MODELS.GEMINI_FLASH_IMAGE,
+          costUsd: cost,
+        });
+
+        if (campaign.templateId) {
+          await tx.insert(refinementLogsTable).values({
+            campaignId,
+            templateId: campaign.templateId,
+            editType: "image_refinement",
+            platform: variant.platform,
+            aspectRatio: variant.aspectRatio,
+            refinementPrompt: instruction || null,
+            userId: (req as any).user?.id || "system",
+          });
+        }
+
+        return [result];
+      });
+    } catch (dbErr) {
+      try { fs.unlinkSync(rawFinalPath); } catch {}
+      try { fs.unlinkSync(compFinalPath); } catch {}
+      throw dbErr;
     }
     fs.rmSync(regenTmpDir, { recursive: true, force: true });
     regenTmpDir = null;

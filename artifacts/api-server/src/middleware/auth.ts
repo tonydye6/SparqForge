@@ -42,12 +42,21 @@ export function isDevBypass(): boolean {
   return true;
 }
 
-if (process.env.DEV_AUTH_BYPASS === "true") {
-  if (process.env.NODE_ENV === "production") {
+if (isDevBypass()) {
+  logger.warn("⚠️  STARTUP WARNING: DEV_AUTH_BYPASS=true — authentication is bypassed. Do NOT deploy with this setting.");
+} else {
+  if (process.env.DEV_AUTH_BYPASS === "true") {
     logger.error("⚠️  STARTUP WARNING: DEV_AUTH_BYPASS=true detected in production! Auth bypass is DISABLED for safety.");
-  } else {
-    logger.warn("⚠️  STARTUP WARNING: DEV_AUTH_BYPASS=true — authentication is bypassed. Do NOT deploy with this setting.");
   }
+  db.delete(usersTable)
+    .where(eq(usersTable.id, DEV_USER.id))
+    .returning()
+    .then((rows) => {
+      if (rows.length > 0) {
+        logger.info("Cleaned up dev bypass user from database");
+      }
+    })
+    .catch(() => {});
 }
 
 export function isGoogleConfigured(): boolean {

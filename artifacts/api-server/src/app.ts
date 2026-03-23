@@ -75,6 +75,13 @@ app.use(passport.session());
 app.use(csrfProtection);
 app.use(devBypassMiddleware);
 
+app.use((req, _res, next) => {
+  if (req.path.startsWith("/api/v1/") || req.path === "/api/v1") {
+    req.url = req.url.replace("/api/v1", "/api");
+  }
+  next();
+});
+
 app.use("/api", healthRouter);
 app.use("/api", authRouter);
 

@@ -1,3 +1,46 @@
+function findJsonBlock(text: string, openChar: string, closeChar: string): string | null {
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escape) {
+      escape = false;
+      continue;
+    }
+
+    if (inString) {
+      if (ch === "\\") {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"' && depth > 0) {
+      inString = true;
+      continue;
+    }
+
+    if (ch === openChar) {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === closeChar) {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && start >= 0) {
+          return text.slice(start, i + 1);
+        }
+      }
+    }
+  }
+  return null;
+}
+
 export function extractJSON<T = unknown>(rawText: string): T {
   const cleaned = rawText
     .replace(/```json\s*/g, "")
@@ -9,18 +52,18 @@ export function extractJSON<T = unknown>(rawText: string): T {
   } catch {
   }
 
-  const objectMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (objectMatch) {
+  const objectBlock = findJsonBlock(cleaned, "{", "}");
+  if (objectBlock) {
     try {
-      return JSON.parse(objectMatch[0]) as T;
+      return JSON.parse(objectBlock) as T;
     } catch {
     }
   }
 
-  const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
-  if (arrayMatch) {
+  const arrayBlock = findJsonBlock(cleaned, "[", "]");
+  if (arrayBlock) {
     try {
-      return JSON.parse(arrayMatch[0]) as T;
+      return JSON.parse(arrayBlock) as T;
     } catch {
     }
   }

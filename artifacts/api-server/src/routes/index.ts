@@ -37,7 +37,7 @@ router.use(settingsRouter);
 router.use(rewriteRouter);
 router.use(contentPlanRouter);
 
-router.all("/*", (_req, res) => {
+router.all("/{*path}", (_req, res) => {
   res.status(404).json({ error: "Endpoint not found" });
 });
 

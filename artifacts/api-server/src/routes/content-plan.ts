@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, SQL } from "drizzle-orm";
+import { eq, and, or, SQL } from "drizzle-orm";
 import { db, socialContentPlanItemsTable, brandsTable, templatesTable, campaignsTable, type PlanItem } from "@workspace/db";
 import multer from "multer";
 import { parse as csvParseSync } from "csv-parse/sync";
@@ -256,33 +256,35 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
 
   let brandId: string | null = null;
   if (planItem.brandLayer) {
-    const brands = await db.select().from(brandsTable);
     const layerKey = planItem.brandLayer.toLowerCase();
-    const match = brands.find(b => {
-      const bName = b.name.toLowerCase();
-      const bSlug = b.slug.toLowerCase();
-      return bName === layerKey || bSlug === layerKey;
-    });
-    if (match) brandId = match.id;
-  }
-
-  if (!brandId) {
+    const [match] = await db.select().from(brandsTable)
+      .where(or(
+        eq(brandsTable.name, planItem.brandLayer),
+        eq(brandsTable.slug, layerKey),
+      ))
+      .limit(1);
+    if (match) {
+      brandId = match.id;
+    } else {
+      res.status(400).json({ error: `Brand "${planItem.brandLayer}" not found. Please check the brand name and try again.` });
+      return;
+    }
+  } else {
     const [firstBrand] = await db.select().from(brandsTable).limit(1);
-    if (firstBrand) brandId = firstBrand.id;
-  }
-
-  if (!brandId) {
-    res.status(400).json({ error: "No brand found. Please create a brand first." });
-    return;
+    if (firstBrand) {
+      brandId = firstBrand.id;
+    } else {
+      res.status(400).json({ error: "No brand found. Please create a brand first." });
+      return;
+    }
   }
 
   let templateId: string | null = null;
   if (planItem.templateName) {
-    const templates = await db.select().from(templatesTable);
-    const match = templates.find(t =>
-      t.name.toLowerCase() === planItem.templateName!.toLowerCase() ||
-      t.name.toLowerCase().includes(planItem.templateName!.toLowerCase())
-    );
+    const { ilike } = await import("drizzle-orm");
+    const [match] = await db.select().from(templatesTable)
+      .where(ilike(templatesTable.name, planItem.templateName))
+      .limit(1);
     if (match) templateId = match.id;
   }
 
