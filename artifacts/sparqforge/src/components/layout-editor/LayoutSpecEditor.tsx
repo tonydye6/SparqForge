@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Code, ChevronDown } from "lucide-react";
+import { Code, ChevronDown, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -263,15 +263,25 @@ export function LayoutSpecEditor({
     ? ["base", ...targetAspectRatios]
     : null;
 
+  /* ---- Empty state detection ---- */
+  const isEmpty =
+    !spec.headline_zone &&
+    !spec.logo_placement &&
+    !spec.gradient_overlay;
+
+  /* ---- Reset to defaults handler ---- */
+  const handleReset = useCallback(() => {
+    emitChange({});
+  }, [emitChange]);
+
   /* ---------------------------------------------------------------- */
-  /*  Render                                                           */
+  /*  Render — Empty State                                             */
   /* ---------------------------------------------------------------- */
 
-  return (
-    <div className="md:flex md:gap-6">
-      {/* ---- Form panel ---- */}
-      <div className="md:w-[55%] space-y-4">
-        {/* Top bar: Preset select + JSON toggle */}
+  if (isEmpty) {
+    return (
+      <div className="space-y-6">
+        {/* Top bar still visible in empty state so user can load preset via dropdown */}
         <div className="flex items-center gap-2">
           <div className="flex-1">
             <Select onValueChange={handlePresetSelect}>
@@ -292,6 +302,84 @@ export function LayoutSpecEditor({
               </SelectContent>
             </Select>
           </div>
+          <Button
+            type="button"
+            variant={jsonMode ? "default" : "outline"}
+            size="sm"
+            onClick={handleJsonToggle}
+            aria-label={jsonMode ? "Exit JSON mode" : "Edit as JSON"}
+            title={jsonMode ? "Exit JSON mode" : "Edit as JSON"}
+          >
+            <Code className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Prominent preset picker */}
+        <div className="text-center py-4">
+          <h3 className="text-lg font-medium mb-6">Start from a preset</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
+            {LAYOUT_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handlePresetSelect(preset.id)}
+                className={cn(
+                  "border border-border rounded-lg px-4 py-3 text-left",
+                  "hover:border-primary hover:bg-primary/5 transition-colors",
+                  "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                )}
+              >
+                <p className="font-semibold text-sm">{preset.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {preset.description}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------------------------------------------------------------- */
+  /*  Render — Full editor                                             */
+  /* ---------------------------------------------------------------- */
+
+  return (
+    <div className="flex flex-col md:flex-row md:gap-6">
+      {/* ---- Form panel (first on mobile, left on desktop) ---- */}
+      <div className="w-full md:w-[55%] space-y-4">
+        {/* Top bar: Preset select + Reset + JSON toggle */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <Select onValueChange={handlePresetSelect}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Load preset..." />
+              </SelectTrigger>
+              <SelectContent>
+                {LAYOUT_PRESETS.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    <div className="flex flex-col">
+                      <span>{preset.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {preset.description}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleReset}
+            aria-label="Reset to defaults"
+            title="Reset to defaults"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
           <Button
             type="button"
             variant={jsonMode ? "default" : "outline"}
@@ -403,8 +491,8 @@ export function LayoutSpecEditor({
         )}
       </div>
 
-      {/* ---- Preview panel ---- */}
-      <div className="mt-6 md:mt-0 md:w-[45%] md:sticky md:top-4 self-start">
+      {/* ---- Preview panel (below form on mobile, right on desktop) ---- */}
+      <div className="mt-6 md:mt-0 w-full md:w-[45%] md:sticky md:top-4 self-start">
         <LayoutPreviewCanvas
           spec={spec}
           aspectRatio={previewRatio}
