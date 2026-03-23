@@ -54,6 +54,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [tabletExpanded, setTabletExpanded] = useState(false);
   const { data: campaigns } = useGetCampaigns();
   const [calendarCount, setCalendarCount] = useState(0);
+  const [pendingAssetCount, setPendingAssetCount] = useState(0);
   const { user, logout } = useAuth();
 
   const reviewCount = campaigns?.data?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
@@ -68,9 +69,16 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetch("/api/assets?status=uploaded&limit=1", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => setPendingAssetCount(data.total || 0))
+      .catch(() => {});
+  }, []);
+
   const NAV_ITEMS = [
     { href: "/", label: "Campaign Studio", icon: LayoutDashboard },
-    { href: "/assets", label: "Asset Library", icon: Library },
+    { href: "/assets", label: "Asset Library", icon: Library, badge: pendingAssetCount || undefined },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: calendarCount || undefined },
     { href: "/content-plan", label: "Content Plan", icon: ClipboardList },
     { href: "/review", label: "Review Queue", icon: CheckSquare, badge: reviewCount || undefined },
