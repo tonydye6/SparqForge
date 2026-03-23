@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PlatformPreviewWrapper } from "@/components/review/PlatformPreviewWrapper";
+import { BulkActionBar } from "@/components/review/BulkActionBar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useLocation } from "wouter";
 
@@ -59,6 +61,9 @@ export default function ReviewQueue() {
   const [variantRejectId, setVariantRejectId] = useState<string | null>(null);
   const [variantRejectComment, setVariantRejectComment] = useState("");
 
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
+  const [pendingBulkReject, setPendingBulkReject] = useState(false);
+
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleCampaign, setScheduleCampaign] = useState<{ id: string; name: string } | null>(null);
 
@@ -107,8 +112,11 @@ export default function ReviewQueue() {
       setShowRejectInput(false);
       setVariantRejectId(null);
       setVariantRejectComment("");
+      setSelectedVariantIds(new Set());
+      setPendingBulkReject(false);
     } else {
       setVariants([]);
+      setSelectedVariantIds(new Set());
     }
   }, [expandedCampaignId, fetchVariants]);
 
@@ -212,6 +220,55 @@ export default function ReviewQueue() {
     const params = new URLSearchParams();
     params.set("remix", campaign.id);
     setLocation(`/?${params.toString()}`);
+  };
+
+  const toggleVariantSelection = (variantId: string) => {
+    setSelectedVariantIds(prev => {
+      const next = new Set(prev);
+      if (next.has(variantId)) {
+        next.delete(variantId);
+      } else {
+        next.add(variantId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllVariants = () => {
+    setSelectedVariantIds(new Set(variants.map(v => v.id)));
+  };
+
+  const handleClearVariantSelection = () => {
+    setSelectedVariantIds(new Set());
+  };
+
+  const handleBulkApprove = async () => {
+    if (!expandedCampaignId || selectedVariantIds.size === 0) return;
+    try {
+      const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/bulk-update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ variantIds: [...selectedVariantIds], status: "approved" }),
+      });
+      if (resp.ok) {
+        setVariants(prev =>
+          prev.map(v => selectedVariantIds.has(v.id) ? { ...v, status: "approved" } : v)
+        );
+        toast({ title: `${selectedVariantIds.size} variant(s) approved` });
+        setSelectedVariantIds(new Set());
+      } else {
+        toast({ variant: "destructive", title: "Bulk approve failed" });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Failed to bulk approve variants" });
+    }
+  };
+
+  const handleBulkReject = () => {
+    if (selectedVariantIds.size === 0) return;
+    setPendingBulkReject(true);
+    toast({ title: "Reject dialog coming in next update" });
   };
 
   const variantStatusSummary = useMemo(() => {
@@ -472,15 +529,24 @@ export default function ReviewQueue() {
                     const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
                     const isReviewable = expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review";
                     const isRejectingThis = variantRejectId === variant.id;
+                    const isSelected = selectedVariantIds.has(variant.id);
 
                     return (
                       <div key={variant.id} className={`bg-background border rounded-lg overflow-hidden transition-colors ${
+                        isSelected ? "border-primary ring-1 ring-primary/30" :
                         variant.status === "approved" ? "border-green-500/40" :
                         variant.status === "rejected" ? "border-red-500/40" :
                         "border-border"
                       }`}>
                         <div className="p-2 sm:p-2.5 border-b border-border flex items-center justify-between bg-card/50">
                           <div className="flex items-center gap-2">
+                            {isReviewable && (
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleVariantSelection(variant.id)}
+                                className="shrink-0"
+                              />
+                            )}
                             <PlatformIcon platform={label.icon} />
                             <span className="font-semibold text-xs">{label.name}</span>
                             <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded">{variant.aspectRatio}</span>
@@ -599,6 +665,16 @@ export default function ReviewQueue() {
                     );
                   })}
                 </div>
+                {(expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review") && (
+                  <BulkActionBar
+                    selectedCount={selectedVariantIds.size}
+                    totalCount={variants.length}
+                    onApproveSelected={handleBulkApprove}
+                    onRejectSelected={handleBulkReject}
+                    onSelectAll={handleSelectAllVariants}
+                    onClearSelection={handleClearVariantSelection}
+                  />
+                )}
                 </>
               )}
             </div>
