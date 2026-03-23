@@ -1,11 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, Video, Layers, Star, Eye, Package, Sparkles } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Loader2, Check, X, AlertCircle, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, Video, Layers, Star, Eye, Package, Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { VariantCard } from "@/components/campaign-studio/VariantCard";
+import { ReferenceAnalyzer } from "@/components/campaign-studio/ReferenceAnalyzer";
 import { 
   useGetBrands, 
   useGetTemplates, 
@@ -20,6 +21,7 @@ import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
 import { HashtagSetDialog } from "@/components/campaign-studio/HashtagSetDialog";
 import { AudioSettingsDialog } from "@/components/campaign-studio/AudioSettingsDialog";
+import { ActivityPanel } from "@/components/campaign-studio/ActivityPanel";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/campaign-studio/campaign-studio.types";
@@ -157,7 +159,6 @@ export default function CampaignStudio() {
   const [referenceScreenshots, setReferenceScreenshots] = useState<Array<{ url: string; viewport: string }>>([]);
   const [referenceError, setReferenceError] = useState("");
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const remixLoadedRef = useRef(false);
   const planLoadedRef = useRef(false);
@@ -1720,72 +1721,18 @@ export default function CampaignStudio() {
         </div>
       </section>
 
-      <aside className="w-[280px] shrink-0 border-l border-border bg-card/50 flex flex-col z-20 shadow-xl">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-bold text-foreground">Overview</h2>
-          <div className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded border border-primary/20">
-            Cost: ${estimatedCost.toFixed(2)}
-          </div>
-        </div>
-        
-        <div className="flex-1 p-4 overflow-y-auto">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Activity Log</h3>
-          <div className="space-y-3">
-            {activityLog.map((log, i) => (
-              <div key={i} className="flex gap-3 relative">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10 ${
-                  log.status === "done" ? "bg-green-500/20 text-green-400" :
-                  log.status === "error" ? "bg-red-500/20 text-red-400" :
-                  "bg-amber-500/20 text-amber-400"
-                }`}>
-                  {log.status === "done" ? <Check size={10} /> :
-                   log.status === "error" ? <X size={10} /> :
-                   <Loader2 size={10} className="animate-spin" />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-foreground leading-tight">{log.text}</p>
-                  <p className="text-[10px] text-muted-foreground">{log.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="p-4 border-t border-border space-y-2 bg-background">
-          <Button 
-            variant="outline" 
-            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground"
-            onClick={handleSaveDraft}
-            disabled={createCampaignMutation.isPending || isGenerating}
-          >
-            <Save size={16} className="mr-2 text-muted-foreground" /> 
-            {createCampaignMutation.isPending ? "Saving..." : "Save Draft"}
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground" 
-            disabled={generatedVariants.length === 0 || !campaignId}
-            onClick={handleDownloadAll}
-          >
-            <Download size={16} className="mr-2 text-muted-foreground" /> Download All Assets
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground" 
-            disabled={generatedVariants.length === 0 || !campaignId || isGenerating}
-            onClick={() => setScheduleModalOpen(true)}
-          >
-            <CalendarIcon size={16} className="mr-2 text-muted-foreground" /> Schedule
-          </Button>
-          <Button 
-            className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2" 
-            disabled={generatedVariants.length === 0 || !campaignId || isGenerating}
-            onClick={handleSubmitForReview}
-          >
-            Submit for Review
-          </Button>
-        </div>
-      </aside>
+      <ActivityPanel
+        activityLog={activityLog}
+        estimatedCost={estimatedCost}
+        onSaveDraft={handleSaveDraft}
+        isSaving={createCampaignMutation.isPending}
+        onDownloadAll={handleDownloadAll}
+        onSchedule={() => setScheduleModalOpen(true)}
+        onSubmitForReview={handleSubmitForReview}
+        hasVariants={generatedVariants.length > 0}
+        campaignId={campaignId}
+        isGenerating={isGenerating}
+      />
 
       {campaignId && (
         <ScheduleModal
