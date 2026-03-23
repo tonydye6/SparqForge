@@ -1198,7 +1198,7 @@ export default function CampaignStudio() {
                 <SelectValue placeholder="Select Template" />
               </SelectTrigger>
               <SelectContent>
-                {templates?.map(t => (
+                {templates?.data?.map(t => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -1211,7 +1211,7 @@ export default function CampaignStudio() {
                 <Star size={10} /> Subject Reference <span className="text-muted-foreground">(pick 1)</span>
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {(recommendedSubjects.length > 0 ? recommendedSubjects : (approvedAssets?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
+                {(recommendedSubjects.length > 0 ? recommendedSubjects : (approvedAssets?.data?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
                   const isSelected = subjectAssetId === asset.id;
                   const isRecommended = idx < 3 && recommendedSubjects.length > 0;
                   return (
@@ -1242,7 +1242,7 @@ export default function CampaignStudio() {
                 <Layers size={10} /> Style Reference <span className="text-muted-foreground">(pick 1-2)</span>
               </label>
               <div className="grid grid-cols-3 gap-2">
-                {(recommendedStyles.length > 0 ? recommendedStyles : (approvedAssets?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
+                {(recommendedStyles.length > 0 ? recommendedStyles : (approvedAssets?.data?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
                   const isSelected = styleAssetIds.includes(asset.id);
                   const isRecommended = idx < 3 && recommendedStyles.length > 0;
                   return (
@@ -1272,9 +1272,9 @@ export default function CampaignStudio() {
               <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                 <FileText size={10} /> Context Cards <span className="text-muted-foreground">(optional)</span>
               </label>
-              {briefs && briefs.length > 0 ? (
+              {briefs?.data && briefs.data.length > 0 ? (
                 <div className="space-y-1">
-                  {briefs.slice(0, 4).map(brief => {
+                  {briefs.data.slice(0, 4).map(brief => {
                     const isSelected = contextAssetIds.includes(brief.id);
                     return (
                       <button
@@ -1333,7 +1333,7 @@ export default function CampaignStudio() {
                 <p className="text-[10px] uppercase text-muted-foreground font-semibold">To AI Generation</p>
                 <div className="space-y-1">
                   {subjectAssetId && (() => {
-                    const asset = approvedAssets?.find(a => a.id === subjectAssetId) || recommendedSubjects.find(a => a.id === subjectAssetId);
+                    const asset = approvedAssets?.data?.find(a => a.id === subjectAssetId) || recommendedSubjects.find(a => a.id === subjectAssetId);
                     return asset ? (
                       <div className="flex items-center gap-2 p-1.5 rounded bg-blue-500/10 border border-blue-500/20">
                         <div className="w-6 h-6 rounded overflow-hidden shrink-0">
@@ -1345,7 +1345,7 @@ export default function CampaignStudio() {
                     ) : null;
                   })()}
                   {styleAssetIds.map(id => {
-                    const asset = approvedAssets?.find(a => a.id === id) || recommendedStyles.find(a => a.id === id);
+                    const asset = approvedAssets?.data?.find(a => a.id === id) || recommendedStyles.find(a => a.id === id);
                     return asset ? (
                       <div key={id} className="flex items-center gap-2 p-1.5 rounded bg-green-500/10 border border-green-500/20">
                         <div className="w-6 h-6 rounded overflow-hidden shrink-0">
@@ -1384,7 +1384,7 @@ export default function CampaignStudio() {
                   <p className="text-[10px] uppercase text-muted-foreground font-semibold">Text Context</p>
                   <div className="space-y-1">
                     {contextAssetIds.map(id => {
-                      const brief = briefs?.find(b => b.id === id);
+                      const brief = briefs?.data?.find(b => b.id === id);
                       return brief ? (
                         <div key={id} className="flex items-center gap-2 p-1.5 rounded bg-amber-500/10 border border-amber-500/20">
                           <FileText size={12} className="text-amber-400 shrink-0" />
@@ -1514,14 +1514,14 @@ export default function CampaignStudio() {
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Context Brief</label>
             <Select onValueChange={(val) => {
-              const brief = briefs?.find(b => b.id === val);
+              const brief = briefs?.data?.find(b => b.id === val);
               if(brief) setBriefText(brief.content || "");
-            }} disabled={!selectedBrand || !briefs?.length || isGenerating}>
+            }} disabled={!selectedBrand || !briefs?.data?.length || isGenerating}>
               <SelectTrigger className="w-full bg-background border-border">
                 <SelectValue placeholder="Select a Brief" />
               </SelectTrigger>
               <SelectContent>
-                {briefs?.map(b => (
+                {briefs?.data?.map(b => (
                   <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                 ))}
               </SelectContent>

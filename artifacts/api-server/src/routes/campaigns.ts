@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, sql } from "drizzle-orm";
 import { db, campaignsTable, campaignVariantsTable, calendarEntriesTable } from "@workspace/db";
 import {
   GetCampaignsQueryParams,
@@ -31,15 +31,28 @@ const upload = multer({
 
 router.get("/campaigns", async (req, res): Promise<void> => {
   const query = GetCampaignsQueryParams.safeParse(req.query);
-  let results;
+  const conditions = [];
 
   if (query.success && query.data.brandId) {
-    results = await db.select().from(campaignsTable).where(eq(campaignsTable.brandId, query.data.brandId)).orderBy(campaignsTable.createdAt);
-  } else {
-    results = await db.select().from(campaignsTable).orderBy(campaignsTable.createdAt);
+    conditions.push(eq(campaignsTable.brandId, query.data.brandId));
   }
 
-  res.json(GetCampaignsResponse.parse(results));
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+  const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignsTable)
+    .where(baseCondition);
+  const total = countResult?.count ?? 0;
+
+  const results = baseCondition
+    ? await db.select().from(campaignsTable).where(baseCondition).orderBy(campaignsTable.createdAt).limit(limit).offset(offset)
+    : await db.select().from(campaignsTable).orderBy(campaignsTable.createdAt).limit(limit).offset(offset);
+
+  res.json({ data: results, total, limit, offset });
 });
 
 router.get("/campaigns/check-duplicate", async (req, res): Promise<void> => {

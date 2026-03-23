@@ -56,7 +56,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const [calendarCount, setCalendarCount] = useState(0);
   const { user, logout } = useAuth();
 
-  const reviewCount = campaigns?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
+  const reviewCount = campaigns?.data?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
 
   useEffect(() => {
     const now = new Date();

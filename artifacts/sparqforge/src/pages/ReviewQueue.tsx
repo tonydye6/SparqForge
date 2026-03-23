@@ -62,8 +62,8 @@ export default function ReviewQueue() {
   const [scheduleCampaign, setScheduleCampaign] = useState<{ id: string; name: string } | null>(null);
 
   const filteredCampaigns = useMemo(() => {
-    if (!campaigns) return [];
-    return campaigns.filter(c => {
+    if (!campaigns?.data) return [];
+    return campaigns.data.filter(c => {
       if (brandFilter !== "all" && c.brandId !== brandFilter) return false;
       return c.status !== "draft";
     });
@@ -80,8 +80,8 @@ export default function ReviewQueue() {
   const getBrand = (brandId: string) => brands?.find(b => b.id === brandId);
 
   const expandedCampaign = useMemo(() => {
-    if (!expandedCampaignId || !campaigns) return null;
-    return campaigns.find(c => c.id === expandedCampaignId) || null;
+    if (!expandedCampaignId || !campaigns?.data) return null;
+    return campaigns.data.find(c => c.id === expandedCampaignId) || null;
   }, [expandedCampaignId, campaigns]);
 
   const fetchVariants = useCallback(async (campaignId: string) => {

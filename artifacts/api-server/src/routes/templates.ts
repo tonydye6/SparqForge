@@ -19,15 +19,28 @@ const router: IRouter = Router();
 
 router.get("/templates", async (req, res): Promise<void> => {
   const query = GetTemplatesQueryParams.safeParse(req.query);
-  let results;
+  const conditions = [];
 
   if (query.success && query.data.brandId) {
-    results = await db.select().from(templatesTable).where(eq(templatesTable.brandId, query.data.brandId)).orderBy(templatesTable.name);
-  } else {
-    results = await db.select().from(templatesTable).orderBy(templatesTable.name);
+    conditions.push(eq(templatesTable.brandId, query.data.brandId));
   }
 
-  res.json(GetTemplatesResponse.parse(results));
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+  const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(templatesTable)
+    .where(baseCondition);
+  const total = countResult?.count ?? 0;
+
+  const results = baseCondition
+    ? await db.select().from(templatesTable).where(baseCondition).orderBy(templatesTable.createdAt).limit(limit).offset(offset)
+    : await db.select().from(templatesTable).orderBy(templatesTable.createdAt).limit(limit).offset(offset);
+
+  res.json({ data: results, total, limit, offset });
 });
 
 router.post("/templates", async (req, res): Promise<void> => {

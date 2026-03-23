@@ -669,8 +669,8 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
   const [addDialogOpen, setAddDialogOpen] = useState<string | null>(null);
 
   const getGroupAssets = (group: typeof BRAND_ASSET_GROUPS[0]) => {
-    if (!allAssets) return [];
-    return allAssets.filter(a => {
+    if (!allAssets?.data) return [];
+    return allAssets.data.filter(a => {
       if (a.assetClass !== group.assetClass) return false;
       if (group.role && a.generationRole !== group.role) return false;
       return true;
@@ -678,8 +678,8 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
   };
 
   const getUnassignedVisuals = () => {
-    if (!allAssets) return [];
-    return allAssets.filter(a => a.type === "visual" && !a.assetClass);
+    if (!allAssets?.data) return [];
+    return allAssets.data.filter(a => a.type === "visual" && !a.assetClass);
   };
 
   const assignToGroup = (assetId: string, group: typeof BRAND_ASSET_GROUPS[0]) => {
@@ -807,7 +807,7 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
   const createAssetMutation = useCreateAsset();
   const updateMutation = useUpdateAsset();
 
-  const fontAssets = allAssets || [];
+  const fontAssets = allAssets?.data || [];
 
   const [editingFont, setEditingFont] = useState<string | null>(null);
   const [fontNameEdit, setFontNameEdit] = useState("");
@@ -1111,14 +1111,14 @@ function BrandTemplates({ brandId }: { brandId: string }) {
       </div>
 
       <div className="space-y-4">
-        {templates?.map(t => (
+        {templates?.data?.map(t => (
           <TemplateCard key={t.id} template={t} onDelete={() => {
             if (confirm("Delete template?")) {
               deleteTemplateMutation.mutate({ id: t.id });
             }
           }} />
         ))}
-        {templates?.length === 0 && <p className="text-sm text-muted-foreground italic">No templates configured.</p>}
+        {templates?.data?.length === 0 && <p className="text-sm text-muted-foreground italic">No templates configured.</p>}
       </div>
     </div>
   );

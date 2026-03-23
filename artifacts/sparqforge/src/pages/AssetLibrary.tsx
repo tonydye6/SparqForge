@@ -137,8 +137,8 @@ export default function AssetLibrary() {
   };
 
   const selectAll = () => {
-    if (visuals) {
-      setSelectedIds(new Set(visuals.map(a => a.id)));
+    if (visuals?.data) {
+      setSelectedIds(new Set(visuals.data.map(a => a.id)));
     }
   };
 
@@ -267,8 +267,8 @@ export default function AssetLibrary() {
               Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="aspect-square bg-card rounded-xl border border-border animate-pulse" />
               ))
-            ) : visuals && visuals.length > 0 ? (
-              visuals.map((asset) => (
+            ) : visuals?.data && visuals.data.length > 0 ? (
+              visuals.data.map((asset) => (
                 <VisualAssetCard
                   key={asset.id}
                   asset={asset}
@@ -284,11 +284,11 @@ export default function AssetLibrary() {
         </TabsContent>
 
         <TabsContent value="briefs" className="flex-1 overflow-y-auto mt-0 pr-4">
-          <BriefsTab briefs={briefs || []} brands={brands || []} isLoading={briefsLoading} />
+          <BriefsTab briefs={briefs?.data || []} brands={brands || []} isLoading={briefsLoading} />
         </TabsContent>
 
         <TabsContent value="hashtags" className="flex-1 overflow-y-auto mt-0 pr-4">
-          <HashtagsTab sets={hashtagSets || []} brands={brands || []} />
+          <HashtagsTab sets={hashtagSets?.data || []} brands={brands || []} />
         </TabsContent>
       </Tabs>
     </div>

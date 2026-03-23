@@ -54,14 +54,22 @@ router.get("/assets", async (req, res): Promise<void> => {
   const approvedChannel = req.query.approvedChannel as string | undefined;
   if (approvedChannel) conditions.push(sql`${assetsTable.approvedChannels} @> ARRAY[${approvedChannel}]::text[]`);
 
-  let results;
-  if (conditions.length > 0) {
-    results = await db.select().from(assetsTable).where(and(...conditions)).orderBy(assetsTable.createdAt);
-  } else {
-    results = await db.select().from(assetsTable).orderBy(assetsTable.createdAt);
-  }
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-  res.json(GetAssetsResponse.parse(results));
+  const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(assetsTable)
+    .where(baseCondition);
+  const total = countResult?.count ?? 0;
+
+  const results = baseCondition
+    ? await db.select().from(assetsTable).where(baseCondition).orderBy(assetsTable.createdAt).limit(limit).offset(offset)
+    : await db.select().from(assetsTable).orderBy(assetsTable.createdAt).limit(limit).offset(offset);
+
+  res.json({ data: results, total, limit, offset });
 });
 
 router.post("/assets", async (req, res): Promise<void> => {
