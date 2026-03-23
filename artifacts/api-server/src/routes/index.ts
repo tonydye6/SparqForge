@@ -16,6 +16,7 @@ import costLogsRouter from "./cost-logs";
 import settingsRouter from "./settings";
 import rewriteRouter from "./rewrite";
 import contentPlanRouter from "./content-plan";
+import brandReadinessRouter from "./brand-readiness";
 
 const router: IRouter = Router();
 
@@ -36,6 +37,7 @@ router.use(costLogsRouter);
 router.use(settingsRouter);
 router.use(rewriteRouter);
 router.use(contentPlanRouter);
+router.use(brandReadinessRouter);
 
 router.all("/{*path}", (_req, res) => {
   res.status(404).json({ error: "Endpoint not found" });
