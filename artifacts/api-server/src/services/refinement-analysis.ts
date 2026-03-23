@@ -1,6 +1,8 @@
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { eq } from "drizzle-orm";
 import { db, refinementLogsTable, templateRecommendationsTable, type Template } from "@workspace/db";
+import { AI_MODELS } from "../lib/ai-config.js";
+import { extractJSON } from "../lib/extract-json.js";
 
 interface RefinementRecommendation {
   field: string;
@@ -99,7 +101,7 @@ export async function analyzeTemplate(templateId: string, template: Template) {
   };
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: AI_MODELS.CLAUDE_SONNET,
     max_tokens: 4096,
     system: `You are a template optimization analyst for SparqForge, an AI-powered social media content tool for Sparq Games. Your job is to analyze usage patterns and user feedback data for a specific campaign template, then produce structured recommendations to improve the template's AI generation configuration.
 
@@ -156,12 +158,7 @@ Based on this data, provide specific template configuration changes that would r
 
   let recommendations: RefinementRecommendation[];
   try {
-    const jsonMatch = textContent.text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      recommendations = [];
-    } else {
-      recommendations = JSON.parse(jsonMatch[0]);
-    }
+    recommendations = extractJSON<RefinementRecommendation[]>(textContent.text);
   } catch {
     recommendations = [];
   }

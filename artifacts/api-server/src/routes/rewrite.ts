@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { AI_MODELS } from "../lib/ai-config.js";
 
 const router: IRouter = Router();
 
@@ -23,7 +24,7 @@ router.post("/rewrite", async (req: Request, res: Response): Promise<void> => {
 
   try {
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: AI_MODELS.CLAUDE_SONNET,
       max_tokens: 512,
       messages: [
         {

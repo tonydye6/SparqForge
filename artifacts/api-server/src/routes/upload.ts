@@ -41,7 +41,7 @@ const ALLOWED_MIMES = [
   "audio/mpeg",
   "audio/wav",
   "application/pdf",
-];
+] as const;
 
 const upload = multer({
   storage,

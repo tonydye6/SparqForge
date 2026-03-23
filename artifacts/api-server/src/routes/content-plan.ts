@@ -128,6 +128,9 @@ router.post("/content-plan/import", csvUpload.single("file"), async (req, res): 
 router.get("/content-plan", async (req, res): Promise<void> => {
   const { pillar, platform, status, plannedWeek, brandLayer } = req.query as Record<string, string | undefined>;
 
+  const limit = Math.max(1, Math.min(200, parseInt(req.query.limit as string, 10) || 50));
+  const offset = Math.max(0, parseInt(req.query.offset as string, 10) || 0);
+
   const conditions: SQL[] = [];
   if (pillar) conditions.push(eq(socialContentPlanItemsTable.pillar, pillar));
   if (platform) conditions.push(eq(socialContentPlanItemsTable.primaryPlatform, platform));
@@ -135,10 +138,10 @@ router.get("/content-plan", async (req, res): Promise<void> => {
   if (plannedWeek) conditions.push(eq(socialContentPlanItemsTable.plannedWeek, plannedWeek));
   if (brandLayer) conditions.push(eq(socialContentPlanItemsTable.brandLayer, brandLayer));
 
-  const query = db.select().from(socialContentPlanItemsTable);
+  let query = db.select().from(socialContentPlanItemsTable);
   const results = conditions.length > 0
-    ? await query.where(and(...conditions)).orderBy(socialContentPlanItemsTable.createdAt)
-    : await query.orderBy(socialContentPlanItemsTable.createdAt);
+    ? await query.where(and(...conditions)).orderBy(socialContentPlanItemsTable.createdAt).limit(limit).offset(offset)
+    : await query.orderBy(socialContentPlanItemsTable.createdAt).limit(limit).offset(offset);
 
   res.json(results);
 });

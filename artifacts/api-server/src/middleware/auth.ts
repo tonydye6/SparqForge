@@ -34,11 +34,20 @@ async function ensureDevUser() {
 }
 
 export function isDevBypass(): boolean {
-  if (process.env.NODE_ENV === "production" && process.env.DEV_AUTH_BYPASS === "true") {
+  if (process.env.DEV_AUTH_BYPASS !== "true") return false;
+  if (process.env.NODE_ENV === "production") {
     logger.error("DEV_AUTH_BYPASS is enabled in production — ignoring. Set DEV_AUTH_BYPASS=false or remove it.");
     return false;
   }
-  return process.env.DEV_AUTH_BYPASS === "true";
+  return true;
+}
+
+if (process.env.DEV_AUTH_BYPASS === "true") {
+  if (process.env.NODE_ENV === "production") {
+    logger.error("⚠️  STARTUP WARNING: DEV_AUTH_BYPASS=true detected in production! Auth bypass is DISABLED for safety.");
+  } else {
+    logger.warn("⚠️  STARTUP WARNING: DEV_AUTH_BYPASS=true — authentication is bypassed. Do NOT deploy with this setting.");
+  }
 }
 
 export function isGoogleConfigured(): boolean {

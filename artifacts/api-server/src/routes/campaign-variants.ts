@@ -95,7 +95,7 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
           platform: existingVariant.platform,
           aspectRatio: existingVariant.aspectRatio,
           newValue: req.body.reviewerComment || null,
-          userId: "system",
+          userId: (req as any).user?.id || "system",
         });
 
         try {

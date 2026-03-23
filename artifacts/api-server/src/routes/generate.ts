@@ -3,8 +3,9 @@ import { eq, and } from "drizzle-orm";
 import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable, assetsTable, assetPairingsTable, brandsTable, generationPacketLogsTable } from "@workspace/db";
 import { sql, gte } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
-import { generateCaptions, estimateClaudeCost } from "../services/claude.js";
-import { generateAllImages, generateImage, estimateImagenCost, PLATFORM_CONFIGS, type ReferenceImage } from "../services/imagen.js";
+import { generateCaptions } from "../services/claude.js";
+import { generateAllImages, generateImage, PLATFORM_CONFIGS, type ReferenceImage } from "../services/imagen.js";
+import { AI_MODELS, estimateClaudeCost, estimateImagenCost } from "../lib/ai-config.js";
 import { compositeImage } from "../services/compositing.js";
 import { buildGenerationPacket } from "../services/packet-assembly.js";
 import * as fs from "fs";
@@ -293,7 +294,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       let compositedBuffer: Buffer;
       let compositingFailed = false;
       try {
-        compositedBuffer = await compositeImage({
+        const result = await compositeImage({
           rawImageBuffer: img.imageBuffer,
           layoutSpec: layoutSpec as any,
           headlineText: captionData.headline || null,
@@ -302,6 +303,13 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
           height: config.height,
           fontFamily: brandFontFamily,
         });
+        compositedBuffer = result.buffer;
+        if (result.warnings.length > 0) {
+          sendEvent("compositing_warning", {
+            platform: img.platform,
+            warnings: result.warnings,
+          });
+        }
       } catch (err) {
         console.error(`Compositing failed for ${img.platform}, using raw image:`, err instanceof Error ? err.message : err);
         compositedBuffer = img.imageBuffer;
@@ -399,14 +407,14 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         campaignId,
         service: "anthropic",
         operation: "caption_generation",
-        model: "claude-sonnet-4-6",
+        model: AI_MODELS.CLAUDE_SONNET,
         costUsd: estimateClaudeCost(),
       });
       await tx.insert(costLogsTable).values({
         campaignId,
         service: "gemini",
         operation: "image_generation",
-        model: "gemini-2.5-flash-image",
+        model: AI_MODELS.GEMINI_FLASH_IMAGE,
         costUsd: estimateImagenCost(images.length),
       });
 
@@ -569,7 +577,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
           fetchBrandFontFamily(campaign.brandId),
         ]);
 
-        const newComposited = await compositeImage({
+        const newResult = await compositeImage({
           rawImageBuffer: rawBuffer,
           layoutSpec: ctx.template.layoutSpec as any,
           headlineText: headline,
@@ -581,7 +589,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
 
         const compFilename = `${campaignId}_${variant.platform}_composited.png`;
         const compPath = path.join(UPLOADS_DIR, compFilename);
-        fs.writeFileSync(compPath, newComposited);
+        fs.writeFileSync(compPath, newResult.buffer);
         compositedUrl = `/api/files/generated/${compFilename}`;
       }
     } catch (err) {
@@ -686,7 +694,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     let compositedBuffer: Buffer;
     let compositingFailed = false;
     try {
-      compositedBuffer = await compositeImage({
+      const result = await compositeImage({
         rawImageBuffer: imgResult.imageBuffer,
         layoutSpec: layoutSpec as any,
         headlineText: variant.headlineText || null,
@@ -695,6 +703,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
         height: config.height,
         fontFamily: brandFontFamily,
       });
+      compositedBuffer = result.buffer;
     } catch (err) {
       console.error(`Compositing failed during regeneration for ${variant.platform}, using raw image:`, err instanceof Error ? err.message : err);
       compositedBuffer = imgResult.imageBuffer;
@@ -724,7 +733,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
         campaignId,
         service: "gemini",
         operation: "single_variant_regeneration",
-        model: "gemini-2.5-flash-image",
+        model: AI_MODELS.GEMINI_FLASH_IMAGE,
         costUsd: cost,
       });
 

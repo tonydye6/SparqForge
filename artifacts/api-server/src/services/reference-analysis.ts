@@ -1,5 +1,6 @@
 import { ai } from "@workspace/integrations-gemini-ai";
 import * as fs from "fs";
+import { AI_MODELS } from "../lib/ai-config.js";
 
 export interface ReferenceAnalysisResult {
   visual_mood: string;
@@ -74,7 +75,7 @@ Return a JSON object with exactly these fields:
 Return ONLY valid JSON, no markdown code blocks or extra text.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-preview-05-20",
+    model: AI_MODELS.GEMINI_FLASH_TEXT,
     contents: [
       {
         role: "user",

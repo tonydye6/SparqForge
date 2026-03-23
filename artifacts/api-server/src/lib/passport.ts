@@ -41,7 +41,19 @@ passport.deserializeUser(async (id: string, done) => {
 
 const GOOGLE_CLIENT_ID = process.env.SparqForge_Google_Client_ID || process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.SparqForge_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || "/api/auth/google/callback";
+function resolveGoogleCallbackUrl(): string {
+  if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL;
+  const callbackPath = "/api/auth/google/callback";
+  if (process.env.APP_URL) return `${process.env.APP_URL.replace(/\/$/, "")}${callbackPath}`;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}${callbackPath}`;
+  if (process.env.REPLIT_DOMAINS) {
+    const first = process.env.REPLIT_DOMAINS.split(",")[0]?.trim();
+    if (first) return `https://${first}${callbackPath}`;
+  }
+  return callbackPath;
+}
+
+const GOOGLE_CALLBACK_URL = resolveGoogleCallbackUrl();
 
 if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
   passport.use(

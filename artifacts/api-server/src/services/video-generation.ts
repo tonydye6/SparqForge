@@ -1,5 +1,6 @@
 import { ai } from "@workspace/integrations-gemini-ai";
 import type { AssembledContext } from "./context-assembly.js";
+import { AI_MODELS } from "../lib/ai-config.js";
 
 export const VIDEO_CONFIGS: Record<string, { aspectRatio: string; label: string }> = {
   landscape: { aspectRatio: "16:9", label: "Landscape (16:9)" },
@@ -50,7 +51,7 @@ export async function generateVideo(
   const fullPrompt = `${prompt}\n\nGenerate this as a ${config.aspectRatio} aspect ratio video clip, 5-8 seconds long, for social media.`;
 
   const operation = await ai.models.generateVideos({
-    model: "veo-2.0-generate-001",
+    model: AI_MODELS.VEO_VIDEO,
     request: {
       prompt: fullPrompt,
       config: {

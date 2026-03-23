@@ -9,6 +9,24 @@ import { logger } from "../lib/logger";
 const POLL_INTERVAL_MS = 60_000;
 const MAX_RETRIES = 3;
 
+const PERMANENT_ERROR_PATTERNS = [
+  /\b(400|401|403)\b/,
+  /invalid.*(content|token|credential|api.?key)/i,
+  /unauthorized/i,
+  /forbidden/i,
+  /not.?found/i,
+  /platform mismatch/i,
+  /no social account/i,
+  /social account not found/i,
+  /unsupported platform/i,
+  /no public image url/i,
+];
+
+function isPermanentFailure(error: string | null | undefined): boolean {
+  if (!error) return false;
+  return PERMANENT_ERROR_PATTERNS.some(p => p.test(error));
+}
+
 function getBackoffMs(retryCount: number): number {
   return Math.min(60_000 * Math.pow(2, retryCount), 15 * 60_000);
 }
@@ -212,11 +230,12 @@ async function publishEntry(entryId: string): Promise<void> {
         logger.info({ entryId, platform, postId: result.platformPostId }, "Entry published successfully");
       }
     } else {
+      const permanent = isPermanentFailure(result.error);
       const [updated] = await tx.update(calendarEntriesTable)
         .set({
           publishStatus: "failed",
           publishError: result.error || "Unknown error",
-          retryCount: newRetryCount,
+          retryCount: permanent ? MAX_RETRIES : newRetryCount,
           updatedAt: new Date(),
         })
         .where(and(
@@ -225,7 +244,11 @@ async function publishEntry(entryId: string): Promise<void> {
         ))
         .returning();
       if (updated) {
-        logger.warn({ entryId, platform, error: result.error, retryCount: newRetryCount }, "Entry publish failed");
+        if (permanent) {
+          logger.error({ entryId, platform, error: result.error }, "Entry publish permanently failed — will not retry");
+        } else {
+          logger.warn({ entryId, platform, error: result.error, retryCount: newRetryCount }, "Entry publish failed (transient) — will retry");
+        }
       }
     }
   });

@@ -165,8 +165,14 @@ function createTextSvg(
   return Buffer.from(svg);
 }
 
-export async function compositeImage(input: CompositingInput): Promise<Buffer> {
+export interface CompositingResult {
+  buffer: Buffer;
+  warnings: string[];
+}
+
+export async function compositeImage(input: CompositingInput): Promise<CompositingResult> {
   const { rawImageBuffer, layoutSpec, headlineText, logoBuffer, width, height, fontFamily } = input;
+  const warnings: string[] = [];
 
   const resolved = resolveLayout(layoutSpec, `${width}:${height}`);
 
@@ -211,7 +217,9 @@ export async function compositeImage(input: CompositingInput): Promise<Buffer> {
 
       overlays.push({ input: resizedLogo, top, left });
     } catch (err) {
-      console.error("Failed to process logo for compositing:", err instanceof Error ? err.message : err);
+      const msg = `Failed to process logo for compositing: ${err instanceof Error ? err.message : err}`;
+      console.error(msg);
+      warnings.push(msg);
     }
   }
 
@@ -219,7 +227,7 @@ export async function compositeImage(input: CompositingInput): Promise<Buffer> {
     image = image.composite(overlays);
   }
 
-  return image.png().toBuffer();
+  return { buffer: await image.png().toBuffer(), warnings };
 }
 
 export async function recompositeWithNewHeadline(
@@ -229,7 +237,7 @@ export async function recompositeWithNewHeadline(
   logoBuffer: Buffer | null,
   width: number,
   height: number,
-): Promise<Buffer> {
+): Promise<CompositingResult> {
   return compositeImage({
     rawImageBuffer,
     layoutSpec,

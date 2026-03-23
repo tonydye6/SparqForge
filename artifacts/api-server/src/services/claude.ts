@@ -1,5 +1,7 @@
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import type { AssembledContext } from "./context-assembly.js";
+import { AI_MODELS, estimateClaudeCost } from "../lib/ai-config.js";
+import { extractJSON } from "../lib/extract-json.js";
 
 export interface CaptionResult {
   instagram_feed: { caption: string; headline: string };
@@ -104,7 +106,7 @@ export async function generateCaptions(ctx: AssembledContext): Promise<CaptionRe
   const userMessage = buildUserMessage(ctx);
 
   const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: AI_MODELS.CLAUDE_SONNET,
     max_tokens: 8192,
     temperature: 0.7,
     system: systemPrompt,
@@ -116,22 +118,7 @@ export async function generateCaptions(ctx: AssembledContext): Promise<CaptionRe
     throw new Error("No text response from Claude");
   }
 
-  const rawText = textBlock.text
-    .replace(/```json\s*/g, "")
-    .replace(/```\s*/g, "")
-    .trim();
-
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error(`Could not parse JSON from Claude response: ${rawText.slice(0, 200)}`);
-  }
-
-  let parsed: CaptionResult;
-  try {
-    parsed = JSON.parse(jsonMatch[0]) as CaptionResult;
-  } catch (parseErr) {
-    throw new Error(`Invalid JSON from Claude: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
-  }
+  const parsed = extractJSON<CaptionResult>(textBlock.text);
 
   const defaults = { caption: "", headline: "" };
   return {
@@ -143,6 +130,4 @@ export async function generateCaptions(ctx: AssembledContext): Promise<CaptionRe
   };
 }
 
-export function estimateClaudeCost(): number {
-  return 0.01;
-}
+export { estimateClaudeCost } from "../lib/ai-config.js";

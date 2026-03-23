@@ -1,6 +1,7 @@
 import { ai } from "@workspace/integrations-gemini-ai";
 import { Modality } from "@google/genai";
 import type { AssembledContext } from "./context-assembly.js";
+import { AI_MODELS, estimateImagenCost } from "../lib/ai-config.js";
 
 export const PLATFORM_CONFIGS: Record<string, { platform: string; aspectRatio: string; width: number; height: number }> = {
   instagram_feed: { platform: "instagram_feed", aspectRatio: "1:1", width: 1080, height: 1080 },
@@ -95,7 +96,7 @@ export async function generateImage(
   contentParts.push({ text: fullPrompt });
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-image",
+    model: AI_MODELS.GEMINI_FLASH_IMAGE,
     contents: [{ role: "user", parts: contentParts }],
     config: {
       responseModalities: [Modality.TEXT, Modality.IMAGE],
@@ -150,6 +151,4 @@ export async function generateAllImages(
   return results;
 }
 
-export function estimateImagenCost(imageCount: number): number {
-  return imageCount * 0.06;
-}
+export { estimateImagenCost } from "../lib/ai-config.js";

@@ -37,4 +37,8 @@ router.use(settingsRouter);
 router.use(rewriteRouter);
 router.use(contentPlanRouter);
 
+router.all("/*", (_req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
+
 export default router;
