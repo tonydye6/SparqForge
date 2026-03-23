@@ -9,3 +9,5 @@ export { ReferenceAnalyzer } from "./ReferenceAnalyzer";
 export type { ReferenceAnalyzerProps } from "./ReferenceAnalyzer";
 export { ActivityPanel } from "./ActivityPanel";
 export type { ActivityPanelProps } from "./ActivityPanel";
+export { VariantGrid } from "./VariantGrid";
+export type { VariantGridProps } from "./VariantGrid";

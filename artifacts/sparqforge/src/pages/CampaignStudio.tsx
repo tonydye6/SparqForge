@@ -1,11 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Loader2, X, RefreshCw, AlertTriangle, Hash, Video, Layers, Star, Eye, Package, Sparkles } from "lucide-react";
-import { EmptyState } from "@/components/ui/empty-state";
+import { Play, Settings2, Image as ImageIcon, FileText, Loader2, RefreshCw, Video, Layers, Star, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PlatformIcon } from "@/components/ui/platform-icon";
-import { VariantCard } from "@/components/campaign-studio/VariantCard";
+import { VariantGrid } from "@/components/campaign-studio/VariantGrid";
 import { ReferenceAnalyzer } from "@/components/campaign-studio/ReferenceAnalyzer";
 import { 
   useGetBrands, 
@@ -1486,142 +1484,44 @@ export default function CampaignStudio() {
         </div>
       </aside>
 
-      <section className="flex-1 flex flex-col min-w-0 relative bg-background/50">
-        <div className="h-16 px-6 border-b border-border flex items-center justify-between shrink-0 bg-background/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex-1 max-w-xl relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input 
-              placeholder="Refine all variants... (e.g. 'Make it more aggressive')" 
-              className="w-full pl-10 bg-card border-border h-10 focus-visible:ring-primary/50"
-              value={refineText}
-              onChange={(e) => setRefineText(e.target.value)}
-            />
-            {refineText && (
-              <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary/90">
-                <Send size={14} />
-              </Button>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-3 ml-4">
-            <Badge variant="outline" className={`border-border ${isGenerating ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : generatedVariants.length > 0 ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-card text-muted-foreground'}`}>
-              {isGenerating ? "Generating..." : generatedVariants.length > 0 ? `${generatedVariants.length} Variants` : "Draft Mode"}
-            </Badge>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {duplicateInfo?.duplicate && !duplicateDismissed && (
-            <div className="max-w-6xl mx-auto mb-6 bg-amber-500/5 border border-amber-500/30 rounded-lg p-4 flex items-start gap-3 border-l-4 border-l-amber-500">
-              <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Similar campaign detected
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This looks similar to "{duplicateInfo.campaignName}" from{" "}
-                  {duplicateInfo.createdAt
-                    ? new Date(duplicateInfo.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                    : "recently"}
-                </p>
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                    onClick={() => setDuplicateDismissed(true)}
-                  >
-                    Dismiss and Proceed
-                  </Button>
-                </div>
-              </div>
-              <button onClick={() => setDuplicateDismissed(true)} className="text-muted-foreground hover:text-foreground">
-                <X size={16} />
-              </button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-6xl mx-auto pb-12">
-            {generatedVariants.length > 0 ? (
-              generatedVariants.map((variant) => (
-                <VariantCard
-                  key={variant.platform}
-                  variant={variant}
-                  loadingPhase={loadingPhase}
-                  regeneratingVariant={regeneratingVariant}
-                  variantRefineOpen={variantRefineOpen}
-                  variantRefineText={variantRefineText}
-                  rewriteToolbar={rewriteToolbar}
-                  isGeneratingAudio={isGeneratingAudio}
-                  onDownloadVariant={handleDownloadVariant}
-                  onCaptionChange={handleCaptionChange}
-                  onTextSelect={handleTextSelect}
-                  onRewrite={handleRewrite}
-                  onHeadlineSave={handleHeadlineSave}
-                  onVariantRegenerate={handleVariantRegenerate}
-                  extractHashtags={extractHashtags}
-                  onRewriteToolbarClose={() => setRewriteToolbar(null)}
-                  onSetVariantRefineOpen={setVariantRefineOpen}
-                  onSetVariantRefineText={setVariantRefineText}
-                  onOpenAudioDialog={(v) => {
-                    setAudioDialogVariant(v);
-                    setAudioSource("music");
-                    setAudioPrompt("");
-                    setAudioDialogOpen(true);
-                  }}
-                  onOpenHashtagDialog={(hashtags) => {
-                    setHashtagsToSave(hashtags);
-                    setHashtagDialogOpen(true);
-                  }}
-                />
-              ))
-            ) : !selectedBrand ? (
-              <div className="col-span-full">
-                <EmptyState
-                  icon={Sparkles}
-                  title="Start a campaign"
-                  description="Select a brand and template to begin"
-                />
-              </div>
-            ) : (
-              Object.entries(PLATFORM_LABELS).map(([key, panel]) => (
-                <div key={key} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
-                  <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <PlatformIcon platform={panel.platformIcon} />
-                      <span className="font-semibold text-sm">{panel.name}</span>
-                      <span className="text-xs text-muted-foreground ml-2 px-1.5 py-0.5 bg-muted rounded">{panel.ratio}</span>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                      <MoreHorizontal size={16} />
-                    </Button>
-                  </div>
-                  
-                  <div className="p-4 flex-1 flex flex-col gap-4">
-                    <div className="flex gap-4">
-                      <div className="w-[120px] shrink-0 bg-muted/30 rounded-md border border-border/50 flex flex-col items-center justify-center text-muted-foreground aspect-square">
-                        <ImageIcon size={24} className="mb-2 opacity-20" />
-                        <span className="text-[10px] font-medium uppercase tracking-wider opacity-50">Placeholder</span>
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col gap-2">
-                        <Textarea 
-                          className="flex-1 min-h-[100px] resize-none text-sm bg-background border-border p-3"
-                          placeholder="AI generated caption will appear here..."
-                          disabled
-                        />
-                        <div className="flex justify-between items-center px-1">
-                          <span className="text-[10px] text-muted-foreground">0 chars</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
+      <VariantGrid
+        refineText={refineText}
+        onRefineTextChange={setRefineText}
+        onRefineSubmit={() => {}}
+        isGenerating={isGenerating}
+        generatedVariants={generatedVariants}
+        selectedBrand={selectedBrand}
+        duplicateInfo={duplicateInfo}
+        duplicateDismissed={duplicateDismissed}
+        onDismissDuplicate={() => setDuplicateDismissed(true)}
+        loadingPhase={loadingPhase}
+        selectedPlatforms={selectedPlatforms}
+        regeneratingVariant={regeneratingVariant}
+        variantRefineOpen={variantRefineOpen}
+        variantRefineText={variantRefineText}
+        rewriteToolbar={rewriteToolbar}
+        isGeneratingAudio={isGeneratingAudio}
+        onDownloadVariant={handleDownloadVariant}
+        onCaptionChange={handleCaptionChange}
+        onTextSelect={handleTextSelect}
+        onRewrite={handleRewrite}
+        onHeadlineSave={handleHeadlineSave}
+        onVariantRegenerate={handleVariantRegenerate}
+        extractHashtags={extractHashtags}
+        onRewriteToolbarClose={() => setRewriteToolbar(null)}
+        onSetVariantRefineOpen={setVariantRefineOpen}
+        onSetVariantRefineText={setVariantRefineText}
+        onOpenAudioDialog={(v) => {
+          setAudioDialogVariant(v);
+          setAudioSource("music");
+          setAudioPrompt("");
+          setAudioDialogOpen(true);
+        }}
+        onOpenHashtagDialog={(hashtags) => {
+          setHashtagsToSave(hashtags);
+          setHashtagDialogOpen(true);
+        }}
+      />
 
       <ActivityPanel
         activityLog={activityLog}
