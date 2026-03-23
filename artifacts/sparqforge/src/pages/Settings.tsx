@@ -76,7 +76,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { 
   Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
-  Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle2, XCircle,
+  Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle, CheckCircle2, XCircle,
   BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon,
   Image as ImageIcon, Layers, FileType, Upload
 } from "lucide-react";
@@ -87,6 +87,17 @@ import { Badge } from "@/components/ui/badge";
 import { useSearch } from "wouter";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
+import { useBrandReadiness } from "@/hooks/useBrandReadiness";
+
+const SETTINGS_SECTIONS = [
+  { id: "section-readiness", label: "Brand Readiness" },
+  { id: "section-brand-dna", label: "Brand DNA" },
+  { id: "section-imagen", label: "Imagen Config" },
+  { id: "section-platform-rules", label: "Platform Rules" },
+  { id: "section-templates", label: "Templates" },
+  { id: "section-fonts", label: "Font Management" },
+  { id: "section-accounts", label: "Connected Accounts" },
+];
 
 export default function Settings() {
   const searchString = useSearch();
@@ -466,7 +477,24 @@ function AddBrandForm({ onSubmit, isSubmitting }: { onSubmit: (data: Record<stri
 function BrandEditor({ brand }: { brand: Brand }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
+  const { data: brandReadiness } = useBrandReadiness(brand.id);
+  const [activeSection, setActiveSection] = useState("section-readiness");
+
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+    SETTINGS_SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const observer = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveSection(id); },
+        { threshold: 0.3 }
+      );
+      observer.observe(el);
+      observers.push(observer);
+    });
+    return () => observers.forEach(o => o.disconnect());
+  }, []);
+
   const { register, handleSubmit, reset, watch, setValue } = useForm({
     defaultValues: {
       name: brand.name,
@@ -489,6 +517,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/brands"] });
+        queryClient.invalidateQueries({ queryKey: ["brand-readiness", brand.id] });
         toast({ title: "Brand updated successfully" });
       },
       onError: (err: unknown) => {
@@ -535,120 +564,173 @@ function BrandEditor({ brand }: { brand: Brand }) {
   const background = watch("colorBackground");
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-      
-      {/* Visual Identity */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-          <div className="flex items-center gap-2">
-            <Hexagon className="text-primary" size={20} />
-            <h2 className="text-xl font-bold">Visual Identity</h2>
+    <div className="flex gap-8">
+      <nav className="sticky top-4 w-48 shrink-0 hidden lg:block space-y-1">
+        {SETTINGS_SECTIONS.map(({ id, label }) => (
+          <button
+            key={id}
+            className={`block w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors ${
+              activeSection === id
+                ? "bg-accent text-accent-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="flex-1 min-w-0">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+
+          {/* Brand Readiness Indicator */}
+          <div id="section-readiness">
+            {brandReadiness && (
+              <div className={`rounded-lg border p-4 mb-6 ${
+                brandReadiness.ready ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"
+              }`}>
+                <div className="flex items-center gap-2 mb-3">
+                  {brandReadiness.ready ? (
+                    <><CheckCircle className="size-4 text-green-500" /><span className="text-sm font-medium text-green-500">Ready for generation</span></>
+                  ) : (
+                    <><AlertTriangle className="size-4 text-amber-500" /><span className="text-sm font-medium text-amber-500">Setup incomplete</span></>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(brandReadiness.checks).map(([key, check]) => (
+                    <div key={key} className="flex items-center gap-2 text-sm">
+                      {check.passed ? (
+                        <CheckCircle className="size-3.5 text-green-500 shrink-0" />
+                      ) : (
+                        <XCircle className="size-3.5 text-red-500 shrink-0" />
+                      )}
+                      <span className={check.passed ? "text-muted-foreground" : "text-foreground"}>
+                        {check.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              type="button" 
-              variant="destructive" 
-              size="sm" 
-              onClick={() => {
-                if(confirm("Are you sure you want to delete this brand?")) {
-                  deleteBrandMutation.mutate({ id: brand.id });
-                }
-              }}
-              disabled={deleteBrandMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Delete Brand
+
+          {/* Visual Identity / Brand DNA */}
+          <section id="section-brand-dna" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
+              <div className="flex items-center gap-2">
+                <Hexagon className="text-primary" size={20} />
+                <h2 className="text-xl font-bold">Visual Identity</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    if(confirm("Are you sure you want to delete this brand?")) {
+                      deleteBrandMutation.mutate({ id: brand.id });
+                    }
+                  }}
+                  disabled={deleteBrandMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete Brand
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <ColorField name="colorPrimary" label="Primary" value={primary} register={register} setValue={setValue} />
+              <ColorField name="colorSecondary" label="Secondary" value={secondary} register={register} setValue={setValue} />
+              <ColorField name="colorAccent" label="Accent" value={accent} register={register} setValue={setValue} />
+              <ColorField name="colorBackground" label="Background" value={background} register={register} setValue={setValue} />
+            </div>
+
+            <div className="space-y-6 mt-6">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Voice Description</label>
+                <Textarea {...register("voiceDescription")} className="font-mono text-sm bg-background border-border min-h-[120px]" />
+              </div>
+            </div>
+          </section>
+
+          <BrandAssetGroups brandId={brand.id} />
+
+          {/* Imagen Config */}
+          <section id="section-imagen" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <Type className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Imagen Config</h2>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Imagen Prefix</label>
+                <Textarea {...register("imagenPrefix")} className="font-mono text-sm bg-background border-border h-24" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Negative Prompt</label>
+                <Textarea {...register("negativePrompt")} className="font-mono text-sm bg-background border-border h-24" />
+              </div>
+            </div>
+          </section>
+
+          {/* Platform Rules */}
+          <section id="section-platform-rules" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <Shield className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Brand Safety & Rules</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Banned Terms (Comma separated)</label>
+                <Textarea {...register("bannedTerms")} className="bg-background border-border min-h-[100px]" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Trademark Rules</label>
+                <Textarea {...register("trademarkRules")} className="bg-background border-border min-h-[100px]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Platform Rules (JSON)</label>
+                <Textarea {...register("platformRules")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Hashtag Strategy (JSON)</label>
+                <Textarea {...register("hashtagStrategy")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
+              </div>
+            </div>
+          </section>
+
+          {/* Templates */}
+          <section id="section-templates" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <LayoutTemplate className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Templates</h2>
+            </div>
+            <BrandTemplates brandId={brand.id} />
+          </section>
+
+          {/* Font Management */}
+          <div id="section-fonts">
+            <BrandFontManagement brandId={brand.id} />
+          </div>
+
+          {/* Connected Accounts anchor for section nav */}
+          <div id="section-accounts" />
+
+          <div className="flex justify-end pt-4 pb-8">
+            <Button type="submit" disabled={updateBrandMutation.isPending} className="bg-primary hover:bg-primary/90 font-bold px-8 shadow-lg shadow-primary/25">
+              <Save className="mr-2" size={18} />
+              {updateBrandMutation.isPending ? "Saving..." : "Save Brand Changes"}
             </Button>
           </div>
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <ColorField name="colorPrimary" label="Primary" value={primary} register={register} setValue={setValue} />
-          <ColorField name="colorSecondary" label="Secondary" value={secondary} register={register} setValue={setValue} />
-          <ColorField name="colorAccent" label="Accent" value={accent} register={register} setValue={setValue} />
-          <ColorField name="colorBackground" label="Background" value={background} register={register} setValue={setValue} />
-        </div>
-      </section>
 
-      <BrandAssetGroups brandId={brand.id} />
-
-      <BrandFontManagement brandId={brand.id} />
-
-      {/* Voice & Tone */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-          <Type className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Voice & Tone (AI Context)</h2>
-        </div>
-        
-        <div className="space-y-6">
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Voice Description</label>
-            <Textarea {...register("voiceDescription")} className="font-mono text-sm bg-background border-border min-h-[120px]" />
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-2 block">Imagen Prefix</label>
-              <Textarea {...register("imagenPrefix")} className="font-mono text-sm bg-background border-border h-24" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-2 block">Negative Prompt</label>
-              <Textarea {...register("negativePrompt")} className="font-mono text-sm bg-background border-border h-24" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Rules */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-          <Shield className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Brand Safety & Rules</h2>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Banned Terms (Comma separated)</label>
-            <Textarea {...register("bannedTerms")} className="bg-background border-border min-h-[100px]" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Trademark Rules</label>
-            <Textarea {...register("trademarkRules")} className="bg-background border-border min-h-[100px]" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Platform Rules (JSON)</label>
-            <Textarea {...register("platformRules")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Hashtag Strategy (JSON)</label>
-            <Textarea {...register("hashtagStrategy")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
-          </div>
-        </div>
-      </section>
-
-      <BrandAssetGroups brandId={brand.id} />
-
-      <BrandFontManagement brandId={brand.id} />
-
-      {/* Templates */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-          <LayoutTemplate className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Templates</h2>
-        </div>
-        <BrandTemplates brandId={brand.id} />
-      </section>
-
-      <div className="flex justify-end pt-4 pb-8">
-        <Button type="submit" disabled={updateBrandMutation.isPending} className="bg-primary hover:bg-primary/90 font-bold px-8 shadow-lg shadow-primary/25">
-          <Save className="mr-2" size={18} /> 
-          {updateBrandMutation.isPending ? "Saving..." : "Save Brand Changes"}
-        </Button>
+        </form>
       </div>
-
-    </form>
+    </div>
   );
 }
 
