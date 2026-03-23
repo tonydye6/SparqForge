@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Upload, Plus, Search, Filter, ChevronDown, ChevronUp,
   Trash2, Edit3, Rocket, FileText, X, Check, AlertCircle,
-  ArrowUpDown, ArrowUp, ArrowDown
+  ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -454,21 +455,13 @@ export default function ContentPlan() {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <FileText className="w-12 h-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">No content plan items yet</h3>
-          <p className="text-sm text-muted-foreground mb-6 max-w-md">
-            Import a CSV file or create plan items manually to start organizing your content calendar.
-          </p>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="w-4 h-4 mr-2" /> Import CSV
-            </Button>
-            <Button onClick={() => openEditModal()}>
-              <Plus className="w-4 h-4 mr-2" /> Create Plan Item
-            </Button>
-          </div>
-        </div>
+        <EmptyState
+          icon={FileSpreadsheet}
+          title="No content planned"
+          description="Import a CSV or create your first content plan item"
+          actionLabel="Import CSV"
+          onAction={() => fileInputRef.current?.click()}
+        />
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
           <div className="grid grid-cols-[1fr_100px_130px_80px_90px_280px] gap-2 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">

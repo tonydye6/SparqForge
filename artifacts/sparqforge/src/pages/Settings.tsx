@@ -76,9 +76,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { 
   Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
-  Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle2, XCircle,
+  Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle, CheckCircle2, XCircle,
   BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon,
-  Image as ImageIcon, Layers, FileType, Upload
+  Image as ImageIcon, Layers, FileType, Upload, ArrowRight
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -87,6 +87,18 @@ import { Badge } from "@/components/ui/badge";
 import { useSearch } from "wouter";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
+import { useBrandReadiness } from "@/hooks/useBrandReadiness";
+import { LayoutSpecEditor } from "@/components/layout-editor";
+
+const SETTINGS_SECTIONS = [
+  { id: "section-readiness", label: "Brand Readiness" },
+  { id: "section-brand-dna", label: "Brand DNA" },
+  { id: "section-imagen", label: "Imagen Config" },
+  { id: "section-platform-rules", label: "Platform Rules" },
+  { id: "section-templates", label: "Templates" },
+  { id: "section-fonts", label: "Font Management" },
+  { id: "section-accounts", label: "Connected Accounts" },
+];
 
 export default function Settings() {
   const searchString = useSearch();
@@ -466,8 +478,25 @@ function AddBrandForm({ onSubmit, isSubmitting }: { onSubmit: (data: Record<stri
 function BrandEditor({ brand }: { brand: Brand }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
-  const { register, handleSubmit, reset, watch, setValue } = useForm({
+  const { data: brandReadiness } = useBrandReadiness(brand.id);
+  const [activeSection, setActiveSection] = useState("section-readiness");
+
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+    SETTINGS_SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const observer = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveSection(id); },
+        { threshold: 0.3 }
+      );
+      observer.observe(el);
+      observers.push(observer);
+    });
+    return () => observers.forEach(o => o.disconnect());
+  }, []);
+
+  const { register, handleSubmit, reset, watch, setValue, formState: { isDirty } } = useForm({
     defaultValues: {
       name: brand.name,
       slug: brand.slug,
@@ -487,9 +516,27 @@ function BrandEditor({ brand }: { brand: Brand }) {
 
   const updateBrandMutation = useUpdateBrand({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_, variables) => {
         queryClient.invalidateQueries({ queryKey: ["/api/brands"] });
+        queryClient.invalidateQueries({ queryKey: ["brand-readiness", brand.id] });
         toast({ title: "Brand updated successfully" });
+        // Reset RHF dirty state so the unsaved changes banner clears
+        const submitted = variables.data as Record<string, unknown>;
+        reset({
+          name: (submitted.name as string) ?? brand.name,
+          slug: (submitted.slug as string) ?? brand.slug,
+          colorPrimary: (submitted.colorPrimary as string) ?? brand.colorPrimary,
+          colorSecondary: (submitted.colorSecondary as string) ?? brand.colorSecondary,
+          colorAccent: (submitted.colorAccent as string) ?? brand.colorAccent,
+          colorBackground: (submitted.colorBackground as string) ?? brand.colorBackground,
+          voiceDescription: (submitted.voiceDescription as string) ?? "",
+          imagenPrefix: (submitted.imagenPrefix as string) ?? "",
+          negativePrompt: (submitted.negativePrompt as string) ?? "",
+          bannedTerms: Array.isArray(submitted.bannedTerms) ? (submitted.bannedTerms as string[]).join(", ") : ((submitted.bannedTerms as string) ?? ""),
+          trademarkRules: (submitted.trademarkRules as string) ?? "",
+          platformRules: JSON.stringify(submitted.platformRules || {}, null, 2),
+          hashtagStrategy: JSON.stringify(submitted.hashtagStrategy || {}, null, 2),
+        });
       },
       onError: (err: unknown) => {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -535,120 +582,194 @@ function BrandEditor({ brand }: { brand: Brand }) {
   const background = watch("colorBackground");
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
-      
-      {/* Visual Identity */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
-          <div className="flex items-center gap-2">
-            <Hexagon className="text-primary" size={20} />
-            <h2 className="text-xl font-bold">Visual Identity</h2>
+    <div className="flex gap-8">
+      <nav className="sticky top-4 w-48 shrink-0 hidden lg:block space-y-1">
+        {SETTINGS_SECTIONS.map(({ id, label }) => (
+          <button
+            key={id}
+            className={`block w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors ${
+              activeSection === id
+                ? "bg-accent text-accent-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="flex-1 min-w-0">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+
+          {/* Unsaved Changes Banner */}
+          {isDirty && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2 mb-4 text-sm text-amber-400 flex items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0" />
+              You have unsaved changes
+            </div>
+          )}
+
+          {/* Brand Readiness Indicator */}
+          <div id="section-readiness">
+            {brandReadiness && (
+              <div className={`rounded-lg border p-4 mb-6 ${
+                brandReadiness.ready ? "border-green-500/30 bg-green-500/5" : "border-amber-500/30 bg-amber-500/5"
+              }`}>
+                <div className="flex items-center gap-2 mb-3">
+                  {brandReadiness.ready ? (
+                    <><CheckCircle className="size-4 text-green-500" /><span className="text-sm font-medium text-green-500">Ready for generation</span></>
+                  ) : (
+                    <><AlertTriangle className="size-4 text-amber-500" /><span className="text-sm font-medium text-amber-500">Setup incomplete</span></>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(brandReadiness.checks).map(([key, check]) => (
+                    <div key={key} className="flex items-center gap-2 text-sm">
+                      {check.passed ? (
+                        <CheckCircle className="size-3.5 text-green-500 shrink-0" />
+                      ) : (
+                        <XCircle className="size-3.5 text-red-500 shrink-0" />
+                      )}
+                      <span className={check.passed ? "text-muted-foreground" : "text-foreground"}>
+                        {check.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {!brandReadiness?.ready && (
+                  <a href="/setup" className="inline-flex items-center gap-2 mt-3 text-sm font-medium text-primary hover:underline">
+                    Complete Setup <ArrowRight className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              type="button" 
-              variant="destructive" 
-              size="sm" 
-              onClick={() => {
-                if(confirm("Are you sure you want to delete this brand?")) {
-                  deleteBrandMutation.mutate({ id: brand.id });
-                }
+
+          {/* Visual Identity / Brand DNA */}
+          <section id="section-brand-dna" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
+              <div className="flex items-center gap-2">
+                <Hexagon className="text-primary" size={20} />
+                <h2 className="text-xl font-bold">Visual Identity</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    if(confirm("Are you sure you want to delete this brand?")) {
+                      deleteBrandMutation.mutate({ id: brand.id });
+                    }
+                  }}
+                  disabled={deleteBrandMutation.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete Brand
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <ColorField name="colorPrimary" label="Primary" value={primary} register={register} setValue={setValue} />
+              <ColorField name="colorSecondary" label="Secondary" value={secondary} register={register} setValue={setValue} />
+              <ColorField name="colorAccent" label="Accent" value={accent} register={register} setValue={setValue} />
+              <ColorField name="colorBackground" label="Background" value={background} register={register} setValue={setValue} />
+            </div>
+
+            <div className="space-y-6 mt-6">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Voice Description</label>
+                <Textarea {...register("voiceDescription")} className="font-mono text-sm bg-background border-border min-h-[120px]" />
+              </div>
+            </div>
+          </section>
+
+          <BrandAssetGroups brandId={brand.id} />
+
+          {/* Imagen Config */}
+          <section id="section-imagen" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <Type className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Imagen Config</h2>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Imagen Prefix</label>
+                <Textarea {...register("imagenPrefix")} className="font-mono text-sm bg-background border-border h-24" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Negative Prompt</label>
+                <Textarea {...register("negativePrompt")} className="font-mono text-sm bg-background border-border h-24" />
+              </div>
+            </div>
+          </section>
+
+          {/* Platform Rules */}
+          <section id="section-platform-rules" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <Shield className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Brand Safety & Rules</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Banned Terms (Comma separated)</label>
+                <Textarea {...register("bannedTerms")} className="bg-background border-border min-h-[100px]" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Trademark Rules</label>
+                <Textarea {...register("trademarkRules")} className="bg-background border-border min-h-[100px]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Platform Rules (JSON)</label>
+                <Textarea {...register("platformRules")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Hashtag Strategy (JSON)</label>
+                <Textarea {...register("hashtagStrategy")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
+              </div>
+            </div>
+          </section>
+
+          {/* Templates */}
+          <section id="section-templates" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <LayoutTemplate className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Templates</h2>
+            </div>
+            <BrandTemplates
+              brandId={brand.id}
+              brandColors={{
+                primary: brand.colorPrimary || "#3b82f6",
+                secondary: brand.colorSecondary || "#64748b",
+                accent: brand.colorAccent || "#f59e0b",
+                background: brand.colorBackground || "#0f172a",
               }}
-              disabled={deleteBrandMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Delete Brand
+            />
+          </section>
+
+          {/* Font Management */}
+          <div id="section-fonts">
+            <BrandFontManagement brandId={brand.id} />
+          </div>
+
+          {/* Connected Accounts anchor for section nav */}
+          <div id="section-accounts" />
+
+          <div className="flex justify-end pt-4 pb-8">
+            <Button type="submit" disabled={updateBrandMutation.isPending} className="bg-primary hover:bg-primary/90 font-bold px-8 shadow-lg shadow-primary/25">
+              <Save className="mr-2" size={18} />
+              {updateBrandMutation.isPending ? "Saving..." : "Save Brand Changes"}
             </Button>
           </div>
-        </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <ColorField name="colorPrimary" label="Primary" value={primary} register={register} setValue={setValue} />
-          <ColorField name="colorSecondary" label="Secondary" value={secondary} register={register} setValue={setValue} />
-          <ColorField name="colorAccent" label="Accent" value={accent} register={register} setValue={setValue} />
-          <ColorField name="colorBackground" label="Background" value={background} register={register} setValue={setValue} />
-        </div>
-      </section>
 
-      <BrandAssetGroups brandId={brand.id} />
-
-      <BrandFontManagement brandId={brand.id} />
-
-      {/* Voice & Tone */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-          <Type className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Voice & Tone (AI Context)</h2>
-        </div>
-        
-        <div className="space-y-6">
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Voice Description</label>
-            <Textarea {...register("voiceDescription")} className="font-mono text-sm bg-background border-border min-h-[120px]" />
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-2 block">Imagen Prefix</label>
-              <Textarea {...register("imagenPrefix")} className="font-mono text-sm bg-background border-border h-24" />
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-foreground mb-2 block">Negative Prompt</label>
-              <Textarea {...register("negativePrompt")} className="font-mono text-sm bg-background border-border h-24" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Rules */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-          <Shield className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Brand Safety & Rules</h2>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Banned Terms (Comma separated)</label>
-            <Textarea {...register("bannedTerms")} className="bg-background border-border min-h-[100px]" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Trademark Rules</label>
-            <Textarea {...register("trademarkRules")} className="bg-background border-border min-h-[100px]" />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Platform Rules (JSON)</label>
-            <Textarea {...register("platformRules")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Hashtag Strategy (JSON)</label>
-            <Textarea {...register("hashtagStrategy")} className="font-mono text-sm bg-background border-border min-h-[200px]" />
-          </div>
-        </div>
-      </section>
-
-      <BrandAssetGroups brandId={brand.id} />
-
-      <BrandFontManagement brandId={brand.id} />
-
-      {/* Templates */}
-      <section className="bg-card border border-border rounded-xl p-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
-          <LayoutTemplate className="text-primary" size={20} />
-          <h2 className="text-xl font-bold">Templates</h2>
-        </div>
-        <BrandTemplates brandId={brand.id} />
-      </section>
-
-      <div className="flex justify-end pt-4 pb-8">
-        <Button type="submit" disabled={updateBrandMutation.isPending} className="bg-primary hover:bg-primary/90 font-bold px-8 shadow-lg shadow-primary/25">
-          <Save className="mr-2" size={18} /> 
-          {updateBrandMutation.isPending ? "Saving..." : "Save Brand Changes"}
-        </Button>
+        </form>
       </div>
-
-    </form>
+    </div>
   );
 }
 
@@ -669,8 +790,8 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
   const [addDialogOpen, setAddDialogOpen] = useState<string | null>(null);
 
   const getGroupAssets = (group: typeof BRAND_ASSET_GROUPS[0]) => {
-    if (!allAssets) return [];
-    return allAssets.filter(a => {
+    if (!allAssets?.data) return [];
+    return allAssets.data.filter(a => {
       if (a.assetClass !== group.assetClass) return false;
       if (group.role && a.generationRole !== group.role) return false;
       return true;
@@ -678,8 +799,8 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
   };
 
   const getUnassignedVisuals = () => {
-    if (!allAssets) return [];
-    return allAssets.filter(a => a.type === "visual" && !a.assetClass);
+    if (!allAssets?.data) return [];
+    return allAssets.data.filter(a => a.type === "visual" && !a.assetClass);
   };
 
   const assignToGroup = (assetId: string, group: typeof BRAND_ASSET_GROUPS[0]) => {
@@ -807,7 +928,7 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
   const createAssetMutation = useCreateAsset();
   const updateMutation = useUpdateAsset();
 
-  const fontAssets = allAssets || [];
+  const fontAssets = allAssets?.data || [];
 
   const [editingFont, setEditingFont] = useState<string | null>(null);
   const [fontNameEdit, setFontNameEdit] = useState("");
@@ -1000,7 +1121,11 @@ function ColorField({ name, label, value, register, setValue }: ColorFieldProps)
 }
 
 
-function BrandTemplates({ brandId }: { brandId: string }) {
+function BrandTemplates({ brandId, brandColors, brandLogoUrl }: {
+  brandId: string;
+  brandColors?: { primary: string; secondary: string; accent: string; background: string };
+  brandLogoUrl?: string | null;
+}) {
   const { data: templates } = useGetTemplates({ brandId });
   const [isAddOpen, setIsAddOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1025,12 +1150,18 @@ function BrandTemplates({ brandId }: { brandId: string }) {
     }
   });
 
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, watch, setValue } = useForm();
 
   const onAddTemplate = (data: Record<string, string>) => {
     try {
       const claudeInst = data.claudeCaptionInstruction ? JSON.parse(data.claudeCaptionInstruction) : {};
-      const layoutSpc = data.layoutSpec ? JSON.parse(data.layoutSpec) : null;
+      const rawLayout = data.layoutSpec;
+      // layoutSpec may already be a parsed object (from LayoutSpecEditor via JSON.stringify)
+      // or null/undefined/"null"/empty string
+      let layoutSpc: Record<string, unknown> | null = null;
+      if (rawLayout && rawLayout !== "null" && rawLayout !== "{}") {
+        layoutSpc = typeof rawLayout === "object" ? rawLayout : JSON.parse(rawLayout);
+      }
       
       createTemplateMutation.mutate({
         data: {
@@ -1089,8 +1220,30 @@ function BrandTemplates({ brandId }: { brandId: string }) {
                 <Textarea {...register("claudeCaptionInstruction")} defaultValue="{}" className="font-mono text-sm" rows={4} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Layout Spec (JSON, optional)</label>
-                <Textarea {...register("layoutSpec")} defaultValue="null" className="font-mono text-sm" rows={2} />
+                <label className="text-sm font-medium">Layout Spec</label>
+                <input type="hidden" {...register("layoutSpec")} />
+                <LayoutSpecEditor
+                  value={(() => {
+                    try {
+                      const raw = watch("layoutSpec");
+                      if (!raw || raw === "null" || raw === "{}") return {};
+                      return typeof raw === "object" ? raw : JSON.parse(raw);
+                    } catch {
+                      return {};
+                    }
+                  })()}
+                  onChange={(newSpec) =>
+                    setValue("layoutSpec", JSON.stringify(newSpec), { shouldDirty: true })
+                  }
+                  brandColors={brandColors}
+                  brandLogoUrl={brandLogoUrl}
+                  targetAspectRatios={
+                    watch("targetAspectRatios")
+                      ?.split?.(",")
+                      ?.map((s: string) => s.trim())
+                      .filter(Boolean) || []
+                  }
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1111,14 +1264,14 @@ function BrandTemplates({ brandId }: { brandId: string }) {
       </div>
 
       <div className="space-y-4">
-        {templates?.map(t => (
+        {templates?.data?.map(t => (
           <TemplateCard key={t.id} template={t} onDelete={() => {
             if (confirm("Delete template?")) {
               deleteTemplateMutation.mutate({ id: t.id });
             }
           }} />
         ))}
-        {templates?.length === 0 && <p className="text-sm text-muted-foreground italic">No templates configured.</p>}
+        {templates?.data?.length === 0 && <p className="text-sm text-muted-foreground italic">No templates configured.</p>}
       </div>
     </div>
   );

@@ -4,12 +4,16 @@ import { db, campaignsTable, campaignVariantsTable, brandsTable, templatesTable 
 import archiver from "archiver";
 import * as fs from "fs";
 import * as path from "path";
+import { z } from "zod/v4";
+import { validateRequest } from "../middleware/validate.js";
+
+const DownloadParams = z.object({ id: z.string().uuid() });
 
 const router: IRouter = Router();
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads", "generated");
 
-router.get("/campaigns/:id/download", async (req: Request, res: Response): Promise<void> => {
+router.get("/campaigns/:id/download", validateRequest({ params: DownloadParams }), async (req: Request, res: Response): Promise<void> => {
   const campaignId = req.params.id;
 
   const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
@@ -139,7 +143,7 @@ router.get("/campaigns/:id/download", async (req: Request, res: Response): Promi
   await archive.finalize();
 });
 
-router.get("/campaigns/:id/variants/:variantId/download", async (req: Request, res: Response): Promise<void> => {
+router.get("/campaigns/:id/variants/:variantId/download", validateRequest({ params: DownloadParams }), async (req: Request, res: Response): Promise<void> => {
   const { id: campaignId, variantId } = req.params;
 
   const [variant] = await db.select().from(campaignVariantsTable)

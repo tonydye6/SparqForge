@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { db, calendarEntriesTable, campaignsTable, campaignVariantsTable, brandsTable, socialAccountsTable } from "@workspace/db";
 import { publishEntry } from "../services/publish-scheduler";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -172,6 +173,87 @@ router.delete("/calendar-entries/:id", async (req, res): Promise<void> => {
   }
 
   res.json({ message: "Calendar entry deleted" });
+});
+
+const BatchScheduleBodySchema = z.object({
+  entries: z.array(
+    z.object({
+      campaignId: z.string(),
+      scheduledAt: z.string(),
+      socialAccounts: z.record(z.string(), z.string()).optional(),
+    })
+  ),
+});
+
+router.post("/calendar-entries/batch", async (req, res): Promise<void> => {
+  const parseResult = BatchScheduleBodySchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ error: "Invalid request body", details: parseResult.error.issues });
+    return;
+  }
+
+  const { entries } = parseResult.data;
+
+  // Validate all campaigns exist and are approved
+  const campaignIds = entries.map((e) => e.campaignId);
+  const campaigns = await db
+    .select()
+    .from(campaignsTable)
+    .where(sql`${campaignsTable.id} = ANY(${campaignIds})`);
+
+  const campaignMap = new Map(campaigns.map((c) => [c.id, c]));
+
+  for (const entry of entries) {
+    const campaign = campaignMap.get(entry.campaignId);
+    if (!campaign) {
+      res.status(400).json({ error: `Campaign not found: ${entry.campaignId}` });
+      return;
+    }
+    if (campaign.status !== "approved") {
+      res.status(400).json({
+        error: `Campaign ${entry.campaignId} is not approved (status: ${campaign.status})`,
+      });
+      return;
+    }
+  }
+
+  const created: (typeof calendarEntriesTable.$inferSelect)[] = [];
+  const campaignsScheduled: string[] = [];
+
+  await db.transaction(async (tx) => {
+    for (const entry of entries) {
+      const variants = await tx
+        .select()
+        .from(campaignVariantsTable)
+        .where(eq(campaignVariantsTable.campaignId, entry.campaignId));
+
+      for (const variant of variants) {
+        const socialAccountId = entry.socialAccounts?.[variant.platform] ?? null;
+
+        const [calEntry] = await tx
+          .insert(calendarEntriesTable)
+          .values({
+            campaignId: entry.campaignId,
+            variantId: variant.id,
+            platform: variant.platform,
+            scheduledAt: new Date(entry.scheduledAt),
+            socialAccountId,
+          })
+          .returning();
+
+        created.push(calEntry);
+      }
+
+      await tx
+        .update(campaignsTable)
+        .set({ status: "scheduled", updatedAt: new Date() })
+        .where(eq(campaignsTable.id, entry.campaignId));
+
+      campaignsScheduled.push(entry.campaignId);
+    }
+  });
+
+  res.status(201).json({ created, campaignsScheduled });
 });
 
 export default router;

@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
+import { z } from "zod";
 import { db, campaignVariantsTable, campaignsTable, refinementLogsTable, assetPairingsTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -136,6 +137,124 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
     res.json(variant);
   } catch (err) {
     res.status(500).json({ error: "Failed to update variant" });
+  }
+});
+
+const bulkUpdateSchema = z.object({
+  variantIds: z.array(z.string()).min(1),
+  status: z.enum(["approved", "rejected"]),
+  reviewerComment: z.string().optional(),
+});
+
+router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Promise<void> => {
+  const { campaignId } = req.params;
+
+  // 1. Parse and validate request body
+  const parseResult = bulkUpdateSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({ error: "Invalid request body", details: parseResult.error.issues });
+    return;
+  }
+
+  const { variantIds, status, reviewerComment } = parseResult.data;
+
+  // 2. Rejected status requires a reviewerComment
+  if (status === "rejected" && (!reviewerComment || !reviewerComment.trim())) {
+    res.status(400).json({ error: "Rejection requires a reviewer comment" });
+    return;
+  }
+
+  try {
+    // 3. Fetch all variants for this campaign and verify all requested IDs belong to it
+    const campaignVariants = await db
+      .select()
+      .from(campaignVariantsTable)
+      .where(eq(campaignVariantsTable.campaignId, campaignId as string));
+
+    const campaignVariantIds = new Set(campaignVariants.map((v) => v.id));
+    const invalidIds = variantIds.filter((id) => !campaignVariantIds.has(id));
+    if (invalidIds.length > 0) {
+      res.status(400).json({ error: "Some variant IDs do not belong to this campaign", invalidIds });
+      return;
+    }
+
+    // Fetch the campaign's templateId once (needed for refinement logs)
+    const [camp] = await db
+      .select({ templateId: campaignsTable.templateId })
+      .from(campaignsTable)
+      .where(eq(campaignsTable.id, campaignId as string));
+
+    // 4. Run updates in a transaction
+    const updated = await db.transaction(async (tx) => {
+      const results: { id: string; status: string }[] = [];
+
+      for (const variantId of variantIds) {
+        const variant = campaignVariants.find((v) => v.id === variantId)!;
+
+        // 4a. Update variant status (and reviewerComment if rejecting)
+        const variantUpdates: Record<string, unknown> = {
+          status,
+          updatedAt: new Date(),
+        };
+
+        const [updatedVariant] = await tx
+          .update(campaignVariantsTable)
+          .set(variantUpdates)
+          .where(
+            and(
+              eq(campaignVariantsTable.id, variantId),
+              eq(campaignVariantsTable.campaignId, campaignId as string),
+            ),
+          )
+          .returning();
+
+        results.push({ id: updatedVariant.id, status: updatedVariant.status });
+
+        // 4b. Create a refinement log entry (matching the single-variant PUT handler pattern)
+        if (camp?.templateId) {
+          await tx.insert(refinementLogsTable).values({
+            campaignId: campaignId as string,
+            templateId: camp.templateId,
+            editType: status === "approved" ? "approval" : "rejection",
+            platform: variant.platform,
+            aspectRatio: variant.aspectRatio,
+            newValue: reviewerComment || null,
+            userId: (req as any).user?.id || "system",
+          });
+        }
+      }
+
+      return results;
+    });
+
+    // 5. After transaction: check if ALL variants for this campaign are now "approved"
+    const allVariantsAfterUpdate = await db
+      .select({ status: campaignVariantsTable.status })
+      .from(campaignVariantsTable)
+      .where(eq(campaignVariantsTable.campaignId, campaignId as string));
+
+    const allApproved = allVariantsAfterUpdate.length > 0 && allVariantsAfterUpdate.every((v) => v.status === "approved");
+
+    let campaignStatus: string;
+    if (allApproved) {
+      const [updatedCampaign] = await db
+        .update(campaignsTable)
+        .set({ status: "approved", updatedAt: new Date() })
+        .where(eq(campaignsTable.id, campaignId as string))
+        .returning({ status: campaignsTable.status });
+      campaignStatus = updatedCampaign.status;
+    } else {
+      const [currentCampaign] = await db
+        .select({ status: campaignsTable.status })
+        .from(campaignsTable)
+        .where(eq(campaignsTable.id, campaignId as string));
+      campaignStatus = currentCampaign?.status ?? "unknown";
+    }
+
+    // 6. Return updated variants and campaign status
+    res.json({ updated, campaignStatus });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to bulk update variants" });
   }
 });
 

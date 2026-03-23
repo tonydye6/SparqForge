@@ -1,79 +1,22 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2, Video, Volume2, VolumeX, Music, Layers, Star, Eye, Package } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { PlatformIcon } from "@/components/ui/platform-icon";
-import { TikTokPreviewFrame } from "@/components/ui/tiktok-preview-frame";
-import { InstagramFeedPreviewFrame } from "@/components/ui/instagram-feed-preview-frame";
-import { InstagramStoryPreviewFrame } from "@/components/ui/instagram-story-preview-frame";
-import { TwitterPreviewFrame } from "@/components/ui/twitter-preview-frame";
-import { LinkedInPreviewFrame } from "@/components/ui/linkedin-preview-frame";
-import { RewriteToolbar } from "@/components/ui/rewrite-toolbar";
-import { HeadlineOverlayEditor } from "@/components/ui/headline-editor";
-import { 
-  useGetBrands, 
-  useGetTemplates, 
+import { VariantGrid } from "@/components/campaign-studio/VariantGrid";
+import { CampaignConfigPanel } from "@/components/campaign-studio/CampaignConfigPanel";
+import {
+  useGetBrands,
+  useGetTemplates,
   useGetAssets,
   useCreateCampaign,
   type Asset
 } from "@workspace/api-client-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-
-const API_BASE = import.meta.env.VITE_API_URL || "";
-
-interface GeneratedVariant {
-  id?: string;
-  platform: string;
-  aspectRatio: string;
-  rawImageUrl: string | null;
-  compositedImageUrl: string | null;
-  caption: string;
-  headlineText: string | null;
-  imageVersion?: number;
-  videoUrl?: string | null;
-  audioSource?: string | null;
-  audioUrl?: string | null;
-  mergedVideoUrl?: string | null;
-}
-
-interface ActivityLog {
-  time: string;
-  text: string;
-  status: "pending" | "done" | "error";
-}
-
-interface DuplicateInfo {
-  duplicate: boolean;
-  campaignId?: string;
-  campaignName?: string;
-  createdAt?: string;
-}
-
-const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; ratio: string }> = {
-  instagram_feed: { name: "Instagram Feed", platformIcon: "instagram", ratio: "1:1" },
-  instagram_story: { name: "Instagram Story", platformIcon: "instagram", ratio: "9:16" },
-  twitter: { name: "X (Twitter)", platformIcon: "twitter", ratio: "16:9" },
-  linkedin: { name: "LinkedIn", platformIcon: "linkedin", ratio: "16:9" },
-  tiktok: { name: "TikTok", platformIcon: "tiktok", ratio: "9:16" },
-};
-
-const ALL_PLATFORM_KEYS = Object.keys(PLATFORM_LABELS);
-
-const PLAN_PLATFORM_MAP: Record<string, string[]> = {
-  instagram: ["instagram_feed", "instagram_story"],
-  tiktok: ["tiktok"],
-  youtube: ["tiktok"],
-  linkedin: ["linkedin"],
-  x: ["twitter"],
-  facebook: ["instagram_feed"],
-  threads: ["instagram_feed"],
-};
+import { HashtagSetDialog } from "@/components/campaign-studio/HashtagSetDialog";
+import { AudioSettingsDialog } from "@/components/campaign-studio/AudioSettingsDialog";
+import { ActivityPanel } from "@/components/campaign-studio/ActivityPanel";
+import { CampaignStudioSkeleton } from "@/components/campaign-studio/CampaignStudioSkeleton";
+import { useBrandReadiness } from "@/hooks/useBrandReadiness";
+import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/campaign-studio/campaign-studio.types";
 
 export default function CampaignStudio() {
   const { toast } = useToast();
@@ -126,6 +69,31 @@ export default function CampaignStudio() {
   const [recommendedStyles, setRecommendedStyles] = useState<Asset[]>([]);
   const [compositingAssets, setCompositingAssets] = useState<Asset[]>([]);
 
+  const { data: brandReadiness } = useBrandReadiness(selectedBrand || null);
+
+  const generateDisabledReason = (() => {
+    if (!selectedBrand) return "Select a brand";
+    if (brandReadiness && !brandReadiness.ready) {
+      const missingLabels = brandReadiness.missing
+        .map(key => brandReadiness.checks[key]?.label)
+        .filter(Boolean)
+        .join(", ");
+      return `Brand setup incomplete: ${missingLabels}`;
+    }
+    if (!selectedTemplate) return "Select a template";
+    if (selectedAssets.length === 0) return "Select at least one asset";
+    return null;
+  })();
+
+  const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/settings/daily-budget-status`, { credentials: "include" })
+      .then(r => r.json())
+      .then(setBudgetStatus)
+      .catch(() => {});
+  }, [generatedVariants.length]);
+
   useEffect(() => {
     if (!selectedBrand) return;
     const fetchRecommended = async () => {
@@ -166,7 +134,6 @@ export default function CampaignStudio() {
   };
 
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [videoProgress, setVideoProgress] = useState<Record<string, string>>({});
   const [audioDialogOpen, setAudioDialogOpen] = useState(false);
   const [audioDialogVariant, setAudioDialogVariant] = useState<GeneratedVariant | null>(null);
   const [audioSource, setAudioSource] = useState<"music" | "sfx" | "mute">("music");
@@ -174,14 +141,8 @@ export default function CampaignStudio() {
   const [audioMergeMode, setAudioMergeMode] = useState<"replace" | "mix">("replace");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
-  const [rewriteToolbar, setRewriteToolbar] = useState<{
-    platform: string;
-    selectedText: string;
-    selectionStart: number;
-    selectionEnd: number;
-    position: { top: number; left: number };
-  } | null>(null);
-  const [loadingPhase, setLoadingPhase] = useState<Record<string, { caption: boolean; image: boolean }>>({});
+  const [rewriteToolbar, setRewriteToolbar] = useState<RewriteToolbarState | null>(null);
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>({});
 
   const [referenceUrl, setReferenceUrl] = useState("");
   const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
@@ -189,7 +150,6 @@ export default function CampaignStudio() {
   const [referenceScreenshots, setReferenceScreenshots] = useState<Array<{ url: string; viewport: string }>>([]);
   const [referenceError, setReferenceError] = useState("");
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const remixLoadedRef = useRef(false);
   const planLoadedRef = useRef(false);
@@ -311,13 +271,6 @@ export default function CampaignStudio() {
     checkDuplicate();
   }, [selectedTemplate, selectedAssets, duplicateDismissed]);
 
-  const toggleAsset = (id: string) => {
-    setSelectedAssets(prev => {
-      if (prev.includes(id)) return prev.filter(a => a !== id);
-      return [id, ...prev];
-    });
-    setDuplicateDismissed(false);
-  };
 
   const addLog = useCallback((text: string, status: ActivityLog["status"] = "pending") => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -917,7 +870,6 @@ export default function CampaignStudio() {
     }
 
     setIsGeneratingVideo(true);
-    setVideoProgress({});
     addLog("Starting video generation...", "pending");
 
     try {
@@ -953,7 +905,6 @@ export default function CampaignStudio() {
               if (currentEvent === "video_progress") {
                 const orientation = data.orientation as string;
                 const status = data.status as string;
-                setVideoProgress(prev => ({ ...prev, [orientation]: status }));
                 if (status === "started") {
                   addLog(`Generating ${orientation} video...`, "pending");
                 } else if (status === "completed") {
@@ -1068,8 +1019,6 @@ export default function CampaignStudio() {
     }
   }, [campaignId, audioMergeMode, addLog, updateLastLog, toast]);
 
-  const audioFileInputRef = useRef<HTMLInputElement>(null);
-
   const handleVariantRegenerate = useCallback(async (variantId: string, platform: string) => {
     if (!campaignId || !variantId) return;
     const instruction = variantRefineText[platform] || "";
@@ -1143,866 +1092,116 @@ export default function CampaignStudio() {
     }
   }, [selectedBrand, hashtagSetName, hashtagsToSave, toast]);
 
+  if (brands === undefined) {
+    return <CampaignStudioSkeleton />;
+  }
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
-      
-      <aside className="w-[320px] shrink-0 border-r border-border bg-card/50 flex flex-col z-20 shadow-xl">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-            <Settings2 size={18} className="text-primary" />
-            Campaign Setup
-          </h2>
-          {remixId && (
-            <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
-              <RefreshCw size={12} />
-              <span>Remixing from existing campaign</span>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campaign Name</label>
-            <Input 
-              placeholder="e.g. Fall Tournament Hype" 
-              className="bg-background border-border"
-              value={campaignName}
-              onChange={e => setCampaignName(e.target.value)}
-              disabled={isGenerating}
-            />
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Brand DNA</label>
-            <Select value={selectedBrand} onValueChange={(v) => { setSelectedBrand(v); setSelectedTemplate(""); }} disabled={isGenerating}>
-              <SelectTrigger className="w-full bg-background border-border">
-                <SelectValue placeholder="Select Brand" />
-              </SelectTrigger>
-              <SelectContent>
-                {brands?.map(b => (
-                  <SelectItem key={b.id} value={b.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: b.colorPrimary }} />
-                      {b.name}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <CampaignConfigPanel
+        remixId={remixId}
+        campaignName={campaignName}
+        onCampaignNameChange={setCampaignName}
+        brands={brands}
+        selectedBrand={selectedBrand}
+        onBrandChange={(v) => { setSelectedBrand(v); setSelectedTemplate(""); }}
+        templates={templates}
+        selectedTemplate={selectedTemplate}
+        onTemplateChange={(v) => { setSelectedTemplate(v); setDuplicateDismissed(false); }}
+        subjectAssetId={subjectAssetId}
+        onSubjectAssetChange={setSubjectAssetId}
+        recommendedSubjects={recommendedSubjects}
+        approvedVisualAssets={approvedAssets?.data?.filter(a => a.type === 'visual') || []}
+        styleAssetIds={styleAssetIds}
+        onToggleStyleAsset={toggleStyleAsset}
+        recommendedStyles={recommendedStyles}
+        contextAssetIds={contextAssetIds}
+        onToggleContextAsset={toggleContextAsset}
+        briefs={briefs}
+        compositingAssets={compositingAssets}
+        packetPreviewOpen={packetPreviewOpen}
+        onPacketPreviewToggle={() => setPacketPreviewOpen(!packetPreviewOpen)}
+        approvedAssets={approvedAssets}
+        referenceUrl={referenceUrl}
+        onReferenceUrlChange={setReferenceUrl}
+        referenceStatus={referenceStatus}
+        referenceError={referenceError}
+        referenceAnalysis={referenceAnalysis}
+        referenceScreenshots={referenceScreenshots}
+        onAnalyzeUrl={handleAnalyzeUrl}
+        onUploadScreenshot={handleUploadScreenshot}
+        onClearReference={handleClearReference}
+        briefText={briefText}
+        onBriefTextChange={setBriefText}
+        onBriefSelect={(val) => {
+          const brief = briefs?.data?.find(b => b.id === val);
+          if (brief) setBriefText(brief.content || "");
+        }}
+        selectedPlatforms={selectedPlatforms}
+        onSelectedPlatformsChange={setSelectedPlatforms}
+        onGenerate={handleGenerate}
+        onGenerateVideo={handleGenerateVideo}
+        isGenerating={isGenerating}
+        isGeneratingVideo={isGeneratingVideo}
+        generateDisabledReason={generateDisabledReason}
+        budgetStatus={budgetStatus}
+        estimatedCost={estimatedCost}
+        campaignId={campaignId}
+        hasVariants={generatedVariants.length > 0}
+      />
 
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Template</label>
-            <Select value={selectedTemplate} onValueChange={(v) => { setSelectedTemplate(v); setDuplicateDismissed(false); }} disabled={!selectedBrand || isGenerating}>
-              <SelectTrigger className="w-full bg-background border-border">
-                <SelectValue placeholder="Select Template" />
-              </SelectTrigger>
-              <SelectContent>
-                {templates?.map(t => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+      <VariantGrid
+        refineText={refineText}
+        onRefineTextChange={setRefineText}
+        onRefineSubmit={() => {}}
+        isGenerating={isGenerating}
+        generatedVariants={generatedVariants}
+        selectedBrand={selectedBrand}
+        duplicateInfo={duplicateInfo}
+        duplicateDismissed={duplicateDismissed}
+        onDismissDuplicate={() => setDuplicateDismissed(true)}
+        loadingPhase={loadingPhase}
+        selectedPlatforms={selectedPlatforms}
+        regeneratingVariant={regeneratingVariant}
+        variantRefineOpen={variantRefineOpen}
+        variantRefineText={variantRefineText}
+        rewriteToolbar={rewriteToolbar}
+        isGeneratingAudio={isGeneratingAudio}
+        onDownloadVariant={handleDownloadVariant}
+        onCaptionChange={handleCaptionChange}
+        onTextSelect={handleTextSelect}
+        onRewrite={handleRewrite}
+        onHeadlineSave={handleHeadlineSave}
+        onVariantRegenerate={handleVariantRegenerate}
+        extractHashtags={extractHashtags}
+        onRewriteToolbarClose={() => setRewriteToolbar(null)}
+        onSetVariantRefineOpen={setVariantRefineOpen}
+        onSetVariantRefineText={setVariantRefineText}
+        onOpenAudioDialog={(v) => {
+          setAudioDialogVariant(v);
+          setAudioSource("music");
+          setAudioPrompt("");
+          setAudioDialogOpen(true);
+        }}
+        onOpenHashtagDialog={(hashtags) => {
+          setHashtagsToSave(hashtags);
+          setHashtagDialogOpen(true);
+        }}
+      />
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Star size={10} /> Subject Reference <span className="text-muted-foreground">(pick 1)</span>
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(recommendedSubjects.length > 0 ? recommendedSubjects : (approvedAssets?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
-                  const isSelected = subjectAssetId === asset.id;
-                  const isRecommended = idx < 3 && recommendedSubjects.length > 0;
-                  return (
-                    <div
-                      key={asset.id}
-                      onClick={() => !isGenerating && setSubjectAssetId(isSelected ? null : asset.id)}
-                      className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group transition-colors ${isSelected ? 'border-blue-400 ring-1 ring-blue-400/30' : isRecommended ? 'border-blue-400/30 hover:border-blue-400/60' : 'border-transparent hover:border-muted-foreground/50'} ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
-                    >
-                      {asset.thumbnailUrl || asset.fileUrl ? (
-                        <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt="Asset" className={`w-full h-full object-cover transition-opacity ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-card"><ImageIcon size={16} className="text-muted-foreground" /></div>
-                      )}
-                      {isSelected && <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-blue-400 rounded-full shadow-[0_0_8px_rgba(96,165,250,0.8)] border border-background" />}
-                      {isRecommended && !isSelected && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-blue-500/80 text-center">
-                          <span className="text-[8px] text-white font-semibold uppercase">Recommended</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-green-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers size={10} /> Style Reference <span className="text-muted-foreground">(pick 1-2)</span>
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(recommendedStyles.length > 0 ? recommendedStyles : (approvedAssets?.filter(a => a.type === 'visual') || [])).slice(0, 6).map((asset, idx) => {
-                  const isSelected = styleAssetIds.includes(asset.id);
-                  const isRecommended = idx < 3 && recommendedStyles.length > 0;
-                  return (
-                    <div
-                      key={asset.id}
-                      onClick={() => !isGenerating && toggleStyleAsset(asset.id)}
-                      className={`aspect-square rounded-md bg-muted border-2 cursor-pointer overflow-hidden relative group transition-colors ${isSelected ? 'border-green-400 ring-1 ring-green-400/30' : isRecommended ? 'border-green-400/30 hover:border-green-400/60' : 'border-transparent hover:border-muted-foreground/50'} ${isGenerating ? 'opacity-50 pointer-events-none' : ''}`}
-                    >
-                      {asset.thumbnailUrl || asset.fileUrl ? (
-                        <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt="Asset" className={`w-full h-full object-cover transition-opacity ${isSelected ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`} />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-card"><ImageIcon size={16} className="text-muted-foreground" /></div>
-                      )}
-                      {isSelected && <div className="absolute top-1 left-1 w-2.5 h-2.5 bg-green-400 rounded-full shadow-[0_0_8px_rgba(74,222,128,0.8)] border border-background" />}
-                      {isRecommended && !isSelected && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-green-500/80 text-center">
-                          <span className="text-[8px] text-white font-semibold uppercase">Recommended</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText size={10} /> Context Cards <span className="text-muted-foreground">(optional)</span>
-              </label>
-              {briefs && briefs.length > 0 ? (
-                <div className="space-y-1">
-                  {briefs.slice(0, 4).map(brief => {
-                    const isSelected = contextAssetIds.includes(brief.id);
-                    return (
-                      <button
-                        key={brief.id}
-                        onClick={() => !isGenerating && toggleContextAsset(brief.id)}
-                        className={`w-full text-left p-2 rounded border text-xs transition-colors ${isSelected ? 'border-amber-400/50 bg-amber-500/10 text-amber-200' : 'border-border bg-background hover:border-amber-400/30 text-muted-foreground'}`}
-                      >
-                        <span className="font-medium truncate block">{brief.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">No context briefs available.</p>
-              )}
-            </div>
-
-            {compositingAssets.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers size={10} /> Compositing <span className="text-muted-foreground">(auto)</span>
-                </label>
-                <div className="flex gap-1.5">
-                  {compositingAssets.slice(0, 4).map(asset => (
-                    <div key={asset.id} className="w-8 h-8 rounded border border-purple-400/30 bg-purple-500/10 overflow-hidden" title={asset.name}>
-                      {asset.thumbnailUrl || asset.fileUrl ? (
-                        <img src={asset.thumbnailUrl || asset.fileUrl || ""} alt={asset.name} className="w-full h-full object-cover opacity-80" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center"><Layers size={10} className="text-purple-400" /></div>
-                      )}
-                    </div>
-                  ))}
-                  <span className="text-[10px] text-purple-400 self-center ml-1">Auto-applied</span>
-                </div>
-              </div>
-            )}
-
-            {(subjectAssetId || styleAssetIds.length > 0) && (
-              <button
-                onClick={() => setPacketPreviewOpen(!packetPreviewOpen)}
-                className="w-full text-xs text-primary hover:text-primary/80 flex items-center justify-center gap-1.5 py-2 border border-primary/20 rounded-md hover:bg-primary/5 transition-colors"
-              >
-                <Package size={12} />
-                {packetPreviewOpen ? "Hide" : "Preview"} Generation Packet
-              </button>
-            )}
-          </div>
-
-          {packetPreviewOpen && (
-            <div className="bg-background border border-primary/20 rounded-lg p-3 space-y-3">
-              <h4 className="text-xs font-semibold text-primary uppercase flex items-center gap-1.5">
-                <Package size={12} /> Generation Packet Preview
-              </h4>
-
-              <div className="space-y-2">
-                <p className="text-[10px] uppercase text-muted-foreground font-semibold">To AI Generation</p>
-                <div className="space-y-1">
-                  {subjectAssetId && (() => {
-                    const asset = approvedAssets?.find(a => a.id === subjectAssetId) || recommendedSubjects.find(a => a.id === subjectAssetId);
-                    return asset ? (
-                      <div className="flex items-center gap-2 p-1.5 rounded bg-blue-500/10 border border-blue-500/20">
-                        <div className="w-6 h-6 rounded overflow-hidden shrink-0">
-                          {asset.thumbnailUrl || asset.fileUrl ? <img src={asset.thumbnailUrl || asset.fileUrl || ""} className="w-full h-full object-cover" /> : <ImageIcon size={12} />}
-                        </div>
-                        <span className="text-[10px] text-blue-300 truncate flex-1">{asset.name}</span>
-                        <Badge className="text-[8px] bg-blue-500/20 text-blue-300 border-none">Subject</Badge>
-                      </div>
-                    ) : null;
-                  })()}
-                  {styleAssetIds.map(id => {
-                    const asset = approvedAssets?.find(a => a.id === id) || recommendedStyles.find(a => a.id === id);
-                    return asset ? (
-                      <div key={id} className="flex items-center gap-2 p-1.5 rounded bg-green-500/10 border border-green-500/20">
-                        <div className="w-6 h-6 rounded overflow-hidden shrink-0">
-                          {asset.thumbnailUrl || asset.fileUrl ? <img src={asset.thumbnailUrl || asset.fileUrl || ""} className="w-full h-full object-cover" /> : <ImageIcon size={12} />}
-                        </div>
-                        <span className="text-[10px] text-green-300 truncate flex-1">{asset.name}</span>
-                        <Badge className="text-[8px] bg-green-500/20 text-green-300 border-none">Style</Badge>
-                      </div>
-                    ) : null;
-                  })}
-                  {!subjectAssetId && styleAssetIds.length === 0 && (
-                    <p className="text-[10px] text-muted-foreground italic">No assets selected for generation</p>
-                  )}
-                </div>
-              </div>
-
-              {compositingAssets.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] uppercase text-muted-foreground font-semibold">To Compositing (Post-Generation)</p>
-                  <div className="space-y-1">
-                    {compositingAssets.slice(0, 3).map(asset => (
-                      <div key={asset.id} className="flex items-center gap-2 p-1.5 rounded bg-purple-500/10 border border-purple-500/20">
-                        <div className="w-6 h-6 rounded overflow-hidden shrink-0">
-                          {asset.thumbnailUrl || asset.fileUrl ? <img src={asset.thumbnailUrl || asset.fileUrl || ""} className="w-full h-full object-cover" /> : <Layers size={12} />}
-                        </div>
-                        <span className="text-[10px] text-purple-300 truncate flex-1">{asset.name}</span>
-                        <Badge className="text-[8px] bg-purple-500/20 text-purple-300 border-none">Logo</Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {contextAssetIds.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] uppercase text-muted-foreground font-semibold">Text Context</p>
-                  <div className="space-y-1">
-                    {contextAssetIds.map(id => {
-                      const brief = briefs?.find(b => b.id === id);
-                      return brief ? (
-                        <div key={id} className="flex items-center gap-2 p-1.5 rounded bg-amber-500/10 border border-amber-500/20">
-                          <FileText size={12} className="text-amber-400 shrink-0" />
-                          <span className="text-[10px] text-amber-300 truncate flex-1">{brief.name}</span>
-                          <Badge className="text-[8px] bg-amber-500/20 text-amber-300 border-none">Brief</Badge>
-                        </div>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <Link size={12} className="text-primary" />
-              Reference URL
-            </label>
-            {referenceStatus === "idle" || referenceStatus === "error" ? (
-              <>
-                <div className="flex gap-1.5">
-                  <Input
-                    placeholder="https://example.com"
-                    className="bg-background border-border text-sm flex-1"
-                    value={referenceUrl}
-                    onChange={e => setReferenceUrl(e.target.value)}
-                    disabled={isGenerating}
-                    onKeyDown={e => { if (e.key === "Enter") handleAnalyzeUrl(); }}
-                  />
-                  <Button
-                    size="icon"
-                    className="h-9 w-9 bg-primary hover:bg-primary/90 shrink-0"
-                    onClick={handleAnalyzeUrl}
-                    disabled={!referenceUrl.trim() || isGenerating || !selectedBrand}
-                  >
-                    <Search size={14} />
-                  </Button>
-                </div>
-                {referenceStatus === "error" && referenceError && (
-                  <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20">
-                    <AlertCircle size={12} className="text-red-400 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-[11px] text-red-400">{referenceError}</p>
-                      <button
-                        className="text-[11px] text-red-400 underline mt-1 hover:text-red-300"
-                        onClick={handleAnalyzeUrl}
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  </div>
-                )}
-                <button
-                  className="text-[11px] text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isGenerating || !selectedBrand}
-                >
-                  <Upload size={10} />
-                  Or upload screenshot
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadScreenshot(file);
-                    e.target.value = "";
-                  }}
-                />
-              </>
-            ) : referenceStatus === "capturing" ? (
-              <div className="flex items-center gap-2 p-3 rounded-md bg-amber-500/5 border border-amber-500/20">
-                <Loader2 size={14} className="text-amber-400 animate-spin" />
-                <span className="text-xs text-amber-400">Capturing page...</span>
-              </div>
-            ) : referenceStatus === "analyzing" ? (
-              <div className="space-y-2">
-                {referenceScreenshots.length > 0 && (
-                  <div className="w-full h-16 rounded-md overflow-hidden border border-border/50 bg-muted/30">
-                    <img
-                      src={`${API_BASE}${referenceScreenshots[0].url}`}
-                      alt="Reference"
-                      className="w-full h-full object-cover object-top opacity-60"
-                    />
-                  </div>
-                )}
-                <div className="flex items-center gap-2 p-2 rounded-md bg-blue-500/5 border border-blue-500/20">
-                  <Loader2 size={14} className="text-blue-400 animate-spin" />
-                  <span className="text-xs text-blue-400">Analyzing reference...</span>
-                </div>
-              </div>
-            ) : referenceStatus === "done" ? (
-              <div className="space-y-2">
-                {referenceScreenshots.length > 0 && (
-                  <div className="w-full h-16 rounded-md overflow-hidden border border-green-500/20 bg-muted/30 relative group">
-                    <img
-                      src={`${API_BASE}${referenceScreenshots[0].url}`}
-                      alt="Reference"
-                      className="w-full h-full object-cover object-top"
-                    />
-                  </div>
-                )}
-                <div className="flex items-center justify-between p-2 rounded-md bg-green-500/10 border border-green-500/20">
-                  <div className="flex items-center gap-2">
-                    <Check size={12} className="text-green-400" />
-                    <span className="text-xs text-green-400 font-medium">Analyzed ✓</span>
-                  </div>
-                  <button
-                    className="text-muted-foreground hover:text-red-400 transition-colors"
-                    onClick={handleClearReference}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                {referenceAnalysis?.visual_mood && (
-                  <p className="text-[10px] text-muted-foreground leading-tight truncate" title={referenceAnalysis.visual_mood}>
-                    Mood: {referenceAnalysis.visual_mood}
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Context Brief</label>
-            <Select onValueChange={(val) => {
-              const brief = briefs?.find(b => b.id === val);
-              if(brief) setBriefText(brief.content || "");
-            }} disabled={!selectedBrand || !briefs?.length || isGenerating}>
-              <SelectTrigger className="w-full bg-background border-border">
-                <SelectValue placeholder="Select a Brief" />
-              </SelectTrigger>
-              <SelectContent>
-                {briefs?.map(b => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Textarea 
-              placeholder="Write custom brief or instructions for the AI..." 
-              className="min-h-[120px] bg-background border-border text-sm resize-y mt-2"
-              value={briefText}
-              onChange={e => setBriefText(e.target.value)}
-              disabled={isGenerating}
-            />
-          </div>
-        </div>
-        
-        <div className="p-4 border-t border-border bg-background shadow-[0_-4px_10px_rgba(0,0,0,0.2)] z-10 space-y-2">
-          {selectedPlatforms.length < ALL_PLATFORM_KEYS.length && (
-            <div className="flex flex-wrap gap-1 mb-1">
-              <span className="text-[10px] text-muted-foreground w-full">Platforms:</span>
-              {ALL_PLATFORM_KEYS.map(pk => {
-                const active = selectedPlatforms.includes(pk);
-                return (
-                  <button
-                    key={pk}
-                    className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                      active
-                        ? "bg-primary/20 text-primary border-primary/40"
-                        : "bg-muted/30 text-muted-foreground border-border hover:border-primary/30"
-                    }`}
-                    onClick={() => {
-                      setSelectedPlatforms(prev =>
-                        active
-                          ? prev.filter(p => p !== pk)
-                          : [...prev, pk]
-                      );
-                    }}
-                    disabled={isGenerating}
-                  >
-                    {PLATFORM_LABELS[pk].name}
-                  </button>
-                );
-              })}
-              <button
-                className="text-[10px] text-muted-foreground hover:text-foreground ml-auto"
-                onClick={() => setSelectedPlatforms(ALL_PLATFORM_KEYS)}
-              >
-                All
-              </button>
-            </div>
-          )}
-          <Button 
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20"
-            onClick={handleGenerate}
-            disabled={isGenerating || isGeneratingVideo || !selectedBrand || !selectedTemplate || selectedPlatforms.length === 0}
-          >
-            {isGenerating ? (
-              <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
-            ) : (
-              <><Play size={16} className="mr-2" /> Generate Campaign</>
-            )}
-          </Button>
-          <Button 
-            variant="outline"
-            className="w-full border-border hover:bg-muted text-foreground"
-            onClick={handleGenerateVideo}
-            disabled={isGenerating || isGeneratingVideo || !campaignId || generatedVariants.length === 0}
-          >
-            {isGeneratingVideo ? (
-              <><Loader2 size={16} className="mr-2 animate-spin" /> Generating Video...</>
-            ) : (
-              <><Video size={16} className="mr-2 text-primary" /> Generate Video</>
-            )}
-          </Button>
-        </div>
-      </aside>
-
-      <section className="flex-1 flex flex-col min-w-0 relative bg-background/50">
-        <div className="h-16 px-6 border-b border-border flex items-center justify-between shrink-0 bg-background/80 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex-1 max-w-xl relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input 
-              placeholder="Refine all variants... (e.g. 'Make it more aggressive')" 
-              className="w-full pl-10 bg-card border-border h-10 focus-visible:ring-primary/50"
-              value={refineText}
-              onChange={(e) => setRefineText(e.target.value)}
-            />
-            {refineText && (
-              <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary/90">
-                <Send size={14} />
-              </Button>
-            )}
-          </div>
-          
-          <div className="flex items-center gap-3 ml-4">
-            <Badge variant="outline" className={`border-border ${isGenerating ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : generatedVariants.length > 0 ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-card text-muted-foreground'}`}>
-              {isGenerating ? "Generating..." : generatedVariants.length > 0 ? `${generatedVariants.length} Variants` : "Draft Mode"}
-            </Badge>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {duplicateInfo?.duplicate && !duplicateDismissed && (
-            <div className="max-w-6xl mx-auto mb-6 bg-amber-500/5 border border-amber-500/30 rounded-lg p-4 flex items-start gap-3 border-l-4 border-l-amber-500">
-              <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-foreground">
-                  Similar campaign detected
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This looks similar to "{duplicateInfo.campaignName}" from{" "}
-                  {duplicateInfo.createdAt
-                    ? new Date(duplicateInfo.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                    : "recently"}
-                </p>
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                    onClick={() => setDuplicateDismissed(true)}
-                  >
-                    Dismiss and Proceed
-                  </Button>
-                </div>
-              </div>
-              <button onClick={() => setDuplicateDismissed(true)} className="text-muted-foreground hover:text-foreground">
-                <X size={16} />
-              </button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-6xl mx-auto pb-12">
-            {generatedVariants.length > 0 ? (
-              generatedVariants.map((variant) => {
-                const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, platformIcon: "twitter", ratio: variant.aspectRatio };
-                const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
-                const versionSuffix = variant.imageVersion ? `?v=${variant.imageVersion}` : "";
-                const phase = loadingPhase[variant.platform];
-                const isLoading = phase && (!phase.caption || !phase.image);
-                const hasCaption = phase ? phase.caption : !!variant.caption;
-                const hasImage = phase ? phase.image : !!imageUrl;
-
-                const headlineOverlay = variant.headlineText && hasImage ? (
-                  <HeadlineOverlayEditor
-                    headline={variant.headlineText}
-                    disabled={!variant.id}
-                    onSave={(newHeadline) => handleHeadlineSave(variant.id, variant.platform, newHeadline)}
-                  />
-                ) : undefined;
-
-                const renderPreviewFrame = () => {
-                  const frameImageUrl = hasImage && imageUrl ? `${API_BASE}${imageUrl}${versionSuffix}` : undefined;
-                  const frameCaption = variant.caption;
-
-                  if (variant.platform === "tiktok") {
-                    return <TikTokPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
-                  }
-                  if (variant.platform === "instagram_feed") {
-                    return <InstagramFeedPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
-                  }
-                  if (variant.platform === "instagram_story") {
-                    return <InstagramStoryPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
-                  }
-                  if (variant.platform === "twitter") {
-                    return <TwitterPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
-                  }
-                  if (variant.platform === "linkedin") {
-                    return <LinkedInPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
-                  }
-                  return frameImageUrl ? (
-                    <img src={frameImageUrl} alt={`${label.name} variant`} className="w-full h-auto object-cover" />
-                  ) : null;
-                };
-
-                return (
-                  <div key={variant.platform} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
-                    <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <PlatformIcon platform={label.platformIcon} />
-                        <span className="font-semibold text-sm">{label.name}</span>
-                        <span className="text-xs text-muted-foreground ml-2 px-1.5 py-0.5 bg-muted rounded">{label.ratio}</span>
-                        {isLoading && (
-                          <Loader2 size={12} className="animate-spin text-primary ml-1" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {variant.id && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => handleDownloadVariant(variant.id)}>
-                            <Download size={14} />
-                          </Button>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                          <MoreHorizontal size={16} />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 flex-1 flex flex-col gap-4">
-                      <div className="flex gap-4">
-                        <div className="w-[160px] shrink-0 relative">
-                          {regeneratingVariant === variant.platform && (
-                            <div className="absolute inset-0 z-10 bg-background/70 flex flex-col items-center justify-center rounded-md">
-                              <Loader2 size={24} className="animate-spin text-primary" />
-                              <span className="text-[10px] text-primary mt-1">Regenerating...</span>
-                            </div>
-                          )}
-                          {!hasImage && !imageUrl ? (
-                            <div className={`w-full rounded-md border border-border/50 overflow-hidden bg-muted/30 relative ${
-                              variant.platform === "instagram_feed" ? "aspect-square" :
-                              variant.platform === "instagram_story" || variant.platform === "tiktok" ? "aspect-[9/16]" :
-                              "aspect-video"
-                            }`}>
-                              <div className="w-full h-full bg-muted/50 animate-pulse relative overflow-hidden">
-                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className={`${hasImage ? "animate-crossfade-in" : ""}`}>
-                              {renderPreviewFrame()}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex-1 flex flex-col gap-2 relative">
-                          {!hasCaption && isLoading ? (
-                            <div className="bg-muted/20 border border-border/30 rounded-md px-3 py-2">
-                              <div className="w-16 h-2 bg-muted/50 rounded animate-pulse mb-1.5" />
-                              <div className="w-24 h-3 bg-muted/40 rounded animate-pulse" />
-                            </div>
-                          ) : null}
-                          {hasCaption && variant.caption ? (
-                            <>
-                              <Textarea 
-                                className="flex-1 min-h-[80px] resize-none text-sm bg-background border-border p-3 animate-in fade-in duration-500"
-                                value={variant.caption}
-                                onChange={(e) => handleCaptionChange(variant.id, variant.platform, e.target.value)}
-                                onMouseUp={(e) => handleTextSelect(variant.platform, e.currentTarget)}
-                                onKeyUp={(e) => handleTextSelect(variant.platform, e.currentTarget)}
-                              />
-                              {rewriteToolbar && rewriteToolbar.platform === variant.platform && (
-                                <RewriteToolbar
-                                  selectedText={rewriteToolbar.selectedText}
-                                  position={rewriteToolbar.position}
-                                  onRewrite={(instruction) => handleRewrite(rewriteToolbar.selectedText, instruction)}
-                                  onApply={(newText) => {
-                                    const before = variant.caption.substring(0, rewriteToolbar.selectionStart);
-                                    const after = variant.caption.substring(rewriteToolbar.selectionEnd);
-                                    const updated = before + newText + after;
-                                    handleCaptionChange(variant.id, variant.platform, updated);
-                                  }}
-                                  onClose={() => setRewriteToolbar(null)}
-                                />
-                              )}
-                            </>
-                          ) : (
-                            <div className="flex-1 min-h-[80px] bg-background border border-border/30 rounded-md p-3 space-y-2">
-                              <div className="h-2.5 bg-muted/50 rounded w-full animate-pulse relative overflow-hidden">
-                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite_0.1s] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                              </div>
-                              <div className="h-2.5 bg-muted/50 rounded w-4/5 animate-pulse relative overflow-hidden">
-                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite_0.2s] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                              </div>
-                              <div className="h-2.5 bg-muted/50 rounded w-3/5 animate-pulse relative overflow-hidden">
-                                <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite_0.3s] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                              </div>
-                            </div>
-                          )}
-                          <div className="flex justify-between items-center px-1">
-                            <span className="text-[10px] text-muted-foreground">{variant.caption.length} chars</span>
-                            <div className="flex gap-1">
-                              {extractHashtags(variant.caption).length > 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 text-[10px] text-muted-foreground hover:text-primary px-1.5 gap-1"
-                                  onClick={() => {
-                                    setHashtagsToSave(extractHashtags(variant.caption));
-                                    setHashtagDialogOpen(true);
-                                  }}
-                                >
-                                  <Hash size={10} />
-                                  Save as Hashtag Set
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {variant.videoUrl && (
-                        <div className="border-t border-border pt-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                              <Video size={12} className="text-primary" /> Video Preview
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {variant.audioSource && variant.audioSource !== "mute" && (
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
-                                  <Volume2 size={8} className="mr-0.5" />
-                                  {variant.audioSource === "elevenlabs_music" ? "Music" : variant.audioSource === "elevenlabs_sfx" ? "SFX" : variant.audioSource === "custom_upload" ? "Custom" : "Native"}
-                                </Badge>
-                              )}
-                              {variant.audioSource === "mute" && (
-                                <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 text-muted-foreground">
-                                  <VolumeX size={8} className="mr-0.5" /> Muted
-                                </Badge>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 text-[10px] text-muted-foreground hover:text-primary px-1.5 gap-1"
-                                onClick={() => {
-                                  setAudioDialogVariant(variant);
-                                  setAudioSource("music");
-                                  setAudioPrompt("");
-                                  setAudioDialogOpen(true);
-                                }}
-                                disabled={isGeneratingAudio}
-                              >
-                                <Music size={10} /> Audio
-                              </Button>
-                            </div>
-                          </div>
-                          <video
-                            src={`${API_BASE}${variant.mergedVideoUrl || variant.videoUrl}`}
-                            controls
-                            className="w-full rounded-md border border-border/50 bg-black"
-                            style={{ maxHeight: "200px" }}
-                          />
-                        </div>
-                      )}
-
-                      {variant.id && (
-                        <div className="border-t border-border pt-2">
-                          <button
-                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors w-full"
-                            onClick={() => setVariantRefineOpen(prev => ({ ...prev, [variant.platform]: !prev[variant.platform] }))}
-                          >
-                            {variantRefineOpen[variant.platform] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                            <Wand2 size={11} />
-                            <span>Refine this variant</span>
-                          </button>
-                          {variantRefineOpen[variant.platform] && (
-                            <div className="mt-2 flex gap-2">
-                              <Input
-                                placeholder="e.g. 'Make it brighter' or 'More dynamic angle'"
-                                className="flex-1 h-8 text-xs bg-background border-border"
-                                value={variantRefineText[variant.platform] || ""}
-                                onChange={(e) => setVariantRefineText(prev => ({ ...prev, [variant.platform]: e.target.value }))}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" && variant.id) {
-                                    handleVariantRegenerate(variant.id, variant.platform);
-                                  }
-                                }}
-                                disabled={regeneratingVariant !== null}
-                              />
-                              <Button
-                                size="sm"
-                                className="h-8 px-3 text-xs bg-primary hover:bg-primary/90"
-                                disabled={regeneratingVariant !== null}
-                                onClick={() => variant.id && handleVariantRegenerate(variant.id, variant.platform)}
-                              >
-                                {regeneratingVariant === variant.platform ? (
-                                  <Loader2 size={12} className="animate-spin" />
-                                ) : (
-                                  <><Wand2 size={12} className="mr-1" /> Refine</>
-                                )}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              Object.entries(PLATFORM_LABELS).map(([key, panel]) => (
-                <div key={key} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
-                  <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <PlatformIcon platform={panel.platformIcon} />
-                      <span className="font-semibold text-sm">{panel.name}</span>
-                      <span className="text-xs text-muted-foreground ml-2 px-1.5 py-0.5 bg-muted rounded">{panel.ratio}</span>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
-                      <MoreHorizontal size={16} />
-                    </Button>
-                  </div>
-                  
-                  <div className="p-4 flex-1 flex flex-col gap-4">
-                    <div className="flex gap-4">
-                      <div className="w-[120px] shrink-0 bg-muted/30 rounded-md border border-border/50 flex flex-col items-center justify-center text-muted-foreground aspect-square">
-                        <ImageIcon size={24} className="mb-2 opacity-20" />
-                        <span className="text-[10px] font-medium uppercase tracking-wider opacity-50">Placeholder</span>
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col gap-2">
-                        <Textarea 
-                          className="flex-1 min-h-[100px] resize-none text-sm bg-background border-border p-3"
-                          placeholder="AI generated caption will appear here..."
-                          disabled
-                        />
-                        <div className="flex justify-between items-center px-1">
-                          <span className="text-[10px] text-muted-foreground">0 chars</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
-
-      <aside className="w-[280px] shrink-0 border-l border-border bg-card/50 flex flex-col z-20 shadow-xl">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="font-bold text-foreground">Overview</h2>
-          <div className="text-xs font-mono bg-primary/10 text-primary px-2 py-1 rounded border border-primary/20">
-            Cost: ${estimatedCost.toFixed(2)}
-          </div>
-        </div>
-        
-        <div className="flex-1 p-4 overflow-y-auto">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">Activity Log</h3>
-          <div className="space-y-3">
-            {activityLog.map((log, i) => (
-              <div key={i} className="flex gap-3 relative">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10 ${
-                  log.status === "done" ? "bg-green-500/20 text-green-400" :
-                  log.status === "error" ? "bg-red-500/20 text-red-400" :
-                  "bg-amber-500/20 text-amber-400"
-                }`}>
-                  {log.status === "done" ? <Check size={10} /> :
-                   log.status === "error" ? <X size={10} /> :
-                   <Loader2 size={10} className="animate-spin" />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-foreground leading-tight">{log.text}</p>
-                  <p className="text-[10px] text-muted-foreground">{log.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="p-4 border-t border-border space-y-2 bg-background">
-          <Button 
-            variant="outline" 
-            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground"
-            onClick={handleSaveDraft}
-            disabled={createCampaignMutation.isPending || isGenerating}
-          >
-            <Save size={16} className="mr-2 text-muted-foreground" /> 
-            {createCampaignMutation.isPending ? "Saving..." : "Save Draft"}
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground" 
-            disabled={generatedVariants.length === 0 || !campaignId}
-            onClick={handleDownloadAll}
-          >
-            <Download size={16} className="mr-2 text-muted-foreground" /> Download All Assets
-          </Button>
-          <Button 
-            variant="outline" 
-            className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground" 
-            disabled={generatedVariants.length === 0 || !campaignId || isGenerating}
-            onClick={() => setScheduleModalOpen(true)}
-          >
-            <CalendarIcon size={16} className="mr-2 text-muted-foreground" /> Schedule
-          </Button>
-          <Button 
-            className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2" 
-            disabled={generatedVariants.length === 0 || !campaignId || isGenerating}
-            onClick={handleSubmitForReview}
-          >
-            Submit for Review
-          </Button>
-        </div>
-      </aside>
+      <ActivityPanel
+        activityLog={activityLog}
+        estimatedCost={estimatedCost}
+        onSaveDraft={handleSaveDraft}
+        isSaving={createCampaignMutation.isPending}
+        onDownloadAll={handleDownloadAll}
+        onSchedule={() => setScheduleModalOpen(true)}
+        onSubmitForReview={handleSubmitForReview}
+        hasVariants={generatedVariants.length > 0}
+        campaignId={campaignId}
+        isGenerating={isGenerating}
+      />
 
       {campaignId && (
         <ScheduleModal
@@ -2017,145 +1216,34 @@ export default function CampaignStudio() {
         />
       )}
 
-      <Dialog open={hashtagDialogOpen} onOpenChange={setHashtagDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Save as Hashtag Set</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Set Name</label>
-              <Input
-                placeholder="e.g. Tournament Hype Tags"
-                value={hashtagSetName}
-                onChange={(e) => setHashtagSetName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Hashtags ({hashtagsToSave.length})</label>
-              <div className="flex flex-wrap gap-1.5">
-                {hashtagsToSave.map((tag, i) => (
-                  <Badge key={i} variant="secondary" className="text-xs">
-                    {tag}
-                    <button
-                      className="ml-1 hover:text-destructive"
-                      onClick={() => setHashtagsToSave(prev => prev.filter((_, idx) => idx !== i))}
-                    >
-                      <X size={10} />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setHashtagDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleSaveHashtagSet}
-              disabled={savingHashtags || !hashtagSetName.trim() || hashtagsToSave.length === 0}
-            >
-              {savingHashtags ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Hash size={14} className="mr-2" />}
-              Save Set
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <HashtagSetDialog
+        open={hashtagDialogOpen}
+        onOpenChange={setHashtagDialogOpen}
+        hashtagSetName={hashtagSetName}
+        onNameChange={setHashtagSetName}
+        hashtagsToSave={hashtagsToSave}
+        onRemoveHashtag={(index) => setHashtagsToSave(prev => prev.filter((_, idx) => idx !== index))}
+        onSave={handleSaveHashtagSet}
+        isSaving={savingHashtags}
+      />
 
-      <Dialog open={audioDialogOpen} onOpenChange={setAudioDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Music size={18} className="text-primary" /> Audio Settings
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Audio Source</label>
-              <Select value={audioSource} onValueChange={(v) => setAudioSource(v as "music" | "sfx" | "mute")}>
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="music">
-                    <span className="flex items-center gap-2"><Music size={14} /> AI Music</span>
-                  </SelectItem>
-                  <SelectItem value="sfx">
-                    <span className="flex items-center gap-2"><Volume2 size={14} /> Sound Effects</span>
-                  </SelectItem>
-                  <SelectItem value="mute">
-                    <span className="flex items-center gap-2"><VolumeX size={14} /> Mute Audio</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(audioSource === "music" || audioSource === "sfx") && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  {audioSource === "music" ? "Music Style / Mood" : "Sound Effect Description"}
-                </label>
-                <Input
-                  placeholder={audioSource === "music" ? "e.g. Epic orchestral gaming trailer" : "e.g. Explosion, crowd cheering"}
-                  value={audioPrompt}
-                  onChange={(e) => setAudioPrompt(e.target.value)}
-                  className="bg-background border-border"
-                />
-              </div>
-            )}
-
-            {audioSource !== "mute" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Mix Mode</label>
-                <Select value={audioMergeMode} onValueChange={(v) => setAudioMergeMode(v as "replace" | "mix")}>
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="replace">Replace original audio</SelectItem>
-                    <SelectItem value="mix">Mix with original audio</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-2 border-t border-border">
-              <input
-                type="file"
-                accept="audio/mpeg,audio/mp3,audio/wav"
-                className="hidden"
-                ref={audioFileInputRef}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file && audioDialogVariant?.id) {
-                    handleUploadAudio(audioDialogVariant.id, file);
-                  }
-                  e.target.value = "";
-                }}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => audioFileInputRef.current?.click()}
-                disabled={isGeneratingAudio}
-              >
-                <Upload size={12} className="mr-1" /> Upload Custom Audio
-              </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAudioDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleSetAudio}
-              disabled={isGeneratingAudio || ((audioSource === "music" || audioSource === "sfx") && !audioPrompt.trim())}
-            >
-              {isGeneratingAudio ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Music size={14} className="mr-2" />}
-              Apply Audio
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AudioSettingsDialog
+        open={audioDialogOpen}
+        onOpenChange={setAudioDialogOpen}
+        audioSource={audioSource}
+        onSourceChange={(v) => setAudioSource(v as "music" | "sfx" | "mute")}
+        audioPrompt={audioPrompt}
+        onPromptChange={setAudioPrompt}
+        audioMergeMode={audioMergeMode}
+        onMergeModeChange={(v) => setAudioMergeMode(v as "replace" | "mix")}
+        onApply={handleSetAudio}
+        onUploadAudio={(file) => {
+          if (audioDialogVariant?.id) {
+            handleUploadAudio(audioDialogVariant.id, file);
+          }
+        }}
+        isGenerating={isGeneratingAudio}
+      />
     </div>
   );
 }

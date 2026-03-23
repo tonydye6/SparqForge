@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db, hashtagSetsTable } from "@workspace/db";
 import {
   GetHashtagSetsQueryParams,
@@ -16,23 +16,28 @@ const router: IRouter = Router();
 
 router.get("/hashtag-sets", async (req, res): Promise<void> => {
   const query = GetHashtagSetsQueryParams.safeParse(req.query);
-  let results;
+  const conditions = [];
 
   if (query.success && query.data.brandId) {
-    if (query.data.category) {
-      results = await db.select().from(hashtagSetsTable)
-        .where(eq(hashtagSetsTable.brandId, query.data.brandId))
-        .orderBy(hashtagSetsTable.category, hashtagSetsTable.name);
-    } else {
-      results = await db.select().from(hashtagSetsTable)
-        .where(eq(hashtagSetsTable.brandId, query.data.brandId))
-        .orderBy(hashtagSetsTable.category, hashtagSetsTable.name);
-    }
-  } else {
-    results = await db.select().from(hashtagSetsTable).orderBy(hashtagSetsTable.category, hashtagSetsTable.name);
+    conditions.push(eq(hashtagSetsTable.brandId, query.data.brandId));
   }
 
-  res.json(GetHashtagSetsResponse.parse(results));
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+  const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(hashtagSetsTable)
+    .where(baseCondition);
+  const total = countResult?.count ?? 0;
+
+  const results = baseCondition
+    ? await db.select().from(hashtagSetsTable).where(baseCondition).orderBy(hashtagSetsTable.createdAt).limit(limit).offset(offset)
+    : await db.select().from(hashtagSetsTable).orderBy(hashtagSetsTable.createdAt).limit(limit).offset(offset);
+
+  res.json({ data: results, total, limit, offset });
 });
 
 router.post("/hashtag-sets", async (req, res): Promise<void> => {

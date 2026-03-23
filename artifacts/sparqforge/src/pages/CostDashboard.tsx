@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, Zap, BarChart3, Calendar as CalendarIcon, AlertTriangle, Settings, Shield, Save } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -278,6 +279,14 @@ export default function CostDashboard() {
       )}
 
       <div className="flex-1 overflow-y-auto pr-0 sm:pr-2 pb-12">
+        {!isLoading && (!summary || summary.totalCost === 0) && (
+          <EmptyState
+            icon={BarChart3}
+            title="No spending data"
+            description="API costs will appear here after your first generation"
+            className="mb-6"
+          />
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <SummaryCard
             icon={<DollarSign size={18} />}
