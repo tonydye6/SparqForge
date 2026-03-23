@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable, assetsTable, assetPairingsTable, brandsTable, generationPacketLogsTable } from "@workspace/db";
 import { sql, gte } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
@@ -7,6 +7,7 @@ import { generateCaptions } from "../services/claude.js";
 import { generateAllImages, generateImage, PLATFORM_CONFIGS, type ReferenceImage } from "../services/imagen.js";
 import { AI_MODELS, estimateClaudeCost, estimateImagenCost } from "../lib/ai-config.js";
 import { compositeImage } from "../services/compositing.js";
+import { checkBrandReadiness } from "../lib/brand-readiness.js";
 import { buildGenerationPacket } from "../services/packet-assembly.js";
 import * as fs from "fs";
 import * as path from "path";
@@ -124,6 +125,38 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     return;
   }
 
+  // --- Brand safety gates (must run before SSE writeHead) ---
+  const selectedAssets = (campaign.selectedAssets || []) as SelectedAssetRef[];
+  const selectedAssetIds = selectedAssets.map(a => a.assetId);
+
+  if (selectedAssetIds.length > 0) {
+    const assets = await db.select({ id: assetsTable.id, status: assetsTable.status })
+      .from(assetsTable)
+      .where(inArray(assetsTable.id, selectedAssetIds));
+
+    const unapproved = assets.filter(a => a.status !== "approved").map(a => a.id);
+    const missing = selectedAssetIds.filter(id => !assets.find(a => a.id === id));
+
+    if (unapproved.length > 0 || missing.length > 0) {
+      res.status(400).json({
+        error: "UNAPPROVED_ASSETS",
+        message: "All selected assets must be approved before generation",
+        unapprovedAssets: [...unapproved, ...missing],
+      });
+      return;
+    }
+  }
+
+  const readiness = await checkBrandReadiness(campaign.brandId);
+  if (!readiness.ready) {
+    res.status(400).json({
+      error: "BRAND_NOT_READY",
+      message: "Brand setup is incomplete",
+      ...readiness,
+    });
+    return;
+  }
+
   const [thresholdRow] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "dailyCostThreshold"));
   const budgetThreshold = thresholdRow ? parseFloat(thresholdRow.value) : null;
   let reservationId: string | null = null;
@@ -192,8 +225,6 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     sendEvent("status", { status: "generating", message: "Starting generation..." });
 
     sendEvent("progress", { step: "packet", message: "Building generation packet..." });
-    const selectedAssets = (campaign.selectedAssets || []) as SelectedAssetRef[];
-    const selectedAssetIds = selectedAssets.map(a => a.assetId);
 
     let packet: Awaited<ReturnType<typeof buildGenerationPacket>> | null = null;
     let referenceImages: ReferenceImage[] = [];
