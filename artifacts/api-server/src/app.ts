@@ -79,7 +79,16 @@ app.use("/api", healthRouter);
 app.use("/api", authRouter);
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
-app.get("/api/files/generated/:filename", (req, res) => {
+
+const fileServingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many file requests, please try again later." },
+});
+
+app.get("/api/files/generated/:filename", fileServingLimiter, (req, res) => {
   const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
   if (!filename || filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
     res.status(400).json({ error: "Invalid filename" });

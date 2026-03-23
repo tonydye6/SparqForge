@@ -15,6 +15,17 @@ interface PublishResult {
   error?: string;
 }
 
+// OAuth 1.0a credentials for Twitter media upload (v1.1 API).
+// Twitter's media upload endpoint requires OAuth 1.0a, even when tweet creation uses OAuth 2.0 Bearer tokens.
+//
+// Required environment variables:
+//   X_SparqForge_X_API_Key          – Twitter app's Consumer Key (API Key), from the Twitter Developer Portal → App → Keys and Tokens
+//   X_SparqForge_X_API_Secret       – Twitter app's Consumer Secret (API Secret), same section
+//   X_SparqForge_X_Access_Token     – User-level OAuth 1.0a Access Token, generated under "Authentication Tokens" in the Developer Portal
+//   X_SparqForge_X_Access_Token_Secret – Corresponding Access Token Secret
+//
+// These credentials must belong to the same Twitter account whose OAuth 2.0 Bearer token is used for tweet creation,
+// so that uploaded media can be attached to tweets authored by that account.
 function getOAuth1Credentials() {
   const consumerKey = process.env.X_SparqForge_X_API_Key;
   const consumerSecret = process.env.X_SparqForge_X_API_Secret;

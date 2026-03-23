@@ -3,8 +3,9 @@ import { eq } from "drizzle-orm";
 
 export async function backfillAssetClassifications(): Promise<{ updated: number; details: string[] }> {
   const allAssets = await db.select().from(assetsTable);
-  let updated = 0;
   const details: string[] = [];
+
+  const updates: { id: string; data: Record<string, unknown>; label: string }[] = [];
 
   for (const asset of allAssets) {
     if (asset.assetClass !== "subject_reference") continue;
@@ -57,20 +58,33 @@ export async function backfillAssetClassifications(): Promise<{ updated: number;
       generationRole !== null;
 
     if (needsUpdate) {
-      await db.update(assetsTable)
-        .set({
+      updates.push({
+        id: asset.id,
+        data: {
           assetClass,
           generationRole,
           compositingOnly,
           generationAllowed,
           approvedForCompositing,
           updatedAt: new Date(),
-        })
-        .where(eq(assetsTable.id, asset.id));
-      updated++;
-      details.push(`${asset.name}: ${asset.type}/${asset.subType || 'none'} → ${assetClass}`);
+        },
+        label: `${asset.name}: ${asset.type}/${asset.subType || 'none'} → ${assetClass}`,
+      });
     }
   }
 
-  return { updated, details };
+  if (updates.length === 0) {
+    return { updated: 0, details };
+  }
+
+  await db.transaction(async (tx) => {
+    for (const update of updates) {
+      await tx.update(assetsTable)
+        .set(update.data)
+        .where(eq(assetsTable.id, update.id));
+      details.push(update.label);
+    }
+  });
+
+  return { updated: updates.length, details };
 }

@@ -216,17 +216,19 @@ router.get("/auth/instagram/callback", async (req, res) => {
     }
 
     const tokenData: FacebookTokenResponse = await tokenResp.json();
-    const shortLivedToken = tokenData.access_token;
 
+    // Facebook's token exchange API requires fb_exchange_token as a GET query parameter.
+    // This is a Facebook API requirement and cannot be sent as a POST body.
+    // We intentionally avoid logging the URL to prevent exposing the short-lived token.
     const longLivedUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
     longLivedUrl.searchParams.set("grant_type", "fb_exchange_token");
     longLivedUrl.searchParams.set("client_id", appId!);
     longLivedUrl.searchParams.set("client_secret", appSecret!);
-    longLivedUrl.searchParams.set("fb_exchange_token", shortLivedToken);
+    longLivedUrl.searchParams.set("fb_exchange_token", tokenData.access_token);
 
     const longLivedResp = await fetch(longLivedUrl.toString());
     const longLivedData: FacebookTokenResponse = await longLivedResp.json();
-    const accessToken = longLivedData.access_token || shortLivedToken;
+    const accessToken = longLivedData.access_token || tokenData.access_token;
     const expiresIn = longLivedData.expires_in || 5184000;
 
     const pagesResp = await fetch(
@@ -354,7 +356,7 @@ router.get("/auth/linkedin/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=profile_fetch_failed`);
     }
 
-    const fullAccountId = accountId.startsWith("urn:li:") ? accountId : `urn:li:person:${accountId}`;
+    const fullAccountId = `urn:li:person:${accountId}`;
 
     const expiresAt = tokenData.expires_in
       ? new Date(Date.now() + tokenData.expires_in * 1000)

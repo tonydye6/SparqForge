@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, SQL } from "drizzle-orm";
 import { db, socialContentPlanItemsTable, brandsTable, templatesTable, campaignsTable, type PlanItem } from "@workspace/db";
 import multer from "multer";
+import { parse as csvParseSync } from "csv-parse/sync";
 
 const router: IRouter = Router();
 
@@ -29,70 +30,13 @@ function isValidPlatform(p: string): boolean {
 }
 
 function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.split(/\r?\n/).filter(l => l.trim() !== "");
-  if (lines.length < 2) return [];
-
-  const headers = parseCSVLine(lines[0]);
-  const expectedCols = headers.length;
-  const rows: Record<string, string>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    let values = parseCSVLine(lines[i]);
-
-    if (values.length > expectedCols) {
-      const extra = values.length - expectedCols;
-      const coreMessageIdx = headers.indexOf("core_message");
-      if (coreMessageIdx >= 0) {
-        const merged = values.slice(coreMessageIdx, coreMessageIdx + extra + 1).join(",");
-        values = [
-          ...values.slice(0, coreMessageIdx),
-          merged,
-          ...values.slice(coreMessageIdx + extra + 1),
-        ];
-      }
-    }
-
-    const row: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      row[h.trim()] = (values[idx] || "").trim();
-    });
-    rows.push(row);
-  }
-
-  return rows;
-}
-
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        current += char;
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true;
-      } else if (char === ",") {
-        result.push(current);
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-  }
-  result.push(current);
-  return result;
+  const records: Record<string, string>[] = csvParseSync(text, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+    relax_column_count: true,
+  });
+  return records;
 }
 
 router.post("/content-plan/import", csvUpload.single("file"), async (req, res): Promise<void> => {
@@ -310,19 +254,11 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
   let brandId: string | null = null;
   if (planItem.brandLayer) {
     const brands = await db.select().from(brandsTable);
-    const brandLayerMap: Record<string, string[]> = {
-      parent_brand: ["sparq", "corporate", "parent"],
-      game_brand: ["crown u", "rumble u", "mascot mayhem"],
-      platform_product: ["playmaker", "brandweave", "platform"],
-      partnership: ["partner", "partnership"],
-    };
     const layerKey = planItem.brandLayer.toLowerCase();
-    const matchNames = brandLayerMap[layerKey] || [layerKey];
     const match = brands.find(b => {
       const bName = b.name.toLowerCase();
       const bSlug = b.slug.toLowerCase();
-      return matchNames.some(m => bName.includes(m) || m.includes(bName) || bSlug === m) ||
-        bName.includes(layerKey) || layerKey.includes(bName) || bSlug === layerKey;
+      return bName === layerKey || bSlug === layerKey;
     });
     if (match) brandId = match.id;
   }

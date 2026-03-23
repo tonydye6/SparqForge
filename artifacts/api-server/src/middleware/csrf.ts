@@ -57,11 +57,6 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     return;
   }
 
-  if (req.isAuthenticated && req.isAuthenticated()) {
-    logger.warn({ path: req.path }, "CSRF check failed: authenticated request missing Origin/Referer");
-    res.status(403).json({ error: "Forbidden: missing origin header" });
-    return;
-  }
-
-  next();
+  logger.warn({ path: req.path }, "CSRF check failed: state-changing request missing Origin/Referer");
+  res.status(403).json({ error: "Forbidden: missing origin header" });
 }

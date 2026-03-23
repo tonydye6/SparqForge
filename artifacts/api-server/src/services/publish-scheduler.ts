@@ -44,91 +44,98 @@ function getImageFilePath(compositedImageUrl: string | null): string | null {
 }
 
 async function publishEntry(entryId: string): Promise<void> {
-  const [entry] = await db.select().from(calendarEntriesTable).where(eq(calendarEntriesTable.id, entryId));
-  if (!entry) {
-    logger.warn({ entryId }, "Calendar entry not found for publishing");
-    return;
-  }
+  const claimed = await db.transaction(async (tx) => {
+    const [entry] = await tx.select().from(calendarEntriesTable).where(eq(calendarEntriesTable.id, entryId));
+    if (!entry) {
+      logger.warn({ entryId }, "Calendar entry not found for publishing");
+      return null;
+    }
 
-  const [updated] = await db.update(calendarEntriesTable)
-    .set({ publishStatus: "publishing", updatedAt: new Date() })
-    .where(and(
-      eq(calendarEntriesTable.id, entryId),
-      or(
-        eq(calendarEntriesTable.publishStatus, "scheduled"),
-        eq(calendarEntriesTable.publishStatus, "failed")
-      )
-    ))
-    .returning();
+    const [updated] = await tx.update(calendarEntriesTable)
+      .set({ publishStatus: "publishing", updatedAt: new Date() })
+      .where(and(
+        eq(calendarEntriesTable.id, entryId),
+        or(
+          eq(calendarEntriesTable.publishStatus, "scheduled"),
+          eq(calendarEntriesTable.publishStatus, "failed")
+        )
+      ))
+      .returning();
 
-  if (!updated) {
-    logger.info({ entryId }, "Entry already being processed, skipping");
-    return;
-  }
+    if (!updated) {
+      logger.info({ entryId }, "Entry already being processed, skipping");
+      return null;
+    }
 
-  const newRetryCount = (entry.retryCount || 0) + 1;
+    const newRetryCount = (entry.retryCount || 0) + 1;
 
-  if (!entry.socialAccountId) {
-    await db.update(calendarEntriesTable)
-      .set({
-        publishStatus: "failed",
-        publishError: "No social account connected for this entry",
-        retryCount: newRetryCount,
-        updatedAt: new Date(),
-      })
-      .where(eq(calendarEntriesTable.id, entryId));
-    return;
-  }
+    if (!entry.socialAccountId) {
+      await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "failed",
+          publishError: "No social account connected for this entry",
+          retryCount: newRetryCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(calendarEntriesTable.id, entryId));
+      return null;
+    }
 
-  const [socialAccount] = await db.select().from(socialAccountsTable)
-    .where(eq(socialAccountsTable.id, entry.socialAccountId));
+    const [socialAccount] = await tx.select().from(socialAccountsTable)
+      .where(eq(socialAccountsTable.id, entry.socialAccountId));
 
-  if (!socialAccount) {
-    await db.update(calendarEntriesTable)
-      .set({
-        publishStatus: "failed",
-        publishError: "Social account not found",
-        retryCount: newRetryCount,
-        updatedAt: new Date(),
-      })
-      .where(eq(calendarEntriesTable.id, entryId));
-    return;
-  }
+    if (!socialAccount) {
+      await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "failed",
+          publishError: "Social account not found",
+          retryCount: newRetryCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(calendarEntriesTable.id, entryId));
+      return null;
+    }
 
-  const platformMap: Record<string, string> = {
-    twitter: "twitter",
-    instagram_feed: "instagram",
-    instagram_story: "instagram",
-    linkedin: "linkedin",
-  };
-  const expectedPlatform = platformMap[entry.platform] || entry.platform;
-  if (socialAccount.platform !== expectedPlatform && socialAccount.platform !== entry.platform) {
-    await db.update(calendarEntriesTable)
-      .set({
-        publishStatus: "failed",
-        publishError: `Platform mismatch: entry is ${entry.platform} but account is ${socialAccount.platform}`,
-        retryCount: newRetryCount,
-        updatedAt: new Date(),
-      })
-      .where(eq(calendarEntriesTable.id, entryId));
-    return;
-  }
+    const platformMap: Record<string, string> = {
+      twitter: "twitter",
+      instagram_feed: "instagram",
+      instagram_story: "instagram",
+      linkedin: "linkedin",
+    };
+    const expectedPlatform = platformMap[entry.platform] || entry.platform;
+    if (socialAccount.platform !== expectedPlatform && socialAccount.platform !== entry.platform) {
+      await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "failed",
+          publishError: `Platform mismatch: entry is ${entry.platform} but account is ${socialAccount.platform}`,
+          retryCount: newRetryCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(calendarEntriesTable.id, entryId));
+      return null;
+    }
 
-  const [variant] = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.id, entry.variantId));
+    const [variant] = await tx.select().from(campaignVariantsTable)
+      .where(eq(campaignVariantsTable.id, entry.variantId));
 
-  if (!variant) {
-    await db.update(calendarEntriesTable)
-      .set({
-        publishStatus: "failed",
-        publishError: "Campaign variant not found",
-        retryCount: newRetryCount,
-        updatedAt: new Date(),
-      })
-      .where(eq(calendarEntriesTable.id, entryId));
-    return;
-  }
+    if (!variant) {
+      await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "failed",
+          publishError: "Campaign variant not found",
+          retryCount: newRetryCount,
+          updatedAt: new Date(),
+        })
+        .where(eq(calendarEntriesTable.id, entryId));
+      return null;
+    }
 
+    return { entry, socialAccount, variant, newRetryCount };
+  });
+
+  if (!claimed) return;
+
+  const { entry, socialAccount, variant, newRetryCount } = claimed;
   const caption = variant.caption || "";
   const imagePath = getImageFilePath(variant.compositedImageUrl);
   const publicImageUrl = getPublicImageUrl(variant.compositedImageUrl);
@@ -140,15 +147,17 @@ async function publishEntry(entryId: string): Promise<void> {
   try {
     decryptedAccessToken = decryptToken(socialAccount.accessToken);
   } catch (err) {
-    result = { success: false, error: "Failed to decrypt access token" };
     await db.update(calendarEntriesTable)
       .set({
         publishStatus: "failed",
-        publishError: result.error,
+        publishError: "Failed to decrypt access token",
         retryCount: newRetryCount,
         updatedAt: new Date(),
       })
-      .where(eq(calendarEntriesTable.id, entryId));
+      .where(and(
+        eq(calendarEntriesTable.id, entryId),
+        eq(calendarEntriesTable.publishStatus, "publishing")
+      ));
     return;
   }
 
@@ -185,27 +194,41 @@ async function publishEntry(entryId: string): Promise<void> {
     result = { success: false, error: err instanceof Error ? err.message : "Unknown publish error" };
   }
 
-  if (result.success) {
-    await db.update(calendarEntriesTable)
-      .set({
-        publishStatus: "published",
-        publishedAt: new Date(),
-        publishError: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(calendarEntriesTable.id, entryId));
-    logger.info({ entryId, platform, postId: result.platformPostId }, "Entry published successfully");
-  } else {
-    await db.update(calendarEntriesTable)
-      .set({
-        publishStatus: "failed",
-        publishError: result.error || "Unknown error",
-        retryCount: newRetryCount,
-        updatedAt: new Date(),
-      })
-      .where(eq(calendarEntriesTable.id, entryId));
-    logger.warn({ entryId, platform, error: result.error, retryCount: newRetryCount }, "Entry publish failed");
-  }
+  await db.transaction(async (tx) => {
+    if (result.success) {
+      const [updated] = await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "published",
+          publishedAt: new Date(),
+          publishError: null,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(calendarEntriesTable.id, entryId),
+          eq(calendarEntriesTable.publishStatus, "publishing")
+        ))
+        .returning();
+      if (updated) {
+        logger.info({ entryId, platform, postId: result.platformPostId }, "Entry published successfully");
+      }
+    } else {
+      const [updated] = await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "failed",
+          publishError: result.error || "Unknown error",
+          retryCount: newRetryCount,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(calendarEntriesTable.id, entryId),
+          eq(calendarEntriesTable.publishStatus, "publishing")
+        ))
+        .returning();
+      if (updated) {
+        logger.warn({ entryId, platform, error: result.error, retryCount: newRetryCount }, "Entry publish failed");
+      }
+    }
+  });
 }
 
 async function pollAndPublish(): Promise<void> {
