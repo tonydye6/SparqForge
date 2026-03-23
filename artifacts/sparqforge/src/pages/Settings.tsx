@@ -495,7 +495,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
     return () => observers.forEach(o => o.disconnect());
   }, []);
 
-  const { register, handleSubmit, reset, watch, setValue } = useForm({
+  const { register, handleSubmit, reset, watch, setValue, formState: { isDirty } } = useForm({
     defaultValues: {
       name: brand.name,
       slug: brand.slug,
@@ -515,10 +515,27 @@ function BrandEditor({ brand }: { brand: Brand }) {
 
   const updateBrandMutation = useUpdateBrand({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (_, variables) => {
         queryClient.invalidateQueries({ queryKey: ["/api/brands"] });
         queryClient.invalidateQueries({ queryKey: ["brand-readiness", brand.id] });
         toast({ title: "Brand updated successfully" });
+        // Reset RHF dirty state so the unsaved changes banner clears
+        const submitted = variables.data as Record<string, unknown>;
+        reset({
+          name: (submitted.name as string) ?? brand.name,
+          slug: (submitted.slug as string) ?? brand.slug,
+          colorPrimary: (submitted.colorPrimary as string) ?? brand.colorPrimary,
+          colorSecondary: (submitted.colorSecondary as string) ?? brand.colorSecondary,
+          colorAccent: (submitted.colorAccent as string) ?? brand.colorAccent,
+          colorBackground: (submitted.colorBackground as string) ?? brand.colorBackground,
+          voiceDescription: (submitted.voiceDescription as string) ?? "",
+          imagenPrefix: (submitted.imagenPrefix as string) ?? "",
+          negativePrompt: (submitted.negativePrompt as string) ?? "",
+          bannedTerms: Array.isArray(submitted.bannedTerms) ? (submitted.bannedTerms as string[]).join(", ") : ((submitted.bannedTerms as string) ?? ""),
+          trademarkRules: (submitted.trademarkRules as string) ?? "",
+          platformRules: JSON.stringify(submitted.platformRules || {}, null, 2),
+          hashtagStrategy: JSON.stringify(submitted.hashtagStrategy || {}, null, 2),
+        });
       },
       onError: (err: unknown) => {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -582,6 +599,14 @@ function BrandEditor({ brand }: { brand: Brand }) {
       </nav>
       <div className="flex-1 min-w-0">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+
+          {/* Unsaved Changes Banner */}
+          {isDirty && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2 mb-4 text-sm text-amber-400 flex items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0" />
+              You have unsaved changes
+            </div>
+          )}
 
           {/* Brand Readiness Indicator */}
           <div id="section-readiness">
