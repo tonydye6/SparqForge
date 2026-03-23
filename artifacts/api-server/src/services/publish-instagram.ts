@@ -73,7 +73,7 @@ async function createFeedContainer(
   accessToken: string,
   imageUrl: string,
   caption: string,
-): Promise<{ id: string } | { error: string }> {
+): Promise<{ id: string } | { error: string; httpStatus?: number }> {
   const resp = await fetch(
     `https://graph.facebook.com/v19.0/${igUserId}/media`,
     {
@@ -102,7 +102,7 @@ async function createStoryContainer(
   igUserId: string,
   accessToken: string,
   imageUrl: string,
-): Promise<{ id: string } | { error: string }> {
+): Promise<{ id: string } | { error: string; httpStatus?: number }> {
   const resp = await fetch(
     `https://graph.facebook.com/v19.0/${igUserId}/media`,
     {
@@ -142,7 +142,7 @@ export async function publishToInstagram(options: PublishInstagramOptions): Prom
     }
 
     if ("error" in containerResult) {
-      return { success: false, error: containerResult.error, httpStatus: (containerResult as any).httpStatus };
+      return { success: false, error: containerResult.error, httpStatus: containerResult.httpStatus };
     }
 
     const containerId = containerResult.id;
