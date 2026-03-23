@@ -134,7 +134,6 @@ export default function CampaignStudio() {
   };
 
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [videoProgress, setVideoProgress] = useState<Record<string, string>>({});
   const [audioDialogOpen, setAudioDialogOpen] = useState(false);
   const [audioDialogVariant, setAudioDialogVariant] = useState<GeneratedVariant | null>(null);
   const [audioSource, setAudioSource] = useState<"music" | "sfx" | "mute">("music");
@@ -272,13 +271,6 @@ export default function CampaignStudio() {
     checkDuplicate();
   }, [selectedTemplate, selectedAssets, duplicateDismissed]);
 
-  const toggleAsset = (id: string) => {
-    setSelectedAssets(prev => {
-      if (prev.includes(id)) return prev.filter(a => a !== id);
-      return [id, ...prev];
-    });
-    setDuplicateDismissed(false);
-  };
 
   const addLog = useCallback((text: string, status: ActivityLog["status"] = "pending") => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -878,7 +870,6 @@ export default function CampaignStudio() {
     }
 
     setIsGeneratingVideo(true);
-    setVideoProgress({});
     addLog("Starting video generation...", "pending");
 
     try {
@@ -914,7 +905,6 @@ export default function CampaignStudio() {
               if (currentEvent === "video_progress") {
                 const orientation = data.orientation as string;
                 const status = data.status as string;
-                setVideoProgress(prev => ({ ...prev, [orientation]: status }));
                 if (status === "started") {
                   addLog(`Generating ${orientation} video...`, "pending");
                 } else if (status === "completed") {
