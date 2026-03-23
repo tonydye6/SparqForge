@@ -1,26 +1,18 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { AI_MODELS } from "../lib/ai-config.js";
+import { z } from "zod/v4";
+import { validateRequest } from "../middleware/validate.js";
+
+const RewriteBody = z.object({
+  text: z.string().min(1).max(5000),
+  instruction: z.string().min(1).max(500),
+});
 
 const router: IRouter = Router();
 
-router.post("/rewrite", async (req: Request, res: Response): Promise<void> => {
+router.post("/rewrite", validateRequest({ body: RewriteBody }), async (req: Request, res: Response): Promise<void> => {
   const { text, instruction } = req.body;
-
-  if (!text || !instruction) {
-    res.status(400).json({ error: "Both text and instruction are required" });
-    return;
-  }
-
-  if (typeof text !== "string" || typeof instruction !== "string") {
-    res.status(400).json({ error: "Invalid input types" });
-    return;
-  }
-
-  if (text.length > 5000 || instruction.length > 500) {
-    res.status(400).json({ error: "Input too long" });
-    return;
-  }
 
   try {
     const message = await anthropic.messages.create({

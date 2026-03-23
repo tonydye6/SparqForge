@@ -1,6 +1,10 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, appSettingsTable } from "@workspace/db";
+import { z } from "zod/v4";
+import { validateRequest } from "../middleware/validate.js";
+
+const UpdateSettingsBody = z.record(z.string(), z.string());
 
 const router: IRouter = Router();
 
@@ -13,12 +17,8 @@ router.get("/settings", async (_req, res): Promise<void> => {
   res.json(settings);
 });
 
-router.put("/settings", async (req, res): Promise<void> => {
+router.put("/settings", validateRequest({ body: UpdateSettingsBody }), async (req, res): Promise<void> => {
   const updates = req.body;
-  if (!updates || typeof updates !== "object") {
-    res.status(400).json({ error: "Body must be a key-value object" });
-    return;
-  }
 
   for (const [key, value] of Object.entries(updates)) {
     if (typeof value !== "string") continue;
