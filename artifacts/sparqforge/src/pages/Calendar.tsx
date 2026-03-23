@@ -32,11 +32,6 @@ interface CalendarEntry {
   compositedImageUrl?: string | null;
 }
 
-interface PendingReschedule {
-  entryId: string;
-  entry: CalendarEntry;
-  newDate: Date;
-}
 
 const PLATFORM_LABELS: Record<string, { label: string; icon: string }> = {
   instagram_feed: { label: "IG Feed", icon: "instagram" },
@@ -77,7 +72,6 @@ export default function Calendar() {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
 
   const touchDragRef = useRef<{
     entry: CalendarEntry;
@@ -88,6 +82,7 @@ export default function Calendar() {
     lastTarget: Element | null;
   } | null>(null);
   const didTouchDragRef = useRef(false);
+  const lastRescheduleRef = useRef<{ entryId: string; previousScheduledAt: string } | null>(null);
   const [nowIndicatorTop, setNowIndicatorTop] = useState<number | null>(null);
 
   const year = currentDate.getFullYear();
@@ -269,6 +264,16 @@ export default function Calendar() {
   };
 
   const commitReschedule = useCallback(async (entryId: string, newDate: Date) => {
+    const entry = entries.find(e => e.id === entryId);
+    const previousScheduledAt = entry?.scheduledAt || "";
+
+    lastRescheduleRef.current = { entryId, previousScheduledAt };
+
+    // Optimistically update local state
+    setEntries(prev => prev.map(e =>
+      e.id === entryId ? { ...e, scheduledAt: newDate.toISOString() } : e
+    ));
+
     const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -276,39 +281,37 @@ export default function Calendar() {
     });
 
     if (!resp.ok) {
+      setEntries(prev => prev.map(e =>
+        e.id === entryId ? { ...e, scheduledAt: previousScheduledAt } : e
+      ));
       toast({ variant: "destructive", title: "Failed to reschedule" });
       return;
     }
 
-    setEntries(prev => prev.map(entry =>
-      entry.id === entryId
-        ? { ...entry, scheduledAt: newDate.toISOString() }
-        : entry
-    ));
-
-    toast({
-      title: "Rescheduled",
-      description: `Moved to ${newDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${newDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
-    });
-  }, [toast]);
-
-  useEffect(() => {
-    if (!pendingReschedule) return;
-    const { entryId, entry, newDate } = pendingReschedule;
     const dateLabel = newDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     const timeLabel = newDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
     toast({
-      title: "Reschedule?",
-      description: `Move "${entry.campaignName}" to ${dateLabel} at ${timeLabel}?`,
+      title: `Rescheduled to ${dateLabel} at ${timeLabel}`,
       action: (
-        <ToastAction altText="Confirm reschedule" onClick={() => {
-          commitReschedule(entryId, newDate);
-        }}>Confirm</ToastAction>
+        <ToastAction altText="Undo reschedule" onClick={async () => {
+          const ref = lastRescheduleRef.current;
+          if (!ref) return;
+          await fetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scheduledAt: ref.previousScheduledAt }),
+          });
+          setEntries(prev => prev.map(e =>
+            e.id === ref.entryId ? { ...e, scheduledAt: ref.previousScheduledAt } : e
+          ));
+          toast({ title: "Reverted" });
+        }}>Undo</ToastAction>
       ),
-      duration: 10000,
+      duration: 15000,
     });
-    setPendingReschedule(null);
-  }, [pendingReschedule, commitReschedule, toast]);
+  }, [entries, toast]);
+
 
   const handleDragStart = useCallback((e: React.DragEvent, entry: CalendarEntry) => {
     e.dataTransfer.setData("application/json", JSON.stringify({ entryId: entry.id, scheduledAt: entry.scheduledAt }));
@@ -340,14 +343,13 @@ export default function Calendar() {
         return;
       }
 
-      const entry = entries.find(e => e.id === entryId);
-      if (entry) {
-        setPendingReschedule({ entryId, entry, newDate });
+      if (entries.find(e => e.id === entryId)) {
+        commitReschedule(entryId, newDate);
       }
     } catch {
       toast({ variant: "destructive", title: "Failed to reschedule" });
     }
-  }, [year, month, toast, entries]);
+  }, [year, month, toast, entries, commitReschedule]);
 
   const handleWeekDragOver = useCallback((e: React.DragEvent, slotKey: string) => {
     e.preventDefault();
@@ -372,14 +374,13 @@ export default function Calendar() {
 
       if (oldDate.getTime() === newDate.getTime()) return;
 
-      const entry = entries.find(e => e.id === entryId);
-      if (entry) {
-        setPendingReschedule({ entryId, entry, newDate });
+      if (entries.find(e => e.id === entryId)) {
+        commitReschedule(entryId, newDate);
       }
     } catch {
       toast({ variant: "destructive", title: "Failed to reschedule" });
     }
-  }, [toast, entries]);
+  }, [toast, entries, commitReschedule]);
 
   const createTouchGhost = useCallback((entry: CalendarEntry): HTMLDivElement => {
     const ghost = document.createElement("div");
@@ -491,7 +492,7 @@ export default function Calendar() {
         const hour = parseInt(hourStr, 10);
         const newDate = new Date(slotYear, slotMonth, slotDay, hour, oldDate.getMinutes(), oldDate.getSeconds());
         if (oldDate.getTime() !== newDate.getTime()) {
-          setPendingReschedule({ entryId: ref.entry.id, entry: ref.entry, newDate });
+          commitReschedule(ref.entry.id, newDate);
         }
       }
     } else if (dropDayEl) {
@@ -499,11 +500,11 @@ export default function Calendar() {
       if (!isNaN(targetDay)) {
         const newDate = new Date(year, month, targetDay, oldDate.getHours(), oldDate.getMinutes(), oldDate.getSeconds());
         if (oldDate.getDate() !== targetDay || oldDate.getMonth() !== month || oldDate.getFullYear() !== year) {
-          setPendingReschedule({ entryId: ref.entry.id, entry: ref.entry, newDate });
+          commitReschedule(ref.entry.id, newDate);
         }
       }
     }
-  }, [year, month]);
+  }, [year, month, commitReschedule]);
 
   const weekLabel = useMemo(() => {
     if (viewMode !== "week" || weekDays.length === 0) return "";
