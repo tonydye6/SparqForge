@@ -14,6 +14,7 @@ import { useSearch } from "wouter";
 import { HashtagSetDialog } from "@/components/campaign-studio/HashtagSetDialog";
 import { AudioSettingsDialog } from "@/components/campaign-studio/AudioSettingsDialog";
 import { ActivityPanel } from "@/components/campaign-studio/ActivityPanel";
+import { CampaignStudioSkeleton } from "@/components/campaign-studio/CampaignStudioSkeleton";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/campaign-studio/campaign-studio.types";
 
@@ -1101,9 +1102,13 @@ export default function CampaignStudio() {
     }
   }, [selectedBrand, hashtagSetName, hashtagsToSave, toast]);
 
+  if (brands === undefined) {
+    return <CampaignStudioSkeleton />;
+  }
+
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
-      
+
       <CampaignConfigPanel
         remixId={remixId}
         campaignName={campaignName}

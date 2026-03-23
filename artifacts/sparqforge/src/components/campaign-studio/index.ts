@@ -13,3 +13,4 @@ export { VariantGrid } from "./VariantGrid";
 export type { VariantGridProps } from "./VariantGrid";
 export { CampaignConfigPanel } from "./CampaignConfigPanel";
 export type { CampaignConfigPanelProps } from "./CampaignConfigPanel";
+export { CampaignStudioSkeleton } from "./CampaignStudioSkeleton";
