@@ -5,5 +5,7 @@ export { HashtagSetDialog } from "./HashtagSetDialog";
 export type { HashtagSetDialogProps } from "./HashtagSetDialog";
 export { AudioSettingsDialog } from "./AudioSettingsDialog";
 export type { AudioSettingsDialogProps } from "./AudioSettingsDialog";
+export { ReferenceAnalyzer } from "./ReferenceAnalyzer";
+export type { ReferenceAnalyzerProps } from "./ReferenceAnalyzer";
 export { ActivityPanel } from "./ActivityPanel";
 export type { ActivityPanelProps } from "./ActivityPanel";
