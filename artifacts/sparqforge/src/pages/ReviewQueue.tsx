@@ -425,6 +425,38 @@ export default function ReviewQueue() {
                   <p className="text-sm">No variants generated yet</p>
                 </div>
               ) : (
+                <>
+                {/* Variant approval progress bar */}
+                {expandedCampaign?.variants && expandedCampaign.variants.length > 0 && (() => {
+                  const variantList = expandedCampaign.variants;
+                  const total = variantList.length;
+                  const approved = variantList.filter((v: any) => v.status === "approved").length;
+                  const rejected = variantList.filter((v: any) => v.status === "rejected").length;
+                  const pct = total > 0 ? (approved / total) * 100 : 0;
+
+                  return (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-sm mb-1.5">
+                        <span className="text-muted-foreground">Variant Review</span>
+                        <span className={
+                          rejected > 0 ? "font-medium text-red-400" :
+                          approved === total ? "font-medium text-green-400" : "font-medium text-amber-400"
+                        }>
+                          {approved} of {total} approved
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            rejected > 0 ? "bg-red-500" :
+                            approved === total ? "bg-green-500" : "bg-amber-500"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {variants.map(variant => {
                     const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
@@ -568,6 +600,7 @@ export default function ReviewQueue() {
                     );
                   })}
                 </div>
+                </>
               )}
             </div>
 
