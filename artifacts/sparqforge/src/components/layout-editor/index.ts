@@ -4,3 +4,4 @@ export * from "./HeadlineZoneEditor";
 export * from "./LogoPlacementEditor";
 export * from "./GradientOverlayEditor";
 export * from "./LayoutPreviewCanvas";
+export * from "./LayoutSpecEditor";
