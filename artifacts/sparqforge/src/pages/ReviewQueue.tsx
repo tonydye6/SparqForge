@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { MoreHorizontal, MessageSquare, Clock, Eye, CheckCircle, Send, X, ChevronRight, ThumbsUp, ThumbsDown, Image as ImageIcon, CalendarIcon, RefreshCw, Check, XCircle } from "lucide-react";
+import { MoreHorizontal, MessageSquare, Clock, Eye, CheckCircle, Send, X, ChevronRight, ThumbsUp, ThumbsDown, Image as ImageIcon, CalendarIcon, RefreshCw, Check, XCircle, ClipboardCheck } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -245,6 +246,15 @@ export default function ReviewQueue() {
           </SelectContent>
         </Select>
       </div>
+
+      {!isLoading && filteredCampaigns.length === 0 && (
+        <EmptyState
+          icon={ClipboardCheck}
+          title="Nothing to review"
+          description="Campaigns submitted for review will appear here"
+          className="mb-6"
+        />
+      )}
 
       <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden">
         <div className={`flex flex-col md:flex-row gap-4 md:gap-6 overflow-x-auto overflow-y-auto md:overflow-y-hidden pb-4 hide-scrollbar transition-all duration-300 ${expandedCampaignId ? 'md:w-[340px] md:shrink-0 max-h-[40vh] md:max-h-none' : 'flex-1'}`}>

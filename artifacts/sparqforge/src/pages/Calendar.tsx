@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2, CalendarPlus } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ToastAction } from "@/components/ui/toast";
@@ -938,6 +939,16 @@ export default function Calendar() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {!isLoading && entries.length === 0 && (
+        <div className="mt-4">
+          <EmptyState
+            icon={CalendarPlus}
+            title="Calendar is empty"
+            description="Schedule campaigns to see them here"
+          />
         </div>
       )}
 

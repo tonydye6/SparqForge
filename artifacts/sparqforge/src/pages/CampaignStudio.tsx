@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2, Video, Volume2, VolumeX, Music, Layers, Star, Eye, Package } from "lucide-react";
+import { Search, Play, MoreHorizontal, Settings2, Image as ImageIcon, FileText, Send, Save, Download, Loader2, Check, X, AlertCircle, CalendarIcon, RefreshCw, AlertTriangle, Link, Upload, Trash2, Hash, ChevronDown, ChevronUp, Wand2, Video, Volume2, VolumeX, Music, Layers, Star, Eye, Package, Sparkles } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1950,6 +1951,14 @@ export default function CampaignStudio() {
                   </div>
                 );
               })
+            ) : !selectedBrand ? (
+              <div className="col-span-full">
+                <EmptyState
+                  icon={Sparkles}
+                  title="Start a campaign"
+                  description="Select a brand and template to begin"
+                />
+              </div>
             ) : (
               Object.entries(PLATFORM_LABELS).map(([key, panel]) => (
                 <div key={key} className="bg-card border border-border rounded-xl overflow-hidden shadow-lg flex flex-col hover:border-border/80 transition-colors">
