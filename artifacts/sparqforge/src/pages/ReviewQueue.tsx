@@ -10,10 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { PlatformPreviewWrapper } from "@/components/review/PlatformPreviewWrapper";
+import { RejectReasonDialog } from "@/components/review/RejectReasonDialog";
 import { BulkActionBar } from "@/components/review/BulkActionBar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useLocation } from "wouter";
+import { formatRejectComment, parseRejectComment, REJECT_CATEGORIES } from "@/lib/reject-reasons";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -27,6 +29,7 @@ interface Variant {
   caption: string;
   headlineText: string | null;
   status: string;
+  reviewerComment?: string | null;
 }
 
 const COLUMNS = [
@@ -44,6 +47,21 @@ const PLATFORM_LABELS: Record<string, { name: string; icon: string }> = {
   tiktok: { name: "TikTok", icon: "tiktok" },
 };
 
+const CATEGORY_COLORS: Record<string, string> = {
+  off_brand: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  image_quality: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+  caption_issues: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  headline_issues: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+  platform_mismatch: "bg-orange-500/10 text-orange-400 border-orange-500/30",
+  trademark_violation: "bg-red-500/10 text-red-400 border-red-500/30",
+  other: "bg-gray-500/10 text-gray-400 border-gray-500/30",
+};
+
+function getCategoryLabel(slug: string): string {
+  const cat = REJECT_CATEGORIES.find(c => c.slug === slug);
+  return cat ? cat.label : slug;
+}
+
 export default function ReviewQueue() {
   const { data: brands } = useGetBrands();
   const { data: campaigns, isLoading } = useGetCampaigns();
@@ -58,11 +76,16 @@ export default function ReviewQueue() {
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [rejectComment, setRejectComment] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
-  const [variantRejectId, setVariantRejectId] = useState<string | null>(null);
-  const [variantRejectComment, setVariantRejectComment] = useState("");
+
+  // Reject dialog state
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<
+    | { type: "single"; variantId: string }
+    | { type: "bulk"; variantIds: string[] }
+    | null
+  >(null);
 
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
-  const [pendingBulkReject, setPendingBulkReject] = useState(false);
 
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleCampaign, setScheduleCampaign] = useState<{ id: string; name: string } | null>(null);
@@ -110,10 +133,9 @@ export default function ReviewQueue() {
       fetchVariants(expandedCampaignId);
       setRejectComment("");
       setShowRejectInput(false);
-      setVariantRejectId(null);
-      setVariantRejectComment("");
       setSelectedVariantIds(new Set());
-      setPendingBulkReject(false);
+      setRejectTarget(null);
+      setRejectDialogOpen(false);
     } else {
       setVariants([]);
       setSelectedVariantIds(new Set());
@@ -178,6 +200,7 @@ export default function ReviewQueue() {
       const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variantId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ status: "approved", reviewerComment: "Approved" }),
       });
       if (resp.ok) {
@@ -189,26 +212,82 @@ export default function ReviewQueue() {
     }
   };
 
-  const handleVariantReject = async (variantId: string) => {
-    if (!expandedCampaignId || !variantRejectComment.trim()) {
-      toast({ variant: "destructive", title: "Please provide rejection feedback" });
-      return;
-    }
+  // Open reject dialog for a single variant
+  const openRejectDialogSingle = (variantId: string) => {
+    setRejectTarget({ type: "single", variantId });
+    setRejectDialogOpen(true);
+  };
+
+  // Open reject dialog for bulk selected variants
+  const openRejectDialogBulk = () => {
+    if (selectedVariantIds.size === 0) return;
+    setRejectTarget({ type: "bulk", variantIds: [...selectedVariantIds] });
+    setRejectDialogOpen(true);
+  };
+
+  // Handle reject dialog submission
+  const handleRejectDialogSubmit = async (category: string, comment: string) => {
+    if (!expandedCampaignId || !rejectTarget) return;
+    const formattedComment = formatRejectComment(category, comment);
+
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variantId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "rejected", reviewerComment: variantRejectComment }),
-      });
-      if (resp.ok) {
-        setVariants(prev => prev.map(v => v.id === variantId ? { ...v, status: "rejected" } : v));
-        toast({ title: "Variant rejected with feedback" });
-        setVariantRejectId(null);
-        setVariantRejectComment("");
+      if (rejectTarget.type === "single") {
+        const resp = await fetch(
+          `${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${rejectTarget.variantId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ status: "rejected", reviewerComment: formattedComment }),
+          }
+        );
+        if (resp.ok) {
+          setVariants(prev =>
+            prev.map(v =>
+              v.id === rejectTarget.variantId
+                ? { ...v, status: "rejected", reviewerComment: formattedComment }
+                : v
+            )
+          );
+          toast({ title: "Variant rejected with feedback" });
+        } else {
+          toast({ variant: "destructive", title: "Failed to reject variant" });
+        }
+      } else {
+        const resp = await fetch(
+          `${API_BASE}/api/campaigns/${expandedCampaignId}/variants/bulk-update`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              variantIds: rejectTarget.variantIds,
+              status: "rejected",
+              reviewerComment: formattedComment,
+            }),
+          }
+        );
+        if (resp.ok) {
+          const rejectedSet = new Set(rejectTarget.variantIds);
+          setVariants(prev =>
+            prev.map(v =>
+              rejectedSet.has(v.id)
+                ? { ...v, status: "rejected", reviewerComment: formattedComment }
+                : v
+            )
+          );
+          toast({ title: `${rejectTarget.variantIds.length} variant(s) rejected with feedback` });
+          setSelectedVariantIds(new Set());
+        } else {
+          toast({ variant: "destructive", title: "Bulk reject failed" });
+        }
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to reject variant" });
+      toast({ variant: "destructive", title: "Failed to reject variant(s)" });
     }
+
+    setRejectTarget(null);
+    setRejectDialogOpen(false);
   };
 
   const handleScheduleClick = (campaign: { id: string; name: string }) => {
@@ -265,12 +344,6 @@ export default function ReviewQueue() {
     }
   };
 
-  const handleBulkReject = () => {
-    if (selectedVariantIds.size === 0) return;
-    setPendingBulkReject(true);
-    toast({ title: "Reject dialog coming in next update" });
-  };
-
   const variantStatusSummary = useMemo(() => {
     if (variants.length === 0) return null;
     const approved = variants.filter(v => v.status === "approved").length;
@@ -278,6 +351,12 @@ export default function ReviewQueue() {
     const pending = variants.length - approved - rejected;
     return { approved, rejected, pending, total: variants.length };
   }, [variants]);
+
+  const rejectDialogVariantCount = rejectTarget
+    ? rejectTarget.type === "single"
+      ? 1
+      : rejectTarget.variantIds.length
+    : 0;
 
   return (
     <div className="flex flex-col h-full overflow-hidden p-3 sm:p-6 w-full">
@@ -528,8 +607,12 @@ export default function ReviewQueue() {
                   {variants.map(variant => {
                     const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
                     const isReviewable = expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review";
-                    const isRejectingThis = variantRejectId === variant.id;
                     const isSelected = selectedVariantIds.has(variant.id);
+
+                    // Parse reject comment for display
+                    const parsedComment = variant.status === "rejected" && variant.reviewerComment
+                      ? parseRejectComment(variant.reviewerComment)
+                      : null;
 
                     return (
                       <div key={variant.id} className={`bg-background border rounded-lg overflow-hidden transition-colors ${
@@ -583,55 +666,39 @@ export default function ReviewQueue() {
                           )}
                           <p className="text-xs text-muted-foreground line-clamp-4">{variant.caption}</p>
 
-                          {isReviewable && variant.status !== "approved" && variant.status !== "rejected" && (
-                            <>
-                              {isRejectingThis ? (
-                                <div className="space-y-2 pt-2 border-t border-border">
-                                  <Textarea
-                                    placeholder="Why is this variant being rejected? (required)"
-                                    value={variantRejectComment}
-                                    onChange={e => setVariantRejectComment(e.target.value)}
-                                    className="bg-card border-border text-xs min-h-[60px]"
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 text-xs border-border"
-                                      onClick={() => { setVariantRejectId(null); setVariantRejectComment(""); }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      className="h-7 text-xs flex-1 bg-red-600 hover:bg-red-700 text-white"
-                                      onClick={() => handleVariantReject(variant.id)}
-                                      disabled={!variantRejectComment.trim()}
-                                    >
-                                      <XCircle size={12} className="mr-1" /> Reject
-                                    </Button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex gap-2 pt-2 border-t border-border">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-400"
-                                    onClick={() => setVariantRejectId(variant.id)}
-                                  >
-                                    <ThumbsDown size={12} className="mr-1" /> Reject
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={() => handleVariantApprove(variant.id)}
-                                  >
-                                    <ThumbsUp size={12} className="mr-1" /> Approve
-                                  </Button>
-                                </div>
+                          {/* Show parsed reject reason for rejected variants */}
+                          {variant.status === "rejected" && parsedComment && (
+                            <div className="bg-red-500/5 border border-red-500/20 rounded px-2 py-1.5 space-y-1">
+                              {parsedComment.category && (
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[10px] ${CATEGORY_COLORS[parsedComment.category] || CATEGORY_COLORS.other}`}
+                                >
+                                  {getCategoryLabel(parsedComment.category)}
+                                </Badge>
                               )}
-                            </>
+                              <p className="text-xs text-muted-foreground">{parsedComment.comment}</p>
+                            </div>
+                          )}
+
+                          {isReviewable && variant.status !== "approved" && variant.status !== "rejected" && (
+                            <div className="flex gap-2 pt-2 border-t border-border">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-400"
+                                onClick={() => openRejectDialogSingle(variant.id)}
+                              >
+                                <ThumbsDown size={12} className="mr-1" /> Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => handleVariantApprove(variant.id)}
+                              >
+                                <ThumbsUp size={12} className="mr-1" /> Approve
+                              </Button>
+                            </div>
                           )}
 
                           {(variant.status === "approved" || variant.status === "rejected") && isReviewable && (
@@ -645,10 +712,11 @@ export default function ReviewQueue() {
                                     const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variant.id}`, {
                                       method: "PUT",
                                       headers: { "Content-Type": "application/json" },
+                                      credentials: "include",
                                       body: JSON.stringify({ status: "generated" }),
                                     });
                                     if (resp.ok) {
-                                      setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, status: "generated" } : v));
+                                      setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, status: "generated", reviewerComment: null } : v));
                                       toast({ title: "Variant reset to pending" });
                                     }
                                   } catch {
@@ -670,7 +738,7 @@ export default function ReviewQueue() {
                     selectedCount={selectedVariantIds.size}
                     totalCount={variants.length}
                     onApproveSelected={handleBulkApprove}
-                    onRejectSelected={handleBulkReject}
+                    onRejectSelected={openRejectDialogBulk}
                     onSelectAll={handleSelectAllVariants}
                     onClearSelection={handleClearVariantSelection}
                   />
@@ -750,6 +818,17 @@ export default function ReviewQueue() {
           </div>
         )}
       </div>
+
+      {/* Reject Reason Dialog */}
+      <RejectReasonDialog
+        open={rejectDialogOpen}
+        onClose={() => {
+          setRejectDialogOpen(false);
+          setRejectTarget(null);
+        }}
+        onSubmit={handleRejectDialogSubmit}
+        variantCount={rejectDialogVariantCount}
+      />
 
       {scheduleCampaign && (
         <ScheduleModal
