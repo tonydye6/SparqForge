@@ -24,6 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useBrandReadiness } from "@/hooks/useBrandReadiness";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -125,6 +127,37 @@ export default function CampaignStudio() {
   const [recommendedSubjects, setRecommendedSubjects] = useState<Asset[]>([]);
   const [recommendedStyles, setRecommendedStyles] = useState<Asset[]>([]);
   const [compositingAssets, setCompositingAssets] = useState<Asset[]>([]);
+
+  const { data: brandReadiness } = useBrandReadiness(selectedBrand || null);
+
+  const generateDisabledReason = (() => {
+    if (!selectedBrand) return "Select a brand";
+    if (brandReadiness && !brandReadiness.ready) {
+      const missingLabels = brandReadiness.missing
+        .map(key => brandReadiness.checks[key]?.label)
+        .filter(Boolean)
+        .join(", ");
+      return `Brand setup incomplete: ${missingLabels}`;
+    }
+    if (!selectedTemplate) return "Select a template";
+    if (selectedAssets.length === 0) return "Select at least one asset";
+    return null;
+  })();
+
+  const [budgetStatus, setBudgetStatus] = useState<{
+    threshold: number | null;
+    todaySpend: number;
+    remaining: number | null;
+    overBudget: boolean;
+    nearLimit: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/settings/daily-budget-status`, { credentials: "include" })
+      .then(r => r.json())
+      .then(setBudgetStatus)
+      .catch(() => {});
+  }, [generatedVariants.length]);
 
   useEffect(() => {
     if (!selectedBrand) return;
@@ -1571,17 +1604,37 @@ export default function CampaignStudio() {
               </button>
             </div>
           )}
-          <Button 
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20"
-            onClick={handleGenerate}
-            disabled={isGenerating || isGeneratingVideo || !selectedBrand || !selectedTemplate || selectedPlatforms.length === 0}
-          >
-            {isGenerating ? (
-              <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
-            ) : (
-              <><Play size={16} className="mr-2" /> Generate Campaign</>
-            )}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/20"
+                    onClick={handleGenerate}
+                    disabled={isGenerating || isGeneratingVideo || !!generateDisabledReason || selectedPlatforms.length === 0}
+                  >
+                    {isGenerating ? (
+                      <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
+                    ) : (
+                      <><Play size={16} className="mr-2" /> Generate Campaign</>
+                    )}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {generateDisabledReason && (
+                <TooltipContent>{generateDisabledReason}</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          {budgetStatus && budgetStatus.threshold !== null && (
+            <div className={`text-xs mt-2 space-y-0.5 ${
+              budgetStatus.overBudget ? "text-red-400" :
+              budgetStatus.nearLimit ? "text-amber-400" : "text-muted-foreground"
+            }`}>
+              <div>Est. cost: ${estimatedCost.toFixed(2)}</div>
+              <div>Daily: ${budgetStatus.todaySpend.toFixed(2)} / ${budgetStatus.threshold.toFixed(2)}</div>
+            </div>
+          )}
           <Button 
             variant="outline"
             className="w-full border-border hover:bg-muted text-foreground"
