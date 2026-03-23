@@ -133,7 +133,7 @@ export async function publishToInstagram(options: PublishInstagramOptions): Prom
   const isStory = platform === "instagram_story";
 
   try {
-    let containerResult: { id: string } | { error: string };
+    let containerResult: { id: string } | { error: string; httpStatus?: number };
 
     if (isStory) {
       containerResult = await createStoryContainer(igUserId, accessToken, publicImageUrl);
