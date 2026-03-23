@@ -13,6 +13,7 @@ interface PublishResult {
   success: boolean;
   platformPostId?: string;
   error?: string;
+  httpStatus?: number;
 }
 
 // OAuth 1.0a credentials for Twitter media upload (v1.1 API).
@@ -185,7 +186,7 @@ export async function publishToTwitter(options: PublishTwitterOptions): Promise<
     if (!resp.ok) {
       const errBody = await resp.text();
       logger.error({ status: resp.status, body: errBody }, "Twitter tweet creation failed");
-      return { success: false, error: `Twitter API error (${resp.status}): ${errBody}` };
+      return { success: false, error: `Twitter API error (${resp.status}): ${errBody}`, httpStatus: resp.status };
     }
 
     const data = await resp.json() as { data: { id: string } };

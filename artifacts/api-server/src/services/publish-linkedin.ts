@@ -13,6 +13,7 @@ interface PublishResult {
   success: boolean;
   platformPostId?: string;
   error?: string;
+  httpStatus?: number;
 }
 
 function ensurePersonUrn(accountId: string): string {
@@ -136,7 +137,7 @@ export async function publishToLinkedIn(options: PublishLinkedInOptions): Promis
     if (!resp.ok) {
       const errBody = await resp.text();
       logger.error({ status: resp.status, body: errBody }, "LinkedIn post creation failed");
-      return { success: false, error: `LinkedIn API error (${resp.status}): ${errBody}` };
+      return { success: false, error: `LinkedIn API error (${resp.status}): ${errBody}`, httpStatus: resp.status };
     }
 
     const postId = resp.headers.get("x-restli-id") || resp.headers.get("x-linkedin-id") || "unknown";

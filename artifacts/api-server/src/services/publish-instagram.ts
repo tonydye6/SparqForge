@@ -12,6 +12,7 @@ interface PublishResult {
   success: boolean;
   platformPostId?: string;
   error?: string;
+  httpStatus?: number;
 }
 
 function resolvePublicImageUrl(imageUrl: string): string {
@@ -91,7 +92,7 @@ async function createFeedContainer(
   if (!resp.ok) {
     const errBody = await resp.text();
     logger.error({ status: resp.status, body: errBody }, "Instagram feed container creation failed");
-    return { error: `Instagram API error (${resp.status}): ${errBody}` };
+    return { error: `Instagram API error (${resp.status}): ${errBody}`, httpStatus: resp.status };
   }
 
   return await resp.json() as { id: string };
@@ -120,7 +121,7 @@ async function createStoryContainer(
   if (!resp.ok) {
     const errBody = await resp.text();
     logger.error({ status: resp.status, body: errBody }, "Instagram story container creation failed");
-    return { error: `Instagram API error (${resp.status}): ${errBody}` };
+    return { error: `Instagram API error (${resp.status}): ${errBody}`, httpStatus: resp.status };
   }
 
   return await resp.json() as { id: string };
@@ -141,7 +142,7 @@ export async function publishToInstagram(options: PublishInstagramOptions): Prom
     }
 
     if ("error" in containerResult) {
-      return { success: false, error: containerResult.error };
+      return { success: false, error: containerResult.error, httpStatus: (containerResult as any).httpStatus };
     }
 
     const containerId = containerResult.id;
@@ -168,7 +169,7 @@ export async function publishToInstagram(options: PublishInstagramOptions): Prom
     if (!publishResp.ok) {
       const errBody = await publishResp.text();
       logger.error({ status: publishResp.status, body: errBody }, "Instagram publish failed");
-      return { success: false, error: `Instagram publish error (${publishResp.status}): ${errBody}` };
+      return { success: false, error: `Instagram publish error (${publishResp.status}): ${errBody}`, httpStatus: publishResp.status };
     }
 
     const publishData = await publishResp.json() as { id: string };

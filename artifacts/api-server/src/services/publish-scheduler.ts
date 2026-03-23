@@ -9,22 +9,11 @@ import { logger } from "../lib/logger";
 const POLL_INTERVAL_MS = 60_000;
 const MAX_RETRIES = 3;
 
-const PERMANENT_ERROR_PATTERNS = [
-  /\b(400|401|403)\b/,
-  /invalid.*(content|token|credential|api.?key)/i,
-  /unauthorized/i,
-  /forbidden/i,
-  /not.?found/i,
-  /platform mismatch/i,
-  /no social account/i,
-  /social account not found/i,
-  /unsupported platform/i,
-  /no public image url/i,
-];
-
-function isPermanentFailure(error: string | null | undefined): boolean {
-  if (!error) return false;
-  return PERMANENT_ERROR_PATTERNS.some(p => p.test(error));
+function isPermanentFailure(httpStatus: number | undefined): boolean {
+  if (!httpStatus) return false;
+  if (httpStatus === 429) return false;
+  if (httpStatus >= 400 && httpStatus < 500) return true;
+  return false;
 }
 
 function getBackoffMs(retryCount: number): number {
@@ -158,7 +147,7 @@ async function publishEntry(entryId: string): Promise<void> {
   const imagePath = getImageFilePath(variant.compositedImageUrl);
   const publicImageUrl = getPublicImageUrl(variant.compositedImageUrl);
 
-  let result: { success: boolean; platformPostId?: string; error?: string };
+  let result: { success: boolean; platformPostId?: string; error?: string; httpStatus?: number };
 
   const platform = entry.platform;
   let decryptedAccessToken: string;
@@ -230,7 +219,7 @@ async function publishEntry(entryId: string): Promise<void> {
         logger.info({ entryId, platform, postId: result.platformPostId }, "Entry published successfully");
       }
     } else {
-      const permanent = isPermanentFailure(result.error);
+      const permanent = isPermanentFailure(result.httpStatus);
       const [updated] = await tx.update(calendarEntriesTable)
         .set({
           publishStatus: "failed",
