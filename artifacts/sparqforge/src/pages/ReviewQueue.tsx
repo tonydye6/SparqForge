@@ -9,7 +9,7 @@ import { useGetBrands, useGetCampaigns, useUpdateCampaign } from "@workspace/api
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlatformIcon } from "@/components/ui/platform-icon";
-import { TikTokPreviewFrame } from "@/components/ui/tiktok-preview-frame";
+import { PlatformPreviewWrapper } from "@/components/review/PlatformPreviewWrapper";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useLocation } from "wouter";
 
@@ -470,7 +470,6 @@ export default function ReviewQueue() {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {variants.map(variant => {
                     const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
-                    const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
                     const isReviewable = expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review";
                     const isRejectingThis = variantRejectId === variant.id;
 
@@ -500,24 +499,14 @@ export default function ReviewQueue() {
                           </div>
                         </div>
 
-                        {variant.platform === "tiktok" ? (
-                          <div className="flex justify-center py-3">
-                            <TikTokPreviewFrame
-                              imageUrl={imageUrl ? `${API_BASE}${imageUrl}` : undefined}
-                              caption={variant.caption}
-                            />
-                          </div>
-                        ) : imageUrl ? (
-                          <img
-                            src={`${API_BASE}${imageUrl}`}
-                            alt={`${label.name} variant`}
-                            className="w-full h-auto"
+                        <div className="flex justify-center">
+                          <PlatformPreviewWrapper
+                            platform={variant.platform}
+                            imageUrl={variant.compositedImageUrl || variant.rawImageUrl}
+                            caption={variant.caption}
+                            headlineText={variant.headlineText}
                           />
-                        ) : (
-                          <div className="aspect-video bg-muted/30 flex items-center justify-center">
-                            <ImageIcon size={32} className="text-muted-foreground opacity-20" />
-                          </div>
-                        )}
+                        </div>
 
                         <div className="p-2 sm:p-3 space-y-2">
                           {variant.headlineText && (
