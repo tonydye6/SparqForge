@@ -1,1 +1,7 @@
 export * from "./campaign-studio.types";
+export { VariantCard } from "./VariantCard";
+export type { VariantCardProps } from "./VariantCard";
+export { HashtagSetDialog } from "./HashtagSetDialog";
+export type { HashtagSetDialogProps } from "./HashtagSetDialog";
+export { AudioSettingsDialog } from "./AudioSettingsDialog";
+export type { AudioSettingsDialogProps } from "./AudioSettingsDialog";

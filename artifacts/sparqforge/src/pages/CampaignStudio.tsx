@@ -24,7 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { HashtagSetDialog } from "@/components/campaign-studio/HashtagSetDialog";
+import { AudioSettingsDialog } from "@/components/campaign-studio/AudioSettingsDialog";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/campaign-studio/campaign-studio.types";
@@ -1041,8 +1042,6 @@ export default function CampaignStudio() {
     }
   }, [campaignId, audioMergeMode, addLog, updateLastLog, toast]);
 
-  const audioFileInputRef = useRef<HTMLInputElement>(null);
-
   const handleVariantRegenerate = useCallback(async (variantId: string, platform: string) => {
     if (!campaignId || !variantId) return;
     const instruction = variantRefineText[platform] || "";
@@ -2018,145 +2017,34 @@ export default function CampaignStudio() {
         />
       )}
 
-      <Dialog open={hashtagDialogOpen} onOpenChange={setHashtagDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Save as Hashtag Set</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Set Name</label>
-              <Input
-                placeholder="e.g. Tournament Hype Tags"
-                value={hashtagSetName}
-                onChange={(e) => setHashtagSetName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Hashtags ({hashtagsToSave.length})</label>
-              <div className="flex flex-wrap gap-1.5">
-                {hashtagsToSave.map((tag, i) => (
-                  <Badge key={i} variant="secondary" className="text-xs">
-                    {tag}
-                    <button
-                      className="ml-1 hover:text-destructive"
-                      onClick={() => setHashtagsToSave(prev => prev.filter((_, idx) => idx !== i))}
-                    >
-                      <X size={10} />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setHashtagDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleSaveHashtagSet}
-              disabled={savingHashtags || !hashtagSetName.trim() || hashtagsToSave.length === 0}
-            >
-              {savingHashtags ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Hash size={14} className="mr-2" />}
-              Save Set
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <HashtagSetDialog
+        open={hashtagDialogOpen}
+        onOpenChange={setHashtagDialogOpen}
+        hashtagSetName={hashtagSetName}
+        onNameChange={setHashtagSetName}
+        hashtagsToSave={hashtagsToSave}
+        onRemoveHashtag={(index) => setHashtagsToSave(prev => prev.filter((_, idx) => idx !== index))}
+        onSave={handleSaveHashtagSet}
+        isSaving={savingHashtags}
+      />
 
-      <Dialog open={audioDialogOpen} onOpenChange={setAudioDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Music size={18} className="text-primary" /> Audio Settings
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Audio Source</label>
-              <Select value={audioSource} onValueChange={(v) => setAudioSource(v as "music" | "sfx" | "mute")}>
-                <SelectTrigger className="bg-background border-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="music">
-                    <span className="flex items-center gap-2"><Music size={14} /> AI Music</span>
-                  </SelectItem>
-                  <SelectItem value="sfx">
-                    <span className="flex items-center gap-2"><Volume2 size={14} /> Sound Effects</span>
-                  </SelectItem>
-                  <SelectItem value="mute">
-                    <span className="flex items-center gap-2"><VolumeX size={14} /> Mute Audio</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {(audioSource === "music" || audioSource === "sfx") && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  {audioSource === "music" ? "Music Style / Mood" : "Sound Effect Description"}
-                </label>
-                <Input
-                  placeholder={audioSource === "music" ? "e.g. Epic orchestral gaming trailer" : "e.g. Explosion, crowd cheering"}
-                  value={audioPrompt}
-                  onChange={(e) => setAudioPrompt(e.target.value)}
-                  className="bg-background border-border"
-                />
-              </div>
-            )}
-
-            {audioSource !== "mute" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Mix Mode</label>
-                <Select value={audioMergeMode} onValueChange={(v) => setAudioMergeMode(v as "replace" | "mix")}>
-                  <SelectTrigger className="bg-background border-border">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="replace">Replace original audio</SelectItem>
-                    <SelectItem value="mix">Mix with original audio</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-2 border-t border-border">
-              <input
-                type="file"
-                accept="audio/mpeg,audio/mp3,audio/wav"
-                className="hidden"
-                ref={audioFileInputRef}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file && audioDialogVariant?.id) {
-                    handleUploadAudio(audioDialogVariant.id, file);
-                  }
-                  e.target.value = "";
-                }}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => audioFileInputRef.current?.click()}
-                disabled={isGeneratingAudio}
-              >
-                <Upload size={12} className="mr-1" /> Upload Custom Audio
-              </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAudioDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleSetAudio}
-              disabled={isGeneratingAudio || ((audioSource === "music" || audioSource === "sfx") && !audioPrompt.trim())}
-            >
-              {isGeneratingAudio ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Music size={14} className="mr-2" />}
-              Apply Audio
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AudioSettingsDialog
+        open={audioDialogOpen}
+        onOpenChange={setAudioDialogOpen}
+        audioSource={audioSource}
+        onSourceChange={(v) => setAudioSource(v as "music" | "sfx" | "mute")}
+        audioPrompt={audioPrompt}
+        onPromptChange={setAudioPrompt}
+        audioMergeMode={audioMergeMode}
+        onMergeModeChange={(v) => setAudioMergeMode(v as "replace" | "mix")}
+        onApply={handleSetAudio}
+        onUploadAudio={(file) => {
+          if (audioDialogVariant?.id) {
+            handleUploadAudio(audioDialogVariant.id, file);
+          }
+        }}
+        isGenerating={isGeneratingAudio}
+      />
     </div>
   );
 }
