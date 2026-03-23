@@ -2,6 +2,7 @@ import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useState, useEffect } from "react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
@@ -51,6 +52,35 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function FirstRunGuard({ children }: { children: React.ReactNode }) {
+  const [brands, setBrands] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/brands?limit=1", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        setBrands(data.data || data || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (brands.length === 0) {
+    return <Redirect to="/setup" />;
+  }
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <AuthGate>
@@ -60,7 +90,9 @@ function Router() {
           <SetupWizard />
         </Route>
         <Route path="/">
-          <AppLayout><CampaignStudio /></AppLayout>
+          <FirstRunGuard>
+            <AppLayout><CampaignStudio /></AppLayout>
+          </FirstRunGuard>
         </Route>
         <Route path="/assets">
           <AppLayout><AssetLibrary /></AppLayout>

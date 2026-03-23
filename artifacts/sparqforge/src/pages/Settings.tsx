@@ -78,7 +78,7 @@ import {
   Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
   Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle, CheckCircle2, XCircle,
   BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon,
-  Image as ImageIcon, Layers, FileType, Upload
+  Image as ImageIcon, Layers, FileType, Upload, ArrowRight
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -635,6 +635,11 @@ function BrandEditor({ brand }: { brand: Brand }) {
                     </div>
                   ))}
                 </div>
+                {!brandReadiness?.ready && (
+                  <a href="/setup" className="inline-flex items-center gap-2 mt-3 text-sm font-medium text-primary hover:underline">
+                    Complete Setup <ArrowRight className="h-4 w-4" />
+                  </a>
+                )}
               </div>
             )}
           </div>
