@@ -1,12 +1,12 @@
 import { useSetupWizard } from "@/hooks/useSetupWizard";
 import { WIZARD_STEPS } from "@/lib/setup-defaults";
 import { StepIndicator } from "@/components/setup/StepIndicator";
-import StepCreateBrand from "@/components/setup/StepCreateBrand";
+import { StepCreateBrand } from "@/components/setup/StepCreateBrand";
 import StepUploadLogo from "@/components/setup/StepUploadLogo";
 import StepUploadFont from "@/components/setup/StepUploadFont";
-import StepConfigureVoice from "@/components/setup/StepConfigureVoice";
-import StepPlatformRules from "@/components/setup/StepPlatformRules";
-import StepCreateTemplate from "@/components/setup/StepCreateTemplate";
+import { StepConfigureVoice } from "@/components/setup/StepConfigureVoice";
+import { StepPlatformRules } from "@/components/setup/StepPlatformRules";
+import { StepCreateTemplate } from "@/components/setup/StepCreateTemplate";
 import StepUploadAsset from "@/components/setup/StepUploadAsset";
 import StepReadinessCheck from "@/components/setup/StepReadinessCheck";
 
@@ -16,11 +16,12 @@ export default function SetupWizard() {
 
   const stepProps = {
     brandId,
-    readiness,
+    readiness: readiness ?? null,
     onNext: wizard.next,
     onBack: wizard.back,
     onSkip: wizard.skip,
     setBrandId: wizard.setBrandId,
+    goToStep: wizard.goToStep,
   };
 
   function renderStep() {
