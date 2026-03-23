@@ -27,56 +27,7 @@ import { useSearch } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
-const API_BASE = import.meta.env.VITE_API_URL || "";
-
-interface GeneratedVariant {
-  id?: string;
-  platform: string;
-  aspectRatio: string;
-  rawImageUrl: string | null;
-  compositedImageUrl: string | null;
-  caption: string;
-  headlineText: string | null;
-  imageVersion?: number;
-  videoUrl?: string | null;
-  audioSource?: string | null;
-  audioUrl?: string | null;
-  mergedVideoUrl?: string | null;
-}
-
-interface ActivityLog {
-  time: string;
-  text: string;
-  status: "pending" | "done" | "error";
-}
-
-interface DuplicateInfo {
-  duplicate: boolean;
-  campaignId?: string;
-  campaignName?: string;
-  createdAt?: string;
-}
-
-const PLATFORM_LABELS: Record<string, { name: string; platformIcon: string; ratio: string }> = {
-  instagram_feed: { name: "Instagram Feed", platformIcon: "instagram", ratio: "1:1" },
-  instagram_story: { name: "Instagram Story", platformIcon: "instagram", ratio: "9:16" },
-  twitter: { name: "X (Twitter)", platformIcon: "twitter", ratio: "16:9" },
-  linkedin: { name: "LinkedIn", platformIcon: "linkedin", ratio: "16:9" },
-  tiktok: { name: "TikTok", platformIcon: "tiktok", ratio: "9:16" },
-};
-
-const ALL_PLATFORM_KEYS = Object.keys(PLATFORM_LABELS);
-
-const PLAN_PLATFORM_MAP: Record<string, string[]> = {
-  instagram: ["instagram_feed", "instagram_story"],
-  tiktok: ["tiktok"],
-  youtube: ["tiktok"],
-  linkedin: ["linkedin"],
-  x: ["twitter"],
-  facebook: ["instagram_feed"],
-  threads: ["instagram_feed"],
-};
+import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/campaign-studio/campaign-studio.types";
 
 export default function CampaignStudio() {
   const { toast } = useToast();
@@ -145,13 +96,7 @@ export default function CampaignStudio() {
     return null;
   })();
 
-  const [budgetStatus, setBudgetStatus] = useState<{
-    threshold: number | null;
-    todaySpend: number;
-    remaining: number | null;
-    overBudget: boolean;
-    nearLimit: boolean;
-  } | null>(null);
+  const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/settings/daily-budget-status`, { credentials: "include" })
@@ -208,14 +153,8 @@ export default function CampaignStudio() {
   const [audioMergeMode, setAudioMergeMode] = useState<"replace" | "mix">("replace");
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
-  const [rewriteToolbar, setRewriteToolbar] = useState<{
-    platform: string;
-    selectedText: string;
-    selectionStart: number;
-    selectionEnd: number;
-    position: { top: number; left: number };
-  } | null>(null);
-  const [loadingPhase, setLoadingPhase] = useState<Record<string, { caption: boolean; image: boolean }>>({});
+  const [rewriteToolbar, setRewriteToolbar] = useState<RewriteToolbarState | null>(null);
+  const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>({});
 
   const [referenceUrl, setReferenceUrl] = useState("");
   const [referenceStatus, setReferenceStatus] = useState<"idle" | "capturing" | "analyzing" | "done" | "error">("idle");
