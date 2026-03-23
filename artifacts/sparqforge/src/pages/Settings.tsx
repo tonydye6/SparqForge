@@ -88,6 +88,7 @@ import { useSearch } from "wouter";
 import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
+import { LayoutSpecEditor } from "@/components/layout-editor";
 
 const SETTINGS_SECTIONS = [
   { id: "section-readiness", label: "Brand Readiness" },
@@ -740,7 +741,15 @@ function BrandEditor({ brand }: { brand: Brand }) {
               <LayoutTemplate className="text-primary" size={20} />
               <h2 className="text-xl font-bold">Templates</h2>
             </div>
-            <BrandTemplates brandId={brand.id} />
+            <BrandTemplates
+              brandId={brand.id}
+              brandColors={{
+                primary: brand.colorPrimary || "#3b82f6",
+                secondary: brand.colorSecondary || "#64748b",
+                accent: brand.colorAccent || "#f59e0b",
+                background: brand.colorBackground || "#0f172a",
+              }}
+            />
           </section>
 
           {/* Font Management */}
@@ -1112,7 +1121,11 @@ function ColorField({ name, label, value, register, setValue }: ColorFieldProps)
 }
 
 
-function BrandTemplates({ brandId }: { brandId: string }) {
+function BrandTemplates({ brandId, brandColors, brandLogoUrl }: {
+  brandId: string;
+  brandColors?: { primary: string; secondary: string; accent: string; background: string };
+  brandLogoUrl?: string | null;
+}) {
   const { data: templates } = useGetTemplates({ brandId });
   const [isAddOpen, setIsAddOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -1137,12 +1150,18 @@ function BrandTemplates({ brandId }: { brandId: string }) {
     }
   });
 
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset, watch, setValue } = useForm();
 
   const onAddTemplate = (data: Record<string, string>) => {
     try {
       const claudeInst = data.claudeCaptionInstruction ? JSON.parse(data.claudeCaptionInstruction) : {};
-      const layoutSpc = data.layoutSpec ? JSON.parse(data.layoutSpec) : null;
+      const rawLayout = data.layoutSpec;
+      // layoutSpec may already be a parsed object (from LayoutSpecEditor via JSON.stringify)
+      // or null/undefined/"null"/empty string
+      let layoutSpc: Record<string, unknown> | null = null;
+      if (rawLayout && rawLayout !== "null" && rawLayout !== "{}") {
+        layoutSpc = typeof rawLayout === "object" ? rawLayout : JSON.parse(rawLayout);
+      }
       
       createTemplateMutation.mutate({
         data: {
@@ -1201,8 +1220,30 @@ function BrandTemplates({ brandId }: { brandId: string }) {
                 <Textarea {...register("claudeCaptionInstruction")} defaultValue="{}" className="font-mono text-sm" rows={4} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Layout Spec (JSON, optional)</label>
-                <Textarea {...register("layoutSpec")} defaultValue="null" className="font-mono text-sm" rows={2} />
+                <label className="text-sm font-medium">Layout Spec</label>
+                <input type="hidden" {...register("layoutSpec")} />
+                <LayoutSpecEditor
+                  value={(() => {
+                    try {
+                      const raw = watch("layoutSpec");
+                      if (!raw || raw === "null" || raw === "{}") return {};
+                      return typeof raw === "object" ? raw : JSON.parse(raw);
+                    } catch {
+                      return {};
+                    }
+                  })()}
+                  onChange={(newSpec) =>
+                    setValue("layoutSpec", JSON.stringify(newSpec), { shouldDirty: true })
+                  }
+                  brandColors={brandColors}
+                  brandLogoUrl={brandLogoUrl}
+                  targetAspectRatios={
+                    watch("targetAspectRatios")
+                      ?.split?.(",")
+                      ?.map((s: string) => s.trim())
+                      .filter(Boolean) || []
+                  }
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
