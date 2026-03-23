@@ -15,7 +15,8 @@ import {
   useGetBrands, 
   useGetTemplates, 
   useGetAssets,
-  useCreateCampaign
+  useCreateCampaign,
+  type Asset
 } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -121,9 +122,9 @@ export default function CampaignStudio() {
   const [contextAssetIds, setContextAssetIds] = useState<string[]>([]);
   const [packetPreviewOpen, setPacketPreviewOpen] = useState(false);
 
-  const [recommendedSubjects, setRecommendedSubjects] = useState<any[]>([]);
-  const [recommendedStyles, setRecommendedStyles] = useState<any[]>([]);
-  const [compositingAssets, setCompositingAssets] = useState<any[]>([]);
+  const [recommendedSubjects, setRecommendedSubjects] = useState<Asset[]>([]);
+  const [recommendedStyles, setRecommendedStyles] = useState<Asset[]>([]);
+  const [compositingAssets, setCompositingAssets] = useState<Asset[]>([]);
 
   useEffect(() => {
     if (!selectedBrand) return;
@@ -137,7 +138,9 @@ export default function CampaignStudio() {
         if (subRes.ok) setRecommendedSubjects(await subRes.json());
         if (styRes.ok) setRecommendedStyles(await styRes.json());
         if (compRes.ok) setCompositingAssets(await compRes.json());
-      } catch {}
+      } catch {
+        toast({ variant: "destructive", title: "Could not load recommendations" });
+      }
     };
     fetchRecommended();
   }, [selectedBrand, selectedTemplate]);
@@ -250,7 +253,9 @@ export default function CampaignStudio() {
             })));
           }
         }
-      } catch {}
+      } catch {
+        toast({ variant: "destructive", title: "Could not load campaign variants" });
+      }
 
       const platformNote = fromPlanPlatform ? ` (Primary platform: ${fromPlanPlatform})` : "";
       addLog(`Loaded from content plan: ${campaign.name}${platformNote}`, "done");
@@ -298,7 +303,9 @@ export default function CampaignStudio() {
           const data = await resp.json();
           setDuplicateInfo(data);
         }
-      } catch {}
+      } catch {
+        toast({ variant: "destructive", title: "Duplicate check failed" });
+      }
     };
 
     checkDuplicate();
@@ -393,7 +400,9 @@ export default function CampaignStudio() {
             } else if (currentEvent === "error") {
               onError(data.message || "Analysis failed");
             }
-          } catch {}
+          } catch {
+            onError("Received malformed data from server");
+          }
           currentEvent = "";
         }
       }
@@ -535,9 +544,11 @@ export default function CampaignStudio() {
         await fetch(`${API_BASE}/api/campaigns/${campaignId}/reference`, {
           method: "DELETE",
         });
-      } catch {}
+      } catch {
+        toast({ variant: "destructive", title: "Failed to clear reference" });
+      }
     }
-  }, [campaignId]);
+  }, [campaignId, toast]);
 
   const handleSaveDraft = useCallback(async () => {
     if (!selectedBrand) {
@@ -666,7 +677,9 @@ export default function CampaignStudio() {
             try {
               const data = JSON.parse(line.slice(6));
               handleSSEEvent(currentEvent, data);
-            } catch {}
+            } catch {
+              addLog("Received malformed data from server", "error");
+            }
             currentEvent = "";
           }
         }
@@ -803,9 +816,11 @@ export default function CampaignStudio() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ caption: newCaption }),
         });
-      } catch {}
+      } catch {
+        toast({ variant: "destructive", title: "Failed to save caption" });
+      }
     }
-  }, [campaignId]);
+  }, [campaignId, toast]);
 
   const handleRewrite = useCallback(async (text: string, instruction: string): Promise<string> => {
     const resp = await fetch(`${API_BASE}/api/rewrite`, {
@@ -959,7 +974,9 @@ export default function CampaignStudio() {
               } else if (currentEvent === "progress") {
                 addLog(data.message as string, data.done ? "done" : "pending");
               }
-            } catch {}
+            } catch {
+              addLog("Received malformed data from server", "error");
+            }
             currentEvent = "";
           }
         }

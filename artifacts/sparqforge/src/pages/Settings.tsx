@@ -18,8 +18,58 @@ import {
   useUploadFile,
   useCreateAsset,
   type Brand,
-  type Asset
+  type Asset,
+  type Template
 } from "@workspace/api-client-react";
+
+interface TemplateStatsTopRefinementPromptsItem {
+  prompt?: string;
+  count?: number;
+}
+
+interface TemplateStats {
+  templateId: string;
+  templateName: string;
+  totalGenerations: number;
+  version: number;
+  totalLogs: number;
+  approvals: number;
+  rejections: number;
+  approvalRate?: number | null;
+  captionEdits: number;
+  headlineEdits: number;
+  imageRefinements: number;
+  topRefinementPrompts: TemplateStatsTopRefinementPromptsItem[];
+}
+
+interface TemplateRecommendationItem {
+  field?: string;
+  currentValue?: unknown;
+  recommendedValue?: unknown;
+  reasoning?: string;
+  evidenceCount?: number;
+}
+
+interface TemplateRecommendation {
+  id: string;
+  templateId: string;
+  analysisData?: Record<string, unknown>;
+  recommendations: TemplateRecommendationItem[];
+  status: string;
+  reviewedAt?: string | null;
+  reviewerNotes?: string | null;
+  createdAt: string;
+}
+
+interface TemplateVersion {
+  id: string;
+  templateId: string;
+  version: number;
+  snapshot: Record<string, unknown>;
+  changedFields?: string[] | null;
+  changeReason?: string | null;
+  createdAt: string;
+}
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -102,7 +152,7 @@ function BrandSettingsTab() {
     }
   });
 
-  const onAddBrand = (data: any) => {
+  const onAddBrand = (data: Record<string, string>) => {
     createBrandMutation.mutate({
       data: {
         name: data.name,
@@ -375,7 +425,7 @@ function ConnectedAccountsTab() {
   );
 }
 
-function AddBrandForm({ onSubmit, isSubmitting }: { onSubmit: (data: any) => void, isSubmitting: boolean }) {
+function AddBrandForm({ onSubmit, isSubmitting }: { onSubmit: (data: Record<string, string>) => void, isSubmitting: boolean }) {
   const { register, handleSubmit } = useForm();
   
   return (
@@ -457,7 +507,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
     }
   });
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (data: Record<string, string>) => {
     try {
       const parsedPlatformRules = JSON.parse(data.platformRules);
       const parsedHashtagStrategy = JSON.parse(data.hashtagStrategy);
@@ -473,8 +523,9 @@ function BrandEditor({ brand }: { brand: Brand }) {
           hashtagStrategy: parsedHashtagStrategy,
         }
       });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Invalid JSON", description: e.message });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      toast({ variant: "destructive", title: "Invalid JSON", description: message });
     }
   };
 
@@ -748,6 +799,7 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
 }
 
 function BrandFontManagement({ brandId }: { brandId: string }) {
+  const apiBase = import.meta.env.VITE_API_URL || "";
   const { data: allAssets } = useGetAssets({ brandId, type: "font" });
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -792,8 +844,9 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
             }
           });
         },
-        onError: (err: any) => {
-          toast({ variant: "destructive", title: "Upload failed", description: err.message });
+        onError: (err: unknown) => {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          toast({ variant: "destructive", title: "Upload failed", description: message });
         }
       });
     });
@@ -820,7 +873,7 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
   const deleteFont = async (assetId: string) => {
     if (!confirm("Delete this font?")) return;
     try {
-      const res = await fetch(`/api/assets/${assetId}`, { method: "DELETE" });
+      const res = await fetch(`${apiBase}/api/assets/${assetId}`, { method: "DELETE" });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
         toast({ title: "Font deleted" });
@@ -919,7 +972,15 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
   );
 }
 
-function ColorField({ name, label, value, register, setValue }: any) {
+interface ColorFieldProps {
+  name: string;
+  label: string;
+  value: string;
+  register: ReturnType<typeof import("react-hook-form").useForm>["register"];
+  setValue: ReturnType<typeof import("react-hook-form").useForm>["setValue"];
+}
+
+function ColorField({ name, label, value, register, setValue }: ColorFieldProps) {
   return (
     <div>
       <label className="text-xs font-semibold text-muted-foreground uppercase mb-2 block">{label}</label>
@@ -966,7 +1027,7 @@ function BrandTemplates({ brandId }: { brandId: string }) {
 
   const { register, handleSubmit, reset } = useForm();
 
-  const onAddTemplate = (data: any) => {
+  const onAddTemplate = (data: Record<string, string>) => {
     try {
       const claudeInst = data.claudeCaptionInstruction ? JSON.parse(data.claudeCaptionInstruction) : {};
       const layoutSpc = data.layoutSpec ? JSON.parse(data.layoutSpec) : null;
@@ -985,7 +1046,7 @@ function BrandTemplates({ brandId }: { brandId: string }) {
           targetAspectRatios: data.targetAspectRatios ? data.targetAspectRatios.split(",").map((s:string) => s.trim()) : ["1:1"]
         }
       });
-    } catch (e: any) {
+    } catch {
       toast({ variant: "destructive", title: "JSON Parse Error", description: "Ensure instructions and layout specs are valid JSON." });
     }
   };
@@ -1063,15 +1124,15 @@ function BrandTemplates({ brandId }: { brandId: string }) {
   );
 }
 
-function TemplateCard({ template, onDelete }: { template: any; onDelete: () => void }) {
+function TemplateCard({ template, onDelete }: { template: Template; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const { toast } = useToast();
   const apiBase = import.meta.env.VITE_API_URL || "";
   const queryClient = useQueryClient();
 
-  const [stats, setStats] = useState<any>(null);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [versions, setVersions] = useState<any[]>([]);
+  const [stats, setStats] = useState<TemplateStats | null>(null);
+  const [recommendations, setRecommendations] = useState<TemplateRecommendation[]>([]);
+  const [versions, setVersions] = useState<TemplateVersion[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activePanel, setActivePanel] = useState<"stats" | "recommendations" | "versions">("stats");
 
@@ -1085,7 +1146,9 @@ function TemplateCard({ template, onDelete }: { template: any; onDelete: () => v
       if (statsRes.ok) setStats(await statsRes.json());
       if (recsRes.ok) setRecommendations(await recsRes.json());
       if (versRes.ok) setVersions(await versRes.json());
-    } catch {}
+    } catch {
+      toast({ variant: "destructive", title: "Failed to load template details" });
+    }
   };
 
   useEffect(() => {
@@ -1122,7 +1185,9 @@ function TemplateCard({ template, onDelete }: { template: any; onDelete: () => v
         loadDetails();
         queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       }
-    } catch {}
+    } catch {
+      toast({ variant: "destructive", title: `Failed to ${action} recommendation` });
+    }
   };
 
   const handleRollback = async (versionId: string) => {
@@ -1133,7 +1198,9 @@ function TemplateCard({ template, onDelete }: { template: any; onDelete: () => v
         loadDetails();
         queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       }
-    } catch {}
+    } catch {
+      toast({ variant: "destructive", title: "Failed to restore template version" });
+    }
   };
 
   return (
@@ -1187,7 +1254,7 @@ function TemplateCard({ template, onDelete }: { template: any; onDelete: () => v
                 <div>
                   <h5 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Top Refinement Prompts</h5>
                   <div className="space-y-1">
-                    {stats.topRefinementPrompts.slice(0, 5).map((p: any, i: number) => (
+                    {stats.topRefinementPrompts.slice(0, 5).map((p: { prompt?: string; count?: number }, i: number) => (
                       <div key={i} className="flex justify-between text-sm px-3 py-1.5 bg-card rounded">
                         <span className="text-foreground truncate mr-4">"{p.prompt}"</span>
                         <span className="text-muted-foreground shrink-0">{p.count}x</span>
@@ -1214,7 +1281,7 @@ function TemplateCard({ template, onDelete }: { template: any; onDelete: () => v
                   <p className="text-sm text-muted-foreground">No recommendations yet. Run AI analysis from the Stats tab to generate them.</p>
                 </div>
               ) : (
-                recommendations.map((rec: any) => (
+                recommendations.map((rec: TemplateRecommendation) => (
                   <RecommendationCard
                     key={rec.id}
                     rec={rec}
@@ -1231,7 +1298,7 @@ function TemplateCard({ template, onDelete }: { template: any; onDelete: () => v
               {versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">No version history yet. Changes will be tracked automatically.</p>
               ) : (
-                versions.map((v: any) => (
+                versions.map((v: TemplateVersion) => (
                   <div key={v.id} className="flex items-center justify-between p-3 bg-card rounded-lg border border-border">
                     <div>
                       <div className="flex items-center gap-2">
@@ -1268,7 +1335,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-function RecommendationCard({ rec, onApply, onDismiss }: { rec: any; onApply: () => void; onDismiss: () => void }) {
+function RecommendationCard({ rec, onApply, onDismiss }: { rec: TemplateRecommendation; onApply: () => void; onDismiss: () => void }) {
   const isActionable = rec.status === "pending";
   const recs = rec.recommendations || [];
 
@@ -1293,7 +1360,7 @@ function RecommendationCard({ rec, onApply, onDismiss }: { rec: any; onApply: ()
         )}
       </div>
       <div className="space-y-2">
-        {recs.map((r: any, i: number) => (
+        {recs.map((r: TemplateRecommendationItem, i: number) => (
           <div key={i} className="bg-background rounded p-3 border border-border">
             <div className="flex items-center gap-2 mb-1">
               <Badge variant="outline" className="text-[10px] font-mono">{r.field}</Badge>

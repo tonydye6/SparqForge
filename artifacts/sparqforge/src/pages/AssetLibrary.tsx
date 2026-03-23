@@ -21,6 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 const ASSET_CLASS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   compositing: { label: "Compositing", color: "text-purple-400", bg: "bg-purple-500/20" },
   subject_reference: { label: "Subject Ref", color: "text-blue-400", bg: "bg-blue-500/20" },
@@ -115,8 +117,9 @@ export default function AssetLibrary() {
             }
           });
         },
-        onError: (err: any) => {
-          toast({ variant: "destructive", title: "Upload failed", description: err.message });
+        onError: (err: unknown) => {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          toast({ variant: "destructive", title: "Upload failed", description: message });
         }
       });
     });
@@ -145,7 +148,7 @@ export default function AssetLibrary() {
     if (selectedIds.size === 0) return;
     setBulkLoading(true);
     try {
-      const res = await fetch("/api/assets/bulk-update", {
+      const res = await fetch(`${API_BASE}/api/assets/bulk-update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selectedIds), ...updates }),
@@ -343,7 +346,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
   useEffect(() => {
     if (isOpen && usageData === null) {
       setUsageLoading(true);
-      fetch(`/api/assets/${asset.id}/usage`)
+      fetch(`${API_BASE}/api/assets/${asset.id}/usage`)
         .then(res => res.json())
         .then(data => setUsageData(Array.isArray(data) ? data : []))
         .catch(() => setUsageData([]))
@@ -351,7 +354,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
     }
   }, [isOpen, asset.id, usageData]);
 
-  const handleUpdate = (updates: any) => {
+  const handleUpdate = (updates: Record<string, unknown>) => {
     updateMutation.mutate({ id: asset.id, data: updates }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/assets"] });

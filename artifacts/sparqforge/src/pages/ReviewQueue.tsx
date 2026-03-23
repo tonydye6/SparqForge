@@ -92,10 +92,12 @@ export default function ReviewQueue() {
         const data = await resp.json();
         setVariants(data);
       }
-    } catch {} finally {
+    } catch {
+      toast({ variant: "destructive", title: "Failed to load variants" });
+    } finally {
       setLoadingVariants(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (expandedCampaignId) {
@@ -134,6 +136,9 @@ export default function ReviewQueue() {
           toast({ title: "Campaign approved!" });
           setExpandedCampaignId(null);
         },
+        onError: (err: Error) => {
+          toast({ variant: "destructive", title: "Failed to approve campaign", description: err.message });
+        },
       }
     );
   };
@@ -150,6 +155,9 @@ export default function ReviewQueue() {
           queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
           toast({ title: "Campaign returned with feedback" });
           setExpandedCampaignId(null);
+        },
+        onError: (err: Error) => {
+          toast({ variant: "destructive", title: "Failed to reject campaign", description: err.message });
         },
       }
     );
@@ -199,7 +207,7 @@ export default function ReviewQueue() {
     setScheduleModalOpen(true);
   };
 
-  const handleRemix = (campaign: any) => {
+  const handleRemix = (campaign: { id: string }) => {
     const params = new URLSearchParams();
     params.set("remix", campaign.id);
     setLocation(`/?${params.toString()}`);
