@@ -10,6 +10,7 @@ import { useGetBrands } from "@workspace/api-client-react";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { BatchSchedulePanel } from "@/components/calendar/BatchSchedulePanel";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -73,6 +74,7 @@ export default function Calendar() {
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [batchPanelOpen, setBatchPanelOpen] = useState(false);
 
   const touchDragRef = useRef<{
     entry: CalendarEntry;
@@ -785,6 +787,10 @@ export default function Calendar() {
               ))}
             </SelectContent>
           </Select>
+          <Button variant="outline" size="sm" className="bg-card border-border text-xs sm:text-sm" onClick={() => setBatchPanelOpen(true)}>
+            <CalendarPlus size={14} className="mr-1 sm:mr-2" />
+            Batch Schedule
+          </Button>
         </div>
       </div>
 
@@ -968,6 +974,12 @@ export default function Calendar() {
           })}
         </div>
       )}
+
+      <BatchSchedulePanel
+        open={batchPanelOpen}
+        onClose={() => setBatchPanelOpen(false)}
+        onScheduled={fetchEntries}
+      />
     </div>
   );
 }
