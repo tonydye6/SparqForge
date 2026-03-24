@@ -13,17 +13,29 @@ export function validateRequest(schemas: ValidationSchemas) {
 
     if (schemas.body) {
       const result = schemas.body.safeParse(req.body);
-      if (!result.success) errors.push({ location: "body", issues: result.error.issues });
+      if (!result.success) {
+        errors.push({ location: "body", issues: result.error.issues });
+      } else {
+        req.body = result.data;
+      }
     }
 
     if (schemas.query) {
       const result = schemas.query.safeParse(req.query);
-      if (!result.success) errors.push({ location: "query", issues: result.error.issues });
+      if (!result.success) {
+        errors.push({ location: "query", issues: result.error.issues });
+      } else {
+        (req as Record<string, unknown>).query = result.data;
+      }
     }
 
     if (schemas.params) {
       const result = schemas.params.safeParse(req.params);
-      if (!result.success) errors.push({ location: "params", issues: result.error.issues });
+      if (!result.success) {
+        errors.push({ location: "params", issues: result.error.issues });
+      } else {
+        (req as Record<string, unknown>).params = result.data;
+      }
     }
 
     if (errors.length > 0) {

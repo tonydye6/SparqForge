@@ -91,12 +91,18 @@ export function VariantComparisonView({
 
             {/* Preview image */}
             <div className="flex justify-center p-2 border-b border-border">
-              <PlatformPreviewWrapper
-                platform={variant.platform}
-                imageUrl={variant.compositedImageUrl || variant.rawImageUrl}
-                caption={variant.caption}
-                headlineText={variant.headlineText}
-              />
+              {variant.compositedImageUrl || variant.rawImageUrl ? (
+                <PlatformPreviewWrapper
+                  platform={variant.platform}
+                  imageUrl={variant.compositedImageUrl || variant.rawImageUrl}
+                  caption={variant.caption}
+                  headlineText={variant.headlineText}
+                />
+              ) : (
+                <div className="flex items-center justify-center w-full h-40 bg-muted/30 rounded text-muted-foreground text-xs">
+                  No image available
+                </div>
+              )}
             </div>
 
             {/* Caption */}

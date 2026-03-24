@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { AlignCenter, AlignLeft, AlignRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,7 +57,20 @@ export function HeadlineZoneEditor({ value, onChange, brandColors }: HeadlineZon
   const currentMaxWidth = value.max_width_percent ?? defaults.max_width_percent;
   const currentPadding = value.padding_px ?? defaults.padding_px;
   const currentFontSize = value.font_size_px ?? defaults.font_size_px;
-  const currentColor = value.color ?? defaults.color;
+  const committedColor = value.color ?? defaults.color;
+  const [colorInput, setColorInput] = useState(committedColor);
+
+  useEffect(() => {
+    setColorInput(committedColor);
+  }, [committedColor]);
+
+  const isValidHex = (hex: string) => /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex);
+  const normalizeHex = (hex: string) => {
+    if (/^#[0-9A-Fa-f]{3}$/.test(hex)) {
+      return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+    }
+    return hex;
+  };
   const currentMaxLines = value.max_lines ?? defaults.max_lines;
 
   return (
@@ -213,19 +227,27 @@ export function HeadlineZoneEditor({ value, onChange, brandColors }: HeadlineZon
         <div className="flex items-center gap-2">
           <input
             type="color"
-            value={currentColor}
+            value={normalizeHex(committedColor)}
             onChange={(e) => handleChange("color", e.target.value)}
             className="h-9 w-10 cursor-pointer rounded border border-input bg-transparent p-0.5"
             aria-label="Pick color"
           />
           <Input
             type="text"
-            value={currentColor}
+            value={colorInput}
             maxLength={7}
             onChange={(e) => {
               const hex = e.target.value;
               if (/^#[0-9A-Fa-f]{0,6}$/.test(hex)) {
-                handleChange("color", hex);
+                setColorInput(hex);
+                if (isValidHex(hex)) {
+                  handleChange("color", hex);
+                }
+              }
+            }}
+            onBlur={() => {
+              if (!isValidHex(colorInput)) {
+                setColorInput(committedColor);
               }
             }}
             className="w-28 font-mono uppercase"

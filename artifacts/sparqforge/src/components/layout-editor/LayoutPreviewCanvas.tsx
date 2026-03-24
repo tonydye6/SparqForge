@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   LayoutSpec,
   LAYOUT_DEFAULTS,
@@ -207,6 +208,11 @@ function LogoLayer({
   targetWidth: number;
   brandLogoUrl?: string | null;
 }) {
+  const [logoError, setLogoError] = useState(false);
+
+  useEffect(() => {
+    setLogoError(false);
+  }, [brandLogoUrl]);
   const { position, offset_px, max_height_px, opacity } = logo;
 
   const offsetPct = `${(offset_px / targetWidth) * 100}%`;
@@ -235,7 +241,7 @@ function LogoLayer({
         Logo
       </span>
 
-      {brandLogoUrl ? (
+      {brandLogoUrl && !logoError ? (
         <img
           src={brandLogoUrl}
           alt="Brand logo"
@@ -244,10 +250,15 @@ function LogoLayer({
             opacity,
             display: "block",
           }}
-          // fallback sizing when maxHeight% can't resolve (no explicit container height)
-          // use a reasonable clamped pixel value instead
-          onError={() => {}}
+          onError={() => setLogoError(true)}
         />
+      ) : brandLogoUrl && logoError ? (
+        <div
+          className="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded select-none whitespace-nowrap"
+          style={{ opacity }}
+        >
+          Logo failed
+        </div>
       ) : (
         <div
           className="bg-white/20 text-white/60 text-[10px] px-2 py-1 rounded select-none whitespace-nowrap"

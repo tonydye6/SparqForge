@@ -12,6 +12,7 @@ import {
   DeleteBrandParams,
   DeleteBrandResponse,
 } from "@workspace/api-zod";
+import { validateRequest } from "../middleware/validate.js";
 import multer from "multer";
 import * as fs from "fs";
 import * as path from "path";
@@ -48,25 +49,13 @@ router.get("/brands", async (_req, res): Promise<void> => {
   res.json(GetBrandsResponse.parse(brands));
 });
 
-router.post("/brands", async (req, res): Promise<void> => {
-  const parsed = CreateBrandBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const [brand] = await db.insert(brandsTable).values(parsed.data).returning();
+router.post("/brands", validateRequest({ body: CreateBrandBody }), async (req, res): Promise<void> => {
+  const [brand] = await db.insert(brandsTable).values(req.body).returning();
   res.status(201).json(GetBrandResponse.parse(brand));
 });
 
-router.get("/brands/:id", async (req, res): Promise<void> => {
-  const params = GetBrandParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, params.data.id));
+router.get("/brands/:id", validateRequest({ params: GetBrandParams }), async (req, res): Promise<void> => {
+  const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, req.params.id));
   if (!brand) {
     res.status(404).json({ error: "Brand not found" });
     return;
@@ -75,23 +64,11 @@ router.get("/brands/:id", async (req, res): Promise<void> => {
   res.json(GetBrandResponse.parse(brand));
 });
 
-router.put("/brands/:id", async (req, res): Promise<void> => {
-  const params = UpdateBrandParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const parsed = UpdateBrandBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
+router.put("/brands/:id", validateRequest({ params: UpdateBrandParams, body: UpdateBrandBody }), async (req, res): Promise<void> => {
   const [brand] = await db
     .update(brandsTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(brandsTable.id, params.data.id))
+    .set({ ...req.body, updatedAt: new Date() })
+    .where(eq(brandsTable.id, req.params.id))
     .returning();
 
   if (!brand) {
@@ -102,14 +79,8 @@ router.put("/brands/:id", async (req, res): Promise<void> => {
   res.json(UpdateBrandResponse.parse(brand));
 });
 
-router.delete("/brands/:id", async (req, res): Promise<void> => {
-  const params = DeleteBrandParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [brand] = await db.delete(brandsTable).where(eq(brandsTable.id, params.data.id)).returning();
+router.delete("/brands/:id", validateRequest({ params: DeleteBrandParams }), async (req, res): Promise<void> => {
+  const [brand] = await db.delete(brandsTable).where(eq(brandsTable.id, req.params.id)).returning();
   if (!brand) {
     res.status(404).json({ error: "Brand not found" });
     return;

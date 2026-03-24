@@ -3,6 +3,23 @@ import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { db, calendarEntriesTable, campaignsTable, campaignVariantsTable, brandsTable, socialAccountsTable } from "@workspace/db";
 import { publishEntry } from "../services/publish-scheduler";
 import { z } from "zod";
+import { validateRequest } from "../middleware/validate.js";
+
+const CreateCalendarEntryBody = z.object({
+  campaignId: z.string().min(1),
+  variantId: z.string().min(1),
+  platform: z.string().min(1),
+  scheduledAt: z.string().min(1),
+  socialAccountId: z.string().nullable().optional(),
+});
+
+const UpdateCalendarEntryBody = z.object({
+  scheduledAt: z.string().optional(),
+  publishStatus: z.string().optional(),
+  socialAccountId: z.string().nullable().optional(),
+});
+
+const IdParams = z.object({ id: z.string().min(1) });
 
 const router: IRouter = Router();
 
@@ -51,13 +68,8 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
   res.json({ entries, limit, offset });
 });
 
-router.post("/calendar-entries", async (req, res): Promise<void> => {
+router.post("/calendar-entries", validateRequest({ body: CreateCalendarEntryBody }), async (req, res): Promise<void> => {
   const { campaignId, variantId, platform, scheduledAt, socialAccountId } = req.body;
-
-  if (!campaignId || !variantId || !platform || !scheduledAt) {
-    res.status(400).json({ error: "Missing required fields: campaignId, variantId, platform, scheduledAt" });
-    return;
-  }
 
   const [entry] = await db.insert(calendarEntriesTable).values({
     campaignId,
@@ -70,7 +82,7 @@ router.post("/calendar-entries", async (req, res): Promise<void> => {
   res.status(201).json(entry);
 });
 
-router.put("/calendar-entries/:id", async (req, res): Promise<void> => {
+router.put("/calendar-entries/:id", validateRequest({ params: IdParams, body: UpdateCalendarEntryBody }), async (req, res): Promise<void> => {
   const { id } = req.params;
   const updates: Record<string, unknown> = {};
 
@@ -94,7 +106,7 @@ router.put("/calendar-entries/:id", async (req, res): Promise<void> => {
   res.json(entry);
 });
 
-router.post("/calendar-entries/:id/publish", async (req, res): Promise<void> => {
+router.post("/calendar-entries/:id/publish", validateRequest({ params: IdParams }), async (req, res): Promise<void> => {
   const { id } = req.params;
 
   const [entry] = await db.select().from(calendarEntriesTable)
@@ -135,7 +147,7 @@ router.post("/calendar-entries/:id/publish", async (req, res): Promise<void> => 
   res.json({ message: "Publishing initiated", entryId: id });
 });
 
-router.post("/calendar-entries/:id/retry", async (req, res): Promise<void> => {
+router.post("/calendar-entries/:id/retry", validateRequest({ params: IdParams }), async (req, res): Promise<void> => {
   const { id } = req.params;
 
   const [entry] = await db.select().from(calendarEntriesTable)
@@ -162,7 +174,7 @@ router.post("/calendar-entries/:id/retry", async (req, res): Promise<void> => {
   res.json({ message: "Retry initiated", entryId: id });
 });
 
-router.delete("/calendar-entries/:id", async (req, res): Promise<void> => {
+router.delete("/calendar-entries/:id", validateRequest({ params: IdParams }), async (req, res): Promise<void> => {
   const { id } = req.params;
 
   const [entry] = await db

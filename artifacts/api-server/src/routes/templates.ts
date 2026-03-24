@@ -14,6 +14,7 @@ import {
   DeleteTemplateResponse,
 } from "@workspace/api-zod";
 import { analyzeTemplate } from "../services/refinement-analysis.js";
+import { validateRequest } from "../middleware/validate.js";
 
 const router: IRouter = Router();
 
@@ -43,25 +44,13 @@ router.get("/templates", async (req, res): Promise<void> => {
   res.json({ data: results, total, limit, offset });
 });
 
-router.post("/templates", async (req, res): Promise<void> => {
-  const parsed = CreateTemplateBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const [template] = await db.insert(templatesTable).values(parsed.data).returning();
+router.post("/templates", validateRequest({ body: CreateTemplateBody }), async (req, res): Promise<void> => {
+  const [template] = await db.insert(templatesTable).values(req.body).returning();
   res.status(201).json(GetTemplateResponse.parse(template));
 });
 
-router.get("/templates/:id", async (req, res): Promise<void> => {
-  const params = GetTemplateParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, params.data.id));
+router.get("/templates/:id", validateRequest({ params: GetTemplateParams }), async (req, res): Promise<void> => {
+  const [template] = await db.select().from(templatesTable).where(eq(templatesTable.id, req.params.id));
   if (!template) {
     res.status(404).json({ error: "Template not found" });
     return;
@@ -70,28 +59,15 @@ router.get("/templates/:id", async (req, res): Promise<void> => {
   res.json(GetTemplateResponse.parse(template));
 });
 
-router.put("/templates/:id", async (req, res): Promise<void> => {
-  const params = UpdateTemplateParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const parsed = UpdateTemplateBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const [existing] = await db.select().from(templatesTable).where(eq(templatesTable.id, params.data.id));
+router.put("/templates/:id", validateRequest({ params: UpdateTemplateParams, body: UpdateTemplateBody }), async (req, res): Promise<void> => {
+  const [existing] = await db.select().from(templatesTable).where(eq(templatesTable.id, req.params.id));
   if (!existing) {
     res.status(404).json({ error: "Template not found" });
     return;
   }
 
-  const changedFields = Object.keys(parsed.data).filter((k) => {
-    const key = k as keyof typeof parsed.data;
-    return JSON.stringify(parsed.data[key]) !== JSON.stringify((existing as Record<string, unknown>)[key]);
+  const changedFields = Object.keys(req.body).filter((k) => {
+    return JSON.stringify(req.body[k]) !== JSON.stringify((existing as Record<string, unknown>)[k]);
   });
 
   if (changedFields.length > 0) {
@@ -109,21 +85,15 @@ router.put("/templates/:id", async (req, res): Promise<void> => {
 
   const [template] = await db
     .update(templatesTable)
-    .set({ ...parsed.data, version: newVersion, updatedAt: new Date() })
-    .where(eq(templatesTable.id, params.data.id))
+    .set({ ...req.body, version: newVersion, updatedAt: new Date() })
+    .where(eq(templatesTable.id, req.params.id))
     .returning();
 
   res.json(UpdateTemplateResponse.parse(template));
 });
 
-router.delete("/templates/:id", async (req, res): Promise<void> => {
-  const params = DeleteTemplateParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [template] = await db.delete(templatesTable).where(eq(templatesTable.id, params.data.id)).returning();
+router.delete("/templates/:id", validateRequest({ params: DeleteTemplateParams }), async (req, res): Promise<void> => {
+  const [template] = await db.delete(templatesTable).where(eq(templatesTable.id, req.params.id)).returning();
   if (!template) {
     res.status(404).json({ error: "Template not found" });
     return;

@@ -1,8 +1,14 @@
 import { Router, type IRouter } from "express";
-import { eq, and, or, sql, SQL } from "drizzle-orm";
+import { eq, and, or, sql, SQL, ilike } from "drizzle-orm";
 import { db, socialContentPlanItemsTable, brandsTable, templatesTable, campaignsTable, type PlanItem } from "@workspace/db";
 import multer from "multer";
 import { parse as csvParseSync } from "csv-parse/sync";
+
+interface AuthenticatedUser {
+  id: string;
+  [key: string]: unknown;
+}
+
 
 const router: IRouter = Router();
 
@@ -294,14 +300,13 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
 
   let templateId: string | null = null;
   if (planItem.templateName) {
-    const { ilike } = await import("drizzle-orm");
     const [match] = await db.select().from(templatesTable)
       .where(ilike(templatesTable.name, planItem.templateName))
       .limit(1);
     if (match) templateId = match.id;
   }
 
-  const userId = ((req as Record<string, unknown>).user as { id?: string } | undefined)?.id || "system";
+  const userId = ((req as unknown as Record<string, unknown>).user as AuthenticatedUser | undefined)?.id || "system";
 
   try {
     const result = await db.transaction(async (tx) => {

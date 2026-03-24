@@ -6,12 +6,32 @@ import { assembleContext, type SelectedAssetRef } from "../services/context-asse
 import { generateCaptions } from "../services/claude.js";
 import { generateAllImages, generateImage, PLATFORM_CONFIGS, type ReferenceImage } from "../services/imagen.js";
 import { AI_MODELS, estimateClaudeCost, estimateImagenCost } from "../lib/ai-config.js";
-import { compositeImage } from "../services/compositing.js";
+import { compositeImage, type LayoutSpec } from "../services/compositing.js";
 import { checkBrandReadiness } from "../lib/brand-readiness.js";
 import { buildGenerationPacket } from "../services/packet-assembly.js";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { z } from "zod";
+import { validateRequest } from "../middleware/validate.js";
+
+interface AuthenticatedUser {
+  id: string;
+  [key: string]: unknown;
+}
+
+const CampaignVariantParams = z.object({
+  id: z.string().min(1),
+  variantId: z.string().min(1),
+});
+
+const UpdateCaptionBody = z.object({
+  caption: z.string().min(1),
+});
+
+const UpdateHeadlineBody = z.object({
+  headline: z.string().min(1),
+});
 
 const router: IRouter = Router();
 
@@ -327,7 +347,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       try {
         const result = await compositeImage({
           rawImageBuffer: img.imageBuffer,
-          layoutSpec: layoutSpec as any,
+          layoutSpec: layoutSpec as LayoutSpec | null,
           headlineText: captionData.headline || null,
           logoBuffer,
           width: config.width,
@@ -521,14 +541,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
   }
 });
 
-router.put("/campaigns/:id/variants/:variantId/caption", async (req: Request, res: Response): Promise<void> => {
+router.put("/campaigns/:id/variants/:variantId/caption", validateRequest({ params: CampaignVariantParams, body: UpdateCaptionBody }), async (req: Request, res: Response): Promise<void> => {
   const { id: campaignId, variantId } = req.params;
   const { caption } = req.body;
-
-  if (!caption) {
-    res.status(400).json({ error: "Caption is required" });
-    return;
-  }
 
   const [variant] = await db.select().from(campaignVariantsTable)
     .where(eq(campaignVariantsTable.id, variantId));
@@ -553,7 +568,7 @@ router.put("/campaigns/:id/variants/:variantId/caption", async (req: Request, re
         aspectRatio: variant.aspectRatio,
         originalValue: variant.originalCaption,
         newValue: caption,
-        userId: (req as any).user?.id || "system",
+        userId: ((req as unknown as Record<string, unknown>).user as AuthenticatedUser | undefined)?.id || "system",
       });
     }
   }
@@ -561,14 +576,9 @@ router.put("/campaigns/:id/variants/:variantId/caption", async (req: Request, re
   res.json(updated);
 });
 
-router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, res: Response): Promise<void> => {
+router.put("/campaigns/:id/variants/:variantId/headline", validateRequest({ params: CampaignVariantParams, body: UpdateHeadlineBody }), async (req: Request, res: Response): Promise<void> => {
   const { id: campaignId, variantId } = req.params;
   const { headline } = req.body;
-
-  if (!headline) {
-    res.status(400).json({ error: "Headline is required" });
-    return;
-  }
 
   const [variant] = await db.select().from(campaignVariantsTable)
     .where(eq(campaignVariantsTable.id, variantId));
@@ -596,8 +606,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
       const rawPath = path.join(UPLOADS_DIR, rawFilename);
       if (fs.existsSync(rawPath)) {
         const rawBuffer = fs.readFileSync(rawPath);
-        const { assembleContext: assemble } = await import("../services/context-assembly.js");
-        const ctx = await assemble({
+        const ctx = await assembleContext({
           brandId: campaign.brandId,
           templateId: campaign.templateId,
           selectedAssets: [],
@@ -610,7 +619,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
 
         const newResult = await compositeImage({
           rawImageBuffer: rawBuffer,
-          layoutSpec: ctx.template.layoutSpec as any,
+          layoutSpec: ctx.template.layoutSpec as LayoutSpec | null,
           headlineText: headline,
           logoBuffer,
           width: config.width,
@@ -642,7 +651,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", async (req: Request, r
       aspectRatio: variant.aspectRatio,
       originalValue: variant.originalHeadline,
       newValue: headline,
-      userId: (req as any).user?.id || "system",
+      userId: ((req as unknown as Record<string, unknown>).user as AuthenticatedUser | undefined)?.id || "system",
     });
   }
 
@@ -727,7 +736,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     try {
       const result = await compositeImage({
         rawImageBuffer: imgResult.imageBuffer,
-        layoutSpec: layoutSpec as any,
+        layoutSpec: layoutSpec as LayoutSpec | null,
         headlineText: variant.headlineText || null,
         logoBuffer,
         width: config.width,
@@ -787,7 +796,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
             platform: variant.platform,
             aspectRatio: variant.aspectRatio,
             refinementPrompt: instruction || null,
-            userId: (req as any).user?.id || "system",
+            userId: ((req as unknown as Record<string, unknown>).user as AuthenticatedUser | undefined)?.id || "system",
           });
         }
 

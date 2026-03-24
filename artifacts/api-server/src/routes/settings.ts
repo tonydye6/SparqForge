@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, appSettingsTable } from "@workspace/db";
-import { z } from "zod/v4";
+import { eq, sql } from "drizzle-orm";
+import { db, appSettingsTable, costLogsTable } from "@workspace/db";
+import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
 
 const UpdateSettingsBody = z.record(z.string(), z.string());
@@ -51,9 +51,6 @@ router.get("/settings/daily-budget-status", async (_req, res): Promise<void> => 
     res.json({ threshold: null, todaySpend: 0, remaining: null, overBudget: false });
     return;
   }
-
-  const { sql } = await import("drizzle-orm");
-  const { costLogsTable } = await import("@workspace/db");
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);

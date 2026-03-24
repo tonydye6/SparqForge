@@ -521,19 +521,33 @@ function BrandEditor({ brand }: { brand: Brand }) {
         queryClient.invalidateQueries({ queryKey: ["brand-readiness", brand.id] });
         toast({ title: "Brand updated successfully" });
         // Reset RHF dirty state so the unsaved changes banner clears
-        const submitted = variables.data as Record<string, unknown>;
+        const submitted = variables.data as Partial<{
+          name: string;
+          slug: string;
+          colorPrimary: string;
+          colorSecondary: string;
+          colorAccent: string;
+          colorBackground: string;
+          voiceDescription: string;
+          imagenPrefix: string;
+          negativePrompt: string;
+          bannedTerms: string[] | string;
+          trademarkRules: string;
+          platformRules: Record<string, unknown>;
+          hashtagStrategy: Record<string, unknown>;
+        }>;
         reset({
-          name: (submitted.name as string) ?? brand.name,
-          slug: (submitted.slug as string) ?? brand.slug,
-          colorPrimary: (submitted.colorPrimary as string) ?? brand.colorPrimary,
-          colorSecondary: (submitted.colorSecondary as string) ?? brand.colorSecondary,
-          colorAccent: (submitted.colorAccent as string) ?? brand.colorAccent,
-          colorBackground: (submitted.colorBackground as string) ?? brand.colorBackground,
-          voiceDescription: (submitted.voiceDescription as string) ?? "",
-          imagenPrefix: (submitted.imagenPrefix as string) ?? "",
-          negativePrompt: (submitted.negativePrompt as string) ?? "",
-          bannedTerms: Array.isArray(submitted.bannedTerms) ? (submitted.bannedTerms as string[]).join(", ") : ((submitted.bannedTerms as string) ?? ""),
-          trademarkRules: (submitted.trademarkRules as string) ?? "",
+          name: submitted.name ?? brand.name,
+          slug: submitted.slug ?? brand.slug,
+          colorPrimary: submitted.colorPrimary ?? brand.colorPrimary,
+          colorSecondary: submitted.colorSecondary ?? brand.colorSecondary,
+          colorAccent: submitted.colorAccent ?? brand.colorAccent,
+          colorBackground: submitted.colorBackground ?? brand.colorBackground,
+          voiceDescription: submitted.voiceDescription ?? "",
+          imagenPrefix: submitted.imagenPrefix ?? "",
+          negativePrompt: submitted.negativePrompt ?? "",
+          bannedTerms: Array.isArray(submitted.bannedTerms) ? submitted.bannedTerms.join(", ") : (submitted.bannedTerms ?? ""),
+          trademarkRules: submitted.trademarkRules ?? "",
           platformRules: JSON.stringify(submitted.platformRules || {}, null, 2),
           hashtagStrategy: JSON.stringify(submitted.hashtagStrategy || {}, null, 2),
         });

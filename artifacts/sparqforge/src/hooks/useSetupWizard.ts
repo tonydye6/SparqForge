@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 
@@ -68,25 +68,33 @@ export function useSetupWizard() {
     { complete: readiness?.ready ?? false },
   ];
 
-  // Resume logic: set brandId and jump to first incomplete step after data loads
+  const hasSelectedBrand = useRef(false);
+  const hasNavigated = useRef(false);
+
   useEffect(() => {
-    if (brandsLoading || readinessLoading) return;
+    if (brandsLoading) return;
+    if (hasSelectedBrand.current) return;
+    hasSelectedBrand.current = true;
 
     if (brands.length > 0) {
-      const firstBrand = brands[0];
-      setBrandId((prev) => prev ?? firstBrand.id);
-
-      // Find first incomplete step
-      const firstIncompleteIndex = stepStatuses.findIndex((s) => !s.complete);
-      if (firstIncompleteIndex === -1) {
-        // All complete — go to last step
-        setCurrentStepIndex(7);
-      } else {
-        setCurrentStepIndex(firstIncompleteIndex);
-      }
+      setBrandId((prev) => prev ?? brands[0].id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [brandsLoading, readinessLoading]);
+  }, [brandsLoading]);
+
+  useEffect(() => {
+    if (!brandId || readinessLoading) return;
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+
+    const firstIncompleteIndex = stepStatuses.findIndex((s) => !s.complete);
+    if (firstIncompleteIndex === -1) {
+      setCurrentStepIndex(7);
+    } else {
+      setCurrentStepIndex(firstIncompleteIndex);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandId, readinessLoading]);
 
   // Navigation actions
   const next = () => {

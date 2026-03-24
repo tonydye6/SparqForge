@@ -12,6 +12,7 @@ import {
   UpdateCampaignResponse,
 } from "@workspace/api-zod";
 import { captureScreenshots, captureFromUpload, validateUrl } from "../services/screenshot.js";
+import { validateRequest } from "../middleware/validate.js";
 import { analyzeReference } from "../services/reference-analysis.js";
 import multer from "multer";
 
@@ -91,26 +92,16 @@ router.get("/campaigns/check-duplicate", async (req, res): Promise<void> => {
   }
 });
 
-router.post("/campaigns", async (req, res): Promise<void> => {
-  const parsed = CreateCampaignBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const userId = (req as any).user?.id || "system";
-  const [campaign] = await db.insert(campaignsTable).values({ ...parsed.data, createdBy: userId }).returning();
+router.post("/campaigns", validateRequest({ body: CreateCampaignBody }), async (req, res): Promise<void> => {
+  const userId = (req as unknown as Record<string, unknown>).user
+    ? ((req as unknown as Record<string, unknown>).user as { id: string }).id
+    : "system";
+  const [campaign] = await db.insert(campaignsTable).values({ ...req.body, createdBy: userId }).returning();
   res.status(201).json(GetCampaignResponse.parse(campaign));
 });
 
-router.get("/campaigns/:id", async (req, res): Promise<void> => {
-  const params = GetCampaignParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, params.data.id));
+router.get("/campaigns/:id", validateRequest({ params: GetCampaignParams }), async (req, res): Promise<void> => {
+  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, req.params.id));
   if (!campaign) {
     res.status(404).json({ error: "Campaign not found" });
     return;
@@ -119,23 +110,11 @@ router.get("/campaigns/:id", async (req, res): Promise<void> => {
   res.json(GetCampaignResponse.parse(campaign));
 });
 
-router.put("/campaigns/:id", async (req, res): Promise<void> => {
-  const params = UpdateCampaignParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const parsed = UpdateCampaignBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
+router.put("/campaigns/:id", validateRequest({ params: UpdateCampaignParams, body: UpdateCampaignBody }), async (req, res): Promise<void> => {
   const [campaign] = await db
     .update(campaignsTable)
-    .set({ ...parsed.data, updatedAt: new Date() })
-    .where(eq(campaignsTable.id, params.data.id))
+    .set({ ...req.body, updatedAt: new Date() })
+    .where(eq(campaignsTable.id, req.params.id))
     .returning();
 
   if (!campaign) {

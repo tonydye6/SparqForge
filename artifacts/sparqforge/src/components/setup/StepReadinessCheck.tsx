@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { CheckCircle2, XCircle, PartyPopper, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WizardStepShell } from "@/components/setup/WizardStepShell";
+import { WIZARD_STEPS } from "@/lib/setup-defaults";
 
 interface StepReadinessCheckProps {
   brandId: string | null;
@@ -15,17 +16,16 @@ interface StepReadinessCheckProps {
   goToStep: (index: number) => void;
 }
 
-const READINESS_TO_STEP: Record<string, number> = {
-  logo: 1,
-  fonts: 2,
-  voice: 3,
-  platformRules: 4,
-  templates: 5,
-  approvedAssets: 6,
-};
+const READINESS_TO_STEP: Record<string, number> = {};
+WIZARD_STEPS.forEach((step, index) => {
+  if (step.readinessKey) {
+    READINESS_TO_STEP[step.readinessKey] = index;
+  }
+});
 
-// Ordered list of check keys to render consistently
-const CHECK_KEYS = ["logo", "fonts", "voice", "platformRules", "templates", "approvedAssets"];
+const CHECK_KEYS = WIZARD_STEPS
+  .filter((step) => step.readinessKey !== null)
+  .map((step) => step.readinessKey!);
 
 export default function StepReadinessCheck({
   readiness,

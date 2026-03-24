@@ -39,8 +39,8 @@ export function RejectReasonDialog({
   };
 
   const handleSubmit = () => {
-    if (!selectedCategory || comment.length < 10) return;
-    onSubmit(selectedCategory, comment);
+    if (!selectedCategory || comment.trim().length < 10) return;
+    onSubmit(selectedCategory, comment.trim());
     reset();
     onClose();
   };

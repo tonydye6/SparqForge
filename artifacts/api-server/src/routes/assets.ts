@@ -13,6 +13,14 @@ import {
   DeleteAssetParams,
   DeleteAssetResponse,
 } from "@workspace/api-zod";
+import { backfillAssetClassifications } from "../services/backfill-assets.js";
+import { validateRequest } from "../middleware/validate.js";
+
+interface AuthenticatedUser {
+  id: string;
+  [key: string]: unknown;
+}
+
 
 const router: IRouter = Router();
 
@@ -72,15 +80,9 @@ router.get("/assets", async (req, res): Promise<void> => {
   res.json({ data: results, total, limit, offset });
 });
 
-router.post("/assets", async (req, res): Promise<void> => {
-  const parsed = CreateAssetBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const userId = (req as any).user?.id || "system";
-  const [asset] = await db.insert(assetsTable).values({ ...parsed.data, uploadedBy: userId }).returning();
+router.post("/assets", validateRequest({ body: CreateAssetBody }), async (req, res): Promise<void> => {
+  const userId = ((req as unknown as Record<string, unknown>).user as AuthenticatedUser | undefined)?.id || "system";
+  const [asset] = await db.insert(assetsTable).values({ ...req.body, uploadedBy: userId }).returning();
   res.status(201).json(GetAssetResponse.parse(asset));
 });
 
@@ -191,14 +193,8 @@ router.get("/assets/recommended", async (req, res): Promise<void> => {
   res.json(scored);
 });
 
-router.get("/assets/:id", async (req, res): Promise<void> => {
-  const params = GetAssetParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, params.data.id));
+router.get("/assets/:id", validateRequest({ params: GetAssetParams }), async (req, res): Promise<void> => {
+  const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, req.params.id));
   if (!asset) {
     res.status(404).json({ error: "Asset not found" });
     return;
@@ -207,29 +203,17 @@ router.get("/assets/:id", async (req, res): Promise<void> => {
   res.json(GetAssetResponse.parse(asset));
 });
 
-router.put("/assets/:id", async (req, res): Promise<void> => {
-  const params = UpdateAssetParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
+router.put("/assets/:id", validateRequest({ params: UpdateAssetParams, body: UpdateAssetBody }), async (req, res): Promise<void> => {
+  const updateData: Record<string, unknown> = { ...req.body, updatedAt: new Date() };
 
-  const parsed = UpdateAssetBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
-
-  const updateData: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() };
-
-  if (parsed.data.status === "approved" && parsed.data.approvedBy) {
+  if (req.body.status === "approved" && req.body.approvedBy) {
     updateData.approvedAt = new Date();
   }
 
   const [asset] = await db
     .update(assetsTable)
     .set(updateData)
-    .where(eq(assetsTable.id, params.data.id))
+    .where(eq(assetsTable.id, req.params.id))
     .returning();
 
   if (!asset) {
@@ -312,14 +296,8 @@ router.put("/assets/:id/metadata", async (req, res): Promise<void> => {
   res.json(asset);
 });
 
-router.delete("/assets/:id", async (req, res): Promise<void> => {
-  const params = DeleteAssetParams.safeParse(req.params);
-  if (!params.success) {
-    res.status(400).json({ error: params.error.message });
-    return;
-  }
-
-  const [asset] = await db.delete(assetsTable).where(eq(assetsTable.id, params.data.id)).returning();
+router.delete("/assets/:id", validateRequest({ params: DeleteAssetParams }), async (req, res): Promise<void> => {
+  const [asset] = await db.delete(assetsTable).where(eq(assetsTable.id, req.params.id)).returning();
   if (!asset) {
     res.status(404).json({ error: "Asset not found" });
     return;
@@ -353,7 +331,6 @@ router.get("/assets/:id/usage", async (req, res): Promise<void> => {
 
 router.post("/assets/backfill", async (_req, res): Promise<void> => {
   try {
-    const { backfillAssetClassifications } = await import("../services/backfill-assets.js");
     const result = await backfillAssetClassifications();
     res.json(result);
   } catch (error) {

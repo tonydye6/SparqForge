@@ -15,6 +15,24 @@ import { HeadlineZoneEditor } from "./HeadlineZoneEditor";
 import { LogoPlacementEditor } from "./LogoPlacementEditor";
 import { GradientOverlayEditor } from "./GradientOverlayEditor";
 import { LayoutPreviewCanvas } from "./LayoutPreviewCanvas";
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((val, i) => deepEqual(val, b[i]));
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const keys = new Set([...Object.keys(aObj), ...Object.keys(bObj)]);
+    return [...keys].every(key => deepEqual(aObj[key], bObj[key]));
+  }
+  return false;
+}
+
 import type {
   LayoutSpec,
   HeadlineZone,
@@ -98,14 +116,12 @@ export function LayoutSpecEditor({
     gradient: true,
   });
 
-  // Track last serialised value from parent to avoid infinite loops
-  const lastExternalJson = useRef<string>(JSON.stringify(value || {}));
+  const lastExternalValue = useRef<LayoutSpec | undefined>(value);
 
   /* ---- Sync with parent value prop ---- */
   useEffect(() => {
-    const incoming = JSON.stringify(value || {});
-    if (incoming !== lastExternalJson.current) {
-      lastExternalJson.current = incoming;
+    if (!deepEqual(value, lastExternalValue.current)) {
+      lastExternalValue.current = value;
       setSpec(value || {});
     }
   }, [value]);
@@ -132,7 +148,7 @@ export function LayoutSpecEditor({
   const emitChange = useCallback(
     (newSpec: LayoutSpec) => {
       setSpec(newSpec);
-      lastExternalJson.current = JSON.stringify(newSpec);
+      lastExternalValue.current = newSpec;
       onChange(newSpec);
     },
     [onChange],

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -29,8 +29,19 @@ export function WizardStepShell({
   nextLabel = "Next",
   skipLabel = "Skip for now",
 }: WizardStepShellProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, [title]);
+
   return (
-    <div className="flex flex-col min-h-0 flex-1">
+    <div
+      ref={containerRef}
+      className="flex flex-col min-h-0 flex-1"
+      tabIndex={-1}
+      style={{ outline: "none" }}
+    >
       {/* Main content area */}
       <div className="max-w-2xl mx-auto px-4 py-8 w-full flex-1">
         <h1 className="text-2xl font-bold text-foreground">{title}</h1>
