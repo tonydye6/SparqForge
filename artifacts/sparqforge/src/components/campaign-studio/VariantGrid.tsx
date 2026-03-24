@@ -1,7 +1,6 @@
-import { Search, MoreHorizontal, Image as ImageIcon, Send, Sparkles, X, AlertTriangle } from "lucide-react";
+import { MoreHorizontal, Image as ImageIcon, Sparkles, X, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/ui/platform-icon";
@@ -74,22 +73,7 @@ export function VariantGrid({
   return (
     <section className="flex-1 flex flex-col min-w-0 relative bg-background/50">
       <div className="h-16 px-6 border-b border-border flex items-center justify-between shrink-0 bg-background/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex-1 max-w-xl relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input
-            placeholder="Refine all variants... (e.g. 'Make it more aggressive')"
-            className="w-full pl-10 bg-card border-border h-10 focus-visible:ring-primary/50"
-            value={refineText}
-            onChange={(e) => onRefineTextChange(e.target.value)}
-          />
-          {refineText && (
-            <Button size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary/90" onClick={onRefineSubmit}>
-              <Send size={14} />
-            </Button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 ml-4">
+        <div className="flex items-center gap-3 ml-auto">
           <Badge variant="outline" className={`border-border ${isGenerating ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : generatedVariants.length > 0 ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-card text-muted-foreground'}`}>
             {isGenerating ? "Generating..." : generatedVariants.length > 0 ? `${generatedVariants.length} Variants` : "Draft Mode"}
           </Badge>

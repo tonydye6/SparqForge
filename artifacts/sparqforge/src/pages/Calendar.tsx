@@ -125,7 +125,7 @@ export default function Calendar() {
     fetch(`/api/calendar-entries?${params}`)
       .then(res => res.json())
       .then(data => {
-        setEntries(data || []);
+        setEntries(Array.isArray(data) ? data : (data?.entries ?? []));
         setIsLoading(false);
       })
       .catch(() => setIsLoading(false));

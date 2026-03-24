@@ -54,8 +54,8 @@ router.post("/content-plan/import", csvUpload.single("file"), async (req, res): 
     return;
   }
 
-  const imported: PlanItem[] = [];
   const rejected: { row: number; reason: string }[] = [];
+  const validValues: (typeof socialContentPlanItemsTable.$inferInsert)[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -90,30 +90,37 @@ router.post("/content-plan/import", csvUpload.single("file"), async (req, res): 
       ? row.required_asset_roles.split("|").map(r => r.trim()).filter(Boolean)
       : [];
 
+    validValues.push({
+      title: row.title.trim(),
+      campaignName: row.campaign_name?.trim() || null,
+      primaryPlatform: row.primary_platform.trim(),
+      secondaryPlatforms,
+      templateName: row.template_name?.trim() || null,
+      pillar: row.pillar?.trim() || null,
+      audience: row.audience?.trim() || null,
+      brandLayer: row.brand_layer?.trim() || null,
+      objective: row.objective?.trim() || null,
+      contentType: row.content_type?.trim() || null,
+      assetPacketType: row.asset_packet_type?.trim() || null,
+      coreMessage: row.core_message?.trim() || null,
+      cta: row.cta?.trim() || null,
+      requiredAssetRoles,
+      plannedWeek: row.planned_week?.trim() || null,
+      plannedDate: row.planned_date?.trim() || null,
+      notes: row.notes?.trim() || null,
+    });
+  }
+
+  let imported: PlanItem[] = [];
+
+  if (validValues.length > 0) {
     try {
-      const [item] = await db.insert(socialContentPlanItemsTable).values({
-        title: row.title.trim(),
-        campaignName: row.campaign_name?.trim() || null,
-        primaryPlatform: row.primary_platform.trim(),
-        secondaryPlatforms,
-        templateName: row.template_name?.trim() || null,
-        pillar: row.pillar?.trim() || null,
-        audience: row.audience?.trim() || null,
-        brandLayer: row.brand_layer?.trim() || null,
-        objective: row.objective?.trim() || null,
-        contentType: row.content_type?.trim() || null,
-        assetPacketType: row.asset_packet_type?.trim() || null,
-        coreMessage: row.core_message?.trim() || null,
-        cta: row.cta?.trim() || null,
-        requiredAssetRoles,
-        plannedWeek: row.planned_week?.trim() || null,
-        plannedDate: row.planned_date?.trim() || null,
-        notes: row.notes?.trim() || null,
-      }).returning();
-      imported.push(item);
+      imported = await db.transaction(async (tx) => {
+        return tx.insert(socialContentPlanItemsTable).values(validValues).returning();
+      });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      rejected.push({ row: rowNum, reason: `Database error: ${message}` });
+      res.status(500).json({ error: "Failed to import content plan items" });
+      return;
     }
   }
 
@@ -178,7 +185,7 @@ router.post("/content-plan", async (req, res): Promise<void> => {
   }
 
   if (body.status && !VALID_STATUSES.has(body.status)) {
-    res.status(400).json({ error: `Invalid status: "${body.status}"` });
+    res.status(400).json({ error: "Invalid status value" });
     return;
   }
 
@@ -214,7 +221,7 @@ router.put("/content-plan/:id", async (req, res): Promise<void> => {
   }
 
   if (body.status && !VALID_STATUSES.has(body.status)) {
-    res.status(400).json({ error: `Invalid status: "${body.status}"` });
+    res.status(400).json({ error: "Invalid status value" });
     return;
   }
 
@@ -256,7 +263,7 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
   }
 
   if (planItem.linkedCampaignId) {
-    res.status(400).json({ error: "Plan item already has a linked campaign", campaignId: planItem.linkedCampaignId });
+    res.status(400).json({ error: "Plan item already has a linked campaign" });
     return;
   }
 
@@ -327,8 +334,7 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    res.status(500).json({ error: `Failed to create campaign: ${message}` });
+    res.status(500).json({ error: "Failed to create campaign" });
   }
 });
 

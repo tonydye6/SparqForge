@@ -143,7 +143,7 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
 const bulkUpdateSchema = z.object({
   variantIds: z.array(z.string()).min(1),
   status: z.enum(["approved", "rejected"]),
-  reviewerComment: z.string().optional(),
+  reviewerComment: z.string().max(5000).optional(),
 });
 
 router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Promise<void> => {
@@ -174,7 +174,7 @@ router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Pro
     const campaignVariantIds = new Set(campaignVariants.map((v) => v.id));
     const invalidIds = variantIds.filter((id) => !campaignVariantIds.has(id));
     if (invalidIds.length > 0) {
-      res.status(400).json({ error: "Some variant IDs do not belong to this campaign", invalidIds });
+      res.status(400).json({ error: "Some variant IDs do not belong to this campaign" });
       return;
     }
 

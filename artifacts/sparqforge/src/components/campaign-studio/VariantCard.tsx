@@ -191,15 +191,15 @@ export function VariantCard({
               </div>
             )}
             <div className="flex justify-between items-center px-1">
-              <span className="text-[10px] text-muted-foreground">{variant.caption.length} chars</span>
+              <span className="text-[10px] text-muted-foreground">{variant.caption?.length ?? 0} chars</span>
               <div className="flex gap-1">
-                {extractHashtags(variant.caption).length > 0 && (
+                {(variant.caption ? extractHashtags(variant.caption) : []).length > 0 && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 text-[10px] text-muted-foreground hover:text-primary px-1.5 gap-1"
                     onClick={() => {
-                      onOpenHashtagDialog(extractHashtags(variant.caption));
+                      onOpenHashtagDialog(extractHashtags(variant.caption ?? ""));
                     }}
                   >
                     <Hash size={10} />

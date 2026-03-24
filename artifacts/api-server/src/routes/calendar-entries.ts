@@ -44,8 +44,11 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
     query = query.where(and(...conditions));
   }
 
-  const entries = await query.orderBy(calendarEntriesTable.scheduledAt);
-  res.json(entries);
+  const limit = Math.min(Math.max(1, parseInt(req.query.limit as string, 10) || 200), 1000);
+  const offset = Math.max(0, parseInt(req.query.offset as string, 10) || 0);
+
+  const entries = await query.orderBy(calendarEntriesTable.scheduledAt).limit(limit).offset(offset);
+  res.json({ entries, limit, offset });
 });
 
 router.post("/calendar-entries", async (req, res): Promise<void> => {
@@ -206,12 +209,12 @@ router.post("/calendar-entries/batch", async (req, res): Promise<void> => {
   for (const entry of entries) {
     const campaign = campaignMap.get(entry.campaignId);
     if (!campaign) {
-      res.status(400).json({ error: `Campaign not found: ${entry.campaignId}` });
+      res.status(400).json({ error: "Campaign not found" });
       return;
     }
     if (campaign.status !== "approved") {
       res.status(400).json({
-        error: `Campaign ${entry.campaignId} is not approved (status: ${campaign.status})`,
+        error: "Campaign is not approved",
       });
       return;
     }

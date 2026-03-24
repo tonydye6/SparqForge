@@ -65,7 +65,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     fetch(`/api/calendar-entries?start=${start.toISOString()}&end=${end.toISOString()}`)
       .then(res => res.json())
-      .then(data => setCalendarCount(Array.isArray(data) ? data.length : 0))
+      .then(data => setCalendarCount(Array.isArray(data) ? data.length : (data?.entries?.length ?? 0)))
       .catch(() => {});
   }, []);
 

@@ -66,7 +66,7 @@ export default function StepUploadFont({
 
     setUploading(true);
 
-    for (const file of validFiles) {
+    const uploadPromises = validFiles.map(async (file) => {
       const fontName = stripExtension(file.name);
       const fontWeight = "400";
 
@@ -75,28 +75,38 @@ export default function StepUploadFont({
       formData.append("fontName", fontName);
       formData.append("fontWeight", fontWeight);
 
-      try {
-        const res = await fetch(`/api/brands/${brandId}/fonts`, {
-          method: "POST",
-          credentials: "include",
-          body: formData,
-        });
+      const res = await fetch(`/api/brands/${brandId}/fonts`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
 
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.message ?? `Server error ${res.status}`);
-        }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message ?? `Server error ${res.status}`);
+      }
 
-        setUploadedFonts((prev) => [...prev, { name: fontName, weight: fontWeight }]);
-        await queryClient.invalidateQueries({ queryKey: ["brand-readiness", brandId] });
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Upload failed";
+      return { name: fontName, weight: fontWeight, fileName: file.name };
+    });
+
+    const results = await Promise.allSettled(uploadPromises);
+
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        setUploadedFonts((prev) => [...prev, { name: result.value.name, weight: result.value.weight }]);
+      } else {
+        const message = result.reason instanceof Error ? result.reason.message : "Upload failed";
+        const fileName = validFiles[results.indexOf(result)]?.name ?? "unknown";
         toast({
-          title: `Failed to upload "${file.name}"`,
+          title: `Failed to upload "${fileName}"`,
           description: message,
           variant: "destructive",
         });
       }
+    }
+
+    if (results.some((r) => r.status === "fulfilled")) {
+      await queryClient.invalidateQueries({ queryKey: ["brand-readiness", brandId] });
     }
 
     setUploading(false);

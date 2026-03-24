@@ -47,60 +47,68 @@ export default function StepUploadAsset({
 
     setUploading(true);
 
-    for (const file of fileArray) {
-      try {
-        // Step 1: Upload the file to get the storage URL
-        const formData = new FormData();
-        formData.append("file", file);
+    const uploadPromises = fileArray.map(async (file) => {
+      const formData = new FormData();
+      formData.append("file", file);
 
-        const uploadRes = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
 
-        if (!uploadRes.ok) {
-          const body = await uploadRes.json().catch(() => ({}));
-          throw new Error(body?.message ?? `Upload failed (${uploadRes.status})`);
-        }
+      if (!uploadRes.ok) {
+        const body = await uploadRes.json().catch(() => ({}));
+        throw new Error(body?.message ?? `Upload failed (${uploadRes.status})`);
+      }
 
-        const { url, thumbnailUrl } = await uploadRes.json();
+      const { url, thumbnailUrl } = await uploadRes.json();
 
-        // Step 2: Create the asset record with auto-approved status
-        const assetRes = await fetch("/api/assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            brandId,
-            name: file.name,
-            type: "visual",
-            status: "approved",
-            fileUrl: url,
-            thumbnailUrl,
-            mimeType: file.type,
-            fileSizeBytes: file.size,
-          }),
-        });
+      const assetRes = await fetch("/api/assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          brandId,
+          name: file.name,
+          type: "visual",
+          status: "approved",
+          fileUrl: url,
+          thumbnailUrl,
+          mimeType: file.type,
+          fileSizeBytes: file.size,
+        }),
+      });
 
-        if (!assetRes.ok) {
-          const body = await assetRes.json().catch(() => ({}));
-          throw new Error(body?.message ?? `Asset creation failed (${assetRes.status})`);
-        }
+      if (!assetRes.ok) {
+        const body = await assetRes.json().catch(() => ({}));
+        throw new Error(body?.message ?? `Asset creation failed (${assetRes.status})`);
+      }
 
+      return { name: file.name, thumbnailUrl: thumbnailUrl ?? url };
+    });
+
+    const results = await Promise.allSettled(uploadPromises);
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === "fulfilled") {
         setUploadedAssets((prev) => [
           ...prev,
-          { name: file.name, thumbnailUrl: thumbnailUrl ?? url },
+          { name: result.value.name, thumbnailUrl: result.value.thumbnailUrl },
         ]);
-        await queryClient.invalidateQueries({ queryKey: ["brand-readiness", brandId] });
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Upload failed";
+      } else {
+        const message = result.reason instanceof Error ? result.reason.message : "Upload failed";
         toast({
-          title: `Failed to upload "${file.name}"`,
+          title: `Failed to upload "${fileArray[i].name}"`,
           description: message,
           variant: "destructive",
         });
       }
+    }
+
+    if (results.some((r) => r.status === "fulfilled")) {
+      await queryClient.invalidateQueries({ queryKey: ["brand-readiness", brandId] });
     }
 
     setUploading(false);
