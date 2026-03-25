@@ -55,14 +55,22 @@ const upload = multer({
   },
 });
 
-router.post("/upload", upload.single("file"), (req, res): void => {
-  if (!req.file) {
-    res.status(400).json({ error: "No file uploaded" });
-    return;
-  }
+router.post("/upload", (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      res.status(400).json({ error: message });
+      return;
+    }
 
-  const url = `/api/files/${req.file.filename}`;
-  res.json(UploadFileResponse.parse({ url }));
+    if (!req.file) {
+      res.status(400).json({ error: "No file uploaded" });
+      return;
+    }
+
+    const url = `/api/files/${req.file.filename}`;
+    res.json(UploadFileResponse.parse({ url }));
+  });
 });
 
 function serveFile(baseDir: string, filename: string, res: any): void {
