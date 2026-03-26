@@ -1,13 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2, Edit2, Plus, CheckSquare, Square, Tag, Archive, Star, Shield, Layers, Eye, EyeOff, Zap, ImagePlus } from "lucide-react";
+import { UploadCloud, Search, Filter, FolderPlus, MoreVertical, Image as ImageIcon, Video, FileText, Hash, Check, X, Trash2, Edit2, Plus, CheckSquare, Square, Tag, Archive, Star, Shield, Layers, Eye, EyeOff, Zap, ImagePlus, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  useGetAssets, useUploadFile, useUpdateAsset, useDeleteAsset, useCreateAsset,
+  useGetAssets, useUpdateAsset, useDeleteAsset,
   useGetBrands, useGetHashtagSets, useCreateHashtagSet, useUpdateHashtagSet, useDeleteHashtagSet,
   type Asset
 } from "@workspace/api-client-react";
@@ -88,45 +88,95 @@ export default function AssetLibrary() {
     brandId: selectedBrand !== "all" ? selectedBrand : undefined,
   });
 
-  const uploadMutation = useUploadFile();
-  const createAssetMutation = useCreateAsset({
-    mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/assets"] })
+  interface UploadItem {
+    file: File;
+    status: "pending" | "uploading" | "done" | "error";
+    error?: string;
+  }
+  const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
+  const uploadActiveRef = useRef(false);
+
+  const uploadCompleted = uploadQueue.filter(i => i.status === "done").length;
+  const uploadFailed = uploadQueue.filter(i => i.status === "error").length;
+  const uploadTotal = uploadQueue.length;
+  const isUploading = uploadQueue.some(i => i.status === "uploading" || i.status === "pending");
+
+  const processQueue = useCallback(async (queue: UploadItem[]) => {
+    if (uploadActiveRef.current) return;
+    uploadActiveRef.current = true;
+
+    const brandId = selectedBrand !== "all" ? selectedBrand : (brands?.[0]?.id || "");
+    const MAX_CONCURRENT = 3;
+    let completed = 0;
+    let failed = 0;
+
+    const uploadOne = async (item: UploadItem, index: number) => {
+      setUploadQueue(prev => prev.map((p, i) => i === index ? { ...p, status: "uploading" } : p));
+      try {
+        const formData = new FormData();
+        formData.append("file", item.file);
+        const uploadRes = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData });
+        if (!uploadRes.ok) {
+          const errData = await uploadRes.json().catch(() => ({ error: "Upload failed" }));
+          throw new Error(errData.error || `HTTP ${uploadRes.status}`);
+        }
+        const { url } = await uploadRes.json();
+        const createRes = await fetch(`${API_BASE}/api/assets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            brandId,
+            type: "visual",
+            name: item.file.name,
+            status: "uploaded",
+            fileUrl: url,
+            thumbnailUrl: url,
+            mimeType: item.file.type,
+            fileSizeBytes: item.file.size,
+            uploadedBy: "current_user",
+            tags: [],
+          }),
+        });
+        if (!createRes.ok) throw new Error("Failed to create asset record");
+        completed++;
+        setUploadQueue(prev => prev.map((p, i) => i === index ? { ...p, status: "done" } : p));
+      } catch (err) {
+        failed++;
+        const message = err instanceof Error ? err.message : "Unknown error";
+        setUploadQueue(prev => prev.map((p, i) => i === index ? { ...p, status: "error", error: message } : p));
+      }
+    };
+
+    for (let i = 0; i < queue.length; i += MAX_CONCURRENT) {
+      const batch = queue.slice(i, i + MAX_CONCURRENT);
+      await Promise.allSettled(batch.map((item, batchIdx) => uploadOne(item, i + batchIdx)));
     }
-  });
+
+    queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+    uploadActiveRef.current = false;
+
+    if (failed === 0) {
+      toast({ title: `${completed} asset${completed !== 1 ? "s" : ""} uploaded successfully` });
+    } else {
+      toast({
+        variant: "destructive",
+        title: `Upload complete: ${completed} succeeded, ${failed} failed`,
+      });
+    }
+  }, [selectedBrand, brands, queryClient, toast]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    acceptedFiles.forEach(file => {
-      uploadMutation.mutate({ data: { file, type: 'visual', brandId: selectedBrand !== "all" ? selectedBrand : undefined } }, {
-        onSuccess: (res) => {
-          createAssetMutation.mutate({
-            data: {
-              brandId: selectedBrand !== "all" ? selectedBrand : (brands?.[0]?.id || ""),
-              type: "visual",
-              name: file.name,
-              status: "uploaded",
-              fileUrl: res.url,
-              thumbnailUrl: res.thumbnailUrl || res.url,
-              mimeType: file.type,
-              fileSizeBytes: file.size,
-              uploadedBy: "current_user",
-              tags: [],
-            }
-          }, {
-            onSuccess: () => {
-              toast({ title: "Asset uploaded", description: file.name });
-            }
-          });
-        },
-        onError: (err: unknown) => {
-          const message = err instanceof Error ? err.message : "Unknown error";
-          toast({ variant: "destructive", title: "Upload failed", description: message });
-        }
-      });
-    });
-  }, [uploadMutation, createAssetMutation, selectedBrand, brands, toast]);
+    if (acceptedFiles.length === 0) return;
+    const items: UploadItem[] = acceptedFiles.map(file => ({ file, status: "pending" as const }));
+    setUploadQueue(items);
+    processQueue(items);
+  }, [processQueue]);
 
-  const { getRootProps, getInputProps, isDragActive, open: openDropzone } = useDropzone({ onDrop, noClick: false });
+  const dismissUploadQueue = useCallback(() => {
+    if (!isUploading) setUploadQueue([]);
+  }, [isUploading]);
+
+  const { getRootProps, getInputProps, isDragActive, open: openDropzone } = useDropzone({ onDrop, noClick: false, multiple: true });
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
@@ -255,13 +305,69 @@ export default function AssetLibrary() {
           >
             <input {...getInputProps()} />
             <div className="mx-auto w-12 h-12 bg-background rounded-full flex items-center justify-center mb-4 border border-border shadow-sm">
-              {uploadMutation.isPending ? <UploadCloud className="text-primary animate-bounce" size={24} /> : <UploadCloud className="text-primary" size={24} />}
+              {isUploading ? <UploadCloud className="text-primary animate-bounce" size={24} /> : <UploadCloud className="text-primary" size={24} />}
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-1">
-              {uploadMutation.isPending ? "Uploading..." : "Drag & drop files here"}
+              {isUploading ? `Uploading ${uploadCompleted + uploadFailed}/${uploadTotal}...` : "Drag & drop files here"}
             </h3>
-            <p className="text-sm text-muted-foreground">Supports JPG, PNG, MP4, up to 50MB</p>
+            <p className="text-sm text-muted-foreground">
+              {isUploading ? "Files are uploading in the background" : "Supports JPG, PNG, MP4 — select or drop multiple files at once"}
+            </p>
           </div>
+
+          {uploadQueue.length > 0 && (
+            <div className="mb-6 rounded-xl border border-border bg-card/50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-foreground">
+                  {isUploading ? "Upload Progress" : "Upload Complete"}
+                </h4>
+                {!isUploading && (
+                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); dismissUploadQueue(); }}>
+                    <X size={14} className="mr-1" /> Dismiss
+                  </Button>
+                )}
+              </div>
+              <div className="w-full bg-muted rounded-full h-2 mb-3">
+                <div
+                  className={cn(
+                    "h-2 rounded-full transition-all duration-300",
+                    uploadFailed > 0 ? "bg-orange-500" : "bg-primary"
+                  )}
+                  style={{ width: `${uploadTotal > 0 ? ((uploadCompleted + uploadFailed) / uploadTotal) * 100 : 0}%` }}
+                />
+              </div>
+              <div className="flex gap-4 text-xs text-muted-foreground mb-3">
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 size={12} className="text-green-400" /> {uploadCompleted} done
+                </span>
+                {uploadFailed > 0 && (
+                  <span className="flex items-center gap-1">
+                    <XCircle size={12} className="text-red-400" /> {uploadFailed} failed
+                  </span>
+                )}
+                {isUploading && (
+                  <span className="flex items-center gap-1">
+                    <Loader2 size={12} className="animate-spin" /> {uploadTotal - uploadCompleted - uploadFailed} remaining
+                  </span>
+                )}
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {uploadQueue.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-muted/50">
+                    {item.status === "done" && <CheckCircle2 size={12} className="text-green-400 shrink-0" />}
+                    {item.status === "error" && <XCircle size={12} className="text-red-400 shrink-0" />}
+                    {item.status === "uploading" && <Loader2 size={12} className="animate-spin text-primary shrink-0" />}
+                    {item.status === "pending" && <div className="w-3 h-3 rounded-full border border-muted-foreground/30 shrink-0" />}
+                    <span className="truncate text-foreground">{item.file.name}</span>
+                    <span className="ml-auto text-muted-foreground shrink-0">
+                      {(item.file.size / 1024).toFixed(0)} KB
+                    </span>
+                    {item.error && <span className="text-red-400 truncate max-w-[200px]">{item.error}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {visualsLoading ? (
