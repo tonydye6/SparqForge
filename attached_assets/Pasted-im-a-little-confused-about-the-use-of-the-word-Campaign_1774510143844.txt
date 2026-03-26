@@ -1,0 +1,55 @@
+im a little confused about the use of the word "Campaign" in the context of SparqForge. Don't make any changes, i just need you to help me understand?
+
+Great question! Let me look into how "Campaign" is used in SparqForge so I can explain it clearly.
+
+Here's how "Campaign" works in SparqForge:
+
+In simple terms, a Campaign is basically a single content creation project. Think of it like a "session" where you bring together your brand, a design template, and some assets, then let the AI generate social media content for you.
+
+Here's the flow:
+
+You set it up — Pick a brand, choose a template, optionally add reference images or a URL for design inspiration, and write a brief describing what you want.
+
+AI generates content — The system creates platform-specific variants (Instagram, LinkedIn, Twitter, TikTok) with both images and captions tailored to each platform.
+
+You review and schedule — Look at the generated variants, tweak captions if needed, and schedule them to your social calendar.
+
+A Campaign goes through these stages: Draft → Generating → Scheduled → Published.
+
+So it's not a "campaign" in the traditional marketing sense (like a multi-week advertising push). It's more like a single batch of content generation — one creative run that produces a set of platform-specific posts from your inputs.
+
+Does that clear things up, or is there a specific part of how Campaigns work that still feels confusing?
+
+because it's not a "campaign" in the traditional marketing sense, I think the use of the word will confuse other team members who use the tool. do you have any suggestions for how we might solve this? do we need to rethink other verbiage that's being used in the application?
+
+Good instinct — naming matters a lot for team adoption. Let me scan the app's terminology more broadly so I can give you well-informed suggestions.
+
+Great — now I have a full picture. Here are my thoughts:
+
+Renaming "Campaign"
+Since it's really a single content generation run, here are some alternatives that better describe what it actually is:
+
+"Creation" — Simple, action-oriented. "Start a new Creation." The studio becomes "Creation Studio."
+"Project" — Familiar and neutral. "Generate Project." Though it might feel too generic.
+"Post Set" or "Post Run" — Very literal about the output. Could feel too informal.
+"Generation" — Directly describes what's happening. "New Generation," "Generation Studio." Though it leans technical.
+"Creative" — Common in agency/marketing speak for a single piece of work. "New Creative," "Creative Studio."
+My recommendation would be "Creative" or "Creation" — both are intuitive for marketing teams and accurately describe the output without implying a multi-week advertising strategy.
+
+Other Terminology Worth Reviewing
+Looking at the rest of the app, most terms are actually solid, but a few might trip people up:
+
+"Generation Packet" — Very technical. Something like "Preview" or "Summary" would be friendlier for non-technical team members.
+
+"Compositing" — This is a video/design production term. Your team might understand "Brand Overlay" or "Finishing" more intuitively.
+
+"Subject Reference" / "Style Reference" — These are clear to designers but might confuse others. Something like "Product Photo" and "Style Inspiration" could be more approachable.
+
+"Brand DNA" — This one's actually good. It's evocative and most marketing folks will get it.
+
+"Refine" — Clear and works well as-is.
+
+What's the impact?
+A rename like this would touch the database schema, API routes, the entire frontend, and navigation — so it's a meaningful change, not just find-and-replace on labels. It's doable but worth being deliberate about scope.
+
+Would you like to pick a direction on the naming, and I can put together a task plan for the rename?
