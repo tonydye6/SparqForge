@@ -21,6 +21,10 @@ export interface ReferenceImage {
 function buildImagePrompt(ctx: AssembledContext, referenceImages?: ReferenceImage[]): string {
   const parts: string[] = [];
 
+  if (ctx.brand.characterStyleRules) {
+    parts.push("CHARACTER STYLE CONSTRAINTS:\n" + ctx.brand.characterStyleRules);
+  }
+
   if (referenceImages && referenceImages.length > 0) {
     const refDescriptions: string[] = [];
     referenceImages.forEach((ref, i) => {

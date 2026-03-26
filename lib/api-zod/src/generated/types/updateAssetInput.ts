@@ -25,4 +25,5 @@ export interface UpdateAssetInput {
   styleStrengthScore?: number | null;
   referencePriorityDefault?: number | null;
   freshnessScore?: number | null;
+  characterIdentityNote?: string;
 }

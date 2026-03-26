@@ -454,7 +454,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
   const updateMutation = useUpdateAsset();
   const deleteMutation = useDeleteAsset();
   const [editMode, setEditMode] = useState(false);
-  const [formData, setFormData] = useState({ name: asset.name, description: asset.description || "", tags: asset.tags?.join(", ") || "" });
+  const [formData, setFormData] = useState({ name: asset.name, description: asset.description || "", tags: asset.tags?.join(", ") || "", characterIdentityNote: asset.characterIdentityNote || "" });
   const [usageData, setUsageData] = useState<CampaignUsage[] | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
 
@@ -498,12 +498,18 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
   };
 
   const saveEdits = () => {
-    handleUpdate({
+    const updates: Record<string, unknown> = {
       name: formData.name,
       description: formData.description,
-      tags: formData.tags.split(",").map(s => s.trim()).filter(Boolean)
-    });
+      tags: formData.tags.split(",").map(s => s.trim()).filter(Boolean),
+    };
+    if (isSubjectReference) {
+      updates.characterIdentityNote = formData.characterIdentityNote;
+    }
+    handleUpdate(updates);
   };
+
+  const isSubjectReference = asset.assetClass === "subject_reference" || (asset.type === "image" || asset.mimeType?.startsWith("image/"));
 
   const handleCheckboxClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -609,6 +615,13 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
               <div className="space-y-4">
                 <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Asset Name" />
                 <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Description" rows={3} />
+                {isSubjectReference && (
+                  <div>
+                    <label className="text-sm font-semibold text-foreground mb-1 block">Character Identity Note</label>
+                    <p className="text-xs text-muted-foreground mb-1">Tells the AI who this character is for identity-consistent image generation.</p>
+                    <Textarea value={formData.characterIdentityNote} onChange={e => setFormData({...formData, characterIdentityNote: e.target.value})} placeholder='e.g. "Rex — Crown U quarterback, blue jersey #7, scar over left eye"' rows={2} />
+                  </div>
+                )}
                 <Input value={formData.tags} onChange={e => setFormData({...formData, tags: e.target.value})} placeholder="Tags (comma separated)" />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={saveEdits} disabled={updateMutation.isPending}>Save</Button>
@@ -623,6 +636,12 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
                     <Button variant="ghost" size="icon" onClick={() => setEditMode(true)} className="h-8 w-8"><Edit2 size={14} /></Button>
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">{asset.description || "No description provided."}</p>
+                  {isSubjectReference && asset.characterIdentityNote && (
+                    <div className="mt-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
+                      <span className="text-xs font-semibold text-primary block mb-0.5">Character Identity Note</span>
+                      <p className="text-sm text-foreground">{asset.characterIdentityNote}</p>
+                    </div>
+                  )}
                 </div>
                 {asset.tags && asset.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1">

@@ -120,7 +120,7 @@ async function buildReferenceImages(packet: Awaited<ReturnType<typeof buildGener
           imageBuffer: buffer,
           mimeType: entry.asset.mimeType || "image/png",
           role: entry.role === "style_reference" ? "style_reference" : "subject_reference",
-          description: entry.asset.description || entry.asset.name,
+          description: (entry.role !== "style_reference" && entry.asset.characterIdentityNote) ? entry.asset.characterIdentityNote : (entry.asset.description || entry.asset.name),
         });
       }
     } catch (err) {

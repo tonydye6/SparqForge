@@ -38,6 +38,7 @@ export interface Asset {
   referencePriorityDefault?: number | null;
   conflictTags: string[];
   freshnessScore?: number | null;
+  characterIdentityNote?: string;
   createdAt: Date;
   updatedAt: Date;
 }

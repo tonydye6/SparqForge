@@ -93,6 +93,7 @@ import { LayoutSpecEditor } from "@/components/layout-editor";
 const SETTINGS_SECTIONS = [
   { id: "section-readiness", label: "Brand Readiness" },
   { id: "section-brand-dna", label: "Brand DNA" },
+  { id: "section-character-style", label: "Character Style" },
   { id: "section-imagen", label: "Imagen Config" },
   { id: "section-platform-rules", label: "Platform Rules" },
   { id: "section-templates", label: "Templates" },
@@ -177,6 +178,7 @@ function BrandSettingsTab() {
         bannedTerms: [],
         trademarkRules: "",
         hashtagStrategy: {},
+        characterStyleRules: "",
         imagenPrefix: "",
         negativePrompt: "",
         platformRules: {
@@ -505,6 +507,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
       colorAccent: brand.colorAccent,
       colorBackground: brand.colorBackground,
       voiceDescription: brand.voiceDescription || "",
+      characterStyleRules: brand.characterStyleRules || "",
       imagenPrefix: brand.imagenPrefix || "",
       negativePrompt: brand.negativePrompt || "",
       bannedTerms: brand.bannedTerms?.join(", ") || "",
@@ -529,6 +532,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
           colorAccent: string;
           colorBackground: string;
           voiceDescription: string;
+          characterStyleRules: string;
           imagenPrefix: string;
           negativePrompt: string;
           bannedTerms: string[] | string;
@@ -544,6 +548,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
           colorAccent: submitted.colorAccent ?? brand.colorAccent,
           colorBackground: submitted.colorBackground ?? brand.colorBackground,
           voiceDescription: submitted.voiceDescription ?? "",
+          characterStyleRules: submitted.characterStyleRules ?? "",
           imagenPrefix: submitted.imagenPrefix ?? "",
           negativePrompt: submitted.negativePrompt ?? "",
           bannedTerms: Array.isArray(submitted.bannedTerms) ? submitted.bannedTerms.join(", ") : (submitted.bannedTerms ?? ""),
@@ -699,6 +704,20 @@ function BrandEditor({ brand }: { brand: Brand }) {
           </section>
 
           <BrandAssetGroups brandId={brand.id} />
+
+          {/* Character Style Rules */}
+          <section id="section-character-style" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <Type className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Character Style Rules</h2>
+            </div>
+
+            <div>
+              <label className="text-sm font-semibold text-foreground mb-2 block">Style Mandates</label>
+              <p className="text-xs text-muted-foreground mb-2">These rules are automatically injected into every image generation prompt for this brand to enforce consistent character stylization.</p>
+              <Textarea {...register("characterStyleRules")} className="font-mono text-sm bg-background border-border h-32" placeholder='e.g. "All characters must match the stylized 3D game art style seen in the reference images. They must appear to be from the same game."' />
+            </div>
+          </section>
 
           {/* Imagen Config */}
           <section id="section-imagen" className="bg-card border border-border rounded-xl p-6 shadow-sm">

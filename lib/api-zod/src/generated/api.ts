@@ -29,6 +29,7 @@ export const GetBrandsResponseItem = zod.object({
   bannedTerms: zod.array(zod.string()),
   trademarkRules: zod.string(),
   hashtagStrategy: zod.record(zod.string(), zod.unknown()),
+  characterStyleRules: zod.string(),
   imagenPrefix: zod.string(),
   negativePrompt: zod.string(),
   platformRules: zod.record(zod.string(), zod.unknown()),
@@ -55,6 +56,7 @@ export const CreateBrandBody = zod.object({
   bannedTerms: zod.array(zod.string()),
   trademarkRules: zod.string(),
   hashtagStrategy: zod.record(zod.string(), zod.unknown()),
+  characterStyleRules: zod.string(),
   imagenPrefix: zod.string(),
   negativePrompt: zod.string(),
   platformRules: zod.record(zod.string(), zod.unknown()),
@@ -81,6 +83,7 @@ export const GetBrandResponse = zod.object({
   bannedTerms: zod.array(zod.string()),
   trademarkRules: zod.string(),
   hashtagStrategy: zod.record(zod.string(), zod.unknown()),
+  characterStyleRules: zod.string(),
   imagenPrefix: zod.string(),
   negativePrompt: zod.string(),
   platformRules: zod.record(zod.string(), zod.unknown()),
@@ -110,6 +113,7 @@ export const UpdateBrandBody = zod.object({
   bannedTerms: zod.array(zod.string()),
   trademarkRules: zod.string(),
   hashtagStrategy: zod.record(zod.string(), zod.unknown()),
+  characterStyleRules: zod.string(),
   imagenPrefix: zod.string(),
   negativePrompt: zod.string(),
   platformRules: zod.record(zod.string(), zod.unknown()),
@@ -129,6 +133,7 @@ export const UpdateBrandResponse = zod.object({
   bannedTerms: zod.array(zod.string()),
   trademarkRules: zod.string(),
   hashtagStrategy: zod.record(zod.string(), zod.unknown()),
+  characterStyleRules: zod.string(),
   imagenPrefix: zod.string(),
   negativePrompt: zod.string(),
   platformRules: zod.record(zod.string(), zod.unknown()),
@@ -312,6 +317,7 @@ export const GetAssetsResponseItem = zod.object({
   referencePriorityDefault: zod.number().nullish(),
   conflictTags: zod.array(zod.string()),
   freshnessScore: zod.number().nullish(),
+  characterIdentityNote: zod.string().optional(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
@@ -381,6 +387,7 @@ export const GetAssetResponse = zod.object({
   referencePriorityDefault: zod.number().nullish(),
   conflictTags: zod.array(zod.string()),
   freshnessScore: zod.number().nullish(),
+  characterIdentityNote: zod.string().optional(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
@@ -411,6 +418,7 @@ export const UpdateAssetBody = zod.object({
   styleStrengthScore: zod.number().nullish(),
   referencePriorityDefault: zod.number().nullish(),
   freshnessScore: zod.number().nullish(),
+  characterIdentityNote: zod.string().optional(),
 });
 
 export const UpdateAssetResponse = zod.object({
@@ -445,6 +453,7 @@ export const UpdateAssetResponse = zod.object({
   referencePriorityDefault: zod.number().nullish(),
   conflictTags: zod.array(zod.string()),
   freshnessScore: zod.number().nullish(),
+  characterIdentityNote: zod.string().optional(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });

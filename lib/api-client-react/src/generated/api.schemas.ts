@@ -38,6 +38,7 @@ export interface Brand {
   bannedTerms: string[];
   trademarkRules: string;
   hashtagStrategy: BrandHashtagStrategy;
+  characterStyleRules: string;
   imagenPrefix: string;
   negativePrompt: string;
   platformRules: BrandPlatformRules;
@@ -66,6 +67,7 @@ export interface CreateBrandInput {
   bannedTerms: string[];
   trademarkRules: string;
   hashtagStrategy: CreateBrandInputHashtagStrategy;
+  characterStyleRules: string;
   imagenPrefix: string;
   negativePrompt: string;
   platformRules: CreateBrandInputPlatformRules;
@@ -147,6 +149,7 @@ export interface Asset {
   referencePriorityDefault?: number | null;
   conflictTags: string[];
   freshnessScore?: number | null;
+  characterIdentityNote?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,6 +195,7 @@ export interface UpdateAssetInput {
   styleStrengthScore?: number | null;
   referencePriorityDefault?: number | null;
   freshnessScore?: number | null;
+  characterIdentityNote?: string;
 }
 
 export interface HashtagSet {

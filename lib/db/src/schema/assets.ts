@@ -35,6 +35,7 @@ export const assetsTable = pgTable("assets", {
   referencePriorityDefault: real("reference_priority_default"),
   conflictTags: text("conflict_tags").array().default([]),
   freshnessScore: real("freshness_score"),
+  characterIdentityNote: text("character_identity_note").notNull().default(""),
   fontWeight: text("font_weight"),
   fontName: text("font_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

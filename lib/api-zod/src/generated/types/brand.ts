@@ -22,6 +22,7 @@ export interface Brand {
   bannedTerms: string[];
   trademarkRules: string;
   hashtagStrategy: BrandHashtagStrategy;
+  characterStyleRules: string;
   imagenPrefix: string;
   negativePrompt: string;
   platformRules: BrandPlatformRules;

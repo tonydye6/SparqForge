@@ -20,6 +20,7 @@ export interface CreateBrandInput {
   bannedTerms: string[];
   trademarkRules: string;
   hashtagStrategy: CreateBrandInputHashtagStrategy;
+  characterStyleRules: string;
   imagenPrefix: string;
   negativePrompt: string;
   platformRules: CreateBrandInputPlatformRules;

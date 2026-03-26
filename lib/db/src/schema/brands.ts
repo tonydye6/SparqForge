@@ -14,6 +14,7 @@ export const brandsTable = pgTable("brands", {
   bannedTerms: text("banned_terms").array().notNull().default([]),
   trademarkRules: text("trademark_rules").notNull().default(""),
   hashtagStrategy: json("hashtag_strategy").notNull().default({}),
+  characterStyleRules: text("character_style_rules").notNull().default(""),
   imagenPrefix: text("imagen_prefix").notNull().default(""),
   negativePrompt: text("negative_prompt").notNull().default(""),
   platformRules: json("platform_rules").notNull().default({}),
