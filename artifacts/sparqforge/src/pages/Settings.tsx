@@ -94,7 +94,7 @@ const SETTINGS_SECTIONS = [
   { id: "section-readiness", label: "Brand Readiness" },
   { id: "section-brand-dna", label: "Brand DNA" },
   { id: "section-character-style", label: "Character Style" },
-  { id: "section-imagen", label: "Imagen Config" },
+  { id: "section-imagen", label: "Image Generation Settings" },
   { id: "section-platform-rules", label: "Platform Rules" },
   { id: "section-templates", label: "Templates" },
   { id: "section-fonts", label: "Font Management" },
@@ -723,16 +723,16 @@ function BrandEditor({ brand }: { brand: Brand }) {
           <section id="section-imagen" className="bg-card border border-border rounded-xl p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
               <Type className="text-primary" size={20} />
-              <h2 className="text-xl font-bold">Imagen Config</h2>
+              <h2 className="text-xl font-bold">Image Generation Settings</h2>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <label className="text-sm font-semibold text-foreground mb-2 block">Imagen Prefix</label>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Default Style Instructions</label>
                 <Textarea {...register("imagenPrefix")} className="font-mono text-sm bg-background border-border h-24" />
               </div>
               <div>
-                <label className="text-sm font-semibold text-foreground mb-2 block">Negative Prompt</label>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Avoid List</label>
                 <Textarea {...register("negativePrompt")} className="font-mono text-sm bg-background border-border h-24" />
               </div>
             </div>
@@ -1253,7 +1253,7 @@ function BrandTemplates({ brandId, brandColors, brandLogoUrl }: {
                 <Textarea {...register("claudeCaptionInstruction")} defaultValue="{}" className="font-mono text-sm" rows={4} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Layout Spec</label>
+                <label className="text-sm font-medium">Layout Template</label>
                 <input type="hidden" {...register("layoutSpec")} />
                 <LayoutSpecEditor
                   value={(() => {

@@ -236,15 +236,15 @@ export default function CreativeStudio() {
       if (!resp.ok) return;
       const source = await resp.json();
 
-      setCreativeName(`${source.name} (Remix)`);
+      setCreativeName(`${source.name} (Duplicate & Edit)`);
       setSelectedBrand(source.brandId);
       setBriefText(source.briefText || "");
 
       const assets = (source.selectedAssets || []) as Array<{ assetId: string }>;
       setSelectedAssets(assets.map((a: { assetId: string }) => a.assetId));
 
-      addLog(`Remixing from: ${source.name}`, "done");
-      toast({ title: "Creative loaded for remix", description: "Select a new template and generate." });
+      addLog(`Duplicated from: ${source.name}`, "done");
+      toast({ title: "Creative duplicated for editing", description: "Select a new template and generate." });
     } catch {
       toast({ variant: "destructive", title: "Failed to load source creative" });
     }
@@ -1048,7 +1048,7 @@ export default function CreativeStudio() {
       setVariantRefineText(prev => ({ ...prev, [platform]: "" }));
       setVariantRefineOpen(prev => ({ ...prev, [platform]: false }));
       addLog(`${PLATFORM_LABELS[platform]?.name || platform} regenerated`, "done");
-      toast({ title: "Variant regenerated" });
+      toast({ title: "Post version regenerated" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       addLog(`Regeneration failed: ${msg}`, "error");

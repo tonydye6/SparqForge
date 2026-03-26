@@ -131,7 +131,7 @@ export default function ReviewQueue() {
         setVariants(data);
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to load variants" });
+      toast({ variant: "destructive", title: "Failed to load post versions" });
     } finally {
       setLoadingVariants(false);
     }
@@ -214,10 +214,10 @@ export default function ReviewQueue() {
       });
       if (resp.ok) {
         setVariants(prev => prev.map(v => v.id === variantId ? { ...v, status: "approved" } : v));
-        toast({ title: "Variant approved" });
+        toast({ title: "Post version approved" });
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to approve variant" });
+      toast({ variant: "destructive", title: "Failed to approve post version" });
     }
   };
 
@@ -258,9 +258,9 @@ export default function ReviewQueue() {
                 : v
             )
           );
-          toast({ title: "Variant rejected with feedback" });
+          toast({ title: "Post version rejected with feedback" });
         } else {
-          toast({ variant: "destructive", title: "Failed to reject variant" });
+          toast({ variant: "destructive", title: "Failed to reject post version" });
         }
       } else {
         const resp = await fetch(
@@ -285,14 +285,14 @@ export default function ReviewQueue() {
                 : v
             )
           );
-          toast({ title: `${rejectTarget.variantIds.length} variant(s) rejected with feedback` });
+          toast({ title: `${rejectTarget.variantIds.length} post version(s) rejected with feedback` });
           setSelectedVariantIds(new Set());
         } else {
           toast({ variant: "destructive", title: "Bulk reject failed" });
         }
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to reject variant(s)" });
+      toast({ variant: "destructive", title: "Failed to reject post version(s)" });
     }
 
     setRejectTarget(null);
@@ -343,13 +343,13 @@ export default function ReviewQueue() {
         setVariants(prev =>
           prev.map(v => selectedVariantIds.has(v.id) ? { ...v, status: "approved" } : v)
         );
-        toast({ title: `${selectedVariantIds.size} variant(s) approved` });
+        toast({ title: `${selectedVariantIds.size} post version(s) approved` });
         setSelectedVariantIds(new Set());
       } else {
         toast({ variant: "destructive", title: "Bulk approve failed" });
       }
     } catch {
-      toast({ variant: "destructive", title: "Failed to bulk approve variants" });
+      toast({ variant: "destructive", title: "Failed to bulk approve post versions" });
     }
   };
 
@@ -493,7 +493,7 @@ export default function ReviewQueue() {
                                   className="h-6 px-2 text-xs text-muted-foreground"
                                   onClick={(e) => { e.stopPropagation(); handleRemix(creative); }}
                                 >
-                                  <RefreshCw size={12} className="mr-1" /> Remix
+                                  <RefreshCw size={12} className="mr-1" /> Duplicate & Edit
                                 </Button>
                               )}
                             </div>
@@ -570,7 +570,7 @@ export default function ReviewQueue() {
 
             {variantStatusSummary && (
               <div className="px-3 sm:px-4 py-2 border-b border-border bg-background/30 flex items-center gap-3 text-xs shrink-0">
-                <span className="text-muted-foreground font-medium">Variants:</span>
+                <span className="text-muted-foreground font-medium">Post Versions:</span>
                 {variantStatusSummary.approved > 0 && (
                   <span className="flex items-center gap-1 text-green-400">
                     <Check size={12} /> {variantStatusSummary.approved} approved
@@ -597,7 +597,7 @@ export default function ReviewQueue() {
               ) : variants.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                   <ImageIcon size={48} className="mb-4 opacity-20" />
-                  <p className="text-sm">No variants generated yet</p>
+                  <p className="text-sm">No post versions generated yet</p>
                 </div>
               ) : (
                 <>
@@ -612,7 +612,7 @@ export default function ReviewQueue() {
                   return (
                     <div className="mb-4">
                       <div className="flex items-center justify-between text-sm mb-1.5">
-                        <span className="text-muted-foreground">Variant Review</span>
+                        <span className="text-muted-foreground">Post Version Review</span>
                         <span className={
                           rejected > 0 ? "font-medium text-red-400" :
                           approved === total ? "font-medium text-green-400" : "font-medium text-amber-400"
@@ -755,10 +755,10 @@ export default function ReviewQueue() {
                                       });
                                       if (resp.ok) {
                                         setVariants(prev => prev.map(v => v.id === variant.id ? { ...v, status: "generated", reviewerComment: null } : v));
-                                        toast({ title: "Variant reset to pending" });
+                                        toast({ title: "Post version reset to pending" });
                                       }
                                     } catch {
-                                      toast({ variant: "destructive", title: "Failed to reset variant" });
+                                      toast({ variant: "destructive", title: "Failed to reset post version" });
                                     }
                                   }}
                                 >
@@ -850,7 +850,7 @@ export default function ReviewQueue() {
                   className="border-border text-muted-foreground"
                   onClick={() => handleRemix(expandedCreative)}
                 >
-                  <RefreshCw size={14} className="mr-2" /> Remix
+                  <RefreshCw size={14} className="mr-2" /> Duplicate & Edit
                 </Button>
               </div>
             </div>

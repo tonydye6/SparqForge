@@ -145,7 +145,7 @@ export function CreativeConfigPanel({
         {remixId && (
           <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
             <RefreshCw size={12} />
-            <span>Remixing from existing creative</span>
+            <span>Duplicated from existing creative</span>
           </div>
         )}
       </div>
@@ -198,7 +198,7 @@ export function CreativeConfigPanel({
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Star size={10} /> Subject Reference <span className="text-muted-foreground">(pick 1)</span>
+              <Star size={10} /> Character / Product Photo <span className="text-muted-foreground">(pick 1)</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(recommendedSubjects.length > 0 ? recommendedSubjects : approvedVisualAssets).slice(0, 6).map((asset, idx) => {
@@ -229,7 +229,7 @@ export function CreativeConfigPanel({
 
           <div className="space-y-2">
             <label className="text-xs font-semibold text-green-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Layers size={10} /> Style Reference <span className="text-muted-foreground">(pick 1-2)</span>
+              <Layers size={10} /> Style Inspiration <span className="text-muted-foreground">(pick 1-2)</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(recommendedStyles.length > 0 ? recommendedStyles : approvedVisualAssets).slice(0, 6).map((asset, idx) => {
@@ -260,7 +260,7 @@ export function CreativeConfigPanel({
 
           <div className="space-y-2">
             <label className="text-xs font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <FileText size={10} /> Context Cards <span className="text-muted-foreground">(optional)</span>
+              <FileText size={10} /> Creative Brief <span className="text-muted-foreground">(optional)</span>
             </label>
             {briefs?.data && briefs.data.length > 0 ? (
               <div className="space-y-1">
@@ -285,7 +285,7 @@ export function CreativeConfigPanel({
           {compositingAssets.length > 0 && (
             <div className="space-y-2">
               <label className="text-xs font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers size={10} /> Compositing <span className="text-muted-foreground">(auto)</span>
+                <Layers size={10} /> Brand Overlay <span className="text-muted-foreground">(auto)</span>
               </label>
               <div className="flex gap-1.5">
                 {compositingAssets.slice(0, 4).map(asset => (
@@ -308,7 +308,7 @@ export function CreativeConfigPanel({
               className="w-full text-xs text-primary hover:text-primary/80 flex items-center justify-center gap-1.5 py-2 border border-primary/20 rounded-md hover:bg-primary/5 transition-colors"
             >
               <Package size={12} />
-              {packetPreviewOpen ? "Hide" : "Preview"} Generation Packet
+              {packetPreviewOpen ? "Hide" : "Preview"} Generation Preview
             </button>
           )}
         </div>
@@ -316,7 +316,7 @@ export function CreativeConfigPanel({
         {packetPreviewOpen && (
           <div className="bg-background border border-primary/20 rounded-lg p-3 space-y-3">
             <h4 className="text-xs font-semibold text-primary uppercase flex items-center gap-1.5">
-              <Package size={12} /> Generation Packet Preview
+              <Package size={12} /> Generation Preview
             </h4>
 
             <div className="space-y-2">
@@ -354,7 +354,7 @@ export function CreativeConfigPanel({
 
             {compositingAssets.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[10px] uppercase text-muted-foreground font-semibold">To Compositing (Post-Generation)</p>
+                <p className="text-[10px] uppercase text-muted-foreground font-semibold">To Brand Overlay (Post-Generation)</p>
                 <div className="space-y-1">
                   {compositingAssets.slice(0, 3).map(asset => (
                     <div key={asset.id} className="flex items-center gap-2 p-1.5 rounded bg-purple-500/10 border border-purple-500/20">

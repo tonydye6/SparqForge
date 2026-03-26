@@ -93,7 +93,7 @@ export function VariantCard({
       return <LinkedInPreviewFrame imageUrl={frameImageUrl} caption={frameCaption} overlay={headlineOverlay} />;
     }
     return frameImageUrl ? (
-      <img src={frameImageUrl} alt={`${label.name} variant`} className="w-full h-auto object-cover" />
+      <img src={frameImageUrl} alt={`${label.name} post version`} className="w-full h-auto object-cover" />
     ) : null;
   };
 
@@ -259,7 +259,7 @@ export function VariantCard({
             >
               {variantRefineOpen[variant.platform] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               <Wand2 size={11} />
-              <span>Refine this variant</span>
+              <span>Refine this post version</span>
             </button>
             {variantRefineOpen[variant.platform] && (
               <div className="mt-2 flex gap-2">

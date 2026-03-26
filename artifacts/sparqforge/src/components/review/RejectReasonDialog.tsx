@@ -52,7 +52,7 @@ export function RejectReasonDialog({
       <DialogContent className="sm:max-w-[540px]">
         <DialogHeader>
           <DialogTitle>
-            Reject {variantCount} variant{variantCount !== 1 ? "s" : ""}
+            Reject {variantCount} post version{variantCount !== 1 ? "s" : ""}
           </DialogTitle>
           <DialogDescription>
             Select a reason and provide feedback so the creator can improve.

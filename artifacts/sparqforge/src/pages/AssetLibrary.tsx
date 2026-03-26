@@ -25,9 +25,9 @@ import { Switch } from "@/components/ui/switch";
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const ASSET_CLASS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  compositing: { label: "Compositing", color: "text-purple-400", bg: "bg-purple-500/20" },
-  subject_reference: { label: "Subject Ref", color: "text-blue-400", bg: "bg-blue-500/20" },
-  style_reference: { label: "Style Ref", color: "text-green-400", bg: "bg-green-500/20" },
+  compositing: { label: "Brand Overlay", color: "text-purple-400", bg: "bg-purple-500/20" },
+  subject_reference: { label: "Character / Product Photo", color: "text-blue-400", bg: "bg-blue-500/20" },
+  style_reference: { label: "Style Inspiration", color: "text-green-400", bg: "bg-green-500/20" },
   context: { label: "Context", color: "text-amber-400", bg: "bg-amber-500/20" },
 };
 
@@ -664,7 +664,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
                   </div>
                   {asset.assetClass && (
                     <div>
-                      <span className="text-muted-foreground block text-xs uppercase mb-1">Class</span>
+                      <span className="text-muted-foreground block text-xs uppercase mb-1">Role</span>
                       <Badge className={cn("text-[10px]", ASSET_CLASS_CONFIG[asset.assetClass]?.bg, ASSET_CLASS_CONFIG[asset.assetClass]?.color)}>
                         {ASSET_CLASS_CONFIG[asset.assetClass]?.label || asset.assetClass}
                       </Badge>
@@ -882,15 +882,15 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
         <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Asset Class</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Asset Role</label>
               <Select value={assetClass} onValueChange={setAssetClass}>
                 <SelectTrigger className="h-8 text-xs bg-card border-border">
                   <SelectValue placeholder="Select class" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="compositing">Compositing</SelectItem>
-                  <SelectItem value="subject_reference">Subject Reference</SelectItem>
-                  <SelectItem value="style_reference">Style Reference</SelectItem>
+                  <SelectItem value="compositing">Brand Overlay</SelectItem>
+                  <SelectItem value="subject_reference">Character / Product Photo</SelectItem>
+                  <SelectItem value="style_reference">Style Inspiration</SelectItem>
                   <SelectItem value="context">Context</SelectItem>
                 </SelectContent>
               </Select>
