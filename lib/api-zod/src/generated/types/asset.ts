@@ -24,7 +24,7 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: Date | null;
   usageCount: number;
-  assetClass: string;
+  assetClass?: string | null;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;

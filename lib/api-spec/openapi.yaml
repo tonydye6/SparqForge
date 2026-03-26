@@ -1191,6 +1191,7 @@ components:
           type: integer
         assetClass:
           type: string
+          nullable: true
         generationRole:
           type: string
           nullable: true
@@ -1245,7 +1246,6 @@ components:
         - tags
         - uploadedBy
         - usageCount
-        - assetClass
         - approvedChannels
         - approvedTemplates
         - compositingOnly
@@ -1293,6 +1293,7 @@ components:
           type: string
         assetClass:
           type: string
+          nullable: true
         generationRole:
           type: string
           nullable: true
@@ -1340,6 +1341,7 @@ components:
           nullable: true
         assetClass:
           type: string
+          nullable: true
         generationRole:
           type: string
           nullable: true

@@ -14,7 +14,7 @@ export interface UpdateAssetInput {
   content?: string | null;
   subType?: string | null;
   approvedBy?: string | null;
-  assetClass?: string;
+  assetClass?: string | null;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;

@@ -133,7 +133,7 @@ export interface Asset {
   approvedBy?: string | null;
   approvedAt?: string | null;
   usageCount: number;
-  assetClass: string;
+  assetClass?: string | null;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
@@ -164,7 +164,7 @@ export interface CreateAssetInput {
   mimeType?: string | null;
   fileSizeBytes?: number | null;
   uploadedBy: string;
-  assetClass?: string;
+  assetClass?: string | null;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
@@ -181,7 +181,7 @@ export interface UpdateAssetInput {
   content?: string | null;
   subType?: string | null;
   approvedBy?: string | null;
-  assetClass?: string;
+  assetClass?: string | null;
   generationRole?: string | null;
   brandLayer?: string | null;
   franchise?: string | null;
