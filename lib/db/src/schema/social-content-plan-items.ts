@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { campaignsTable } from "./campaigns";
+import { creativesTable } from "./campaigns";
 
 export const socialContentPlanItemsTable = pgTable("social_content_plan_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -23,7 +23,7 @@ export const socialContentPlanItemsTable = pgTable("social_content_plan_items", 
   plannedWeek: text("planned_week"),
   plannedDate: text("planned_date"),
   notes: text("notes"),
-  linkedCampaignId: text("linked_campaign_id").references(() => campaignsTable.id, { onDelete: "set null" }),
+  linkedCreativeId: text("linked_creative_id").references(() => creativesTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

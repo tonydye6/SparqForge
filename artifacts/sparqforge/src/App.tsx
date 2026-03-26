@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth, AuthProvider } from "@/hooks/useAuth";
-import CampaignStudio from "@/pages/CampaignStudio";
+import CreativeStudio from "@/pages/CreativeStudio";
 import AssetLibrary from "@/pages/AssetLibrary";
 import Calendar from "@/pages/Calendar";
 import ReviewQueue from "@/pages/ReviewQueue";
@@ -91,7 +91,7 @@ function Router() {
         </Route>
         <Route path="/">
           <FirstRunGuard>
-            <AppLayout><CampaignStudio /></AppLayout>
+            <AppLayout><CreativeStudio /></AppLayout>
           </FirstRunGuard>
         </Route>
         <Route path="/assets">

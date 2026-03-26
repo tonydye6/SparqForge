@@ -23,8 +23,8 @@ export interface ActivityLog {
 
 export interface DuplicateInfo {
   duplicate: boolean;
-  campaignId?: string;
-  campaignName?: string;
+  creativeId?: string;
+  creativeName?: string;
   createdAt?: string;
 }
 

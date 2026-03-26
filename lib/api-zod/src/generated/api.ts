@@ -536,14 +536,14 @@ export const DeleteHashtagSetResponse = zod.object({
 });
 
 /**
- * @summary Get all campaigns
+ * @summary Get all creatives
  */
-export const GetCampaignsQueryParams = zod.object({
+export const GetCreativesQueryParams = zod.object({
   brandId: zod.coerce.string().optional(),
   status: zod.coerce.string().optional(),
 });
 
-export const GetCampaignsResponseItem = zod.object({
+export const GetCreativesResponseItem = zod.object({
   id: zod.string(),
   brandId: zod.string(),
   templateId: zod.string().nullish(),
@@ -553,19 +553,19 @@ export const GetCampaignsResponseItem = zod.object({
   referenceUrl: zod.string().nullish(),
   selectedAssets: zod.array(zod.record(zod.string(), zod.unknown())),
   selectedHashtagSets: zod.array(zod.string()).nullish(),
-  sourceCampaignId: zod.string().nullish(),
+  sourceCreativeId: zod.string().nullish(),
   createdBy: zod.string(),
   reviewedBy: zod.string().nullish(),
   reviewComment: zod.string().nullish(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
 });
-export const GetCampaignsResponse = zod.array(GetCampaignsResponseItem);
+export const GetCreativesResponse = zod.array(GetCreativesResponseItem);
 
 /**
- * @summary Create a campaign
+ * @summary Create a creative
  */
-export const CreateCampaignBody = zod.object({
+export const CreateCreativeBody = zod.object({
   brandId: zod.string(),
   templateId: zod.string().nullish(),
   name: zod.string(),
@@ -577,13 +577,13 @@ export const CreateCampaignBody = zod.object({
 });
 
 /**
- * @summary Get a campaign
+ * @summary Get a creative
  */
-export const GetCampaignParams = zod.object({
+export const GetCreativeParams = zod.object({
   id: zod.coerce.string(),
 });
 
-export const GetCampaignResponse = zod.object({
+export const GetCreativeResponse = zod.object({
   id: zod.string(),
   brandId: zod.string(),
   templateId: zod.string().nullish(),
@@ -593,7 +593,7 @@ export const GetCampaignResponse = zod.object({
   referenceUrl: zod.string().nullish(),
   selectedAssets: zod.array(zod.record(zod.string(), zod.unknown())),
   selectedHashtagSets: zod.array(zod.string()).nullish(),
-  sourceCampaignId: zod.string().nullish(),
+  sourceCreativeId: zod.string().nullish(),
   createdBy: zod.string(),
   reviewedBy: zod.string().nullish(),
   reviewComment: zod.string().nullish(),
@@ -602,13 +602,13 @@ export const GetCampaignResponse = zod.object({
 });
 
 /**
- * @summary Update a campaign
+ * @summary Update a creative
  */
-export const UpdateCampaignParams = zod.object({
+export const UpdateCreativeParams = zod.object({
   id: zod.coerce.string(),
 });
 
-export const UpdateCampaignBody = zod.object({
+export const UpdateCreativeBody = zod.object({
   name: zod.string().optional(),
   status: zod.string().optional(),
   briefText: zod.string().nullish(),
@@ -620,7 +620,7 @@ export const UpdateCampaignBody = zod.object({
   reviewComment: zod.string().nullish(),
 });
 
-export const UpdateCampaignResponse = zod.object({
+export const UpdateCreativeResponse = zod.object({
   id: zod.string(),
   brandId: zod.string(),
   templateId: zod.string().nullish(),
@@ -630,7 +630,7 @@ export const UpdateCampaignResponse = zod.object({
   referenceUrl: zod.string().nullish(),
   selectedAssets: zod.array(zod.record(zod.string(), zod.unknown())),
   selectedHashtagSets: zod.array(zod.string()).nullish(),
-  sourceCampaignId: zod.string().nullish(),
+  sourceCreativeId: zod.string().nullish(),
   createdBy: zod.string(),
   reviewedBy: zod.string().nullish(),
   reviewComment: zod.string().nullish(),
@@ -832,7 +832,7 @@ export const UpdateTemplateRecommendationResponse = zod.object({
 });
 
 /**
- * @summary Generate video variants for a campaign (SSE)
+ * @summary Generate video variants for a creative (SSE)
  */
 export const GenerateVideoParams = zod.object({
   id: zod.coerce.string(),
@@ -860,7 +860,7 @@ export const AddVariantAudioBody = zod.object({
 
 export const AddVariantAudioResponse = zod.object({
   id: zod.string(),
-  campaignId: zod.string(),
+  creativeId: zod.string(),
   platform: zod.string(),
   aspectRatio: zod.string(),
   rawImageUrl: zod.string().nullish(),
@@ -893,7 +893,7 @@ export const UploadVariantAudioBody = zod.object({
 
 export const UploadVariantAudioResponse = zod.object({
   id: zod.string(),
-  campaignId: zod.string(),
+  creativeId: zod.string(),
   platform: zod.string(),
   aspectRatio: zod.string(),
   rawImageUrl: zod.string().nullish(),
@@ -924,7 +924,7 @@ export const GetCostLogsQueryParams = zod.object({
 
 export const GetCostLogsResponseItem = zod.object({
   id: zod.string(),
-  campaignId: zod.string().nullish(),
+  creativeId: zod.string().nullish(),
   service: zod.string(),
   operation: zod.string(),
   model: zod.string().nullish(),

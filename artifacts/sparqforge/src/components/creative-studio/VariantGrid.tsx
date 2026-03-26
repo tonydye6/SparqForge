@@ -5,8 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 import { VariantCard } from "./VariantCard";
-import type { GeneratedVariant, DuplicateInfo, RewriteToolbarState, LoadingPhase } from "./campaign-studio.types";
-import { PLATFORM_LABELS } from "./campaign-studio.types";
+import type { GeneratedVariant, DuplicateInfo, RewriteToolbarState, LoadingPhase } from "./creative-studio.types";
+import { PLATFORM_LABELS } from "./creative-studio.types";
 
 export interface VariantGridProps {
   refineText: string;
@@ -86,10 +86,10 @@ export function VariantGrid({
             <AlertTriangle size={20} className="text-amber-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm font-semibold text-foreground">
-                Similar campaign detected
+                Similar creative detected
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                This looks similar to "{duplicateInfo.campaignName}" from{" "}
+                This looks similar to "{duplicateInfo.creativeName}" from{" "}
                 {duplicateInfo.createdAt
                   ? new Date(duplicateInfo.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                   : "recently"}
@@ -141,7 +141,7 @@ export function VariantGrid({
             <div className="col-span-full">
               <EmptyState
                 icon={Sparkles}
-                title="Start a campaign"
+                title="Start a creative"
                 description="Select a brand and template to begin"
               />
             </div>

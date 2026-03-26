@@ -16,7 +16,7 @@ import {
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { useGetCampaigns } from "@workspace/api-client-react";
+import { useGetCreatives } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/useAuth";
 
 type SidebarMode = "mobile" | "tablet" | "desktop";
@@ -52,12 +52,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const mode = useResponsiveMode();
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [tabletExpanded, setTabletExpanded] = useState(false);
-  const { data: campaigns } = useGetCampaigns();
+  const { data: creatives } = useGetCreatives();
   const [calendarCount, setCalendarCount] = useState(0);
   const [pendingAssetCount, setPendingAssetCount] = useState(0);
   const { user, logout } = useAuth();
 
-  const reviewCount = campaigns?.data?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
+  const reviewCount = creatives?.data?.filter(c => c.status === "pending_review" || c.status === "in_review").length || 0;
 
   useEffect(() => {
     const now = new Date();
@@ -77,7 +77,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   }, []);
 
   const NAV_ITEMS = [
-    { href: "/", label: "Campaign Studio", icon: LayoutDashboard },
+    { href: "/", label: "Creative Studio", icon: LayoutDashboard },
     { href: "/assets", label: "Asset Library", icon: Library, badge: pendingAssetCount || undefined },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: calendarCount || undefined },
     { href: "/content-plan", label: "Content Plan", icon: ClipboardList },

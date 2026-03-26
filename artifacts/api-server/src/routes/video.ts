@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, costLogsTable } from "@workspace/db";
+import { db, creativesTable, creativeVariantsTable, costLogsTable } from "@workspace/db";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
 import { generateVideo, estimateVideoCost, VIDEO_CONFIGS } from "../services/video-generation.js";
 import { generateMusic, generateSFX, estimateElevenLabsCost } from "../services/elevenlabs.js";
@@ -32,17 +32,17 @@ const audioUpload = multer({
   },
 });
 
-router.post("/campaigns/:id/generate-video", async (req: Request, res: Response): Promise<void> => {
-  const campaignId = req.params.id;
+router.post("/creatives/:id/generate-video", async (req: Request, res: Response): Promise<void> => {
+  const creativeId = req.params.id;
   const { orientations } = req.body;
 
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  const [campaign] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: "Creative not found" });
     return;
   }
   if (!campaign.templateId) {
-    res.status(400).json({ error: "Campaign must have a template selected" });
+    res.status(400).json({ error: "Creative must have a template selected" });
     return;
   }
 
@@ -103,15 +103,15 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
         if (clientDisconnected) break;
 
         videoTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-video-"));
-        const videoFilename = `${campaignId}_video_${orientation}_${Date.now()}.mp4`;
+        const videoFilename = `${creativeId}_video_${orientation}_${Date.now()}.mp4`;
         const videoTmpPath = path.join(videoTmpDir, videoFilename);
         fs.writeFileSync(videoTmpPath, result.videoBuffer);
 
         const videoUrl = `/api/files/generated/${videoFilename}`;
 
         const platform = orientation === "landscape" ? "twitter" : "instagram_story";
-        const existingVariants = await db.select().from(campaignVariantsTable)
-          .where(eq(campaignVariantsTable.campaignId, campaignId));
+        const existingVariants = await db.select().from(creativeVariantsTable)
+          .where(eq(creativeVariantsTable.creativeId, creativeId));
 
         const matchingVariant = existingVariants.find(v => v.platform === platform);
 
@@ -127,12 +127,12 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
         videoTmpDir = null;
 
         if (matchingVariant) {
-          await db.update(campaignVariantsTable)
+          await db.update(creativeVariantsTable)
             .set({ videoUrl, audioSource: "veo_native", updatedAt: new Date() })
-            .where(eq(campaignVariantsTable.id, matchingVariant.id));
+            .where(eq(creativeVariantsTable.id, matchingVariant.id));
         } else {
-          await db.insert(campaignVariantsTable).values({
-            campaignId,
+          await db.insert(creativeVariantsTable).values({
+            creativeId,
             platform: `video_${orientation}`,
             aspectRatio: result.aspectRatio,
             videoUrl,
@@ -146,7 +146,7 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
 
         const cost = estimateVideoCost(1);
         await db.insert(costLogsTable).values({
-          campaignId,
+          creativeId,
           service: "gemini",
           operation: "video_generation",
           model: "veo-2.0-generate-001",
@@ -175,13 +175,13 @@ router.post("/campaigns/:id/generate-video", async (req: Request, res: Response)
   }
 });
 
-router.post("/campaigns/:id/variants/:variantId/audio", async (req: Request, res: Response): Promise<void> => {
-  const { id: campaignId, variantId } = req.params;
+router.post("/creatives/:id/variants/:variantId/audio", async (req: Request, res: Response): Promise<void> => {
+  const { id: creativeId, variantId } = req.params;
   const { type, prompt, mode, audioVolume, videoVolume } = req.body;
 
-  const [variant] = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.id, variantId));
-  if (!variant || variant.campaignId !== campaignId) {
+  const [variant] = await db.select().from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.id, variantId));
+  if (!variant || variant.creativeId !== creativeId) {
     res.status(404).json({ error: "Variant not found" });
     return;
   }
@@ -228,13 +228,13 @@ router.post("/campaigns/:id/variants/:variantId/audio", async (req: Request, res
 
     let audioUrl: string | null = null;
     if (audioBuffer) {
-      const audioFilename = `${campaignId}_${variantId}_audio_${Date.now()}.mp3`;
+      const audioFilename = `${creativeId}_${variantId}_audio_${Date.now()}.mp3`;
       const audioPath = path.join(UPLOADS_DIR, audioFilename);
       fs.writeFileSync(audioPath, audioBuffer);
       audioUrl = `/api/files/generated/${audioFilename}`;
 
       await db.insert(costLogsTable).values({
-        campaignId,
+        creativeId,
         service: "elevenlabs",
         operation: type === "music" ? "music_generation" : "sfx_generation",
         model: "elevenlabs",
@@ -261,19 +261,19 @@ router.post("/campaigns/:id/variants/:variantId/audio", async (req: Request, res
       videoVolume: videoVolume ?? 0.3,
     });
 
-    const mergedFilename = `${campaignId}_${variantId}_merged_${Date.now()}.mp4`;
+    const mergedFilename = `${creativeId}_${variantId}_merged_${Date.now()}.mp4`;
     const mergedPath = path.join(UPLOADS_DIR, mergedFilename);
     fs.writeFileSync(mergedPath, mergedBuffer);
     const mergedVideoUrl = `/api/files/generated/${mergedFilename}`;
 
-    const [updated] = await db.update(campaignVariantsTable)
+    const [updated] = await db.update(creativeVariantsTable)
       .set({
         audioSource,
         audioUrl,
         mergedVideoUrl,
         updatedAt: new Date(),
       })
-      .where(eq(campaignVariantsTable.id, variantId))
+      .where(eq(creativeVariantsTable.id, variantId))
       .returning();
 
     res.json(updated);
@@ -283,13 +283,13 @@ router.post("/campaigns/:id/variants/:variantId/audio", async (req: Request, res
   }
 });
 
-router.post("/campaigns/:id/variants/:variantId/audio-upload", audioUpload.single("audio"), async (req: Request, res: Response): Promise<void> => {
-  const { id: campaignId, variantId } = req.params;
+router.post("/creatives/:id/variants/:variantId/audio-upload", audioUpload.single("audio"), async (req: Request, res: Response): Promise<void> => {
+  const { id: creativeId, variantId } = req.params;
   const mode = (req.body?.mode || "replace") as MergeMode;
 
-  const [variant] = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.id, variantId));
-  if (!variant || variant.campaignId !== campaignId) {
+  const [variant] = await db.select().from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.id, variantId));
+  if (!variant || variant.creativeId !== creativeId) {
     res.status(404).json({ error: "Variant not found" });
     return;
   }
@@ -307,7 +307,7 @@ router.post("/campaigns/:id/variants/:variantId/audio-upload", audioUpload.singl
   try {
     ensureDir(UPLOADS_DIR);
 
-    const audioFilename = `${campaignId}_${variantId}_custom_${Date.now()}.mp3`;
+    const audioFilename = `${creativeId}_${variantId}_custom_${Date.now()}.mp3`;
     const audioPath = path.join(UPLOADS_DIR, audioFilename);
     fs.writeFileSync(audioPath, req.file.buffer);
     const audioUrl = `/api/files/generated/${audioFilename}`;
@@ -328,19 +328,19 @@ router.post("/campaigns/:id/variants/:variantId/audio-upload", audioUpload.singl
       mode,
     });
 
-    const mergedFilename = `${campaignId}_${variantId}_merged_${Date.now()}.mp4`;
+    const mergedFilename = `${creativeId}_${variantId}_merged_${Date.now()}.mp4`;
     const mergedPath = path.join(UPLOADS_DIR, mergedFilename);
     fs.writeFileSync(mergedPath, mergedBuffer);
     const mergedVideoUrl = `/api/files/generated/${mergedFilename}`;
 
-    const [updated] = await db.update(campaignVariantsTable)
+    const [updated] = await db.update(creativeVariantsTable)
       .set({
         audioSource: "custom_upload",
         audioUrl,
         mergedVideoUrl,
         updatedAt: new Date(),
       })
-      .where(eq(campaignVariantsTable.id, variantId))
+      .where(eq(creativeVariantsTable.id, variantId))
       .returning();
 
     res.json(updated);

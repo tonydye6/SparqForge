@@ -5,15 +5,15 @@
  * SparqForge API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { UpdateCampaignInputSelectedAssetsItem } from "./updateCampaignInputSelectedAssetsItem";
+import type { UpdateCreativeInputSelectedAssetsItem } from "./updateCreativeInputSelectedAssetsItem";
 
-export interface UpdateCampaignInput {
+export interface UpdateCreativeInput {
   name?: string;
   status?: string;
   briefText?: string | null;
   referenceUrl?: string | null;
   templateId?: string | null;
-  selectedAssets?: UpdateCampaignInputSelectedAssetsItem[];
+  selectedAssets?: UpdateCreativeInputSelectedAssetsItem[];
   selectedHashtagSets?: string[] | null;
   reviewedBy?: string | null;
   reviewComment?: string | null;

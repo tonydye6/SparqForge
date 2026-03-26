@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function CampaignStudioSkeleton() {
+export function CreativeStudioSkeleton() {
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
       {/* Left sidebar skeleton (~320px) */}
@@ -11,7 +11,7 @@ export function CampaignStudioSkeleton() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Campaign name input */}
+          {/* Creative name input */}
           <div className="space-y-2">
             <Skeleton className="h-3 w-28" />
             <Skeleton className="h-9 w-full" />

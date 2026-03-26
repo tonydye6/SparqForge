@@ -1,18 +1,18 @@
 import { Router, type IRouter } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
-import { db, campaignVariantsTable, campaignsTable, refinementLogsTable, assetPairingsTable } from "@workspace/db";
+import { db, creativeVariantsTable, creativesTable, refinementLogsTable, assetPairingsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
-router.get("/campaigns/:campaignId/variants", async (req, res): Promise<void> => {
-  const { campaignId } = req.params;
+router.get("/creatives/:creativeId/variants", async (req, res): Promise<void> => {
+  const { creativeId } = req.params;
   try {
     const variants = await db
       .select()
-      .from(campaignVariantsTable)
-      .where(eq(campaignVariantsTable.campaignId, campaignId as string))
-      .orderBy(campaignVariantsTable.platform);
+      .from(creativeVariantsTable)
+      .where(eq(creativeVariantsTable.creativeId, creativeId as string))
+      .orderBy(creativeVariantsTable.platform);
 
     res.json(variants);
   } catch (err) {
@@ -20,8 +20,8 @@ router.get("/campaigns/:campaignId/variants", async (req, res): Promise<void> =>
   }
 });
 
-router.post("/campaigns/:campaignId/variants", async (req, res): Promise<void> => {
-  const { campaignId } = req.params;
+router.post("/creatives/:creativeId/variants", async (req, res): Promise<void> => {
+  const { creativeId } = req.params;
   const { platform, aspectRatio, caption, headlineText } = req.body;
 
   if (!platform || !aspectRatio) {
@@ -30,8 +30,8 @@ router.post("/campaigns/:campaignId/variants", async (req, res): Promise<void> =
   }
 
   try {
-    const [variant] = await db.insert(campaignVariantsTable).values({
-      campaignId: campaignId as string,
+    const [variant] = await db.insert(creativeVariantsTable).values({
+      creativeId: creativeId as string,
       platform,
       aspectRatio,
       caption: caption || "",
@@ -46,18 +46,18 @@ router.post("/campaigns/:campaignId/variants", async (req, res): Promise<void> =
   }
 });
 
-router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promise<void> => {
-  const { campaignId, variantId } = req.params;
+router.put("/creatives/:creativeId/variants/:variantId", async (req, res): Promise<void> => {
+  const { creativeId, variantId } = req.params;
 
   try {
-    const [existingVariant] = await db.select().from(campaignVariantsTable)
+    const [existingVariant] = await db.select().from(creativeVariantsTable)
       .where(and(
-        eq(campaignVariantsTable.id, variantId as string),
-        eq(campaignVariantsTable.campaignId, campaignId as string),
+        eq(creativeVariantsTable.id, variantId as string),
+        eq(creativeVariantsTable.creativeId, creativeId as string),
       ));
 
     if (!existingVariant) {
-      res.status(404).json({ error: "Variant not found for this campaign" });
+      res.status(404).json({ error: "Variant not found for this creative" });
       return;
     }
 
@@ -77,20 +77,20 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
     updates.updatedAt = new Date();
 
     const [variant] = await db
-      .update(campaignVariantsTable)
+      .update(creativeVariantsTable)
       .set(updates)
       .where(and(
-        eq(campaignVariantsTable.id, variantId as string),
-        eq(campaignVariantsTable.campaignId, campaignId as string),
+        eq(creativeVariantsTable.id, variantId as string),
+        eq(creativeVariantsTable.creativeId, creativeId as string),
       ))
       .returning();
 
     if (newStatus === "approved" || newStatus === "rejected") {
-      const [camp] = await db.select({ templateId: campaignsTable.templateId }).from(campaignsTable)
-        .where(eq(campaignsTable.id, campaignId as string));
+      const [camp] = await db.select({ templateId: creativesTable.templateId }).from(creativesTable)
+        .where(eq(creativesTable.id, creativeId as string));
       if (camp?.templateId) {
         await db.insert(refinementLogsTable).values({
-          campaignId: campaignId as string,
+          creativeId: creativeId as string,
           templateId: camp.templateId,
           editType: newStatus === "approved" ? "approval" : "rejection",
           platform: existingVariant.platform,
@@ -102,7 +102,7 @@ router.put("/campaigns/:campaignId/variants/:variantId", async (req, res): Promi
         try {
           const pairings = await db.select().from(assetPairingsTable)
             .where(and(
-              eq(assetPairingsTable.campaignId, campaignId as string),
+              eq(assetPairingsTable.creativeId, creativeId as string),
               eq(assetPairingsTable.templateId, camp.templateId),
             ));
 
@@ -146,8 +146,8 @@ const bulkUpdateSchema = z.object({
   reviewerComment: z.string().max(5000).optional(),
 });
 
-router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Promise<void> => {
-  const { campaignId } = req.params;
+router.post("/creatives/:creativeId/variants/bulk-update", async (req, res): Promise<void> => {
+  const { creativeId } = req.params;
 
   // 1. Parse and validate request body
   const parseResult = bulkUpdateSchema.safeParse(req.body);
@@ -166,30 +166,30 @@ router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Pro
 
   try {
     // 3. Fetch all variants for this campaign and verify all requested IDs belong to it
-    const campaignVariants = await db
+    const creativeVariants = await db
       .select()
-      .from(campaignVariantsTable)
-      .where(eq(campaignVariantsTable.campaignId, campaignId as string));
+      .from(creativeVariantsTable)
+      .where(eq(creativeVariantsTable.creativeId, creativeId as string));
 
-    const campaignVariantIds = new Set(campaignVariants.map((v) => v.id));
-    const invalidIds = variantIds.filter((id) => !campaignVariantIds.has(id));
+    const creativeVariantIds = new Set(creativeVariants.map((v) => v.id));
+    const invalidIds = variantIds.filter((id) => !creativeVariantIds.has(id));
     if (invalidIds.length > 0) {
-      res.status(400).json({ error: "Some variant IDs do not belong to this campaign" });
+      res.status(400).json({ error: "Some variant IDs do not belong to this creative" });
       return;
     }
 
     // Fetch the campaign's templateId once (needed for refinement logs)
     const [camp] = await db
-      .select({ templateId: campaignsTable.templateId })
-      .from(campaignsTable)
-      .where(eq(campaignsTable.id, campaignId as string));
+      .select({ templateId: creativesTable.templateId })
+      .from(creativesTable)
+      .where(eq(creativesTable.id, creativeId as string));
 
     // 4. Run updates in a transaction
     const updated = await db.transaction(async (tx) => {
       const results: { id: string; status: string }[] = [];
 
       for (const variantId of variantIds) {
-        const variant = campaignVariants.find((v) => v.id === variantId)!;
+        const variant = creativeVariants.find((v) => v.id === variantId)!;
 
         // 4a. Update variant status (and reviewerComment if rejecting)
         const variantUpdates: Record<string, unknown> = {
@@ -198,12 +198,12 @@ router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Pro
         };
 
         const [updatedVariant] = await tx
-          .update(campaignVariantsTable)
+          .update(creativeVariantsTable)
           .set(variantUpdates)
           .where(
             and(
-              eq(campaignVariantsTable.id, variantId),
-              eq(campaignVariantsTable.campaignId, campaignId as string),
+              eq(creativeVariantsTable.id, variantId),
+              eq(creativeVariantsTable.creativeId, creativeId as string),
             ),
           )
           .returning();
@@ -213,7 +213,7 @@ router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Pro
         // 4b. Create a refinement log entry (matching the single-variant PUT handler pattern)
         if (camp?.templateId) {
           await tx.insert(refinementLogsTable).values({
-            campaignId: campaignId as string,
+            creativeId: creativeId as string,
             templateId: camp.templateId,
             editType: status === "approved" ? "approval" : "rejection",
             platform: variant.platform,
@@ -229,30 +229,30 @@ router.post("/campaigns/:campaignId/variants/bulk-update", async (req, res): Pro
 
     // 5. After transaction: check if ALL variants for this campaign are now "approved"
     const allVariantsAfterUpdate = await db
-      .select({ status: campaignVariantsTable.status })
-      .from(campaignVariantsTable)
-      .where(eq(campaignVariantsTable.campaignId, campaignId as string));
+      .select({ status: creativeVariantsTable.status })
+      .from(creativeVariantsTable)
+      .where(eq(creativeVariantsTable.creativeId, creativeId as string));
 
     const allApproved = allVariantsAfterUpdate.length > 0 && allVariantsAfterUpdate.every((v) => v.status === "approved");
 
-    let campaignStatus: string;
+    let creativeStatus: string;
     if (allApproved) {
-      const [updatedCampaign] = await db
-        .update(campaignsTable)
+      const [updatedCreative] = await db
+        .update(creativesTable)
         .set({ status: "approved", updatedAt: new Date() })
-        .where(eq(campaignsTable.id, campaignId as string))
-        .returning({ status: campaignsTable.status });
-      campaignStatus = updatedCampaign.status;
+        .where(eq(creativesTable.id, creativeId as string))
+        .returning({ status: creativesTable.status });
+      creativeStatus = updatedCreative.status;
     } else {
-      const [currentCampaign] = await db
-        .select({ status: campaignsTable.status })
-        .from(campaignsTable)
-        .where(eq(campaignsTable.id, campaignId as string));
-      campaignStatus = currentCampaign?.status ?? "unknown";
+      const [currentCreative] = await db
+        .select({ status: creativesTable.status })
+        .from(creativesTable)
+        .where(eq(creativesTable.id, creativeId as string));
+      creativeStatus = currentCreative?.status ?? "unknown";
     }
 
     // 6. Return updated variants and campaign status
-    res.json({ updated, campaignStatus });
+    res.json({ updated, creativeStatus });
   } catch (err) {
     res.status(500).json({ error: "Failed to bulk update variants" });
   }

@@ -19,7 +19,7 @@ interface CostSummary {
 
 interface CostLogEntry {
   id: string;
-  campaignId: string | null;
+  creativeId: string | null;
   service: string;
   operation: string;
   model: string | null;

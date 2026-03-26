@@ -6,16 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ReferenceAnalyzer } from "./ReferenceAnalyzer";
-import { BudgetStatus, PLATFORM_LABELS, ALL_PLATFORM_KEYS } from "./campaign-studio.types";
+import { BudgetStatus, PLATFORM_LABELS, ALL_PLATFORM_KEYS } from "./creative-studio.types";
 import type { Asset } from "@workspace/api-client-react";
 
-export interface CampaignConfigPanelProps {
+export interface CreativeConfigPanelProps {
   /* URL-derived flags */
   remixId: string | null;
 
-  /* Campaign name */
-  campaignName: string;
-  onCampaignNameChange: (name: string) => void;
+  /* Creative name */
+  creativeName: string;
+  onCreativeNameChange: (name: string) => void;
 
   /* Brand selector */
   brands: Array<{ id: string; name: string; colorPrimary: string }> | undefined;
@@ -83,14 +83,14 @@ export interface CampaignConfigPanelProps {
   estimatedCost: number;
 
   /* Video button dependencies */
-  campaignId: string | null;
+  creativeId: string | null;
   hasVariants: boolean;
 }
 
-export function CampaignConfigPanel({
+export function CreativeConfigPanel({
   remixId,
-  campaignName,
-  onCampaignNameChange,
+  creativeName,
+  onCreativeNameChange,
   brands,
   selectedBrand,
   onBrandChange,
@@ -132,32 +132,32 @@ export function CampaignConfigPanel({
   generateDisabledReason,
   budgetStatus,
   estimatedCost,
-  campaignId,
+  creativeId,
   hasVariants,
-}: CampaignConfigPanelProps) {
+}: CreativeConfigPanelProps) {
   return (
     <aside className="w-[320px] shrink-0 border-r border-border bg-card/50 flex flex-col z-20 shadow-xl">
       <div className="p-4 border-b border-border">
         <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
           <Settings2 size={18} className="text-primary" />
-          Campaign Setup
+          Creative Setup
         </h2>
         {remixId && (
           <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
             <RefreshCw size={12} />
-            <span>Remixing from existing campaign</span>
+            <span>Remixing from existing creative</span>
           </div>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Campaign Name</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Creative Name</label>
           <Input
             placeholder="e.g. Fall Tournament Hype"
             className="bg-background border-border"
-            value={campaignName}
-            onChange={e => onCampaignNameChange(e.target.value)}
+            value={creativeName}
+            onChange={e => onCreativeNameChange(e.target.value)}
             disabled={isGenerating}
           />
         </div>
@@ -472,7 +472,7 @@ export function CampaignConfigPanel({
                   {isGenerating ? (
                     <><Loader2 size={16} className="mr-2 animate-spin" /> Generating...</>
                   ) : (
-                    <><Play size={16} className="mr-2" /> Generate Campaign</>
+                    <><Play size={16} className="mr-2" /> Generate Creative</>
                   )}
                 </Button>
               </span>
@@ -495,7 +495,7 @@ export function CampaignConfigPanel({
           variant="outline"
           className="w-full border-border hover:bg-muted text-foreground"
           onClick={onGenerateVideo}
-          disabled={isGenerating || isGeneratingVideo || !campaignId || !hasVariants}
+          disabled={isGenerating || isGeneratingVideo || !creativeId || !hasVariants}
         >
           {isGeneratingVideo ? (
             <><Loader2 size={16} className="mr-2 animate-spin" /> Generating Video...</>

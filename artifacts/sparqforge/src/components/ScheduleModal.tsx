@@ -21,8 +21,8 @@ interface SocialAccount {
 interface ScheduleModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  campaignId: string;
-  campaignName: string;
+  creativeId: string;
+  creativeName: string;
   onScheduled?: () => void;
 }
 
@@ -33,7 +33,7 @@ const PLATFORM_MAP: Record<string, string> = {
   linkedin: "linkedin",
 };
 
-export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, onScheduled }: ScheduleModalProps) {
+export function ScheduleModal({ open, onOpenChange, creativeId, creativeName, onScheduled }: ScheduleModalProps) {
   const { toast } = useToast();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("12:00");
@@ -73,7 +73,7 @@ export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, on
 
     setIsSubmitting(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/schedule`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt, socialAccounts: selectedAccounts }),
@@ -108,10 +108,10 @@ export function ScheduleModal({ open, onOpenChange, campaignId, campaignName, on
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-2">
             <CalendarIcon size={18} className="text-primary" />
-            Schedule Campaign
+            Schedule Creative
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Set a publish date and time for "{campaignName}"
+            Set a publish date and time for "{creativeName}"
           </DialogDescription>
         </DialogHeader>
 

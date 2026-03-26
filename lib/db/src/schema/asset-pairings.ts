@@ -1,13 +1,13 @@
 import { pgTable, text, boolean, timestamp, integer, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { campaignsTable } from "./campaigns";
+import { creativesTable } from "./campaigns";
 import { assetsTable } from "./assets";
 import { templatesTable } from "./templates";
 
 export const assetPairingsTable = pgTable("asset_pairings", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
+  creativeId: text("creative_id").notNull().references(() => creativesTable.id, { onDelete: "cascade" }),
   primaryAssetId: text("primary_asset_id").notNull().references(() => assetsTable.id, { onDelete: "cascade" }),
   secondaryAssetId: text("secondary_asset_id").notNull().references(() => assetsTable.id, { onDelete: "cascade" }),
   templateId: text("template_id").references(() => templatesTable.id, { onDelete: "set null" }),
@@ -23,7 +23,7 @@ export const assetPairingsTable = pgTable("asset_pairings", {
   index("asset_pairings_primary_idx").on(table.primaryAssetId),
   index("asset_pairings_secondary_idx").on(table.secondaryAssetId),
   index("asset_pairings_template_idx").on(table.templateId),
-  index("asset_pairings_campaign_idx").on(table.campaignId),
+  index("asset_pairings_campaign_idx").on(table.creativeId),
 ]);
 
 export const insertAssetPairingSchema = createInsertSchema(assetPairingsTable).omit({

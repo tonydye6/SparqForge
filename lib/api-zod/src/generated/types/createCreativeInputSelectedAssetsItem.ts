@@ -6,4 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type CreateCampaignInputSelectedAssetsItem = { [key: string]: unknown };
+export type CreateCreativeInputSelectedAssetsItem = { [key: string]: unknown };

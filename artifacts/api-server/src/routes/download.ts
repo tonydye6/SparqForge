@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, brandsTable, templatesTable } from "@workspace/db";
+import { db, creativesTable, creativeVariantsTable, brandsTable, templatesTable } from "@workspace/db";
 import archiver from "archiver";
 import * as fs from "fs";
 import * as path from "path";
@@ -13,17 +13,17 @@ const router: IRouter = Router();
 
 const UPLOADS_DIR = path.resolve(process.cwd(), "uploads", "generated");
 
-router.get("/campaigns/:id/download", validateRequest({ params: DownloadParams }), async (req: Request, res: Response): Promise<void> => {
-  const campaignId = req.params.id;
+router.get("/creatives/:id/download", validateRequest({ params: DownloadParams }), async (req: Request, res: Response): Promise<void> => {
+  const creativeId = req.params.id;
 
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  const [campaign] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: "Creative not found" });
     return;
   }
 
-  const variants = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.campaignId, campaignId));
+  const variants = await db.select().from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.creativeId, creativeId));
 
   if (variants.length === 0) {
     res.status(400).json({ error: "No variants generated yet" });
@@ -127,8 +127,8 @@ router.get("/campaigns/:id/download", validateRequest({ params: DownloadParams }
     archive.append(JSON.stringify(videoMetadata, null, 2), { name: `${zipName}/video/metadata.json` });
   }
 
-  const campaignSummary = {
-    campaign: campaign.name,
+  const creativeSummary = {
+    creative: campaign.name,
     brand: brandName,
     template: templateName,
     status: campaign.status,
@@ -138,17 +138,17 @@ router.get("/campaigns/:id/download", validateRequest({ params: DownloadParams }
     variantCount: variants.length,
     platforms: variants.map(v => v.platform),
   };
-  archive.append(JSON.stringify(campaignSummary, null, 2), { name: `${zipName}/campaign_summary.json` });
+  archive.append(JSON.stringify(creativeSummary, null, 2), { name: `${zipName}/creative_summary.json` });
 
   await archive.finalize();
 });
 
-router.get("/campaigns/:id/variants/:variantId/download", validateRequest({ params: DownloadParams }), async (req: Request, res: Response): Promise<void> => {
-  const { id: campaignId, variantId } = req.params;
+router.get("/creatives/:id/variants/:variantId/download", validateRequest({ params: DownloadParams }), async (req: Request, res: Response): Promise<void> => {
+  const { id: creativeId, variantId } = req.params;
 
-  const [variant] = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.id, variantId));
-  if (!variant || variant.campaignId !== campaignId) {
+  const [variant] = await db.select().from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.id, variantId));
+  if (!variant || variant.creativeId !== creativeId) {
     res.status(404).json({ error: "Variant not found" });
     return;
   }

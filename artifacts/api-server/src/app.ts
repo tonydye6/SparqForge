@@ -109,10 +109,10 @@ app.get("/api/files/generated/:filename", fileServingLimiter, (req, res) => {
   });
 });
 
-app.use("/api/campaigns/:id/generate", generationLimiter);
-app.use("/api/campaigns/:id/generate-video", generationLimiter);
-app.use("/api/campaigns/:id/variants/:variantId/audio", generationLimiter);
-app.use("/api/campaigns/:id/variants/:variantId/audio-upload", generationLimiter);
+app.use("/api/creatives/:id/generate", generationLimiter);
+app.use("/api/creatives/:id/generate-video", generationLimiter);
+app.use("/api/creatives/:id/variants/:variantId/audio", generationLimiter);
+app.use("/api/creatives/:id/variants/:variantId/audio-upload", generationLimiter);
 
 app.use("/api", requireAuth, router);
 

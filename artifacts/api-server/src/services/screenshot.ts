@@ -106,7 +106,7 @@ export interface ScreenshotResult {
 
 export async function captureScreenshots(
   targetUrl: string,
-  campaignId: string,
+  creativeId: string,
 ): Promise<ScreenshotResult[]> {
   const apiKey = process.env.SparqForge_ScreenshotOne_API_Key;
   if (!apiKey) {
@@ -149,7 +149,7 @@ export async function captureScreenshots(
     const buffer = Buffer.from(arrayBuffer);
 
     const timestamp = Date.now();
-    const filename = `ref-${campaignId}-${vp.label}-${timestamp}.png`;
+    const filename = `ref-${creativeId}-${vp.label}-${timestamp}.png`;
     const filepath = path.join(UPLOADS_DIR, filename);
 
     fs.writeFileSync(filepath, buffer);
@@ -167,14 +167,14 @@ export async function captureScreenshots(
 
 export async function captureFromUpload(
   fileBuffer: Buffer,
-  campaignId: string,
+  creativeId: string,
   originalName: string,
 ): Promise<ScreenshotResult> {
   ensureDir(UPLOADS_DIR);
 
   const ext = path.extname(originalName) || ".png";
   const timestamp = Date.now();
-  const filename = `ref-${campaignId}-upload-${timestamp}${ext}`;
+  const filename = `ref-${creativeId}-upload-${timestamp}${ext}`;
   const filepath = path.join(UPLOADS_DIR, filename);
 
   fs.writeFileSync(filepath, fileBuffer);

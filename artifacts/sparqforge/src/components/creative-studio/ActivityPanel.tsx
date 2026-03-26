@@ -1,6 +1,6 @@
 import { Check, X, Loader2, Save, Download, CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ActivityLog } from "./campaign-studio.types";
+import type { ActivityLog } from "./creative-studio.types";
 
 export interface ActivityPanelProps {
   activityLog: ActivityLog[];
@@ -11,7 +11,7 @@ export interface ActivityPanelProps {
   onSchedule: () => void;
   onSubmitForReview: () => void;
   hasVariants: boolean;
-  campaignId: string | null;
+  creativeId: string | null;
   isGenerating: boolean;
 }
 
@@ -24,7 +24,7 @@ export function ActivityPanel({
   onSchedule,
   onSubmitForReview,
   hasVariants,
-  campaignId,
+  creativeId,
   isGenerating,
 }: ActivityPanelProps) {
   return (
@@ -72,7 +72,7 @@ export function ActivityPanel({
         <Button
           variant="outline"
           className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground"
-          disabled={!hasVariants || !campaignId}
+          disabled={!hasVariants || !creativeId}
           onClick={onDownloadAll}
         >
           <Download size={16} className="mr-2 text-muted-foreground" /> Download All Assets
@@ -80,14 +80,14 @@ export function ActivityPanel({
         <Button
           variant="outline"
           className="w-full justify-start bg-card border-border hover:bg-muted hover:text-foreground"
-          disabled={!hasVariants || !campaignId || isGenerating}
+          disabled={!hasVariants || !creativeId || isGenerating}
           onClick={onSchedule}
         >
           <CalendarIcon size={16} className="mr-2 text-muted-foreground" /> Schedule
         </Button>
         <Button
           className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2"
-          disabled={!hasVariants || !campaignId || isGenerating}
+          disabled={!hasVariants || !creativeId || isGenerating}
           onClick={onSubmitForReview}
         >
           Submit for Review

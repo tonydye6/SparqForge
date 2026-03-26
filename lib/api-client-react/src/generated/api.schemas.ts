@@ -216,9 +216,9 @@ export interface CreateHashtagSetInput {
   category: string;
 }
 
-export type CampaignSelectedAssetsItem = { [key: string]: unknown };
+export type CreativeSelectedAssetsItem = { [key: string]: unknown };
 
-export interface Campaign {
+export interface Creative {
   id: string;
   brandId: string;
   templateId?: string | null;
@@ -226,9 +226,9 @@ export interface Campaign {
   status: string;
   briefText?: string | null;
   referenceUrl?: string | null;
-  selectedAssets: CampaignSelectedAssetsItem[];
+  selectedAssets: CreativeSelectedAssetsItem[];
   selectedHashtagSets?: string[] | null;
-  sourceCampaignId?: string | null;
+  sourceCreativeId?: string | null;
   createdBy: string;
   reviewedBy?: string | null;
   reviewComment?: string | null;
@@ -236,28 +236,28 @@ export interface Campaign {
   updatedAt: string;
 }
 
-export type CreateCampaignInputSelectedAssetsItem = { [key: string]: unknown };
+export type CreateCreativeInputSelectedAssetsItem = { [key: string]: unknown };
 
-export interface CreateCampaignInput {
+export interface CreateCreativeInput {
   brandId: string;
   templateId?: string | null;
   name: string;
   briefText?: string | null;
   referenceUrl?: string | null;
-  selectedAssets: CreateCampaignInputSelectedAssetsItem[];
+  selectedAssets: CreateCreativeInputSelectedAssetsItem[];
   selectedHashtagSets?: string[] | null;
   createdBy: string;
 }
 
-export type UpdateCampaignInputSelectedAssetsItem = { [key: string]: unknown };
+export type UpdateCreativeInputSelectedAssetsItem = { [key: string]: unknown };
 
-export interface UpdateCampaignInput {
+export interface UpdateCreativeInput {
   name?: string;
   status?: string;
   briefText?: string | null;
   referenceUrl?: string | null;
   templateId?: string | null;
-  selectedAssets?: UpdateCampaignInputSelectedAssetsItem[];
+  selectedAssets?: UpdateCreativeInputSelectedAssetsItem[];
   selectedHashtagSets?: string[] | null;
   reviewedBy?: string | null;
   reviewComment?: string | null;
@@ -373,9 +373,9 @@ export interface AudioGenerateInput {
   videoVolume?: number;
 }
 
-export interface CampaignVariant {
+export interface CreativeVariant {
   id: string;
-  campaignId: string;
+  creativeId: string;
   platform: string;
   aspectRatio: string;
   rawImageUrl?: string | null;
@@ -395,7 +395,7 @@ export interface CampaignVariant {
 
 export interface CostLogEntry {
   id: string;
-  campaignId?: string | null;
+  creativeId?: string | null;
   service: string;
   operation: string;
   model?: string | null;
@@ -448,7 +448,7 @@ export type GetHashtagSetsParams = {
   category?: string;
 };
 
-export type GetCampaignsParams = {
+export type GetCreativesParams = {
   brandId?: string;
   status?: string;
 };

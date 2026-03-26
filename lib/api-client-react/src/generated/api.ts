@@ -20,20 +20,20 @@ import type {
   Asset,
   AudioGenerateInput,
   Brand,
-  Campaign,
-  CampaignVariant,
   CostLogEntry,
   CostSummary,
   CreateAssetInput,
   CreateBrandInput,
-  CreateCampaignInput,
+  CreateCreativeInput,
   CreateHashtagSetInput,
   CreateTemplateInput,
+  Creative,
+  CreativeVariant,
   GenerateVideoBody,
   GetAssetsParams,
-  GetCampaignsParams,
   GetCostLogsParams,
   GetCostLogsSummaryParams,
+  GetCreativesParams,
   GetHashtagSetsParams,
   GetTemplatesParams,
   HashtagSet,
@@ -48,7 +48,7 @@ import type {
   TemplateStats,
   TemplateVersion,
   UpdateAssetInput,
-  UpdateCampaignInput,
+  UpdateCreativeInput,
   UploadFileBody,
   UploadResponse,
   UploadVariantAudioBody,
@@ -1771,9 +1771,9 @@ export const useDeleteHashtagSet = <
 };
 
 /**
- * @summary Get all campaigns
+ * @summary Get all creatives
  */
-export const getGetCampaignsUrl = (params?: GetCampaignsParams) => {
+export const getGetCreativesUrl = (params?: GetCreativesParams) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -1785,32 +1785,32 @@ export const getGetCampaignsUrl = (params?: GetCampaignsParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/campaigns?${stringifiedParams}`
-    : `/api/campaigns`;
+    ? `/api/creatives?${stringifiedParams}`
+    : `/api/creatives`;
 };
 
-export const getCampaigns = async (
-  params?: GetCampaignsParams,
+export const getCreatives = async (
+  params?: GetCreativesParams,
   options?: RequestInit,
-): Promise<Campaign[]> => {
-  return customFetch<Campaign[]>(getGetCampaignsUrl(params), {
+): Promise<Creative[]> => {
+  return customFetch<Creative[]>(getGetCreativesUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCampaignsQueryKey = (params?: GetCampaignsParams) => {
-  return [`/api/campaigns`, ...(params ? [params] : [])] as const;
+export const getGetCreativesQueryKey = (params?: GetCreativesParams) => {
+  return [`/api/creatives`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetCampaignsQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCampaigns>>,
+export const getGetCreativesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCreatives>>,
   TError = ErrorType<unknown>,
 >(
-  params?: GetCampaignsParams,
+  params?: GetCreativesParams,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof getCampaigns>>,
+      Awaited<ReturnType<typeof getCreatives>>,
       TError,
       TData
     >;
@@ -1819,43 +1819,43 @@ export const getGetCampaignsQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCampaignsQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getGetCreativesQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCampaigns>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCreatives>>> = ({
     signal,
-  }) => getCampaigns(params, { signal, ...requestOptions });
+  }) => getCreatives(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCampaigns>>,
+    Awaited<ReturnType<typeof getCreatives>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type GetCampaignsQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCampaigns>>
+export type GetCreativesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCreatives>>
 >;
-export type GetCampaignsQueryError = ErrorType<unknown>;
+export type GetCreativesQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get all campaigns
+ * @summary Get all creatives
  */
 
-export function useGetCampaigns<
-  TData = Awaited<ReturnType<typeof getCampaigns>>,
+export function useGetCreatives<
+  TData = Awaited<ReturnType<typeof getCreatives>>,
   TError = ErrorType<unknown>,
 >(
-  params?: GetCampaignsParams,
+  params?: GetCreativesParams,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof getCampaigns>>,
+      Awaited<ReturnType<typeof getCreatives>>,
       TError,
       TData
     >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCampaignsQueryOptions(params, options);
+  const queryOptions = getGetCreativesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -1865,42 +1865,42 @@ export function useGetCampaigns<
 }
 
 /**
- * @summary Create a campaign
+ * @summary Create a creative
  */
-export const getCreateCampaignUrl = () => {
-  return `/api/campaigns`;
+export const getCreateCreativeUrl = () => {
+  return `/api/creatives`;
 };
 
-export const createCampaign = async (
-  createCampaignInput: CreateCampaignInput,
+export const createCreative = async (
+  createCreativeInput: CreateCreativeInput,
   options?: RequestInit,
-): Promise<Campaign> => {
-  return customFetch<Campaign>(getCreateCampaignUrl(), {
+): Promise<Creative> => {
+  return customFetch<Creative>(getCreateCreativeUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(createCampaignInput),
+    body: JSON.stringify(createCreativeInput),
   });
 };
 
-export const getCreateCampaignMutationOptions = <
+export const getCreateCreativeMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createCampaign>>,
+    Awaited<ReturnType<typeof createCreative>>,
     TError,
-    { data: BodyType<CreateCampaignInput> },
+    { data: BodyType<CreateCreativeInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createCampaign>>,
+  Awaited<ReturnType<typeof createCreative>>,
   TError,
-  { data: BodyType<CreateCampaignInput> },
+  { data: BodyType<CreateCreativeInput> },
   TContext
 > => {
-  const mutationKey = ["createCampaign"];
+  const mutationKey = ["createCreative"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -1910,75 +1910,75 @@ export const getCreateCampaignMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createCampaign>>,
-    { data: BodyType<CreateCampaignInput> }
+    Awaited<ReturnType<typeof createCreative>>,
+    { data: BodyType<CreateCreativeInput> }
   > = (props) => {
     const { data } = props ?? {};
 
-    return createCampaign(data, requestOptions);
+    return createCreative(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateCampaignMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createCampaign>>
+export type CreateCreativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCreative>>
 >;
-export type CreateCampaignMutationBody = BodyType<CreateCampaignInput>;
-export type CreateCampaignMutationError = ErrorType<unknown>;
+export type CreateCreativeMutationBody = BodyType<CreateCreativeInput>;
+export type CreateCreativeMutationError = ErrorType<unknown>;
 
 /**
- * @summary Create a campaign
+ * @summary Create a creative
  */
-export const useCreateCampaign = <
+export const useCreateCreative = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createCampaign>>,
+    Awaited<ReturnType<typeof createCreative>>,
     TError,
-    { data: BodyType<CreateCampaignInput> },
+    { data: BodyType<CreateCreativeInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof createCampaign>>,
+  Awaited<ReturnType<typeof createCreative>>,
   TError,
-  { data: BodyType<CreateCampaignInput> },
+  { data: BodyType<CreateCreativeInput> },
   TContext
 > => {
-  return useMutation(getCreateCampaignMutationOptions(options));
+  return useMutation(getCreateCreativeMutationOptions(options));
 };
 
 /**
- * @summary Get a campaign
+ * @summary Get a creative
  */
-export const getGetCampaignUrl = (id: string) => {
-  return `/api/campaigns/${id}`;
+export const getGetCreativeUrl = (id: string) => {
+  return `/api/creatives/${id}`;
 };
 
-export const getCampaign = async (
+export const getCreative = async (
   id: string,
   options?: RequestInit,
-): Promise<Campaign> => {
-  return customFetch<Campaign>(getGetCampaignUrl(id), {
+): Promise<Creative> => {
+  return customFetch<Creative>(getGetCreativeUrl(id), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCampaignQueryKey = (id: string) => {
-  return [`/api/campaigns/${id}`] as const;
+export const getGetCreativeQueryKey = (id: string) => {
+  return [`/api/creatives/${id}`] as const;
 };
 
-export const getGetCampaignQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCampaign>>,
+export const getGetCreativeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCreative>>,
   TError = ErrorType<unknown>,
 >(
   id: string,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof getCampaign>>,
+      Awaited<ReturnType<typeof getCreative>>,
       TError,
       TData
     >;
@@ -1987,11 +1987,11 @@ export const getGetCampaignQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCampaignQueryKey(id);
+  const queryKey = queryOptions?.queryKey ?? getGetCreativeQueryKey(id);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCampaign>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCreative>>> = ({
     signal,
-  }) => getCampaign(id, { signal, ...requestOptions });
+  }) => getCreative(id, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -1999,36 +1999,36 @@ export const getGetCampaignQueryOptions = <
     enabled: !!id,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCampaign>>,
+    Awaited<ReturnType<typeof getCreative>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type GetCampaignQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCampaign>>
+export type GetCreativeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCreative>>
 >;
-export type GetCampaignQueryError = ErrorType<unknown>;
+export type GetCreativeQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get a campaign
+ * @summary Get a creative
  */
 
-export function useGetCampaign<
-  TData = Awaited<ReturnType<typeof getCampaign>>,
+export function useGetCreative<
+  TData = Awaited<ReturnType<typeof getCreative>>,
   TError = ErrorType<unknown>,
 >(
   id: string,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof getCampaign>>,
+      Awaited<ReturnType<typeof getCreative>>,
       TError,
       TData
     >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCampaignQueryOptions(id, options);
+  const queryOptions = getGetCreativeQueryOptions(id, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2038,43 +2038,43 @@ export function useGetCampaign<
 }
 
 /**
- * @summary Update a campaign
+ * @summary Update a creative
  */
-export const getUpdateCampaignUrl = (id: string) => {
-  return `/api/campaigns/${id}`;
+export const getUpdateCreativeUrl = (id: string) => {
+  return `/api/creatives/${id}`;
 };
 
-export const updateCampaign = async (
+export const updateCreative = async (
   id: string,
-  updateCampaignInput: UpdateCampaignInput,
+  updateCreativeInput: UpdateCreativeInput,
   options?: RequestInit,
-): Promise<Campaign> => {
-  return customFetch<Campaign>(getUpdateCampaignUrl(id), {
+): Promise<Creative> => {
+  return customFetch<Creative>(getUpdateCreativeUrl(id), {
     ...options,
     method: "PUT",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(updateCampaignInput),
+    body: JSON.stringify(updateCreativeInput),
   });
 };
 
-export const getUpdateCampaignMutationOptions = <
+export const getUpdateCreativeMutationOptions = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCampaign>>,
+    Awaited<ReturnType<typeof updateCreative>>,
     TError,
-    { id: string; data: BodyType<UpdateCampaignInput> },
+    { id: string; data: BodyType<UpdateCreativeInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCampaign>>,
+  Awaited<ReturnType<typeof updateCreative>>,
   TError,
-  { id: string; data: BodyType<UpdateCampaignInput> },
+  { id: string; data: BodyType<UpdateCreativeInput> },
   TContext
 > => {
-  const mutationKey = ["updateCampaign"];
+  const mutationKey = ["updateCreative"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -2084,44 +2084,44 @@ export const getUpdateCampaignMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCampaign>>,
-    { id: string; data: BodyType<UpdateCampaignInput> }
+    Awaited<ReturnType<typeof updateCreative>>,
+    { id: string; data: BodyType<UpdateCreativeInput> }
   > = (props) => {
     const { id, data } = props ?? {};
 
-    return updateCampaign(id, data, requestOptions);
+    return updateCreative(id, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCampaignMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCampaign>>
+export type UpdateCreativeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCreative>>
 >;
-export type UpdateCampaignMutationBody = BodyType<UpdateCampaignInput>;
-export type UpdateCampaignMutationError = ErrorType<unknown>;
+export type UpdateCreativeMutationBody = BodyType<UpdateCreativeInput>;
+export type UpdateCreativeMutationError = ErrorType<unknown>;
 
 /**
- * @summary Update a campaign
+ * @summary Update a creative
  */
-export const useUpdateCampaign = <
+export const useUpdateCreative = <
   TError = ErrorType<unknown>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCampaign>>,
+    Awaited<ReturnType<typeof updateCreative>>,
     TError,
-    { id: string; data: BodyType<UpdateCampaignInput> },
+    { id: string; data: BodyType<UpdateCreativeInput> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof updateCampaign>>,
+  Awaited<ReturnType<typeof updateCreative>>,
   TError,
-  { id: string; data: BodyType<UpdateCampaignInput> },
+  { id: string; data: BodyType<UpdateCreativeInput> },
   TContext
 > => {
-  return useMutation(getUpdateCampaignMutationOptions(options));
+  return useMutation(getUpdateCreativeMutationOptions(options));
 };
 
 /**
@@ -2998,10 +2998,10 @@ export const useUpdateTemplateRecommendation = <
 };
 
 /**
- * @summary Generate video variants for a campaign (SSE)
+ * @summary Generate video variants for a creative (SSE)
  */
 export const getGenerateVideoUrl = (id: string) => {
-  return `/api/campaigns/${id}/generate-video`;
+  return `/api/creatives/${id}/generate-video`;
 };
 
 export const generateVideo = async (
@@ -3062,7 +3062,7 @@ export type GenerateVideoMutationBody = BodyType<GenerateVideoBody>;
 export type GenerateVideoMutationError = ErrorType<unknown>;
 
 /**
- * @summary Generate video variants for a campaign (SSE)
+ * @summary Generate video variants for a creative (SSE)
  */
 export const useGenerateVideo = <
   TError = ErrorType<unknown>,
@@ -3088,7 +3088,7 @@ export const useGenerateVideo = <
  * @summary Generate and merge AI audio onto a video variant
  */
 export const getAddVariantAudioUrl = (id: string, variantId: string) => {
-  return `/api/campaigns/${id}/variants/${variantId}/audio`;
+  return `/api/creatives/${id}/variants/${variantId}/audio`;
 };
 
 export const addVariantAudio = async (
@@ -3096,8 +3096,8 @@ export const addVariantAudio = async (
   variantId: string,
   audioGenerateInput: AudioGenerateInput,
   options?: RequestInit,
-): Promise<CampaignVariant> => {
-  return customFetch<CampaignVariant>(getAddVariantAudioUrl(id, variantId), {
+): Promise<CreativeVariant> => {
+  return customFetch<CreativeVariant>(getAddVariantAudioUrl(id, variantId), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -3176,7 +3176,7 @@ export const useAddVariantAudio = <
  * @summary Upload custom audio and merge onto a video variant
  */
 export const getUploadVariantAudioUrl = (id: string, variantId: string) => {
-  return `/api/campaigns/${id}/variants/${variantId}/audio-upload`;
+  return `/api/creatives/${id}/variants/${variantId}/audio-upload`;
 };
 
 export const uploadVariantAudio = async (
@@ -3184,14 +3184,14 @@ export const uploadVariantAudio = async (
   variantId: string,
   uploadVariantAudioBody: UploadVariantAudioBody,
   options?: RequestInit,
-): Promise<CampaignVariant> => {
+): Promise<CreativeVariant> => {
   const formData = new FormData();
   formData.append(`audio`, uploadVariantAudioBody.audio);
   if (uploadVariantAudioBody.mode !== undefined) {
     formData.append(`mode`, uploadVariantAudioBody.mode);
   }
 
-  return customFetch<CampaignVariant>(getUploadVariantAudioUrl(id, variantId), {
+  return customFetch<CreativeVariant>(getUploadVariantAudioUrl(id, variantId), {
     ...options,
     method: "POST",
     body: formData,

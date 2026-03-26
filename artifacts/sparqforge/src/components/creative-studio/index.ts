@@ -1,4 +1,4 @@
-export * from "./campaign-studio.types";
+export * from "./creative-studio.types";
 export { VariantCard } from "./VariantCard";
 export type { VariantCardProps } from "./VariantCard";
 export { HashtagSetDialog } from "./HashtagSetDialog";
@@ -11,6 +11,6 @@ export { ActivityPanel } from "./ActivityPanel";
 export type { ActivityPanelProps } from "./ActivityPanel";
 export { VariantGrid } from "./VariantGrid";
 export type { VariantGridProps } from "./VariantGrid";
-export { CampaignConfigPanel } from "./CampaignConfigPanel";
-export type { CampaignConfigPanelProps } from "./CampaignConfigPanel";
-export { CampaignStudioSkeleton } from "./CampaignStudioSkeleton";
+export { CreativeConfigPanel } from "./CreativeConfigPanel";
+export type { CreativeConfigPanelProps } from "./CreativeConfigPanel";
+export { CreativeStudioSkeleton } from "./CreativeStudioSkeleton";

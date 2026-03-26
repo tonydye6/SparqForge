@@ -49,14 +49,14 @@ function hasConflict(a: Asset, b: Asset): boolean {
 }
 
 export async function buildGenerationPacket(params: {
-  campaignId: string;
+  creativeId: string;
   brandId: string;
   templateId: string;
   platform: string;
   selectedAssetIds: string[];
   franchise?: string;
 }): Promise<GenerationPacket> {
-  const { campaignId, brandId, templateId, platform, selectedAssetIds, franchise } = params;
+  const { creativeId, brandId, templateId, platform, selectedAssetIds, franchise } = params;
 
   let assets: Asset[] = [];
   if (selectedAssetIds.length > 0) {
@@ -184,7 +184,7 @@ export async function buildGenerationPacket(params: {
 
   try {
     await db.insert(generationPacketLogsTable).values({
-      campaignId,
+      creativeId,
       platform,
       templateId,
       packetType: generationAssets.length > 0 ? "reference_guided" : "text_only",

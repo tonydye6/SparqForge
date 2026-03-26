@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, ilike, or, inArray, desc, sql, arrayContains } from "drizzle-orm";
-import { db, assetsTable, campaignsTable } from "@workspace/db";
+import { db, assetsTable, creativesTable } from "@workspace/db";
 import {
   GetAssetsQueryParams,
   CreateAssetBody,
@@ -317,14 +317,14 @@ router.get("/assets/:id/usage", async (req, res): Promise<void> => {
 
   const usedIn = await db
     .select({
-      id: campaignsTable.id,
-      name: campaignsTable.name,
-      status: campaignsTable.status,
-      createdAt: campaignsTable.createdAt,
+      id: creativesTable.id,
+      name: creativesTable.name,
+      status: creativesTable.status,
+      createdAt: creativesTable.createdAt,
     })
-    .from(campaignsTable)
-    .where(sql`${campaignsTable.selectedAssets}::jsonb @> ${JSON.stringify([{ assetId }])}::jsonb`)
-    .orderBy(campaignsTable.createdAt);
+    .from(creativesTable)
+    .where(sql`${creativesTable.selectedAssets}::jsonb @> ${JSON.stringify([{ assetId }])}::jsonb`)
+    .orderBy(creativesTable.createdAt);
 
   res.json(usedIn);
 });

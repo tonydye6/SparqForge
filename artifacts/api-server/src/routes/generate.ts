@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { eq, and, inArray } from "drizzle-orm";
-import { db, campaignsTable, campaignVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable, assetsTable, assetPairingsTable, brandsTable, generationPacketLogsTable } from "@workspace/db";
+import { db, creativesTable, creativeVariantsTable, costLogsTable, refinementLogsTable, templatesTable, appSettingsTable, assetsTable, assetPairingsTable, brandsTable, generationPacketLogsTable } from "@workspace/db";
 import { sql, gte } from "drizzle-orm";
 import { assembleContext, type SelectedAssetRef } from "../services/context-assembly.js";
 import { generateCaptions } from "../services/claude.js";
@@ -20,7 +20,7 @@ interface AuthenticatedUser {
   [key: string]: unknown;
 }
 
-const CampaignVariantParams = z.object({
+const CreativeVariantParams = z.object({
   id: z.string().min(1),
   variantId: z.string().min(1),
 });
@@ -131,17 +131,17 @@ async function buildReferenceImages(packet: Awaited<ReturnType<typeof buildGener
   return refs;
 }
 
-router.post("/campaigns/:id/generate", async (req: Request, res: Response): Promise<void> => {
-  const campaignId = req.params.id;
+router.post("/creatives/:id/generate", async (req: Request, res: Response): Promise<void> => {
+  const creativeId = req.params.id;
 
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  const [campaign] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: "Creative not found" });
     return;
   }
 
   if (!campaign.templateId) {
-    res.status(400).json({ error: "Campaign must have a template selected" });
+    res.status(400).json({ error: "Creative must have a template selected" });
     return;
   }
 
@@ -202,7 +202,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
 
       await tx.insert(costLogsTable).values({
         id: reservationId,
-        campaignId,
+        creativeId,
         service: "system",
         operation: "budget_reservation",
         model: null,
@@ -239,9 +239,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
 
   let tmpDir: string | null = null;
   try {
-    await db.update(campaignsTable)
+    await db.update(creativesTable)
       .set({ status: "generating", updatedAt: new Date() })
-      .where(eq(campaignsTable.id, campaignId));
+      .where(eq(creativesTable.id, creativeId));
     sendEvent("status", { status: "generating", message: "Starting generation..." });
 
     sendEvent("progress", { step: "packet", message: "Building generation packet..." });
@@ -251,7 +251,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
 
     if (selectedAssetIds.length > 0) {
       packet = await buildGenerationPacket({
-        campaignId,
+        creativeId,
         brandId: campaign.brandId,
         templateId: campaign.templateId,
         platform: "all",
@@ -327,7 +327,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
 
     ensureDir(UPLOADS_DIR);
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sparqforge-gen-${campaignId}-`));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sparqforge-gen-${creativeId}-`));
     const stagedFiles: Array<{ tmpPath: string; finalPath: string }> = [];
 
     const variantRecords = [];
@@ -337,7 +337,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       const captionData = captions[platformKey] || { caption: "", headline: "" };
       const config = PLATFORM_CONFIGS[img.platform];
 
-      const rawFilename = `${campaignId}_${img.platform}_raw.png`;
+      const rawFilename = `${creativeId}_${img.platform}_raw.png`;
       const rawTmpPath = path.join(tmpDir, rawFilename);
       fs.writeFileSync(rawTmpPath, img.imageBuffer);
       stagedFiles.push({ tmpPath: rawTmpPath, finalPath: path.join(UPLOADS_DIR, rawFilename) });
@@ -374,7 +374,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       if (packet && referenceImages.length > 0) {
         try {
           await db.insert(generationPacketLogsTable).values({
-            campaignId,
+            creativeId,
             platform: img.platform,
             templateId: campaign.templateId,
             packetType: "reference_guided",
@@ -391,13 +391,13 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         }
       }
 
-      const compFilename = `${campaignId}_${img.platform}_composited.png`;
+      const compFilename = `${creativeId}_${img.platform}_composited.png`;
       const compTmpPath = path.join(tmpDir, compFilename);
       fs.writeFileSync(compTmpPath, compositedBuffer);
       stagedFiles.push({ tmpPath: compTmpPath, finalPath: path.join(UPLOADS_DIR, compFilename) });
 
       variantRecords.push({
-        campaignId,
+        creativeId,
         platform: img.platform,
         aspectRatio: img.aspectRatio,
         rawImageUrl: `/api/files/generated/${rawFilename}`,
@@ -425,23 +425,23 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     const totalCost = estimateClaudeCost() + estimateImagenCost(images.length);
 
     const insertedVariants = await db.transaction(async (tx) => {
-      const existingVariants = await tx.select().from(campaignVariantsTable)
-        .where(eq(campaignVariantsTable.campaignId, campaignId));
+      const existingVariants = await tx.select().from(creativeVariantsTable)
+        .where(eq(creativeVariantsTable.creativeId, creativeId));
 
       if (existingVariants.length > 0) {
-        await tx.delete(campaignVariantsTable)
-          .where(eq(campaignVariantsTable.campaignId, campaignId));
+        await tx.delete(creativeVariantsTable)
+          .where(eq(creativeVariantsTable.creativeId, creativeId));
       }
 
       const inserted = [];
       for (const record of variantRecords) {
-        const [row] = await tx.insert(campaignVariantsTable).values(record).returning();
+        const [row] = await tx.insert(creativeVariantsTable).values(record).returning();
         inserted.push(row);
       }
 
-      await tx.update(campaignsTable)
+      await tx.update(creativesTable)
         .set({ status: "draft", estimatedCost: totalCost, updatedAt: new Date() })
-        .where(eq(campaignsTable.id, campaignId));
+        .where(eq(creativesTable.id, creativeId));
 
       if (campaign.templateId) {
         await tx.update(templatesTable)
@@ -455,14 +455,14 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
       }
 
       await tx.insert(costLogsTable).values({
-        campaignId,
+        creativeId,
         service: "anthropic",
         operation: "caption_generation",
         model: AI_MODELS.CLAUDE_SONNET,
         costUsd: estimateClaudeCost(),
       });
       await tx.insert(costLogsTable).values({
-        campaignId,
+        creativeId,
         service: "gemini",
         operation: "image_generation",
         model: AI_MODELS.GEMINI_FLASH_IMAGE,
@@ -486,9 +486,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
     if (failedCopies.length > 0) {
       sendEvent("compositing_warning", { message: `${failedCopies.length} file(s) could not be saved to disk. Some variants may show broken images.` });
       for (const v of insertedVariants) {
-        await db.update(campaignVariantsTable)
+        await db.update(creativeVariantsTable)
           .set({ compositingFailed: "File promotion failed. Please regenerate this variant." })
-          .where(eq(campaignVariantsTable.id, v.id));
+          .where(eq(creativeVariantsTable.id, v.id));
       }
     }
 
@@ -498,7 +498,7 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
         for (let i = 1; i < packet.generationAssets.length; i++) {
           const secondary = packet.generationAssets[i];
           await db.insert(assetPairingsTable).values({
-            campaignId,
+            creativeId,
             primaryAssetId: primary.asset.id,
             secondaryAssetId: secondary.asset.id,
             templateId: campaign.templateId,
@@ -522,9 +522,9 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     sendEvent("error", { message: `Generation failed: ${message}` });
-    await db.update(campaignsTable)
+    await db.update(creativesTable)
       .set({ status: "draft", updatedAt: new Date() })
-      .where(eq(campaignsTable.id, campaignId));
+      .where(eq(creativesTable.id, creativeId));
     if (reservationId) {
       try {
         await db.delete(costLogsTable)
@@ -541,27 +541,27 @@ router.post("/campaigns/:id/generate", async (req: Request, res: Response): Prom
   }
 });
 
-router.put("/campaigns/:id/variants/:variantId/caption", validateRequest({ params: CampaignVariantParams, body: UpdateCaptionBody }), async (req: Request, res: Response): Promise<void> => {
-  const { id: campaignId, variantId } = req.params;
+router.put("/creatives/:id/variants/:variantId/caption", validateRequest({ params: CreativeVariantParams, body: UpdateCaptionBody }), async (req: Request, res: Response): Promise<void> => {
+  const { id: creativeId, variantId } = req.params;
   const { caption } = req.body;
 
-  const [variant] = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.id, variantId));
-  if (!variant || variant.campaignId !== campaignId) {
+  const [variant] = await db.select().from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.id, variantId));
+  if (!variant || variant.creativeId !== creativeId) {
     res.status(404).json({ error: "Variant not found" });
     return;
   }
 
-  const [updated] = await db.update(campaignVariantsTable)
+  const [updated] = await db.update(creativeVariantsTable)
     .set({ caption, updatedAt: new Date() })
-    .where(eq(campaignVariantsTable.id, variantId))
+    .where(eq(creativeVariantsTable.id, variantId))
     .returning();
 
   if (variant.originalCaption && caption !== variant.originalCaption) {
-    const [camp] = await db.select({ templateId: campaignsTable.templateId }).from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+    const [camp] = await db.select({ templateId: creativesTable.templateId }).from(creativesTable).where(eq(creativesTable.id, creativeId));
     if (camp?.templateId) {
       await db.insert(refinementLogsTable).values({
-        campaignId,
+        creativeId,
         templateId: camp.templateId,
         editType: "caption_edit",
         platform: variant.platform,
@@ -576,20 +576,20 @@ router.put("/campaigns/:id/variants/:variantId/caption", validateRequest({ param
   res.json(updated);
 });
 
-router.put("/campaigns/:id/variants/:variantId/headline", validateRequest({ params: CampaignVariantParams, body: UpdateHeadlineBody }), async (req: Request, res: Response): Promise<void> => {
-  const { id: campaignId, variantId } = req.params;
+router.put("/creatives/:id/variants/:variantId/headline", validateRequest({ params: CreativeVariantParams, body: UpdateHeadlineBody }), async (req: Request, res: Response): Promise<void> => {
+  const { id: creativeId, variantId } = req.params;
   const { headline } = req.body;
 
-  const [variant] = await db.select().from(campaignVariantsTable)
-    .where(eq(campaignVariantsTable.id, variantId));
-  if (!variant || variant.campaignId !== campaignId) {
+  const [variant] = await db.select().from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.id, variantId));
+  if (!variant || variant.creativeId !== creativeId) {
     res.status(404).json({ error: "Variant not found" });
     return;
   }
 
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  const [campaign] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
   if (!campaign || !campaign.templateId) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: "Creative not found" });
     return;
   }
 
@@ -627,7 +627,7 @@ router.put("/campaigns/:id/variants/:variantId/headline", validateRequest({ para
           fontFamily,
         });
 
-        const compFilename = `${campaignId}_${variant.platform}_composited.png`;
+        const compFilename = `${creativeId}_${variant.platform}_composited.png`;
         const compPath = path.join(UPLOADS_DIR, compFilename);
         fs.writeFileSync(compPath, newResult.buffer);
         compositedUrl = `/api/files/generated/${compFilename}`;
@@ -637,14 +637,14 @@ router.put("/campaigns/:id/variants/:variantId/headline", validateRequest({ para
     }
   }
 
-  const [updated] = await db.update(campaignVariantsTable)
+  const [updated] = await db.update(creativeVariantsTable)
     .set({ headlineText: headline, compositedImageUrl: compositedUrl, updatedAt: new Date() })
-    .where(eq(campaignVariantsTable.id, variantId))
+    .where(eq(creativeVariantsTable.id, variantId))
     .returning();
 
   if (variant.originalHeadline && headline !== variant.originalHeadline) {
     await db.insert(refinementLogsTable).values({
-      campaignId,
+      creativeId,
       templateId: campaign.templateId,
       editType: "headline_edit",
       platform: variant.platform,
@@ -658,22 +658,22 @@ router.put("/campaigns/:id/variants/:variantId/headline", validateRequest({ para
   res.json(updated);
 });
 
-router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request, res: Response): Promise<void> => {
-  const { id: campaignId, variantId } = req.params;
+router.post("/creatives/:id/variants/:variantId/regenerate", async (req: Request, res: Response): Promise<void> => {
+  const { id: creativeId, variantId } = req.params;
   const { instruction } = req.body || {};
 
-  const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
+  const [campaign] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    res.status(404).json({ error: "Creative not found" });
     return;
   }
   if (!campaign.templateId) {
-    res.status(400).json({ error: "Campaign must have a template" });
+    res.status(400).json({ error: "Creative must have a template" });
     return;
   }
 
-  const [variant] = await db.select().from(campaignVariantsTable).where(eq(campaignVariantsTable.id, variantId));
-  if (!variant || variant.campaignId !== campaignId) {
+  const [variant] = await db.select().from(creativeVariantsTable).where(eq(creativeVariantsTable.id, variantId));
+  if (!variant || variant.creativeId !== creativeId) {
     res.status(404).json({ error: "Variant not found" });
     return;
   }
@@ -694,7 +694,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
     if (selectedAssetIds.length > 0) {
       packet = await buildGenerationPacket({
-        campaignId,
+        creativeId,
         brandId: campaign.brandId,
         templateId: campaign.templateId,
         platform: variant.platform,
@@ -721,7 +721,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
     regenTmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "sparq-regen-"));
     const ts = Date.now();
-    const rawFilename = `${campaignId}_${variant.platform}_${ts}_raw.png`;
+    const rawFilename = `${creativeId}_${variant.platform}_${ts}_raw.png`;
     const rawTmpPath = path.join(regenTmpDir, rawFilename);
     fs.writeFileSync(rawTmpPath, imgResult.imageBuffer);
 
@@ -750,7 +750,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
       compositingFailed = true;
     }
 
-    const compFilename = `${campaignId}_${variant.platform}_${ts}_composited.png`;
+    const compFilename = `${creativeId}_${variant.platform}_${ts}_composited.png`;
     const compTmpPath = path.join(regenTmpDir, compFilename);
     fs.writeFileSync(compTmpPath, compositedBuffer);
 
@@ -769,19 +769,19 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
     let updated;
     try {
       [updated] = await db.transaction(async (tx) => {
-        const [result] = await tx.update(campaignVariantsTable)
+        const [result] = await tx.update(creativeVariantsTable)
           .set({
             rawImageUrl: `/api/files/generated/${rawFilename}`,
             compositedImageUrl: `/api/files/generated/${compFilename}`,
             compositingFailed: compositingFailed ? `Compositing failed during regeneration for ${variant.platform}. Using raw image as fallback.` : null,
             updatedAt: new Date(),
           })
-          .where(eq(campaignVariantsTable.id, variantId))
+          .where(eq(creativeVariantsTable.id, variantId))
           .returning();
 
         const cost = estimateImagenCost(1);
         await tx.insert(costLogsTable).values({
-          campaignId,
+          creativeId,
           service: "gemini",
           operation: "single_variant_regeneration",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
@@ -790,7 +790,7 @@ router.post("/campaigns/:id/variants/:variantId/regenerate", async (req: Request
 
         if (campaign.templateId) {
           await tx.insert(refinementLogsTable).values({
-            campaignId,
+            creativeId,
             templateId: campaign.templateId,
             editType: "image_refinement",
             platform: variant.platform,

@@ -6,9 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CampaignVariant {
+export interface CreativeVariant {
   id: string;
-  campaignId: string;
+  creativeId: string;
   platform: string;
   aspectRatio: string;
   rawImageUrl?: string | null;

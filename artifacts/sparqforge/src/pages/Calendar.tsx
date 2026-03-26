@@ -16,7 +16,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 interface CalendarEntry {
   id: string;
-  campaignId: string;
+  creativeId: string;
   variantId: string;
   platform: string;
   socialAccountId?: string | null;
@@ -25,7 +25,7 @@ interface CalendarEntry {
   publishStatus: string;
   publishError?: string | null;
   retryCount?: number;
-  campaignName: string;
+  creativeName: string;
   brandId: string;
   brandName: string;
   brandColor: string;
@@ -207,7 +207,7 @@ export default function Calendar() {
       didTouchDragRef.current = false;
       return;
     }
-    setLocation(`/?campaign=${entry.campaignId}`);
+    setLocation(`/?campaign=${entry.creativeId}`);
   };
 
   const handlePublishNow = async (e: React.MouseEvent, entryId: string) => {
@@ -402,7 +402,7 @@ export default function Calendar() {
     ghost.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
     ghost.style.transform = "translate(-50%, -50%)";
     const pl = PLATFORM_LABELS[entry.platform] || { label: entry.platform };
-    ghost.textContent = `${pl.label}: ${entry.campaignName?.slice(0, 15) || "Untitled"}`;
+    ghost.textContent = `${pl.label}: ${entry.creativeName?.slice(0, 15) || "Untitled"}`;
     document.body.appendChild(ghost);
     return ghost;
   }, []);
@@ -566,7 +566,7 @@ export default function Calendar() {
                 }}
               >
                 <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
-                <span className="truncate" style={{ color: entry.brandColor }}>{entry.campaignName?.slice(0, 12) || "Untitled"}</span>
+                <span className="truncate" style={{ color: entry.brandColor }}>{entry.creativeName?.slice(0, 12) || "Untitled"}</span>
                 <span className="hidden sm:inline">{renderStatusBadge(entry)}</span>
                 <span className="text-muted-foreground ml-auto shrink-0">{time}</span>
                 {canPublish && (
@@ -633,7 +633,7 @@ export default function Calendar() {
                   {renderStatusBadge(entry)}
                 </div>
                 <p className="text-xs font-medium truncate" style={{ color: entry.brandColor }}>
-                  {entry.campaignName || "Untitled"}
+                  {entry.creativeName || "Untitled"}
                 </p>
                 <div className="flex items-center gap-1 mt-0.5">
                   <Clock size={9} className="text-muted-foreground" />
@@ -711,7 +711,7 @@ export default function Calendar() {
       >
         <div className="flex items-center gap-0.5 sm:gap-1">
           <PlatformIcon platform={pl.icon} className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-70 shrink-0" />
-          <span className="truncate" style={{ color: entry.brandColor }}>{entry.campaignName?.slice(0, 10) || "Untitled"}</span>
+          <span className="truncate" style={{ color: entry.brandColor }}>{entry.creativeName?.slice(0, 10) || "Untitled"}</span>
         </div>
         <div className="flex items-center gap-0.5 mt-0.5">
           <span className="text-muted-foreground text-[8px] sm:text-[9px]">{time}</span>
@@ -953,7 +953,7 @@ export default function Calendar() {
           <EmptyState
             icon={CalendarPlus}
             title="Calendar is empty"
-            description="Schedule campaigns to see them here"
+            description="Schedule creatives to see them here"
           />
         </div>
       )}

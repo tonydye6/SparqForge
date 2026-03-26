@@ -97,7 +97,7 @@ export const WIZARD_STEPS: WizardStepConfig[] = [
   {
     id: "upload-asset",
     label: "Upload Assets",
-    description: "Add visual assets for your first campaign",
+    description: "Add visual assets for your first creative",
     skipMessage: "No approved visuals available for generation",
     required: false,
     readinessKey: "approvedAssets",

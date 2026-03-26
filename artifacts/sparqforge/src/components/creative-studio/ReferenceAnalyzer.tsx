@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Search, Loader2, Check, AlertCircle, Link, Upload, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { API_BASE } from "./campaign-studio.types";
+import { API_BASE } from "./creative-studio.types";
 
 export interface ReferenceAnalyzerProps {
   referenceUrl: string;

@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { db, calendarEntriesTable, campaignsTable, campaignVariantsTable, brandsTable, socialAccountsTable } from "@workspace/db";
+import { db, calendarEntriesTable, creativesTable, creativeVariantsTable, brandsTable, socialAccountsTable } from "@workspace/db";
 import { publishEntry } from "../services/publish-scheduler";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
 
 const CreateCalendarEntryBody = z.object({
-  campaignId: z.string().min(1),
+  creativeId: z.string().min(1),
   variantId: z.string().min(1),
   platform: z.string().min(1),
   scheduledAt: z.string().min(1),
@@ -29,7 +29,7 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
   let query = db
     .select({
       id: calendarEntriesTable.id,
-      campaignId: calendarEntriesTable.campaignId,
+      creativeId: calendarEntriesTable.creativeId,
       variantId: calendarEntriesTable.variantId,
       platform: calendarEntriesTable.platform,
       socialAccountId: calendarEntriesTable.socialAccountId,
@@ -38,24 +38,24 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
       publishStatus: calendarEntriesTable.publishStatus,
       publishError: calendarEntriesTable.publishError,
       retryCount: calendarEntriesTable.retryCount,
-      campaignName: campaignsTable.name,
-      brandId: campaignsTable.brandId,
+      creativeName: creativesTable.name,
+      brandId: creativesTable.brandId,
       brandName: brandsTable.name,
       brandColor: brandsTable.colorPrimary,
-      caption: campaignVariantsTable.caption,
-      aspectRatio: campaignVariantsTable.aspectRatio,
-      compositedImageUrl: campaignVariantsTable.compositedImageUrl,
+      caption: creativeVariantsTable.caption,
+      aspectRatio: creativeVariantsTable.aspectRatio,
+      compositedImageUrl: creativeVariantsTable.compositedImageUrl,
     })
     .from(calendarEntriesTable)
-    .innerJoin(campaignsTable, eq(calendarEntriesTable.campaignId, campaignsTable.id))
-    .innerJoin(brandsTable, eq(campaignsTable.brandId, brandsTable.id))
-    .innerJoin(campaignVariantsTable, eq(calendarEntriesTable.variantId, campaignVariantsTable.id))
+    .innerJoin(creativesTable, eq(calendarEntriesTable.creativeId, creativesTable.id))
+    .innerJoin(brandsTable, eq(creativesTable.brandId, brandsTable.id))
+    .innerJoin(creativeVariantsTable, eq(calendarEntriesTable.variantId, creativeVariantsTable.id))
     .$dynamic();
 
   const conditions = [];
   if (start) conditions.push(gte(calendarEntriesTable.scheduledAt, new Date(start)));
   if (end) conditions.push(lte(calendarEntriesTable.scheduledAt, new Date(end)));
-  if (brandId) conditions.push(eq(campaignsTable.brandId, brandId));
+  if (brandId) conditions.push(eq(creativesTable.brandId, brandId));
 
   if (conditions.length > 0) {
     query = query.where(and(...conditions));
@@ -69,10 +69,10 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
 });
 
 router.post("/calendar-entries", validateRequest({ body: CreateCalendarEntryBody }), async (req, res): Promise<void> => {
-  const { campaignId, variantId, platform, scheduledAt, socialAccountId } = req.body;
+  const { creativeId, variantId, platform, scheduledAt, socialAccountId } = req.body;
 
   const [entry] = await db.insert(calendarEntriesTable).values({
-    campaignId,
+    creativeId,
     variantId,
     platform,
     scheduledAt: new Date(scheduledAt),
@@ -193,7 +193,7 @@ router.delete("/calendar-entries/:id", validateRequest({ params: IdParams }), as
 const BatchScheduleBodySchema = z.object({
   entries: z.array(
     z.object({
-      campaignId: z.string(),
+      creativeId: z.string(),
       scheduledAt: z.string(),
       socialAccounts: z.record(z.string(), z.string()).optional(),
     })
@@ -210,37 +210,37 @@ router.post("/calendar-entries/batch", async (req, res): Promise<void> => {
   const { entries } = parseResult.data;
 
   // Validate all campaigns exist and are approved
-  const campaignIds = entries.map((e) => e.campaignId);
+  const creativeIds = entries.map((e) => e.creativeId);
   const campaigns = await db
     .select()
-    .from(campaignsTable)
-    .where(sql`${campaignsTable.id} = ANY(${campaignIds})`);
+    .from(creativesTable)
+    .where(sql`${creativesTable.id} = ANY(${creativeIds})`);
 
-  const campaignMap = new Map(campaigns.map((c) => [c.id, c]));
+  const creativeMap = new Map(campaigns.map((c) => [c.id, c]));
 
   for (const entry of entries) {
-    const campaign = campaignMap.get(entry.campaignId);
+    const campaign = creativeMap.get(entry.creativeId);
     if (!campaign) {
-      res.status(400).json({ error: "Campaign not found" });
+      res.status(400).json({ error: "Creative not found" });
       return;
     }
     if (campaign.status !== "approved") {
       res.status(400).json({
-        error: "Campaign is not approved",
+        error: "Creative is not approved",
       });
       return;
     }
   }
 
   const created: (typeof calendarEntriesTable.$inferSelect)[] = [];
-  const campaignsScheduled: string[] = [];
+  const creativesScheduled: string[] = [];
 
   await db.transaction(async (tx) => {
     for (const entry of entries) {
       const variants = await tx
         .select()
-        .from(campaignVariantsTable)
-        .where(eq(campaignVariantsTable.campaignId, entry.campaignId));
+        .from(creativeVariantsTable)
+        .where(eq(creativeVariantsTable.creativeId, entry.creativeId));
 
       for (const variant of variants) {
         const socialAccountId = entry.socialAccounts?.[variant.platform] ?? null;
@@ -248,7 +248,7 @@ router.post("/calendar-entries/batch", async (req, res): Promise<void> => {
         const [calEntry] = await tx
           .insert(calendarEntriesTable)
           .values({
-            campaignId: entry.campaignId,
+            creativeId: entry.creativeId,
             variantId: variant.id,
             platform: variant.platform,
             scheduledAt: new Date(entry.scheduledAt),
@@ -260,15 +260,15 @@ router.post("/calendar-entries/batch", async (req, res): Promise<void> => {
       }
 
       await tx
-        .update(campaignsTable)
+        .update(creativesTable)
         .set({ status: "scheduled", updatedAt: new Date() })
-        .where(eq(campaignsTable.id, entry.campaignId));
+        .where(eq(creativesTable.id, entry.creativeId));
 
-      campaignsScheduled.push(entry.campaignId);
+      creativesScheduled.push(entry.creativeId);
     }
   });
 
-  res.status(201).json({ created, campaignsScheduled });
+  res.status(201).json({ created, creativesScheduled });
 });
 
 export default router;

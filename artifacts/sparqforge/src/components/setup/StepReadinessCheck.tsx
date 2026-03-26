@@ -81,7 +81,7 @@ export default function StepReadinessCheck({
 
           <Button asChild size="lg" className="mt-2">
             <Link to="/">
-              Open Campaign Studio
+              Open Creative Studio
               <ArrowRight className="w-4 h-4 ml-1" />
             </Link>
           </Button>

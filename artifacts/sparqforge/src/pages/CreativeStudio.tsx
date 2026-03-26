@@ -1,29 +1,29 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { VariantGrid } from "@/components/campaign-studio/VariantGrid";
-import { CampaignConfigPanel } from "@/components/campaign-studio/CampaignConfigPanel";
+import { VariantGrid } from "@/components/creative-studio/VariantGrid";
+import { CreativeConfigPanel } from "@/components/creative-studio/CreativeConfigPanel";
 import {
   useGetBrands,
   useGetTemplates,
   useGetAssets,
-  useCreateCampaign,
+  useCreateCreative,
   type Asset
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
 import { useSearch } from "wouter";
-import { HashtagSetDialog } from "@/components/campaign-studio/HashtagSetDialog";
-import { AudioSettingsDialog } from "@/components/campaign-studio/AudioSettingsDialog";
-import { ActivityPanel } from "@/components/campaign-studio/ActivityPanel";
-import { CampaignStudioSkeleton } from "@/components/campaign-studio/CampaignStudioSkeleton";
+import { HashtagSetDialog } from "@/components/creative-studio/HashtagSetDialog";
+import { AudioSettingsDialog } from "@/components/creative-studio/AudioSettingsDialog";
+import { ActivityPanel } from "@/components/creative-studio/ActivityPanel";
+import { CreativeStudioSkeleton } from "@/components/creative-studio/CreativeStudioSkeleton";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
-import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/campaign-studio/campaign-studio.types";
+import { GeneratedVariant, ActivityLog, DuplicateInfo, BudgetStatus, RewriteToolbarState, LoadingPhase, PLATFORM_LABELS, ALL_PLATFORM_KEYS, PLAN_PLATFORM_MAP, API_BASE } from "@/components/creative-studio/creative-studio.types";
 
-export default function CampaignStudio() {
+export default function CreativeStudio() {
   const { toast } = useToast();
   const searchString = useSearch();
   const params = new URLSearchParams(searchString);
   const remixId = params.get("remix");
-  const fromPlanCampaignId = params.get("campaign");
+  const fromPlanCreativeId = params.get("campaign");
   const fromPlanPlatform = params.get("platform");
   
   const { data: brands } = useGetBrands();
@@ -35,13 +35,13 @@ export default function CampaignStudio() {
   const { data: approvedAssets } = useGetAssets({ brandId: selectedBrand || undefined, status: "approved" }, { query: { enabled: !!selectedBrand } });
   const { data: briefs } = useGetAssets({ brandId: selectedBrand || undefined, type: "context" }, { query: { enabled: !!selectedBrand } });
 
-  const [campaignName, setCampaignName] = useState("");
+  const [creativeName, setCreativeName] = useState("");
   const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
   const [briefText, setBriefText] = useState("");
   const [refineText, setRefineText] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(ALL_PLATFORM_KEYS);
   
-  const [campaignId, setCampaignId] = useState<string | null>(null);
+  const [creativeId, setCreativeId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVariants, setGeneratedVariants] = useState<GeneratedVariant[]>([]);
   const [activityLog, setActivityLog] = useState<ActivityLog[]>([{ time: "Just now", text: "Studio session started", status: "done" }]);
@@ -155,30 +155,30 @@ export default function CampaignStudio() {
   const planLoadedRef = useRef(false);
   const loadingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
-  const createCampaignMutation = useCreateCampaign();
+  const createCreativeMutation = useCreateCreative();
 
   useEffect(() => {
     if (remixId && !remixLoadedRef.current) {
       remixLoadedRef.current = true;
-      loadRemixCampaign(remixId);
+      loadRemixCreative(remixId);
     }
   }, [remixId]);
 
   useEffect(() => {
-    if (fromPlanCampaignId && !planLoadedRef.current) {
+    if (fromPlanCreativeId && !planLoadedRef.current) {
       planLoadedRef.current = true;
-      loadPlanCampaign(fromPlanCampaignId);
+      loadPlanCreative(fromPlanCreativeId);
     }
-  }, [fromPlanCampaignId]);
+  }, [fromPlanCreativeId]);
 
-  const loadPlanCampaign = async (id: string) => {
+  const loadPlanCreative = async (id: string) => {
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${id}`);
+      const resp = await fetch(`${API_BASE}/api/creatives/${id}`);
       if (!resp.ok) return;
       const campaign = await resp.json();
 
-      setCampaignId(campaign.id);
-      setCampaignName(campaign.name || "");
+      setCreativeId(campaign.id);
+      setCreativeName(campaign.name || "");
       setSelectedBrand(campaign.brandId);
       if (campaign.templateId) setSelectedTemplate(campaign.templateId);
       setBriefText(campaign.briefText || "");
@@ -194,7 +194,7 @@ export default function CampaignStudio() {
       }
 
       try {
-        const variantsResp = await fetch(`${API_BASE}/api/campaigns/${id}/variants`);
+        const variantsResp = await fetch(`${API_BASE}/api/creatives/${id}/variants`);
         if (variantsResp.ok) {
           const variantsData = await variantsResp.json() as Array<Record<string, unknown>>;
           if (variantsData.length > 0) {
@@ -214,29 +214,29 @@ export default function CampaignStudio() {
           }
         }
       } catch {
-        toast({ variant: "destructive", title: "Could not load campaign variants" });
+        toast({ variant: "destructive", title: "Could not load creative variants" });
       }
 
       const platformNote = fromPlanPlatform ? ` (Primary platform: ${fromPlanPlatform})` : "";
       addLog(`Loaded from content plan: ${campaign.name}${platformNote}`, "done");
       toast({
-        title: "Campaign loaded from plan",
+        title: "Creative loaded from plan",
         description: fromPlanPlatform
           ? `Primary platform: ${fromPlanPlatform}. Configure and generate content.`
           : "Configure and generate content.",
       });
     } catch {
-      toast({ variant: "destructive", title: "Failed to load campaign from plan" });
+      toast({ variant: "destructive", title: "Failed to load creative from plan" });
     }
   };
 
-  const loadRemixCampaign = async (sourceId: string) => {
+  const loadRemixCreative = async (sourceId: string) => {
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${sourceId}`);
+      const resp = await fetch(`${API_BASE}/api/creatives/${sourceId}`);
       if (!resp.ok) return;
       const source = await resp.json();
 
-      setCampaignName(`${source.name} (Remix)`);
+      setCreativeName(`${source.name} (Remix)`);
       setSelectedBrand(source.brandId);
       setBriefText(source.briefText || "");
 
@@ -244,9 +244,9 @@ export default function CampaignStudio() {
       setSelectedAssets(assets.map((a: { assetId: string }) => a.assetId));
 
       addLog(`Remixing from: ${source.name}`, "done");
-      toast({ title: "Campaign loaded for remix", description: "Select a new template and generate." });
+      toast({ title: "Creative loaded for remix", description: "Select a new template and generate." });
     } catch {
-      toast({ variant: "destructive", title: "Failed to load source campaign" });
+      toast({ variant: "destructive", title: "Failed to load source creative" });
     }
   };
 
@@ -258,7 +258,7 @@ export default function CampaignStudio() {
 
     const checkDuplicate = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/campaigns/check-duplicate?templateId=${selectedTemplate}&primaryAssetId=${primaryAssetId}`);
+        const resp = await fetch(`${API_BASE}/api/creatives/check-duplicate?templateId=${selectedTemplate}&primaryAssetId=${primaryAssetId}`);
         if (resp.ok) {
           const data = await resp.json();
           setDuplicateInfo(data);
@@ -286,32 +286,32 @@ export default function CampaignStudio() {
     });
   }, []);
 
-  const ensureCampaignId = useCallback(async (): Promise<string | null> => {
-    if (campaignId) return campaignId;
+  const ensureCreativeId = useCallback(async (): Promise<string | null> => {
+    if (creativeId) return creativeId;
     if (!selectedBrand) return null;
 
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns`, {
+      const resp = await fetch(`${API_BASE}/api/creatives`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: campaignName || "Untitled Campaign",
+          name: creativeName || "Untitled Creative",
           brandId: selectedBrand,
           templateId: selectedTemplate || null,
           briefText,
           selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
-          sourceCampaignId: remixId || null,
+          sourceCreativeId: remixId || null,
           createdBy: "current_user",
         }),
       });
       if (!resp.ok) return null;
       const campaign = await resp.json();
-      setCampaignId(campaign.id);
+      setCreativeId(campaign.id);
       return campaign.id;
     } catch {
       return null;
     }
-  }, [campaignId, selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, remixId]);
+  }, [creativeId, selectedBrand, creativeName, selectedTemplate, briefText, selectedAssets, remixId]);
 
   const processSSEStream = useCallback(async (
     response: Response,
@@ -381,17 +381,17 @@ export default function CampaignStudio() {
     setReferenceStatus("capturing");
     setReferenceError("");
 
-    const cId = await ensureCampaignId();
+    const cId = await ensureCreativeId();
     if (!cId) {
       setReferenceStatus("error");
-      setReferenceError("Failed to create campaign");
+      setReferenceError("Failed to create creative");
       return;
     }
 
     try {
       addLog("Capturing reference page...", "pending");
 
-      const resp = await fetch(`${API_BASE}/api/campaigns/${cId}/analyze-url`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${cId}/analyze-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: referenceUrl }),
@@ -425,7 +425,7 @@ export default function CampaignStudio() {
       setReferenceError(msg);
       addLog(`Reference analysis failed: ${msg}`, "error");
     }
-  }, [referenceUrl, selectedBrand, ensureCampaignId, addLog, toast, processSSEStream]);
+  }, [referenceUrl, selectedBrand, ensureCreativeId, addLog, toast, processSSEStream]);
 
   const handleUploadScreenshot = useCallback(async (file: File) => {
     if (!selectedBrand) {
@@ -436,10 +436,10 @@ export default function CampaignStudio() {
     setReferenceStatus("capturing");
     setReferenceError("");
 
-    const cId = await ensureCampaignId();
+    const cId = await ensureCreativeId();
     if (!cId) {
       setReferenceStatus("error");
-      setReferenceError("Failed to create campaign");
+      setReferenceError("Failed to create creative");
       return;
     }
 
@@ -449,7 +449,7 @@ export default function CampaignStudio() {
       const formData = new FormData();
       formData.append("screenshot", file);
 
-      const resp = await fetch(`${API_BASE}/api/campaigns/${cId}/analyze-upload`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${cId}/analyze-upload`, {
         method: "POST",
         body: formData,
       });
@@ -483,7 +483,7 @@ export default function CampaignStudio() {
       setReferenceError(msg);
       addLog(`Reference analysis failed: ${msg}`, "error");
     }
-  }, [selectedBrand, ensureCampaignId, addLog, toast, processSSEStream]);
+  }, [selectedBrand, ensureCreativeId, addLog, toast, processSSEStream]);
 
   const handleClearReference = useCallback(async () => {
     setReferenceUrl("");
@@ -492,16 +492,16 @@ export default function CampaignStudio() {
     setReferenceScreenshots([]);
     setReferenceError("");
 
-    if (campaignId) {
+    if (creativeId) {
       try {
-        await fetch(`${API_BASE}/api/campaigns/${campaignId}/reference`, {
+        await fetch(`${API_BASE}/api/creatives/${creativeId}/reference`, {
           method: "DELETE",
         });
       } catch {
         toast({ variant: "destructive", title: "Failed to clear reference" });
       }
     }
-  }, [campaignId, toast]);
+  }, [creativeId, toast]);
 
   const handleSaveDraft = useCallback(async () => {
     if (!selectedBrand) {
@@ -509,24 +509,24 @@ export default function CampaignStudio() {
       return;
     }
     
-    createCampaignMutation.mutate({
+    createCreativeMutation.mutate({
       data: {
-        name: campaignName || "Untitled Campaign",
+        name: creativeName || "Untitled Creative",
         brandId: selectedBrand,
         templateId: selectedTemplate || null,
         briefText,
         selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
-        sourceCampaignId: remixId || null,
+        sourceCreativeId: remixId || null,
         createdBy: "current_user",
       }
     }, {
       onSuccess: (data) => {
-        setCampaignId(data.id);
-        toast({ title: "Draft Saved", description: "Campaign saved successfully." });
-        addLog("Campaign draft saved", "done");
+        setCreativeId(data.id);
+        toast({ title: "Draft Saved", description: "Creative saved successfully." });
+        addLog("Creative draft saved", "done");
       }
     });
-  }, [selectedBrand, campaignName, selectedTemplate, briefText, selectedAssets, remixId, createCampaignMutation, toast, addLog]);
+  }, [selectedBrand, creativeName, selectedTemplate, briefText, selectedAssets, remixId, createCreativeMutation, toast, addLog]);
 
   const handleGenerate = useCallback(async () => {
     if (!selectedBrand || !selectedTemplate) {
@@ -551,34 +551,34 @@ export default function CampaignStudio() {
       caption: "",
       headlineText: null,
     })));
-    addLog("Creating campaign...", "pending");
+    addLog("Creating creative...", "pending");
 
     try {
-      let cId = campaignId;
+      let cId = creativeId;
 
       if (!cId) {
-        const resp = await fetch(`${API_BASE}/api/campaigns`, {
+        const resp = await fetch(`${API_BASE}/api/creatives`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: campaignName || "Untitled Campaign",
+            name: creativeName || "Untitled Creative",
             brandId: selectedBrand,
             templateId: selectedTemplate,
             briefText,
             selectedAssets: selectedAssets.map((id, i) => ({ assetId: id, role: i === 0 ? "primary" : "supporting" })),
-            sourceCampaignId: remixId || null,
+            sourceCreativeId: remixId || null,
             createdBy: "current_user",
           }),
         });
         if (!resp.ok) {
-          const err = await resp.json().catch(() => ({ error: "Failed to create campaign" }));
-          throw new Error(err.error || "Failed to create campaign");
+          const err = await resp.json().catch(() => ({ error: "Failed to create creative" }));
+          throw new Error(err.error || "Failed to create creative");
         }
         const campaign = await resp.json();
         cId = campaign.id;
-        setCampaignId(cId!);
+        setCreativeId(cId!);
       } else {
-        const resp = await fetch(`${API_BASE}/api/campaigns/${cId}`, {
+        const resp = await fetch(`${API_BASE}/api/creatives/${cId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -588,8 +588,8 @@ export default function CampaignStudio() {
           }),
         });
         if (!resp.ok) {
-          const err = await resp.json().catch(() => ({ error: "Failed to update campaign" }));
-          throw new Error(err.error || "Failed to update campaign");
+          const err = await resp.json().catch(() => ({ error: "Failed to update creative" }));
+          throw new Error(err.error || "Failed to update creative");
         }
       }
 
@@ -599,7 +599,7 @@ export default function CampaignStudio() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const response = await fetch(`${API_BASE}/api/campaigns/${cId}/generate`, {
+      const response = await fetch(`${API_BASE}/api/creatives/${cId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platforms }),
@@ -649,7 +649,7 @@ export default function CampaignStudio() {
       setIsGenerating(false);
       abortRef.current = null;
     }
-  }, [selectedBrand, selectedTemplate, campaignId, campaignName, briefText, selectedAssets, selectedPlatforms, remixId, toast, addLog, updateLastLog]);
+  }, [selectedBrand, selectedTemplate, creativeId, creativeName, briefText, selectedAssets, selectedPlatforms, remixId, toast, addLog, updateLastLog]);
 
   const handleSSEEvent = useCallback((event: string, data: Record<string, unknown>) => {
     switch (event) {
@@ -762,9 +762,9 @@ export default function CampaignStudio() {
       v.platform === platform ? { ...v, caption: newCaption } : v
     ));
 
-    if (variantId && campaignId) {
+    if (variantId && creativeId) {
       try {
-        await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/caption`, {
+        await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/caption`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ caption: newCaption }),
@@ -773,7 +773,7 @@ export default function CampaignStudio() {
         toast({ variant: "destructive", title: "Failed to save caption" });
       }
     }
-  }, [campaignId, toast]);
+  }, [creativeId, toast]);
 
   const handleRewrite = useCallback(async (text: string, instruction: string): Promise<string> => {
     const resp = await fetch(`${API_BASE}/api/rewrite`, {
@@ -811,12 +811,12 @@ export default function CampaignStudio() {
   }, []);
 
   const handleHeadlineSave = useCallback(async (variantId: string | undefined, platform: string, newHeadline: string) => {
-    if (!variantId || !campaignId) {
+    if (!variantId || !creativeId) {
       throw new Error("Cannot save yet");
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/headline`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/headline`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ headline: newHeadline }),
@@ -836,35 +836,35 @@ export default function CampaignStudio() {
       toast({ variant: "destructive", title: "Failed to update headline" });
       throw err;
     }
-  }, [campaignId, toast]);
+  }, [creativeId, toast]);
 
   const handleDownloadAll = useCallback(() => {
-    if (!campaignId) return;
-    window.open(`${API_BASE}/api/campaigns/${campaignId}/download`, "_blank");
-  }, [campaignId]);
+    if (!creativeId) return;
+    window.open(`${API_BASE}/api/creatives/${creativeId}/download`, "_blank");
+  }, [creativeId]);
 
   const handleDownloadVariant = useCallback((variantId: string | undefined) => {
-    if (!campaignId || !variantId) return;
-    window.open(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/download`, "_blank");
-  }, [campaignId]);
+    if (!creativeId || !variantId) return;
+    window.open(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/download`, "_blank");
+  }, [creativeId]);
 
   const handleSubmitForReview = useCallback(async () => {
-    if (!campaignId) return;
+    if (!creativeId) return;
     try {
-      await fetch(`${API_BASE}/api/campaigns/${campaignId}`, {
+      await fetch(`${API_BASE}/api/creatives/${creativeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "pending_review" }),
       });
-      toast({ title: "Submitted!", description: "Campaign sent to Review Queue." });
+      toast({ title: "Submitted!", description: "Creative sent to Review Queue." });
       addLog("Submitted for review", "done");
     } catch {
       toast({ variant: "destructive", title: "Failed to submit" });
     }
-  }, [campaignId, toast, addLog]);
+  }, [creativeId, toast, addLog]);
 
   const handleGenerateVideo = useCallback(async () => {
-    if (!campaignId) {
+    if (!creativeId) {
       toast({ variant: "destructive", title: "Generate images first" });
       return;
     }
@@ -873,7 +873,7 @@ export default function CampaignStudio() {
     addLog("Starting video generation...", "pending");
 
     try {
-      const response = await fetch(`${API_BASE}/api/campaigns/${campaignId}/generate-video`, {
+      const response = await fetch(`${API_BASE}/api/creatives/${creativeId}/generate-video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orientations: ["landscape", "portrait"] }),
@@ -939,16 +939,16 @@ export default function CampaignStudio() {
     } finally {
       setIsGeneratingVideo(false);
     }
-  }, [campaignId, addLog, updateLastLog, toast]);
+  }, [creativeId, addLog, updateLastLog, toast]);
 
   const handleSetAudio = useCallback(async () => {
-    if (!campaignId || !audioDialogVariant?.id) return;
+    if (!creativeId || !audioDialogVariant?.id) return;
 
     setIsGeneratingAudio(true);
     addLog(`Generating ${audioSource} audio...`, "pending");
 
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${audioDialogVariant.id}/audio`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${audioDialogVariant.id}/audio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -980,10 +980,10 @@ export default function CampaignStudio() {
     } finally {
       setIsGeneratingAudio(false);
     }
-  }, [campaignId, audioDialogVariant, audioSource, audioPrompt, audioMergeMode, addLog, updateLastLog, toast]);
+  }, [creativeId, audioDialogVariant, audioSource, audioPrompt, audioMergeMode, addLog, updateLastLog, toast]);
 
   const handleUploadAudio = useCallback(async (variantId: string, file: File) => {
-    if (!campaignId) return;
+    if (!creativeId) return;
 
     addLog("Uploading custom audio...", "pending");
 
@@ -992,7 +992,7 @@ export default function CampaignStudio() {
       formData.append("audio", file);
       formData.append("mode", audioMergeMode);
 
-      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/audio-upload`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/audio-upload`, {
         method: "POST",
         body: formData,
       });
@@ -1017,17 +1017,17 @@ export default function CampaignStudio() {
       addLog(`Audio upload failed: ${msg}`, "error");
       toast({ variant: "destructive", title: "Upload Failed", description: msg });
     }
-  }, [campaignId, audioMergeMode, addLog, updateLastLog, toast]);
+  }, [creativeId, audioMergeMode, addLog, updateLastLog, toast]);
 
   const handleVariantRegenerate = useCallback(async (variantId: string, platform: string) => {
-    if (!campaignId || !variantId) return;
+    if (!creativeId || !variantId) return;
     const instruction = variantRefineText[platform] || "";
     
     setRegeneratingVariant(platform);
     addLog(`Regenerating ${PLATFORM_LABELS[platform]?.name || platform}...`, "pending");
 
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants/${variantId}/regenerate`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instruction }),
@@ -1056,7 +1056,7 @@ export default function CampaignStudio() {
     } finally {
       setRegeneratingVariant(null);
     }
-  }, [campaignId, variantRefineText, addLog, toast]);
+  }, [creativeId, variantRefineText, addLog, toast]);
 
   const extractHashtags = useCallback((caption: string): string[] => {
     const matches = caption.match(/#[a-zA-Z0-9_]+/g);
@@ -1093,16 +1093,16 @@ export default function CampaignStudio() {
   }, [selectedBrand, hashtagSetName, hashtagsToSave, toast]);
 
   if (brands === undefined) {
-    return <CampaignStudioSkeleton />;
+    return <CreativeStudioSkeleton />;
   }
 
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
 
-      <CampaignConfigPanel
+      <CreativeConfigPanel
         remixId={remixId}
-        campaignName={campaignName}
-        onCampaignNameChange={setCampaignName}
+        creativeName={creativeName}
+        onCreativeNameChange={setCreativeName}
         brands={brands}
         selectedBrand={selectedBrand}
         onBrandChange={(v) => { setSelectedBrand(v); setSelectedTemplate(""); }}
@@ -1147,7 +1147,7 @@ export default function CampaignStudio() {
         generateDisabledReason={generateDisabledReason}
         budgetStatus={budgetStatus}
         estimatedCost={estimatedCost}
-        campaignId={campaignId}
+        creativeId={creativeId}
         hasVariants={generatedVariants.length > 0}
       />
 
@@ -1194,24 +1194,24 @@ export default function CampaignStudio() {
         activityLog={activityLog}
         estimatedCost={estimatedCost}
         onSaveDraft={handleSaveDraft}
-        isSaving={createCampaignMutation.isPending}
+        isSaving={createCreativeMutation.isPending}
         onDownloadAll={handleDownloadAll}
         onSchedule={() => setScheduleModalOpen(true)}
         onSubmitForReview={handleSubmitForReview}
         hasVariants={generatedVariants.length > 0}
-        campaignId={campaignId}
+        creativeId={creativeId}
         isGenerating={isGenerating}
       />
 
-      {campaignId && (
+      {creativeId && (
         <ScheduleModal
           open={scheduleModalOpen}
           onOpenChange={setScheduleModalOpen}
-          campaignId={campaignId}
-          campaignName={campaignName || "Untitled Campaign"}
+          creativeId={creativeId}
+          creativeName={creativeName || "Untitled Creative"}
           onScheduled={() => {
-            addLog("Campaign scheduled", "done");
-            toast({ title: "Scheduled!", description: "Campaign added to calendar." });
+            addLog("Creative scheduled", "done");
+            toast({ title: "Scheduled!", description: "Creative added to calendar." });
           }}
         />
       )}

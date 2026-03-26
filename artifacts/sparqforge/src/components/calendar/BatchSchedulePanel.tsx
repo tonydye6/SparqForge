@@ -12,7 +12,7 @@ export interface BatchSchedulePanelProps {
   onScheduled: () => void;
 }
 
-interface Campaign {
+interface Creative {
   id: string;
   name: string;
   brandName: string;
@@ -22,38 +22,36 @@ interface Campaign {
 
 export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedulePanelProps) {
   const { toast } = useToast();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [creatives, setCreatives] = useState<Creative[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedCampaignIds, setSelectedCampaignIds] = useState<Set<string>>(new Set());
+  const [selectedCreativeIds, setSelectedCreativeIds] = useState<Set<string>>(new Set());
   const [scheduleDates, setScheduleDates] = useState<Record<string, string>>({});
   const [scheduleTimes, setScheduleTimes] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Shared date/time state for "Same date/time for all"
   const [sharedDate, setSharedDate] = useState("");
   const [sharedTime, setSharedTime] = useState("09:00");
 
-  // Stagger state
   const [staggerStartDate, setStaggerStartDate] = useState("");
 
-  const fetchCampaigns = useCallback(async () => {
+  const fetchCreatives = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/campaigns?status=approved", {
+      const res = await fetch("/api/creatives?status=approved", {
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to fetch campaigns");
+      if (!res.ok) throw new Error("Failed to fetch creatives");
       const json = await res.json();
-      const data: Campaign[] = (json.data || json || []).map((c: any) => ({
+      const data: Creative[] = (json.data || json || []).map((c: any) => ({
         id: c.id,
         name: c.name,
         brandName: c.brandName || c.brand?.name || "Unknown",
         brandColor: c.brandColor || c.brand?.colorPrimary || "#6366f1",
         variantCount: c.variantCount ?? c.variants?.length ?? 0,
       }));
-      setCampaigns(data);
+      setCreatives(data);
     } catch {
-      toast({ variant: "destructive", title: "Failed to load campaigns" });
+      toast({ variant: "destructive", title: "Failed to load creatives" });
     } finally {
       setLoading(false);
     }
@@ -61,18 +59,18 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
 
   useEffect(() => {
     if (open) {
-      fetchCampaigns();
-      setSelectedCampaignIds(new Set());
+      fetchCreatives();
+      setSelectedCreativeIds(new Set());
       setScheduleDates({});
       setScheduleTimes({});
       setSharedDate("");
       setSharedTime("09:00");
       setStaggerStartDate("");
     }
-  }, [open, fetchCampaigns]);
+  }, [open, fetchCreatives]);
 
-  const toggleCampaign = (id: string) => {
-    setSelectedCampaignIds((prev) => {
+  const toggleCreative = (id: string) => {
+    setSelectedCreativeIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
@@ -84,10 +82,10 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
   };
 
   const toggleSelectAll = () => {
-    if (selectedCampaignIds.size === campaigns.length) {
-      setSelectedCampaignIds(new Set());
+    if (selectedCreativeIds.size === creatives.length) {
+      setSelectedCreativeIds(new Set());
     } else {
-      setSelectedCampaignIds(new Set(campaigns.map((c) => c.id)));
+      setSelectedCreativeIds(new Set(creatives.map((c) => c.id)));
     }
   };
 
@@ -98,13 +96,13 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
     }
     const nextDates: Record<string, string> = { ...scheduleDates };
     const nextTimes: Record<string, string> = { ...scheduleTimes };
-    selectedCampaignIds.forEach((id) => {
+    selectedCreativeIds.forEach((id) => {
       nextDates[id] = sharedDate;
       nextTimes[id] = sharedTime || "09:00";
     });
     setScheduleDates(nextDates);
     setScheduleTimes(nextTimes);
-    toast({ title: `Applied to ${selectedCampaignIds.size} campaigns` });
+    toast({ title: `Applied to ${selectedCreativeIds.size} creatives` });
   };
 
   const applyStagger = () => {
@@ -112,7 +110,7 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
       toast({ variant: "destructive", title: "Please select a start date" });
       return;
     }
-    const ids = Array.from(selectedCampaignIds);
+    const ids = Array.from(selectedCreativeIds);
     const nextDates: Record<string, string> = { ...scheduleDates };
     const nextTimes: Record<string, string> = { ...scheduleTimes };
     const base = new Date(staggerStartDate + "T00:00:00");
@@ -124,12 +122,12 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
     });
     setScheduleDates(nextDates);
     setScheduleTimes(nextTimes);
-    toast({ title: `Staggered ${ids.length} campaigns starting ${staggerStartDate}` });
+    toast({ title: `Staggered ${ids.length} creatives starting ${staggerStartDate}` });
   };
 
-  const selectedCount = selectedCampaignIds.size;
+  const selectedCount = selectedCreativeIds.size;
 
-  const allSelectedHaveDates = selectedCount > 0 && Array.from(selectedCampaignIds).every(
+  const allSelectedHaveDates = selectedCount > 0 && Array.from(selectedCreativeIds).every(
     (id) => scheduleDates[id] && scheduleTimes[id]
   );
 
@@ -137,11 +135,11 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
     if (!allSelectedHaveDates) return;
     setSubmitting(true);
     try {
-      const entries = Array.from(selectedCampaignIds).map((campaignId) => {
-        const date = scheduleDates[campaignId];
-        const time = scheduleTimes[campaignId] || "09:00";
+      const entries = Array.from(selectedCreativeIds).map((creativeId) => {
+        const date = scheduleDates[creativeId];
+        const time = scheduleTimes[creativeId] || "09:00";
         const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
-        return { campaignId, scheduledAt };
+        return { creativeId, scheduledAt };
       });
 
       const res = await fetch("/api/calendar-entries/batch", {
@@ -156,7 +154,7 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
         throw new Error(err.error || "Batch scheduling failed");
       }
 
-      toast({ title: `Scheduled ${entries.length} campaign${entries.length > 1 ? "s" : ""}` });
+      toast({ title: `Scheduled ${entries.length} creative${entries.length > 1 ? "s" : ""}` });
       onScheduled();
       onClose();
     } catch (err: any) {
@@ -172,7 +170,6 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
 
   return (
     <>
-      {/* Backdrop */}
       {open && (
         <div
           className="fixed inset-0 bg-black/30 z-40"
@@ -180,13 +177,11 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
         />
       )}
 
-      {/* Panel */}
       <div
         className={`fixed inset-y-0 right-0 w-[400px] max-w-[90vw] bg-card border-l border-border shadow-xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             <CalendarClock size={18} className="text-primary" />
@@ -197,85 +192,82 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
           </Button>
         </div>
 
-        {/* Campaign list */}
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : campaigns.length === 0 ? (
+          ) : creatives.length === 0 ? (
             <div className="text-center py-12 px-4 text-muted-foreground text-sm">
-              No approved unscheduled campaigns found.
+              No approved unscheduled creatives found.
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {/* Select all row */}
               <div className="flex items-center gap-3 px-4 py-2 bg-muted/30">
                 <Checkbox
-                  checked={selectedCampaignIds.size === campaigns.length && campaigns.length > 0}
+                  checked={selectedCreativeIds.size === creatives.length && creatives.length > 0}
                   onCheckedChange={toggleSelectAll}
                 />
                 <span className="text-xs text-muted-foreground font-medium">
                   {selectedCount > 0
-                    ? `${selectedCount} of ${campaigns.length} selected`
-                    : `Select all (${campaigns.length})`}
+                    ? `${selectedCount} of ${creatives.length} selected`
+                    : `Select all (${creatives.length})`}
                 </span>
               </div>
 
-              {campaigns.map((campaign) => {
-                const isSelected = selectedCampaignIds.has(campaign.id);
+              {creatives.map((creative) => {
+                const isSelected = selectedCreativeIds.has(creative.id);
                 return (
-                  <div key={campaign.id} className="px-4 py-3">
+                  <div key={creative.id} className="px-4 py-3">
                     <div className="flex items-start gap-3">
                       <Checkbox
                         checked={isSelected}
-                        onCheckedChange={() => toggleCampaign(campaign.id)}
+                        onCheckedChange={() => toggleCreative(creative.id)}
                         className="mt-0.5"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">{campaign.name}</span>
+                          <span className="text-sm font-medium truncate">{creative.name}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge
                             variant="outline"
                             className="text-[10px] px-1.5 py-0"
                             style={{
-                              borderColor: campaign.brandColor + "60",
-                              color: campaign.brandColor,
+                              borderColor: creative.brandColor + "60",
+                              color: creative.brandColor,
                             }}
                           >
-                            {campaign.brandName}
+                            {creative.brandName}
                           </Badge>
-                          {campaign.variantCount > 0 && (
+                          {creative.variantCount > 0 && (
                             <span className="text-[10px] text-muted-foreground">
-                              {campaign.variantCount} variant{campaign.variantCount !== 1 ? "s" : ""}
+                              {creative.variantCount} variant{creative.variantCount !== 1 ? "s" : ""}
                             </span>
                           )}
                         </div>
 
-                        {/* Date/time inputs for selected campaigns */}
                         {isSelected && (
                           <div className="flex items-center gap-2 mt-2">
                             <Input
                               type="date"
                               className="h-7 text-xs flex-1"
-                              value={scheduleDates[campaign.id] || ""}
+                              value={scheduleDates[creative.id] || ""}
                               onChange={(e) =>
                                 setScheduleDates((prev) => ({
                                   ...prev,
-                                  [campaign.id]: e.target.value,
+                                  [creative.id]: e.target.value,
                                 }))
                               }
                             />
                             <Input
                               type="time"
                               className="h-7 text-xs w-[100px]"
-                              value={scheduleTimes[campaign.id] || "09:00"}
+                              value={scheduleTimes[creative.id] || "09:00"}
                               onChange={(e) =>
                                 setScheduleTimes((prev) => ({
                                   ...prev,
-                                  [campaign.id]: e.target.value,
+                                  [creative.id]: e.target.value,
                                 }))
                               }
                             />
@@ -290,14 +282,12 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
           )}
         </div>
 
-        {/* Quick actions */}
         {selectedCount > 0 && (
           <div className="border-t border-border px-4 py-3 space-y-3 shrink-0 bg-muted/20">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Quick Actions
             </p>
 
-            {/* Same date/time for all */}
             <div className="space-y-1.5">
               <span className="text-xs text-muted-foreground">Same date/time for all</span>
               <div className="flex items-center gap-2">
@@ -325,7 +315,6 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
               </div>
             </div>
 
-            {/* Stagger by 1 day */}
             <div className="space-y-1.5">
               <span className="text-xs text-muted-foreground">Stagger by 1 day</span>
               <div className="flex items-center gap-2">
@@ -350,7 +339,6 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
           </div>
         )}
 
-        {/* Footer */}
         <div className="border-t border-border px-4 py-3 shrink-0">
           <Button
             className="w-full"
@@ -364,7 +352,7 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
               </>
             ) : (
               <>
-                Schedule {selectedCount > 0 ? `${selectedCount} campaign${selectedCount > 1 ? "s" : ""}` : "campaigns"}
+                Schedule {selectedCount > 0 ? `${selectedCount} creative${selectedCount > 1 ? "s" : ""}` : "creatives"}
               </>
             )}
           </Button>

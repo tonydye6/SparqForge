@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useGetBrands, useGetCampaigns, useUpdateCampaign } from "@workspace/api-client-react";
+import { useGetBrands, useGetCreatives, useUpdateCreative } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { PlatformIcon } from "@/components/ui/platform-icon";
@@ -22,7 +22,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 interface Variant {
   id: string;
-  campaignId: string;
+  creativeId: string;
   platform: string;
   aspectRatio: string;
   rawImageUrl: string | null;
@@ -65,14 +65,14 @@ function getCategoryLabel(slug: string): string {
 
 export default function ReviewQueue() {
   const { data: brands } = useGetBrands();
-  const { data: campaigns, isLoading } = useGetCampaigns();
-  const updateCampaign = useUpdateCampaign();
+  const { data: creatives, isLoading } = useGetCreatives();
+  const updateCreative = useUpdateCreative();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [brandFilter, setBrandFilter] = useState("all");
   const [, setLocation] = useLocation();
 
-  const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
+  const [expandedCreativeId, setExpandedCreativeId] = useState<string | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [rejectComment, setRejectComment] = useState("");
@@ -89,7 +89,7 @@ export default function ReviewQueue() {
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
 
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [scheduleCampaign, setScheduleCampaign] = useState<{ id: string; name: string } | null>(null);
+  const [scheduleCreative, setScheduleCreative] = useState<{ id: string; name: string } | null>(null);
 
   const [viewMode, setViewMode] = useState<"grid" | "compare">(() =>
     (localStorage.getItem("reviewViewMode") as "grid" | "compare") || "grid"
@@ -99,33 +99,33 @@ export default function ReviewQueue() {
     localStorage.setItem("reviewViewMode", viewMode);
   }, [viewMode]);
 
-  const filteredCampaigns = useMemo(() => {
-    if (!campaigns?.data) return [];
-    return campaigns.data.filter(c => {
+  const filteredCreatives = useMemo(() => {
+    if (!creatives?.data) return [];
+    return creatives?.data.filter(c => {
       if (brandFilter !== "all" && c.brandId !== brandFilter) return false;
       return c.status !== "draft";
     });
-  }, [campaigns, brandFilter]);
+  }, [creatives, brandFilter]);
 
-  const columnCampaigns = useMemo(() => {
-    const map: Record<string, typeof filteredCampaigns> = {};
+  const columnCreatives = useMemo(() => {
+    const map: Record<string, typeof filteredCreatives> = {};
     for (const col of COLUMNS) {
-      map[col.id] = filteredCampaigns.filter(c => c.status === col.id);
+      map[col.id] = filteredCreatives.filter(c => c.status === col.id);
     }
     return map;
-  }, [filteredCampaigns]);
+  }, [filteredCreatives]);
 
   const getBrand = (brandId: string) => brands?.find(b => b.id === brandId);
 
-  const expandedCampaign = useMemo(() => {
-    if (!expandedCampaignId || !campaigns?.data) return null;
-    return campaigns.data.find(c => c.id === expandedCampaignId) || null;
-  }, [expandedCampaignId, campaigns]);
+  const expandedCreative = useMemo(() => {
+    if (!expandedCreativeId || !creatives?.data) return null;
+    return creatives?.data.find(c => c.id === expandedCreativeId) || null;
+  }, [expandedCreativeId, creatives]);
 
-  const fetchVariants = useCallback(async (campaignId: string) => {
+  const fetchVariants = useCallback(async (creativeId: string) => {
     setLoadingVariants(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${campaignId}/variants`);
+      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants`);
       if (resp.ok) {
         const data = await resp.json();
         setVariants(data);
@@ -138,8 +138,8 @@ export default function ReviewQueue() {
   }, [toast]);
 
   useEffect(() => {
-    if (expandedCampaignId) {
-      fetchVariants(expandedCampaignId);
+    if (expandedCreativeId) {
+      fetchVariants(expandedCreativeId);
       setRejectComment("");
       setShowRejectInput(false);
       setSelectedVariantIds(new Set());
@@ -149,15 +149,15 @@ export default function ReviewQueue() {
       setVariants([]);
       setSelectedVariantIds(new Set());
     }
-  }, [expandedCampaignId, fetchVariants]);
+  }, [expandedCreativeId, fetchVariants]);
 
-  const handleStatusChange = (campaignId: string, newStatus: string) => {
-    updateCampaign.mutate(
-      { id: campaignId, data: { status: newStatus } },
+  const handleStatusChange = (creativeId: string, newStatus: string) => {
+    updateCreative.mutate(
+      { id: creativeId, data: { status: newStatus } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-          toast({ title: `Campaign moved to ${newStatus.replace(/_/g, " ")}` });
+          queryClient.invalidateQueries({ queryKey: ["/api/creatives"] });
+          toast({ title: `Creative moved to ${newStatus.replace(/_/g, " ")}` });
         },
         onError: (err: Error) => {
           toast({ variant: "destructive", title: "Failed to update", description: err.message });
@@ -167,46 +167,46 @@ export default function ReviewQueue() {
   };
 
   const handleApprove = () => {
-    if (!expandedCampaignId) return;
-    updateCampaign.mutate(
-      { id: expandedCampaignId, data: { status: "approved", reviewedBy: "current_user", reviewComment: "Approved" } },
+    if (!expandedCreativeId) return;
+    updateCreative.mutate(
+      { id: expandedCreativeId, data: { status: "approved", reviewedBy: "current_user", reviewComment: "Approved" } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-          toast({ title: "Campaign approved!" });
-          setExpandedCampaignId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/creatives"] });
+          toast({ title: "Creative approved!" });
+          setExpandedCreativeId(null);
         },
         onError: (err: Error) => {
-          toast({ variant: "destructive", title: "Failed to approve campaign", description: err.message });
+          toast({ variant: "destructive", title: "Failed to approve creative", description: err.message });
         },
       }
     );
   };
 
   const handleReject = () => {
-    if (!expandedCampaignId || !rejectComment.trim()) {
+    if (!expandedCreativeId || !rejectComment.trim()) {
       toast({ variant: "destructive", title: "Please provide feedback" });
       return;
     }
-    updateCampaign.mutate(
-      { id: expandedCampaignId, data: { status: "draft", reviewedBy: "current_user", reviewComment: rejectComment } },
+    updateCreative.mutate(
+      { id: expandedCreativeId, data: { status: "draft", reviewedBy: "current_user", reviewComment: rejectComment } },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-          toast({ title: "Campaign returned with feedback" });
-          setExpandedCampaignId(null);
+          queryClient.invalidateQueries({ queryKey: ["/api/creatives"] });
+          toast({ title: "Creative returned with feedback" });
+          setExpandedCreativeId(null);
         },
         onError: (err: Error) => {
-          toast({ variant: "destructive", title: "Failed to reject campaign", description: err.message });
+          toast({ variant: "destructive", title: "Failed to reject creative", description: err.message });
         },
       }
     );
   };
 
   const handleVariantApprove = async (variantId: string) => {
-    if (!expandedCampaignId) return;
+    if (!expandedCreativeId) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variantId}`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variantId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -236,13 +236,13 @@ export default function ReviewQueue() {
 
   // Handle reject dialog submission
   const handleRejectDialogSubmit = async (category: string, comment: string) => {
-    if (!expandedCampaignId || !rejectTarget) return;
+    if (!expandedCreativeId || !rejectTarget) return;
     const formattedComment = formatRejectComment(category, comment);
 
     try {
       if (rejectTarget.type === "single") {
         const resp = await fetch(
-          `${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${rejectTarget.variantId}`,
+          `${API_BASE}/api/creatives/${expandedCreativeId}/variants/${rejectTarget.variantId}`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -264,7 +264,7 @@ export default function ReviewQueue() {
         }
       } else {
         const resp = await fetch(
-          `${API_BASE}/api/campaigns/${expandedCampaignId}/variants/bulk-update`,
+          `${API_BASE}/api/creatives/${expandedCreativeId}/variants/bulk-update`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -299,14 +299,14 @@ export default function ReviewQueue() {
     setRejectDialogOpen(false);
   };
 
-  const handleScheduleClick = (campaign: { id: string; name: string }) => {
-    setScheduleCampaign(campaign);
+  const handleScheduleClick = (creative: { id: string; name: string }) => {
+    setScheduleCreative(creative);
     setScheduleModalOpen(true);
   };
 
-  const handleRemix = (campaign: { id: string }) => {
+  const handleRemix = (creative: { id: string }) => {
     const params = new URLSearchParams();
-    params.set("remix", campaign.id);
+    params.set("remix", creative.id);
     setLocation(`/?${params.toString()}`);
   };
 
@@ -331,9 +331,9 @@ export default function ReviewQueue() {
   };
 
   const handleBulkApprove = async () => {
-    if (!expandedCampaignId || selectedVariantIds.size === 0) return;
+    if (!expandedCreativeId || selectedVariantIds.size === 0) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/bulk-update`, {
+      const resp = await fetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/bulk-update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -372,7 +372,7 @@ export default function ReviewQueue() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 shrink-0 gap-3">
         <div>
           <h1 className="text-xl sm:text-3xl font-bold text-foreground">Review Queue</h1>
-          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Approve and provide feedback on generated campaigns.</p>
+          <p className="text-muted-foreground mt-1 text-xs sm:text-sm">Approve and provide feedback on generated creatives?.</p>
         </div>
         <Select value={brandFilter} onValueChange={setBrandFilter}>
           <SelectTrigger className="w-full sm:w-[180px] bg-card border-border">
@@ -392,21 +392,21 @@ export default function ReviewQueue() {
         </Select>
       </div>
 
-      {!isLoading && filteredCampaigns.length === 0 && (
+      {!isLoading && filteredCreatives.length === 0 && (
         <EmptyState
           icon={ClipboardCheck}
           title="Nothing to review"
-          description="Campaigns submitted for review will appear here"
+          description="Creatives submitted for review will appear here"
           className="mb-6"
         />
       )}
 
       <div className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 overflow-hidden">
-        <div className={`flex flex-col md:flex-row gap-4 md:gap-6 overflow-x-auto overflow-y-auto md:overflow-y-hidden pb-4 hide-scrollbar transition-all duration-300 ${expandedCampaignId ? 'md:w-[340px] md:shrink-0 max-h-[40vh] md:max-h-none' : 'flex-1'}`}>
+        <div className={`flex flex-col md:flex-row gap-4 md:gap-6 overflow-x-auto overflow-y-auto md:overflow-y-hidden pb-4 hide-scrollbar transition-all duration-300 ${expandedCreativeId ? 'md:w-[340px] md:shrink-0 max-h-[40vh] md:max-h-none' : 'flex-1'}`}>
           {COLUMNS.map(col => {
-            const items = columnCampaigns[col.id] || [];
+            const items = columnCreatives[col.id] || [];
             return (
-              <div key={col.id} className={`${expandedCampaignId ? 'md:w-[300px]' : 'md:w-[320px]'} shrink-0 flex flex-col bg-background rounded-xl border border-border min-w-0`}>
+              <div key={col.id} className={`${expandedCreativeId ? 'md:w-[300px]' : 'md:w-[320px]'} shrink-0 flex flex-col bg-background rounded-xl border border-border min-w-0`}>
                 <div className={`p-3 sm:p-4 border-b ${col.color} border-t-4 rounded-t-xl bg-card/50 flex justify-between items-center`}>
                   <h3 className="font-bold text-foreground uppercase tracking-wide text-xs sm:text-sm">{col.title}</h3>
                   <Badge variant="secondary" className="bg-muted text-muted-foreground">{items.length}</Badge>
@@ -419,16 +419,16 @@ export default function ReviewQueue() {
                     ))
                   ) : items.length === 0 ? (
                     <div className="text-center text-sm text-muted-foreground py-8">
-                      No campaigns
+                      No creatives
                     </div>
                   ) : (
-                    items.map(campaign => {
-                      const brand = getBrand(campaign.brandId);
-                      const isExpanded = expandedCampaignId === campaign.id;
+                    items.map(creative => {
+                      const brand = getBrand(creative.brandId);
+                      const isExpanded = expandedCreativeId === creative.id;
                       return (
                         <div
-                          key={campaign.id}
-                          onClick={() => setExpandedCampaignId(isExpanded ? null : campaign.id)}
+                          key={creative.id}
+                          onClick={() => setExpandedCreativeId(isExpanded ? null : creative.id)}
                           className={`bg-card border p-3 sm:p-4 rounded-lg shadow-sm cursor-pointer transition-all group ${isExpanded ? 'border-primary ring-1 ring-primary/30' : 'border-border hover:border-primary/50'}`}
                         >
                           <div className="flex justify-between items-start mb-2 sm:mb-3">
@@ -444,16 +444,16 @@ export default function ReviewQueue() {
                             <ChevronRight size={14} className={`text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                           </div>
 
-                          <h4 className="font-semibold text-sm text-foreground mb-2">{campaign.name}</h4>
+                          <h4 className="font-semibold text-sm text-foreground mb-2">{creative.name}</h4>
 
-                          {campaign.briefText && (
-                            <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{campaign.briefText}</p>
+                          {creative.briefText && (
+                            <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{creative.briefText}</p>
                           )}
 
                           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 sm:pt-3 border-t border-border/50">
                             <div className="flex items-center gap-1">
                               <Clock size={12} />
-                              {new Date(campaign.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                              {new Date(creative.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                             </div>
                             <div className="flex gap-1 flex-wrap">
                               {col.id === "pending_review" && (
@@ -461,7 +461,7 @@ export default function ReviewQueue() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 px-2 text-xs text-primary hover:text-primary"
-                                  onClick={(e) => { e.stopPropagation(); handleStatusChange(campaign.id, "in_review"); }}
+                                  onClick={(e) => { e.stopPropagation(); handleStatusChange(creative.id, "in_review"); }}
                                 >
                                   <Eye size={12} className="mr-1" /> Review
                                 </Button>
@@ -471,7 +471,7 @@ export default function ReviewQueue() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 px-2 text-xs text-success hover:text-success"
-                                  onClick={(e) => { e.stopPropagation(); handleStatusChange(campaign.id, "approved"); }}
+                                  onClick={(e) => { e.stopPropagation(); handleStatusChange(creative.id, "approved"); }}
                                 >
                                   <CheckCircle size={12} className="mr-1" /> Approve
                                 </Button>
@@ -481,7 +481,7 @@ export default function ReviewQueue() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 px-2 text-xs text-muted-foreground"
-                                  onClick={(e) => { e.stopPropagation(); handleScheduleClick({ id: campaign.id, name: campaign.name }); }}
+                                  onClick={(e) => { e.stopPropagation(); handleScheduleClick({ id: creative.id, name: creative.name }); }}
                                 >
                                   <Send size={12} className="mr-1" /> Schedule
                                 </Button>
@@ -491,7 +491,7 @@ export default function ReviewQueue() {
                                   size="sm"
                                   variant="ghost"
                                   className="h-6 px-2 text-xs text-muted-foreground"
-                                  onClick={(e) => { e.stopPropagation(); handleRemix(campaign); }}
+                                  onClick={(e) => { e.stopPropagation(); handleRemix(creative); }}
                                 >
                                   <RefreshCw size={12} className="mr-1" /> Remix
                                 </Button>
@@ -508,14 +508,14 @@ export default function ReviewQueue() {
           })}
         </div>
 
-        {expandedCampaignId && expandedCampaign && (
+        {expandedCreativeId && expandedCreative && (
           <div className="flex-1 bg-card border border-border rounded-xl flex flex-col overflow-hidden animate-in slide-in-from-right-5 duration-200 min-h-[50vh] md:min-h-0">
             <div className="p-3 sm:p-4 border-b border-border bg-background/50 flex items-center justify-between shrink-0">
               <div className="min-w-0 flex-1">
-                <h2 className="font-bold text-base sm:text-lg text-foreground truncate">{expandedCampaign.name}</h2>
+                <h2 className="font-bold text-base sm:text-lg text-foreground truncate">{expandedCreative.name}</h2>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   {(() => {
-                    const brand = getBrand(expandedCampaign.brandId);
+                    const brand = getBrand(expandedCreative.brandId);
                     return brand ? (
                       <Badge variant="outline" className="text-[10px]" style={{ borderColor: `${brand.colorPrimary}40`, color: brand.colorPrimary }}>
                         {brand.name}
@@ -523,7 +523,7 @@ export default function ReviewQueue() {
                     ) : null;
                   })()}
                   <span className="text-xs text-muted-foreground">
-                    Created {new Date(expandedCampaign.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    Created {new Date(expandedCreative.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </span>
                 </div>
               </div>
@@ -546,25 +546,25 @@ export default function ReviewQueue() {
                 >
                   <Columns size={16} />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedCampaignId(null)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpandedCreativeId(null)}>
                   <X size={16} />
                 </Button>
               </div>
             </div>
 
-            {expandedCampaign.briefText && (
+            {expandedCreative.briefText && (
               <div className="px-3 sm:px-4 py-3 border-b border-border bg-muted/30">
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Brief</span>
-                <p className="text-sm text-foreground mt-1">{expandedCampaign.briefText}</p>
+                <p className="text-sm text-foreground mt-1">{expandedCreative.briefText}</p>
               </div>
             )}
 
-            {expandedCampaign.reviewComment && (
+            {expandedCreative.reviewComment && (
               <div className="px-3 sm:px-4 py-3 border-b border-border bg-amber-500/5">
                 <span className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1">
                   <MessageSquare size={10} /> Previous Feedback
                 </span>
-                <p className="text-sm text-foreground mt-1">{expandedCampaign.reviewComment}</p>
+                <p className="text-sm text-foreground mt-1">{expandedCreative.reviewComment}</p>
               </div>
             )}
 
@@ -602,8 +602,8 @@ export default function ReviewQueue() {
               ) : (
                 <>
                 {/* Variant approval progress bar */}
-                {expandedCampaign?.variants && expandedCampaign.variants.length > 0 && (() => {
-                  const variantList = expandedCampaign.variants;
+                {expandedCreative?.variants && expandedCreative.variants.length > 0 && (() => {
+                  const variantList = expandedCreative.variants;
                   const total = variantList.length;
                   const approved = variantList.filter((v: any) => v.status === "approved").length;
                   const rejected = variantList.filter((v: any) => v.status === "rejected").length;
@@ -644,7 +644,7 @@ export default function ReviewQueue() {
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     {variants.map(variant => {
                       const label = PLATFORM_LABELS[variant.platform] || { name: variant.platform, icon: "twitter" };
-                      const isReviewable = expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review";
+                      const isReviewable = expandedCreative.status === "in_review" || expandedCreative.status === "pending_review";
                       const isSelected = selectedVariantIds.has(variant.id);
 
                       // Parse reject comment for display
@@ -747,7 +747,7 @@ export default function ReviewQueue() {
                                   className="h-6 text-[10px] text-muted-foreground w-full"
                                   onClick={async () => {
                                     try {
-                                      const resp = await fetch(`${API_BASE}/api/campaigns/${expandedCampaignId}/variants/${variant.id}`, {
+                                      const resp = await fetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variant.id}`, {
                                         method: "PUT",
                                         headers: { "Content-Type": "application/json" },
                                         credentials: "include",
@@ -772,7 +772,7 @@ export default function ReviewQueue() {
                     })}
                   </div>
                 )}
-                {(expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review") && (
+                {(expandedCreative.status === "in_review" || expandedCreative.status === "pending_review") && (
                   <BulkActionBar
                     selectedCount={selectedVariantIds.size}
                     totalCount={variants.length}
@@ -799,7 +799,7 @@ export default function ReviewQueue() {
               )}
 
               <div className="flex gap-2 flex-wrap">
-                {(expandedCampaign.status === "in_review" || expandedCampaign.status === "pending_review") && (
+                {(expandedCreative.status === "in_review" || expandedCreative.status === "pending_review") && (
                   <>
                     {!showRejectInput ? (
                       <>
@@ -837,10 +837,10 @@ export default function ReviewQueue() {
                     )}
                   </>
                 )}
-                {expandedCampaign.status === "approved" && (
+                {expandedCreative.status === "approved" && (
                   <Button
                     className="flex-1 min-w-[120px] bg-primary hover:bg-primary/90 text-primary-foreground"
-                    onClick={() => handleScheduleClick({ id: expandedCampaign.id, name: expandedCampaign.name })}
+                    onClick={() => handleScheduleClick({ id: expandedCreative.id, name: expandedCreative.name })}
                   >
                     <CalendarIcon size={14} className="mr-2" /> Schedule
                   </Button>
@@ -848,7 +848,7 @@ export default function ReviewQueue() {
                 <Button
                   variant="outline"
                   className="border-border text-muted-foreground"
-                  onClick={() => handleRemix(expandedCampaign)}
+                  onClick={() => handleRemix(expandedCreative)}
                 >
                   <RefreshCw size={14} className="mr-2" /> Remix
                 </Button>
@@ -869,15 +869,15 @@ export default function ReviewQueue() {
         variantCount={rejectDialogVariantCount}
       />
 
-      {scheduleCampaign && (
+      {scheduleCreative && (
         <ScheduleModal
           open={scheduleModalOpen}
           onOpenChange={setScheduleModalOpen}
-          campaignId={scheduleCampaign.id}
-          campaignName={scheduleCampaign.name}
+          creativeId={scheduleCreative.id}
+          creativeName={scheduleCreative.name}
           onScheduled={() => {
-            queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-            setExpandedCampaignId(null);
+            queryClient.invalidateQueries({ queryKey: ["/api/creatives"] });
+            setExpandedCreativeId(null);
           }}
         />
       )}

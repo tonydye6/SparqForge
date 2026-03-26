@@ -11,8 +11,8 @@ import { TwitterPreviewFrame } from "@/components/ui/twitter-preview-frame";
 import { LinkedInPreviewFrame } from "@/components/ui/linkedin-preview-frame";
 import { RewriteToolbar } from "@/components/ui/rewrite-toolbar";
 import { HeadlineOverlayEditor } from "@/components/ui/headline-editor";
-import type { GeneratedVariant, RewriteToolbarState, LoadingPhase } from "./campaign-studio.types";
-import { PLATFORM_LABELS, API_BASE } from "./campaign-studio.types";
+import type { GeneratedVariant, RewriteToolbarState, LoadingPhase } from "./creative-studio.types";
+import { PLATFORM_LABELS, API_BASE } from "./creative-studio.types";
 
 export interface VariantCardProps {
   variant: GeneratedVariant;

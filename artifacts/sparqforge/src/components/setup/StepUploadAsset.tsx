@@ -149,7 +149,7 @@ export default function StepUploadAsset({
   return (
     <WizardStepShell
       title="Upload visual assets"
-      description="Add images for your first campaign — they'll be approved automatically"
+      description="Add images for your first creative — they'll be approved automatically"
       canNext={canNext}
       showBack
       showSkip

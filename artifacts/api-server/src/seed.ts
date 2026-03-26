@@ -1,4 +1,4 @@
-import { db, brandsTable, templatesTable, campaignsTable, calendarEntriesTable, campaignVariantsTable } from "@workspace/db";
+import { db, brandsTable, templatesTable, creativesTable, calendarEntriesTable, creativeVariantsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 
 const DEFAULT_BRANDS = [
@@ -234,7 +234,7 @@ export async function seedDatabase() {
 
     if (brandData.slug === "crown-u") {
       const now = new Date();
-      const [campaign] = await db.insert(campaignsTable).values({
+      const [campaign] = await db.insert(creativesTable).values({
         brandId: brand.id,
         name: "Regional Finals Hype Campaign",
         status: "pending_review",
@@ -252,8 +252,8 @@ export async function seedDatabase() {
       ];
 
       for (const v of platforms) {
-        const [variant] = await db.insert(campaignVariantsTable).values({
-          campaignId: campaign.id,
+        const [variant] = await db.insert(creativeVariantsTable).values({
+          creativeId: campaign.id,
           platform: v.platform,
           aspectRatio: v.aspectRatio,
           caption: v.caption,
@@ -266,7 +266,7 @@ export async function seedDatabase() {
         scheduledDate.setHours(17, 0, 0, 0);
 
         await db.insert(calendarEntriesTable).values({
-          campaignId: campaign.id,
+          creativeId: campaign.id,
           variantId: variant.id,
           platform: v.platform,
           scheduledAt: scheduledDate,
@@ -277,7 +277,7 @@ export async function seedDatabase() {
     }
 
     if (brandData.slug === "rumble-u") {
-      const [campaign] = await db.insert(campaignsTable).values({
+      const [campaign] = await db.insert(creativesTable).values({
         brandId: brand.id,
         name: "Season Opener Highlights",
         status: "draft",

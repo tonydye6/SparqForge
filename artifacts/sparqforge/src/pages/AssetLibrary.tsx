@@ -53,7 +53,7 @@ function StarRating({ value, onChange, max = 5, size = 14 }: { value: number; on
   );
 }
 
-interface CampaignUsage {
+interface CreativeUsage {
   id: string;
   name: string;
   status: string;
@@ -389,7 +389,7 @@ export default function AssetLibrary() {
                 <EmptyState
                   icon={ImagePlus}
                   title="No assets yet"
-                  description="Upload brand assets to start building campaigns"
+                  description="Upload brand assets to start building creatives"
                   actionLabel="Upload Assets"
                   onAction={openDropzone}
                 />
@@ -455,7 +455,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
   const deleteMutation = useDeleteAsset();
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({ name: asset.name, description: asset.description || "", tags: asset.tags?.join(", ") || "", characterIdentityNote: asset.characterIdentityNote || "" });
-  const [usageData, setUsageData] = useState<CampaignUsage[] | null>(null);
+  const [usageData, setUsageData] = useState<CreativeUsage[] | null>(null);
   const [usageLoading, setUsageLoading] = useState(false);
 
   useEffect(() => {
@@ -675,7 +675,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
                 <IntelligenceEditor asset={asset} onUpdate={handleUpdate} isPending={updateMutation.isPending} />
 
                 <div className="bg-background p-4 rounded-lg border border-border">
-                  <h4 className="text-xs uppercase text-muted-foreground font-semibold mb-3">Used in Campaigns</h4>
+                  <h4 className="text-xs uppercase text-muted-foreground font-semibold mb-3">Used in Creatives</h4>
                   {usageLoading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-10 w-full" />
@@ -696,7 +696,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Not used in any campaigns yet.</p>
+                    <p className="text-sm text-muted-foreground">Not used in any creatives yet.</p>
                   )}
                 </div>
               </div>
@@ -775,7 +775,7 @@ function BriefsTab({ briefs, brands, isLoading }: { briefs: Asset[], brands: any
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Title</label>
-                <Input {...register("title", { required: true })} placeholder="e.g. Q3 Campaign Messaging" />
+                <Input {...register("title", { required: true })} placeholder="e.g. Q3 Creative Messaging" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Content</label>
@@ -1071,7 +1071,7 @@ function HashtagsTab({ sets, brands }: { sets: any[], brands: any[] }) {
         <div className="flex flex-col items-center justify-center h-64 text-center border border-border border-dashed rounded-xl bg-card/30">
           <Hash size={48} className="text-muted-foreground/50 mb-4" />
           <h3 className="text-xl font-bold text-foreground mb-2">Hashtag library empty</h3>
-          <p className="text-muted-foreground mb-4">Organize your hashtags by campaign and platform.</p>
+          <p className="text-muted-foreground mb-4">Organize your hashtags by creative and platform.</p>
         </div>
       ) : (
         categories.map(cat => {

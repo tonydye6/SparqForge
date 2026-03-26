@@ -37,7 +37,7 @@ interface PlanItem {
   plannedWeek: string | null;
   plannedDate: string | null;
   notes: string | null;
-  linkedCampaignId: string | null;
+  linkedCreativeId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,7 +79,7 @@ const EMPTY_FORM: Omit<PlanItem, "id" | "createdAt" | "updatedAt"> = {
   plannedWeek: "",
   plannedDate: "",
   notes: "",
-  linkedCampaignId: null,
+  linkedCreativeId: null,
 };
 
 type SortField = "title" | "primaryPlatform" | "pillar" | "plannedWeek" | "status";
@@ -216,28 +216,28 @@ export default function ContentPlan() {
     }
   };
 
-  const handleCreateCampaign = async (id: string) => {
+  const handleCreateCreative = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/content-plan/${id}/create-campaign`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/content-plan/${id}/create-creative`, { method: "POST" });
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.campaignId) {
-          toast({ title: "Already linked", description: "This plan item already has a campaign" });
-          setLocation(`/?campaign=${data.campaignId}`);
+        if (data.creativeId) {
+          toast({ title: "Already linked", description: "This plan item already has a creative" });
+          setLocation(`/?campaign=${data.creativeId}`);
           return;
         }
-        toast({ title: "Failed to create campaign", description: data.error, variant: "destructive" });
+        toast({ title: "Failed to create creative", description: data.error, variant: "destructive" });
         return;
       }
 
-      toast({ title: "Campaign created", description: `Campaign "${data.campaign.name}" is ready in Campaign Studio` });
+      toast({ title: "Creative created", description: `Creative "${data.creative.name}" is ready in Creative Studio` });
       fetchItems();
       const planData = data.planItem;
       const platform = planData?.primaryPlatform ? `&platform=${encodeURIComponent(planData.primaryPlatform)}` : "";
-      setLocation(`/?campaign=${data.campaign.id}${platform}`);
+      setLocation(`/?campaign=${data.creative.id}${platform}`);
     } catch {
-      toast({ title: "Failed to create campaign", variant: "destructive" });
+      toast({ title: "Failed to create creative", variant: "destructive" });
     }
   };
 
@@ -263,7 +263,7 @@ export default function ContentPlan() {
         plannedWeek: item.plannedWeek || "",
         plannedDate: item.plannedDate || "",
         notes: item.notes || "",
-        linkedCampaignId: item.linkedCampaignId,
+        linkedCreativeId: item.linkedCreativeId,
       });
     } else {
       setEditingItem(null);
@@ -341,7 +341,7 @@ export default function ContentPlan() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Content Plan</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Plan, organize, and convert content items into campaigns
+            Plan, organize, and convert content items into creatives
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -501,28 +501,28 @@ export default function ContentPlan() {
                   </Badge>
                 </div>
                 <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                  {item.status === "planned" && !item.linkedCampaignId && (
+                  {item.status === "planned" && !item.linkedCreativeId && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleCreateCampaign(item.id)}
-                      title="Create Campaign"
+                      onClick={() => handleCreateCreative(item.id)}
+                      title="Create Creative"
                       className="text-primary border-primary/40 hover:bg-primary/10 gap-1.5"
                     >
                       <Rocket className="w-3.5 h-3.5" />
-                      <span className="text-xs">Create Campaign</span>
+                      <span className="text-xs">Create Creative</span>
                     </Button>
                   )}
-                  {item.linkedCampaignId && (
+                  {item.linkedCreativeId && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setLocation(`/?campaign=${item.linkedCampaignId}`)}
-                      title="Open Campaign"
+                      onClick={() => setLocation(`/?campaign=${item.linkedCreativeId}`)}
+                      title="Open Creative"
                       className="text-green-400 border-green-400/40 hover:bg-green-400/10 gap-1.5"
                     >
                       <Rocket className="w-3.5 h-3.5" />
-                      <span className="text-xs">Open Campaign</span>
+                      <span className="text-xs">Open Creative</span>
                     </Button>
                   )}
                   <Button
@@ -548,7 +548,7 @@ export default function ContentPlan() {
               {expandedId === item.id && (
                 <div className="px-4 pb-4 pt-1 bg-muted/20 border-t border-border">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                    <DetailField label="Campaign Name" value={item.campaignName} />
+                    <DetailField label="Creative Name" value={item.campaignName} />
                     <DetailField label="Template" value={item.templateName} />
                     <DetailField label="Audience" value={item.audience} />
                     <DetailField label="Brand Layer" value={item.brandLayer} />
@@ -585,17 +585,17 @@ export default function ContentPlan() {
                         <DetailField label="Notes" value={item.notes} />
                       </div>
                     )}
-                    {item.linkedCampaignId && (
+                    {item.linkedCreativeId && (
                       <div>
-                        <span className="text-xs text-muted-foreground font-medium">Linked Campaign</span>
+                        <span className="text-xs text-muted-foreground font-medium">Linked Creative</span>
                         <p className="text-foreground mt-0.5">
                           <Button
                             variant="link"
                             size="sm"
                             className="p-0 h-auto text-primary"
-                            onClick={() => setLocation(`/?campaign=${item.linkedCampaignId}`)}
+                            onClick={() => setLocation(`/?campaign=${item.linkedCreativeId}`)}
                           >
-                            View in Campaign Studio →
+                            View in Creative Studio →
                           </Button>
                         </p>
                       </div>
@@ -661,11 +661,11 @@ export default function ContentPlan() {
               />
             </div>
             <div>
-              <Label>Campaign Name</Label>
+              <Label>Creative Name</Label>
               <Input
                 value={formData.campaignName || ""}
                 onChange={e => setFormData(f => ({ ...f, campaignName: e.target.value }))}
-                placeholder="Campaign name"
+                placeholder="Creative name"
               />
             </div>
             <div>

@@ -12,13 +12,13 @@ tags:
   - name: brands
     description: Brand configuration
   - name: templates
-    description: Campaign templates
+    description: Creative templates
   - name: assets
     description: Asset library
   - name: hashtags
     description: Hashtag sets
-  - name: campaigns
-    description: Campaign management
+  - name: creatives
+    description: Creative management
   - name: upload
     description: File upload
   - name: social-accounts
@@ -417,11 +417,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
-  /campaigns:
+  /creatives:
     get:
-      operationId: getCampaigns
-      tags: [campaigns]
-      summary: Get all campaigns
+      operationId: getCreatives
+      tags: [creatives]
+      summary: Get all creatives
       parameters:
         - name: brandId
           in: query
@@ -433,36 +433,36 @@ paths:
             type: string
       responses:
         "200":
-          description: List of campaigns
+          description: List of creatives
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Campaign"
+                  $ref: "#/components/schemas/Creative"
     post:
-      operationId: createCampaign
-      tags: [campaigns]
-      summary: Create a campaign
+      operationId: createCreative
+      tags: [creatives]
+      summary: Create a creative
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCampaignInput"
+              $ref: "#/components/schemas/CreateCreativeInput"
       responses:
         "201":
-          description: Campaign created
+          description: Creative created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Campaign"
+                $ref: "#/components/schemas/Creative"
 
-  /campaigns/{id}:
+  /creatives/{id}:
     get:
-      operationId: getCampaign
-      tags: [campaigns]
-      summary: Get a campaign
+      operationId: getCreative
+      tags: [creatives]
+      summary: Get a creative
       parameters:
         - name: id
           in: path
@@ -471,15 +471,15 @@ paths:
             type: string
       responses:
         "200":
-          description: Campaign
+          description: Creative
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Campaign"
+                $ref: "#/components/schemas/Creative"
     put:
-      operationId: updateCampaign
-      tags: [campaigns]
-      summary: Update a campaign
+      operationId: updateCreative
+      tags: [creatives]
+      summary: Update a creative
       parameters:
         - name: id
           in: path
@@ -491,14 +491,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateCampaignInput"
+              $ref: "#/components/schemas/UpdateCreativeInput"
       responses:
         "200":
-          description: Campaign updated
+          description: Creative updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Campaign"
+                $ref: "#/components/schemas/Creative"
 
   /upload:
     post:
@@ -722,11 +722,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/TemplateRecommendation"
 
-  /campaigns/{id}/generate-video:
+  /creatives/{id}/generate-video:
     post:
       operationId: generateVideo
-      tags: [campaigns]
-      summary: Generate video variants for a campaign (SSE)
+      tags: [creatives]
+      summary: Generate video variants for a creative (SSE)
       parameters:
         - name: id
           in: path
@@ -748,10 +748,10 @@ paths:
         "200":
           description: SSE stream of video generation progress
 
-  /campaigns/{id}/variants/{variantId}/audio:
+  /creatives/{id}/variants/{variantId}/audio:
     post:
       operationId: addVariantAudio
-      tags: [campaigns]
+      tags: [creatives]
       summary: Generate and merge AI audio onto a video variant
       parameters:
         - name: id
@@ -776,12 +776,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CampaignVariant"
+                $ref: "#/components/schemas/CreativeVariant"
 
-  /campaigns/{id}/variants/{variantId}/audio-upload:
+  /creatives/{id}/variants/{variantId}/audio-upload:
     post:
       operationId: uploadVariantAudio
-      tags: [campaigns]
+      tags: [creatives]
       summary: Upload custom audio and merge onto a video variant
       parameters:
         - name: id
@@ -815,7 +815,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CampaignVariant"
+                $ref: "#/components/schemas/CreativeVariant"
 
   /cost-logs:
     get:
@@ -1432,7 +1432,7 @@ components:
         - hashtags
         - category
 
-    Campaign:
+    Creative:
       type: object
       properties:
         id:
@@ -1462,7 +1462,7 @@ components:
           items:
             type: string
           nullable: true
-        sourceCampaignId:
+        sourceCreativeId:
           type: string
           nullable: true
         createdBy:
@@ -1489,7 +1489,7 @@ components:
         - createdAt
         - updatedAt
 
-    CreateCampaignInput:
+    CreateCreativeInput:
       type: object
       properties:
         brandId:
@@ -1523,7 +1523,7 @@ components:
         - selectedAssets
         - createdBy
 
-    UpdateCampaignInput:
+    UpdateCreativeInput:
       type: object
       properties:
         name:
@@ -1753,12 +1753,12 @@ components:
       required:
         - type
 
-    CampaignVariant:
+    CreativeVariant:
       type: object
       properties:
         id:
           type: string
-        campaignId:
+        creativeId:
           type: string
         platform:
           type: string
@@ -1803,7 +1803,7 @@ components:
           format: date-time
       required:
         - id
-        - campaignId
+        - creativeId
         - platform
         - aspectRatio
         - caption
@@ -1815,7 +1815,7 @@ components:
       properties:
         id:
           type: string
-        campaignId:
+        creativeId:
           type: string
           nullable: true
         service:

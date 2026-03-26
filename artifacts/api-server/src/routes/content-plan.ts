@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, or, sql, SQL, ilike } from "drizzle-orm";
-import { db, socialContentPlanItemsTable, brandsTable, templatesTable, campaignsTable, type PlanItem } from "@workspace/db";
+import { db, socialContentPlanItemsTable, brandsTable, templatesTable, creativesTable, type PlanItem } from "@workspace/db";
 import multer from "multer";
 import { parse as csvParseSync } from "csv-parse/sync";
 
@@ -259,7 +259,7 @@ router.delete("/content-plan/:id", async (req, res): Promise<void> => {
   res.json({ deleted: true });
 });
 
-router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void> => {
+router.post("/content-plan/:id/create-creative", async (req, res): Promise<void> => {
   const [planItem] = await db.select().from(socialContentPlanItemsTable)
     .where(eq(socialContentPlanItemsTable.id, req.params.id));
 
@@ -268,8 +268,9 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
     return;
   }
 
-  if (planItem.linkedCampaignId) {
-    res.status(400).json({ error: "Plan item already has a linked campaign" });
+  if (planItem.linkedCreativeId) {
+    res.status(400).json({ error: "Plan item already has a linked creative" });
+
     return;
   }
 
@@ -310,7 +311,7 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
 
   try {
     const result = await db.transaction(async (tx) => {
-      const [campaign] = await tx.insert(campaignsTable).values({
+      const [campaign] = await tx.insert(creativesTable).values({
         brandId: brandId!,
         templateId,
         name: planItem.title,
@@ -322,7 +323,7 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
       await tx.update(socialContentPlanItemsTable)
         .set({
           status: "in_progress",
-          linkedCampaignId: campaign.id,
+          linkedCreativeId: campaign.id,
           updatedAt: new Date(),
         })
         .where(eq(socialContentPlanItemsTable.id, planItem.id));
@@ -331,15 +332,15 @@ router.post("/content-plan/:id/create-campaign", async (req, res): Promise<void>
     });
 
     res.status(201).json({
-      campaign: result,
+      creative: result,
       planItem: {
         ...planItem,
         status: "in_progress",
-        linkedCampaignId: result.id,
+        linkedCreativeId: result.id,
       },
     });
   } catch (err) {
-    res.status(500).json({ error: "Failed to create campaign" });
+    res.status(500).json({ error: "Failed to create creative" });
   }
 });
 

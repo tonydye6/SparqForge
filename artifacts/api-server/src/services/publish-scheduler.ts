@@ -1,5 +1,5 @@
 import { eq, and, lte, or } from "drizzle-orm";
-import { db, calendarEntriesTable, campaignVariantsTable, socialAccountsTable } from "@workspace/db";
+import { db, calendarEntriesTable, creativeVariantsTable, socialAccountsTable } from "@workspace/db";
 import { publishToTwitter } from "./publish-twitter";
 import { publishToInstagram } from "./publish-instagram";
 import { publishToLinkedIn } from "./publish-linkedin";
@@ -120,14 +120,14 @@ async function publishEntry(entryId: string): Promise<void> {
       return null;
     }
 
-    const [variant] = await tx.select().from(campaignVariantsTable)
-      .where(eq(campaignVariantsTable.id, entry.variantId));
+    const [variant] = await tx.select().from(creativeVariantsTable)
+      .where(eq(creativeVariantsTable.id, entry.variantId));
 
     if (!variant) {
       await tx.update(calendarEntriesTable)
         .set({
           publishStatus: "failed",
-          publishError: "Campaign variant not found",
+          publishError: "Creative variant not found",
           retryCount: (entry.retryCount || 0) + 1,
           updatedAt: new Date(),
         })

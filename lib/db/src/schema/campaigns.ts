@@ -5,7 +5,7 @@ import { brandsTable } from "./brands";
 import { templatesTable } from "./templates";
 import { socialAccountsTable } from "./social-accounts";
 
-export const campaignsTable = pgTable("campaigns", {
+export const creativesTable = pgTable("creatives", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   brandId: text("brand_id").notNull().references(() => brandsTable.id, { onDelete: "cascade" }),
   templateId: text("template_id").references(() => templatesTable.id, { onDelete: "set null" }),
@@ -17,7 +17,7 @@ export const campaignsTable = pgTable("campaigns", {
   referenceScreenshots: json("reference_screenshots"),
   selectedAssets: json("selected_assets").notNull().default([]),
   selectedHashtagSets: json("selected_hashtag_sets"),
-  sourceCampaignId: text("source_campaign_id"),
+  sourceCreativeId: text("source_creative_id"),
   estimatedCost: real("estimated_cost"),
   createdBy: text("created_by").notNull(),
   reviewedBy: text("reviewed_by"),
@@ -29,24 +29,24 @@ export const campaignsTable = pgTable("campaigns", {
   index("campaigns_brand_status_idx").on(table.brandId, table.status),
   index("campaigns_template_created_idx").on(table.templateId, table.createdAt),
   foreignKey({
-    columns: [table.sourceCampaignId],
+    columns: [table.sourceCreativeId],
     foreignColumns: [table.id],
     name: "campaigns_source_campaign_id_campaigns_id_fk",
   }).onDelete("set null"),
 ]);
 
-export const insertCampaignSchema = createInsertSchema(campaignsTable).omit({
+export const insertCreativeSchema = createInsertSchema(creativesTable).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
-export type Campaign = typeof campaignsTable.$inferSelect;
+export type InsertCreative = z.infer<typeof insertCreativeSchema>;
+export type Creative = typeof creativesTable.$inferSelect;
 
-export const campaignVariantsTable = pgTable("campaign_variants", {
+export const creativeVariantsTable = pgTable("creative_variants", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
+  creativeId: text("creative_id").notNull().references(() => creativesTable.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
   aspectRatio: text("aspect_ratio").notNull(),
   rawImageUrl: text("raw_image_url"),
@@ -64,13 +64,13 @@ export const campaignVariantsTable = pgTable("campaign_variants", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
-  index("campaign_variants_campaign_idx").on(table.campaignId),
+  index("campaign_variants_campaign_idx").on(table.creativeId),
 ]);
 
 export const calendarEntriesTable = pgTable("calendar_entries", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").notNull().references(() => campaignsTable.id, { onDelete: "cascade" }),
-  variantId: text("variant_id").notNull().references(() => campaignVariantsTable.id, { onDelete: "cascade" }),
+  creativeId: text("creative_id").notNull().references(() => creativesTable.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").notNull().references(() => creativeVariantsTable.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
   socialAccountId: text("social_account_id").references(() => socialAccountsTable.id, { onDelete: "set null" }),
   scheduledAt: timestamp("scheduled_at").notNull(),
@@ -86,7 +86,7 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
 
 export const refinementLogsTable = pgTable("refinement_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").references(() => campaignsTable.id, { onDelete: "set null" }),
+  creativeId: text("creative_id").references(() => creativesTable.id, { onDelete: "set null" }),
   templateId: text("template_id").notNull().references(() => templatesTable.id, { onDelete: "cascade" }),
   editType: text("edit_type").notNull(),
   platform: text("platform"),
@@ -102,7 +102,7 @@ export const refinementLogsTable = pgTable("refinement_logs", {
 
 export const costLogsTable = pgTable("cost_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  campaignId: text("campaign_id").references(() => campaignsTable.id, { onDelete: "set null" }),
+  creativeId: text("creative_id").references(() => creativesTable.id, { onDelete: "set null" }),
   service: text("service").notNull(),
   operation: text("operation").notNull(),
   model: text("model"),
