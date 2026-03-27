@@ -229,8 +229,16 @@ router.post("/creatives/:id/generate", async (req: Request, res: Response): Prom
     "X-Accel-Buffering": "no",
   });
 
+  const SSE_TIMEOUT_MS = 5 * 60 * 1000;
   let clientDisconnected = false;
-  req.on("close", () => { clientDisconnected = true; });
+  const sseTimeout = setTimeout(() => {
+    if (!clientDisconnected) {
+      res.write(`event: error\ndata: ${JSON.stringify({ message: "Generation timed out after 5 minutes" })}\n\n`);
+    }
+    clientDisconnected = true;
+    res.end();
+  }, SSE_TIMEOUT_MS);
+  req.on("close", () => { clientDisconnected = true; clearTimeout(sseTimeout); });
 
   function sendEvent(event: string, data: Record<string, unknown>) {
     if (clientDisconnected) return;
@@ -537,6 +545,7 @@ router.post("/creatives/:id/generate", async (req: Request, res: Response): Prom
       }
     } catch {}
   } finally {
+    clearTimeout(sseTimeout);
     res.end();
   }
 });

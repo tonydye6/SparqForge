@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { creativesTable } from "./campaigns";
+import { creativesTable } from "./creatives";
 
 export const socialContentPlanItemsTable = pgTable("social_content_plan_items", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

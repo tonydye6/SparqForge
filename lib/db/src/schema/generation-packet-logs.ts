@@ -1,7 +1,7 @@
 import { pgTable, text, timestamp, json, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
-import { creativesTable } from "./campaigns";
+import { creativesTable } from "./creatives";
 import { templatesTable } from "./templates";
 import { assetsTable } from "./assets";
 

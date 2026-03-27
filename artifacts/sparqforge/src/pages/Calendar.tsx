@@ -128,7 +128,10 @@ export default function Calendar() {
         setEntries(Array.isArray(data) ? data : (data?.entries ?? []));
         setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((err) => {
+        console.error("Failed to load calendar entries:", err);
+        setIsLoading(false);
+      });
   }, [year, month, currentDate, brandFilter, viewMode]);
 
   useMemo(() => {

@@ -22,7 +22,11 @@ seedDatabase()
   .then(() => {
     app.listen(port, () => {
       logger.info({ port }, "Server listening");
-      startPublishScheduler();
+      try {
+        startPublishScheduler();
+      } catch (err) {
+        logger.error(err, "Publish scheduler failed to start — scheduling disabled");
+      }
     });
     refreshExpiringTokens()
       .then(() => logger.info("Token refresh check completed"))
@@ -32,6 +36,10 @@ seedDatabase()
     logger.error(err, "Failed to seed database");
     app.listen(port, () => {
       logger.info({ port }, "Server listening (seed failed)");
-      startPublishScheduler();
+      try {
+        startPublishScheduler();
+      } catch (err) {
+        logger.error(err, "Publish scheduler failed to start — scheduling disabled");
+      }
     });
   });

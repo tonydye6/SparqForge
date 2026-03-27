@@ -63,7 +63,10 @@ function FirstRunGuard({ children }: { children: React.ReactNode }) {
         setBrands(data.data || data || []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("Failed to load brands:", err);
+        setLoading(false);
+      });
   }, []);
 
   if (loading) {

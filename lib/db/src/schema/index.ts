@@ -6,7 +6,7 @@ export * from "./assets";
 export * from "./asset-pairings";
 export * from "./generation-packet-logs";
 export * from "./hashtag-sets";
-export * from "./campaigns";
+export * from "./creatives";
 export * from "./users";
 export * from "./social-accounts";
 export * from "./settings";
