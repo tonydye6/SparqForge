@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  useGetAssets, useUpdateAsset, useDeleteAsset,
+  useGetAssets, useUpdateAsset, useDeleteAsset, useCreateAsset,
   useGetBrands, useGetHashtagSets, useCreateHashtagSet, useUpdateHashtagSet, useDeleteHashtagSet,
   type Asset
 } from "@workspace/api-client-react";
