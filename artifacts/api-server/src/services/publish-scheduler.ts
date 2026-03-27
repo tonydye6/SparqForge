@@ -4,6 +4,7 @@ import { publishToTwitter } from "./publish-twitter";
 import { publishToInstagram } from "./publish-instagram";
 import { publishToLinkedIn } from "./publish-linkedin";
 import { publishToTikTok } from "./publish-tiktok";
+import { publishToYouTube } from "./publish-youtube";
 import { decryptToken } from "./token-encryption";
 import { logger } from "../lib/logger";
 
@@ -108,6 +109,7 @@ async function publishEntry(entryId: string): Promise<void> {
       instagram_story: "instagram",
       linkedin: "linkedin",
       tiktok: "tiktok",
+      youtube: "youtube",
     };
     const expectedPlatform = platformMap[entry.platform] || entry.platform;
     if (socialAccount.platform !== expectedPlatform && socialAccount.platform !== entry.platform) {
@@ -203,6 +205,28 @@ async function publishEntry(entryId: string): Promise<void> {
         imagePath: videoPath ? undefined : (imagePath || undefined),
         videoPath: videoPath || undefined,
       });
+    } else if (platform === "youtube") {
+      const videoUrl = variant.videoUrl || variant.mergedVideoUrl;
+      if (!videoUrl) {
+        result = { success: false, error: "No video file available for YouTube upload" };
+      } else {
+        const videoFilename = videoUrl.split("/").pop();
+        const videoFilePath = videoFilename ? `uploads/generated/${videoFilename}` : null;
+        if (!videoFilePath) {
+          result = { success: false, error: "Could not resolve video file path for YouTube" };
+        } else {
+          const hashtagMatches = caption.match(/#[\w]+/g);
+          const tags = hashtagMatches ? hashtagMatches.map(t => t.slice(1)) : [];
+          result = await publishToYouTube({
+            accessToken: decryptedAccessToken,
+            title: variant.headlineText || caption.substring(0, 100) || "Untitled Video",
+            description: caption,
+            tags,
+            videoPath: videoFilePath,
+            publishAt: entry.scheduledAt,
+          });
+        }
+      }
     } else {
       result = { success: false, error: `Unsupported platform: ${platform}` };
     }

@@ -37,8 +37,8 @@ The frontend comprises several key pages:
     5. **Compositing**: Overlays gradients, headline text, and brand logos onto raw images using Sharp. Auto-fetches the brand's primary logo asset for compositing when the layout spec includes logo_placement.
     6. **SSE Streaming**: Provides real-time progress updates during generation.
 - **Video and Audio Generation**: Integrates Veo for video generation and ElevenLabs for text-to-music and SFX. ffmpeg handles audio/video merging.
-- **Social Account OAuth**: Supports Twitter/X (OAuth 2.0 PKCE + OAuth 1.0a for media upload), Instagram (via Facebook Login), LinkedIn (OAuth 2.0), and TikTok (OAuth 2.0 with PKCE). Tokens are encrypted using AES-256-GCM and automatically refreshed.
-- **Publishing Engine**: A database-backed scheduler polls for scheduled posts, and platform-specific services handle publishing to Twitter (OAuth 1.0a media upload signing), Instagram (Feed + Stories, Authorization header auth), LinkedIn (Community Management API v202401, `/rest/posts` + `/rest/images`), and TikTok (Content Posting API with video upload + photo posts). Includes retry logic with exponential backoff.
+- **Social Account OAuth**: Supports Twitter/X (OAuth 2.0 PKCE + OAuth 1.0a for media upload), Instagram (via Facebook Login), LinkedIn (OAuth 2.0), TikTok (OAuth 2.0 with PKCE), and YouTube (Google OAuth 2.0 with YouTube-specific scopes). Tokens are encrypted using AES-256-GCM and automatically refreshed.
+- **Publishing Engine**: A database-backed scheduler polls for scheduled posts, and platform-specific services handle publishing to Twitter (OAuth 1.0a media upload signing), Instagram (Feed + Stories, Authorization header auth), LinkedIn (Community Management API v202401, `/rest/posts` + `/rest/images`), TikTok (Content Posting API with video upload + photo posts), and YouTube (Data API v3, resumable video upload). Includes retry logic with exponential backoff.
 - **Template Refinement Loop**: Tracks user edits (refinement logs), maintains template version history with rollback capabilities, and uses Claude for AI-powered refinement analysis and recommendations.
 
 **Authentication & Security:**
@@ -67,3 +67,4 @@ The database includes tables for `brands` (with `brandAssetConfig` JSON field, `
     - Instagram Graph API (Authorization header auth, Feed + Stories)
     - LinkedIn Community Management API (v202401)
     - TikTok Content Posting API v2 (OAuth 2.0 PKCE, video upload + photo posts)
+    - YouTube Data API v3 (resumable video upload, Google OAuth 2.0)

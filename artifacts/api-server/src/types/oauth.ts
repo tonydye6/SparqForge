@@ -78,3 +78,26 @@ export interface TikTokUserInfoResponse {
     message: string;
   };
 }
+
+export interface GoogleTokenResponse {
+  access_token: string;
+  expires_in?: number;
+  refresh_token?: string;
+  token_type: string;
+  scope?: string;
+}
+
+export interface YouTubeChannelResponse {
+  items?: Array<{
+    id: string;
+    snippet: {
+      title: string;
+      thumbnails?: {
+        default?: { url: string };
+      };
+    };
+    statistics?: {
+      subscriberCount?: string;
+    };
+  }>;
+}

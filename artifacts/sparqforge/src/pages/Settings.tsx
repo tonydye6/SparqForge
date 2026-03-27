@@ -262,6 +262,7 @@ const PLATFORM_CONFIG: Record<string, { label: string; color: string; icon: stri
   instagram: { label: "Instagram", color: "#E4405F", icon: "IG" },
   linkedin: { label: "LinkedIn", color: "#0A66C2", icon: "in" },
   tiktok: { label: "TikTok", color: "#010101", icon: "TT" },
+  youtube: { label: "YouTube", color: "#FF0000", icon: "YT" },
 };
 
 const AVAILABLE_PLATFORMS = [
@@ -269,6 +270,7 @@ const AVAILABLE_PLATFORMS = [
   { id: "instagram", label: "Instagram", description: "Share photos and reels" },
   { id: "linkedin", label: "LinkedIn", description: "Publish professional content" },
   { id: "tiktok", label: "TikTok", description: "Share videos and photo posts" },
+  { id: "youtube", label: "YouTube", description: "Upload and publish videos" },
 ];
 
 function ConnectedAccountsTab() {
@@ -330,12 +332,14 @@ function ConnectedAccountsTab() {
             {accounts.map(account => {
               const config = PLATFORM_CONFIG[account.platform] || { label: account.platform, color: "#666", icon: "?" };
               const status = account.displayStatus || account.status;
+              const metadata = account.platformMetadata as Record<string, unknown> | null;
+              const subscriberCount = metadata?.subscriberCount as string | undefined;
               return (
                 <div key={account.id} className="flex items-center justify-between p-4 border border-border bg-background rounded-lg">
                   <div className="flex items-center gap-4">
-                    {account.profileImageUrl ? (
+                    {(account.profileImageUrl || account.avatarUrl) ? (
                       <img
-                        src={account.profileImageUrl}
+                        src={account.profileImageUrl || account.avatarUrl}
                         alt={account.accountName}
                         className="w-10 h-10 rounded-lg object-cover"
                       />
@@ -351,6 +355,11 @@ function ConnectedAccountsTab() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{account.accountName}</span>
                         <Badge variant="outline" className="text-xs">{config.label}</Badge>
+                        {subscriberCount && (
+                          <span className="text-xs text-muted-foreground">
+                            {Number(subscriberCount).toLocaleString()} subscribers
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         {status === "connected" && (

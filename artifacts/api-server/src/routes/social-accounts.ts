@@ -8,6 +8,7 @@ import type {
   LinkedInTokenResponse,
   FacebookTokenResponse,
   TikTokTokenResponse,
+  GoogleTokenResponse,
 } from "../types/oauth";
 import { TIKTOK_ENV_VARS } from "../constants";
 
@@ -22,6 +23,8 @@ router.get("/social-accounts", async (_req, res) => {
       accountId: socialAccountsTable.accountId,
       tokenExpiry: socialAccountsTable.tokenExpiry,
       profileImageUrl: socialAccountsTable.profileImageUrl,
+      avatarUrl: socialAccountsTable.avatarUrl,
+      platformMetadata: socialAccountsTable.platformMetadata,
       brandId: socialAccountsTable.brandId,
       status: socialAccountsTable.status,
       createdAt: socialAccountsTable.createdAt,
@@ -187,6 +190,49 @@ router.post("/social-accounts/:id/refresh", async (req, res) => {
         .where(eq(socialAccountsTable.id, id));
 
       return res.json({ success: true, message: "LinkedIn token refreshed" });
+    }
+
+    if (account.platform === "youtube" && account.refreshToken) {
+      const refreshTokenDecrypted = decryptToken(account.refreshToken);
+      const clientId = process.env.SparqForge_Google_Client_ID;
+      const clientSecret = process.env.SparqForge_Google_Client_Secret;
+
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: refreshTokenDecrypted,
+          client_id: clientId!,
+          client_secret: clientSecret!,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        await db
+          .update(socialAccountsTable)
+          .set({ status: "expired", updatedAt: new Date() })
+          .where(eq(socialAccountsTable.id, id));
+        return res.status(400).json({ error: "Token refresh failed" });
+      }
+
+      const tokenData: GoogleTokenResponse = await tokenResponse.json();
+      const expiresAt = tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000)
+        : new Date(Date.now() + 3600 * 1000);
+
+      await db
+        .update(socialAccountsTable)
+        .set({
+          accessToken: encryptToken(tokenData.access_token),
+          refreshToken: tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : account.refreshToken,
+          tokenExpiry: expiresAt,
+          status: "connected",
+          updatedAt: new Date(),
+        })
+        .where(eq(socialAccountsTable.id, id));
+
+      return res.json({ success: true, message: "YouTube token refreshed" });
     }
 
     if (account.platform === "instagram") {

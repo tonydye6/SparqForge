@@ -42,6 +42,7 @@ const PLATFORM_MAP: Record<string, { label: string; icon: string; color: string 
   twitter: { label: "X/Twitter", icon: "twitter", color: "#1DA1F2" },
   linkedin: { label: "LinkedIn", icon: "linkedin", color: "#0A66C2" },
   tiktok: { label: "TikTok", icon: "tiktok", color: "#ff0050" },
+  youtube: { label: "YouTube", icon: "youtube", color: "#FF0000" },
 };
 
 function ScoreBar({ score }: { score: number }) {

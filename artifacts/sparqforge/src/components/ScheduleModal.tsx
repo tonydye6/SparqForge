@@ -33,6 +33,7 @@ const PLATFORM_MAP: Record<string, string> = {
   instagram_story: "instagram",
   linkedin: "linkedin",
   tiktok: "tiktok",
+  youtube: "youtube",
 };
 
 export function ScheduleModal({ open, onOpenChange, creativeId, creativeName, onScheduled }: ScheduleModalProps) {
@@ -155,7 +156,8 @@ export function ScheduleModal({ open, onOpenChange, creativeId, creativeName, on
                     platform === "instagram_feed" ? "Instagram Feed" :
                     platform === "instagram_story" ? "Instagram Story" :
                     platform === "linkedin" ? "LinkedIn" :
-                    platform === "tiktok" ? "TikTok" : platform;
+                    platform === "tiktok" ? "TikTok" :
+                    platform === "youtube" ? "YouTube" : platform;
 
                   return (
                     <div key={platform} className="flex items-center gap-2">

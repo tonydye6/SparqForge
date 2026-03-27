@@ -1,6 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db, socialAccountsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 import { encryptToken } from "../services/token-encryption";
 import { logger } from "../lib/logger";
 import type {
@@ -14,6 +15,8 @@ import type {
   LinkedInProfileResponse,
   TikTokTokenResponse,
   TikTokUserInfoResponse,
+  GoogleTokenResponse,
+  YouTubeChannelResponse,
 } from "../types/oauth";
 import { TIKTOK_ENV_VARS } from "../constants";
 
@@ -498,6 +501,137 @@ router.get("/auth/tiktok/callback", async (req, res) => {
     res.redirect(`${getSettingsRedirectUrl()}&success=tiktok`);
   } catch (err) {
     logger.error(err, "TikTok callback error");
+    res.redirect(`${getSettingsRedirectUrl()}&error=callback_error`);
+  }
+});
+
+router.get("/auth/youtube", (_req, res) => {
+  const clientId = process.env.SparqForge_Google_Client_ID;
+  if (!clientId) {
+    return res.status(500).json({ error: "Google Client ID not configured" });
+  }
+
+  const state = createOAuthState();
+  const callbackUrl = `${getCallbackBaseUrl()}/api/auth/youtube/callback`;
+  const scopes = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+  ].join(" ");
+
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: callbackUrl,
+    scope: scopes,
+    state,
+    access_type: "offline",
+    prompt: "consent",
+  });
+
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+router.get("/auth/youtube/callback", async (req, res) => {
+  try {
+    const { code, state } = req.query;
+
+    if (!validateOAuthState(state as string | undefined)) {
+      return res.redirect(`${getSettingsRedirectUrl()}&error=invalid_state`);
+    }
+
+    if (!code || typeof code !== "string") {
+      return res.redirect(`${getSettingsRedirectUrl()}&error=missing_code`);
+    }
+
+    const clientId = process.env.SparqForge_Google_Client_ID;
+    const clientSecret = process.env.SparqForge_Google_Client_Secret;
+    const callbackUrl = `${getCallbackBaseUrl()}/api/auth/youtube/callback`;
+
+    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: callbackUrl,
+        client_id: clientId!,
+        client_secret: clientSecret!,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errBody = await tokenResponse.text();
+      logger.error({ status: tokenResponse.status, body: errBody }, "YouTube token exchange failed");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=token_exchange_failed`);
+    }
+
+    const tokenData: GoogleTokenResponse = await tokenResponse.json();
+
+    const channelResponse = await fetch(
+      "https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true",
+      { headers: { Authorization: `Bearer ${tokenData.access_token}` } },
+    );
+
+    if (!channelResponse.ok) {
+      const errBody = await channelResponse.text();
+      logger.error({ status: channelResponse.status, body: errBody }, "YouTube channel fetch failed");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=channel_fetch_failed`);
+    }
+
+    const channelData: YouTubeChannelResponse = await channelResponse.json();
+
+    if (!channelData.items || channelData.items.length === 0) {
+      logger.error("No YouTube channel found for authenticated user");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=no_youtube_channel`);
+    }
+
+    const channel = channelData.items[0];
+    const accountName = channel.snippet.title;
+    const accountId = channel.id;
+    const avatarUrl = channel.snippet.thumbnails?.default?.url || null;
+    const subscriberCount = channel.statistics?.subscriberCount || null;
+
+    const expiresAt = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000)
+      : new Date(Date.now() + 3600 * 1000);
+
+    const [existing] = await db.select({ id: socialAccountsTable.id })
+      .from(socialAccountsTable)
+      .where(and(
+        eq(socialAccountsTable.platform, "youtube"),
+        eq(socialAccountsTable.accountId, accountId),
+      ));
+
+    if (existing) {
+      await db.update(socialAccountsTable)
+        .set({
+          accountName,
+          accessToken: encryptToken(tokenData.access_token),
+          refreshToken: tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : undefined,
+          tokenExpiry: expiresAt,
+          avatarUrl,
+          platformMetadata: subscriberCount ? { subscriberCount } : null,
+          status: "connected",
+          updatedAt: new Date(),
+        })
+        .where(eq(socialAccountsTable.id, existing.id));
+    } else {
+      await db.insert(socialAccountsTable).values({
+        platform: "youtube",
+        accountName,
+        accountId,
+        accessToken: encryptToken(tokenData.access_token),
+        refreshToken: tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : null,
+        tokenExpiry: expiresAt,
+        avatarUrl,
+        platformMetadata: subscriberCount ? { subscriberCount } : null,
+        status: "connected",
+      });
+    }
+
+    res.redirect(`${getSettingsRedirectUrl()}&success=youtube`);
+  } catch (err) {
+    logger.error(err, "YouTube callback error");
     res.redirect(`${getSettingsRedirectUrl()}&error=callback_error`);
   }
 });
