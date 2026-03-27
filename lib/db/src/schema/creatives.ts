@@ -79,11 +79,31 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
   publishError: text("publish_error"),
   retryCount: integer("retry_count").notNull().default(0),
   scheduleMethod: text("schedule_method").notNull().default("manual"),
+  smartScheduleRationale: text("smart_schedule_rationale"),
   proposalId: text("proposal_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
   index("calendar_entries_schedule_idx").on(table.scheduledAt, table.publishStatus),
+]);
+
+export const smartScheduleProposalsTable = pgTable("smart_schedule_proposals", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  creativeId: text("creative_id").notNull().references(() => creativesTable.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").notNull().references(() => creativeVariantsTable.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  proposedAt: timestamp("proposed_at").notNull(),
+  score: real("score").notNull().default(0),
+  slotScore: real("slot_score"),
+  rationale: text("rationale"),
+  status: text("status").notNull().default("pending"),
+  confirmedAt: timestamp("confirmed_at"),
+  finalTime: timestamp("final_time"),
+  calendarEntryId: text("calendar_entry_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("smart_schedule_proposals_creative_idx").on(table.creativeId),
 ]);
 
 export const refinementLogsTable = pgTable("refinement_logs", {
@@ -127,20 +147,4 @@ export const brandScheduleProfilesTable = pgTable("brand_schedule_profiles", {
 }, (table) => [
   uniqueIndex("brand_schedule_profiles_unique_idx").on(table.brandId, table.platform, table.dayOfWeek, table.hour),
   index("brand_schedule_profiles_brand_idx").on(table.brandId, table.platform),
-]);
-
-export const smartScheduleProposalsTable = pgTable("smart_schedule_proposals", {
-  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  creativeId: text("creative_id").notNull().references(() => creativesTable.id, { onDelete: "cascade" }),
-  variantId: text("variant_id").notNull().references(() => creativeVariantsTable.id, { onDelete: "cascade" }),
-  platform: text("platform").notNull(),
-  proposedAt: timestamp("proposed_at").notNull(),
-  rationale: text("rationale"),
-  slotScore: real("slot_score"),
-  status: text("status").notNull().default("pending"),
-  finalTime: timestamp("final_time"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [
-  index("smart_schedule_proposals_creative_idx").on(table.creativeId),
 ]);

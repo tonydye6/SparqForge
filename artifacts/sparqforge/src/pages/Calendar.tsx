@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2, CalendarPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2, CalendarPlus, Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,8 @@ interface CalendarEntry {
   caption: string;
   aspectRatio: string;
   compositedImageUrl?: string | null;
+  scheduleMethod?: string | null;
+  smartScheduleRationale?: string | null;
 }
 
 
@@ -272,23 +274,32 @@ export default function Calendar() {
   const commitReschedule = useCallback(async (entryId: string, newDate: Date) => {
     const entry = entries.find(e => e.id === entryId);
     const previousScheduledAt = entry?.scheduledAt || "";
+    const wasSmartScheduled = entry?.scheduleMethod === "smart_schedule" || entry?.scheduleMethod === "smart_schedule_modified";
 
     lastRescheduleRef.current = { entryId, previousScheduledAt };
 
-    // Optimistically update local state
     setEntries(prev => prev.map(e =>
-      e.id === entryId ? { ...e, scheduledAt: newDate.toISOString() } : e
+      e.id === entryId ? {
+        ...e,
+        scheduledAt: newDate.toISOString(),
+        scheduleMethod: wasSmartScheduled ? "smart_schedule_modified" : e.scheduleMethod,
+      } : e
     ));
+
+    const body: Record<string, string> = { scheduledAt: newDate.toISOString() };
+    if (wasSmartScheduled) {
+      body.scheduleMethod = "smart_schedule_modified";
+    }
 
     const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scheduledAt: newDate.toISOString() }),
+      body: JSON.stringify(body),
     });
 
     if (!resp.ok) {
       setEntries(prev => prev.map(e =>
-        e.id === entryId ? { ...e, scheduledAt: previousScheduledAt } : e
+        e.id === entryId ? { ...e, scheduledAt: previousScheduledAt, scheduleMethod: entry?.scheduleMethod } : e
       ));
       toast({ variant: "destructive", title: "Failed to reschedule" });
       return;
@@ -297,7 +308,7 @@ export default function Calendar() {
     const dateLabel = newDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     const timeLabel = newDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
-    toast({
+    const toastConfig: { title: string; description?: string; action?: React.ReactElement; duration?: number } = {
       title: `Rescheduled to ${dateLabel} at ${timeLabel}`,
       action: (
         <ToastAction altText="Undo reschedule" onClick={async () => {
@@ -315,7 +326,13 @@ export default function Calendar() {
         }}>Undo</ToastAction>
       ),
       duration: 15000,
-    });
+    };
+
+    if (wasSmartScheduled) {
+      toastConfig.description = "Smart Schedule optimization may no longer apply to this post.";
+    }
+
+    toast(toastConfig);
   }, [entries, toast]);
 
 
@@ -540,6 +557,20 @@ export default function Calendar() {
     );
   };
 
+  const renderSmartBadge = (entry: CalendarEntry) => {
+    if (entry.scheduleMethod === "smart_schedule") {
+      return (
+        <Sparkles size={10} className="text-amber-400 shrink-0" />
+      );
+    }
+    if (entry.scheduleMethod === "smart_schedule_modified") {
+      return (
+        <Sparkles size={10} className="text-amber-400/50 shrink-0" />
+      );
+    }
+    return null;
+  };
+
   const renderEntryCard = (entry: CalendarEntry, compact = false) => {
     const pl = PLATFORM_LABELS[entry.platform] || { label: entry.platform, icon: "twitter" };
     const time = new Date(entry.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
@@ -569,6 +600,7 @@ export default function Calendar() {
                 }}
               >
                 <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
+                {renderSmartBadge(entry)}
                 <span className="truncate" style={{ color: entry.brandColor }}>{entry.creativeName?.slice(0, 12) || "Untitled"}</span>
                 <span className="hidden sm:inline">{renderStatusBadge(entry)}</span>
                 <span className="text-muted-foreground ml-auto shrink-0">{time}</span>
@@ -594,15 +626,28 @@ export default function Calendar() {
                 )}
               </div>
             </TooltipTrigger>
-            {entry.publishStatus === "failed" && entry.publishError && (
+            {(entry.publishStatus === "failed" && entry.publishError) || entry.smartScheduleRationale ? (
               <TooltipContent side="top" className="max-w-[300px] text-xs">
-                <p className="font-medium text-red-400">Publish Error:</p>
-                <p className="text-muted-foreground">{entry.publishError}</p>
-                {entry.retryCount != null && entry.retryCount > 0 && (
-                  <p className="text-muted-foreground mt-1">Retry attempts: {entry.retryCount}/3</p>
+                {entry.smartScheduleRationale && (
+                  <>
+                    <div className="flex items-center gap-1 mb-1">
+                      <Sparkles size={10} className="text-amber-400" />
+                      <p className="font-medium text-amber-400">AI Rationale</p>
+                    </div>
+                    <p className="text-muted-foreground">{entry.smartScheduleRationale}</p>
+                  </>
+                )}
+                {entry.publishStatus === "failed" && entry.publishError && (
+                  <>
+                    <p className="font-medium text-red-400 mt-1">Publish Error:</p>
+                    <p className="text-muted-foreground">{entry.publishError}</p>
+                    {entry.retryCount != null && entry.retryCount > 0 && (
+                      <p className="text-muted-foreground mt-1">Retry attempts: {entry.retryCount}/3</p>
+                    )}
+                  </>
                 )}
               </TooltipContent>
-            )}
+            ) : null}
           </Tooltip>
         </TooltipProvider>
       );
@@ -633,6 +678,7 @@ export default function Calendar() {
                 <div className="flex items-center gap-1">
                   <PlatformIcon platform={pl.icon} className="w-3 h-3 opacity-70" />
                   <span className="text-[10px] text-muted-foreground">{pl.label}</span>
+                  {renderSmartBadge(entry)}
                   {renderStatusBadge(entry)}
                 </div>
                 <p className="text-xs font-medium truncate" style={{ color: entry.brandColor }}>
@@ -671,15 +717,28 @@ export default function Calendar() {
               </div>
             </div>
           </TooltipTrigger>
-          {entry.publishStatus === "failed" && entry.publishError && (
+          {(entry.publishStatus === "failed" && entry.publishError) || entry.smartScheduleRationale ? (
             <TooltipContent side="top" className="max-w-[300px] text-xs">
-              <p className="font-medium text-red-400">Publish Error:</p>
-              <p className="text-muted-foreground">{entry.publishError}</p>
-              {entry.retryCount != null && entry.retryCount > 0 && (
-                <p className="text-muted-foreground mt-1">Retry attempts: {entry.retryCount}/3</p>
+              {entry.smartScheduleRationale && (
+                <>
+                  <div className="flex items-center gap-1 mb-1">
+                    <Sparkles size={10} className="text-amber-400" />
+                    <p className="font-medium text-amber-400">AI Rationale</p>
+                  </div>
+                  <p className="text-muted-foreground">{entry.smartScheduleRationale}</p>
+                </>
+              )}
+              {entry.publishStatus === "failed" && entry.publishError && (
+                <>
+                  <p className="font-medium text-red-400 mt-1">Publish Error:</p>
+                  <p className="text-muted-foreground">{entry.publishError}</p>
+                  {entry.retryCount != null && entry.retryCount > 0 && (
+                    <p className="text-muted-foreground mt-1">Retry attempts: {entry.retryCount}/3</p>
+                  )}
+                </>
               )}
             </TooltipContent>
-          )}
+          ) : null}
         </Tooltip>
       </TooltipProvider>
     );
@@ -714,6 +773,7 @@ export default function Calendar() {
       >
         <div className="flex items-center gap-0.5 sm:gap-1">
           <PlatformIcon platform={pl.icon} className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-70 shrink-0" />
+          {renderSmartBadge(entry)}
           <span className="truncate" style={{ color: entry.brandColor }}>{entry.creativeName?.slice(0, 10) || "Untitled"}</span>
         </div>
         <div className="flex items-center gap-0.5 mt-0.5">

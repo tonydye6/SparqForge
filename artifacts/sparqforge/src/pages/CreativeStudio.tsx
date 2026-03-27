@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { ScheduleModal } from "@/components/ScheduleModal";
+import { SmartScheduleModal } from "@/components/SmartScheduleModal";
 import { useSearch } from "wouter";
 import { HashtagSetDialog } from "@/components/creative-studio/HashtagSetDialog";
 import { AudioSettingsDialog } from "@/components/creative-studio/AudioSettingsDialog";
@@ -48,6 +49,7 @@ export default function CreativeStudio() {
   const [estimatedCost, setEstimatedCost] = useState(0);
   
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [smartScheduleModalOpen, setSmartScheduleModalOpen] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<DuplicateInfo | null>(null);
   const [duplicateDismissed, setDuplicateDismissed] = useState(false);
   
@@ -1197,6 +1199,7 @@ export default function CreativeStudio() {
         isSaving={createCreativeMutation.isPending}
         onDownloadAll={handleDownloadAll}
         onSchedule={() => setScheduleModalOpen(true)}
+        onSmartSchedule={() => setSmartScheduleModalOpen(true)}
         onSubmitForReview={handleSubmitForReview}
         hasVariants={generatedVariants.length > 0}
         creativeId={creativeId}
@@ -1204,16 +1207,28 @@ export default function CreativeStudio() {
       />
 
       {creativeId && (
-        <ScheduleModal
-          open={scheduleModalOpen}
-          onOpenChange={setScheduleModalOpen}
-          creativeId={creativeId}
-          creativeName={creativeName || "Untitled Creative"}
-          onScheduled={() => {
-            addLog("Creative scheduled", "done");
-            toast({ title: "Scheduled!", description: "Creative added to calendar." });
-          }}
-        />
+        <>
+          <ScheduleModal
+            open={scheduleModalOpen}
+            onOpenChange={setScheduleModalOpen}
+            creativeId={creativeId}
+            creativeName={creativeName || "Untitled Creative"}
+            onScheduled={() => {
+              addLog("Creative scheduled", "done");
+              toast({ title: "Scheduled!", description: "Creative added to calendar." });
+            }}
+          />
+          <SmartScheduleModal
+            open={smartScheduleModalOpen}
+            onOpenChange={setSmartScheduleModalOpen}
+            creativeId={creativeId}
+            creativeName={creativeName || "Untitled Creative"}
+            onScheduled={() => {
+              addLog("Smart scheduled", "done");
+              toast({ title: "Smart Scheduled!", description: "AI-optimized schedule added to calendar." });
+            }}
+          />
+        </>
       )}
 
       <HashtagSetDialog

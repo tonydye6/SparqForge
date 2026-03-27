@@ -17,6 +17,7 @@ const UpdateCalendarEntryBody = z.object({
   scheduledAt: z.string().optional(),
   publishStatus: z.string().optional(),
   socialAccountId: z.string().nullable().optional(),
+  scheduleMethod: z.string().optional(),
 });
 
 const IdParams = z.object({ id: z.string().min(1) });
@@ -38,6 +39,8 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
       publishStatus: calendarEntriesTable.publishStatus,
       publishError: calendarEntriesTable.publishError,
       retryCount: calendarEntriesTable.retryCount,
+      scheduleMethod: calendarEntriesTable.scheduleMethod,
+      smartScheduleRationale: calendarEntriesTable.smartScheduleRationale,
       creativeName: creativesTable.name,
       brandId: creativesTable.brandId,
       brandName: brandsTable.name,
@@ -89,6 +92,7 @@ router.put("/calendar-entries/:id", validateRequest({ params: IdParams, body: Up
   if (req.body.scheduledAt) updates.scheduledAt = new Date(req.body.scheduledAt);
   if (req.body.publishStatus) updates.publishStatus = req.body.publishStatus;
   if (req.body.socialAccountId !== undefined) updates.socialAccountId = req.body.socialAccountId;
+  if (req.body.scheduleMethod) updates.scheduleMethod = req.body.scheduleMethod;
 
   updates.updatedAt = new Date();
 

@@ -1,4 +1,4 @@
-import { Check, X, Loader2, Save, Download, CalendarIcon } from "lucide-react";
+import { Check, X, Loader2, Save, Download, CalendarIcon, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ActivityLog } from "./creative-studio.types";
 
@@ -9,6 +9,7 @@ export interface ActivityPanelProps {
   isSaving: boolean;
   onDownloadAll: () => void;
   onSchedule: () => void;
+  onSmartSchedule: () => void;
   onSubmitForReview: () => void;
   hasVariants: boolean;
   creativeId: string | null;
@@ -22,6 +23,7 @@ export function ActivityPanel({
   isSaving,
   onDownloadAll,
   onSchedule,
+  onSmartSchedule,
   onSubmitForReview,
   hasVariants,
   creativeId,
@@ -84,6 +86,14 @@ export function ActivityPanel({
           onClick={onSchedule}
         >
           <CalendarIcon size={16} className="mr-2 text-muted-foreground" /> Schedule
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full justify-start bg-gradient-to-r from-amber-500/5 to-orange-500/5 border-amber-500/20 hover:from-amber-500/10 hover:to-orange-500/10 hover:text-foreground"
+          disabled={!hasVariants || !creativeId || isGenerating}
+          onClick={onSmartSchedule}
+        >
+          <Sparkles size={16} className="mr-2 text-amber-400" /> Smart Schedule
         </Button>
         <Button
           className="w-full justify-center bg-primary hover:bg-primary/90 text-primary-foreground font-bold mt-2"
