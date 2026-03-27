@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2, CalendarPlus, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2, CalendarPlus, Sparkles, Edit3, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ interface CalendarEntry {
   aspectRatio: string;
   compositedImageUrl?: string | null;
   scheduleMethod?: string | null;
+  proposalId?: string | null;
   smartScheduleRationale?: string | null;
 }
 
@@ -77,6 +78,8 @@ export default function Calendar() {
   const [publishingIds, setPublishingIds] = useState<Set<string>>(new Set());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [batchPanelOpen, setBatchPanelOpen] = useState(false);
+  const [editTimeEntry, setEditTimeEntry] = useState<CalendarEntry | null>(null);
+  const [editTimeValue, setEditTimeValue] = useState("");
 
   const touchDragRef = useRef<{
     entry: CalendarEntry;
@@ -271,10 +274,28 @@ export default function Calendar() {
     }
   };
 
+  const checkConflicts = useCallback((entryId: string, platform: string, newDate: Date): string | null => {
+    const gapMs = 2 * 60 * 60 * 1000;
+    const newTime = newDate.getTime();
+    for (const e of entries) {
+      if (e.id === entryId) continue;
+      if (e.platform === platform) {
+        const diff = Math.abs(new Date(e.scheduledAt).getTime() - newTime);
+        if (diff < gapMs) {
+          const conflictTime = new Date(e.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          return `Warning: "${e.creativeName}" is already scheduled on ${platform} at ${conflictTime} (within 2 hours)`;
+        }
+      }
+    }
+    return null;
+  }, [entries]);
+
   const commitReschedule = useCallback(async (entryId: string, newDate: Date) => {
     const entry = entries.find(e => e.id === entryId);
     const previousScheduledAt = entry?.scheduledAt || "";
     const wasSmartScheduled = entry?.scheduleMethod === "smart_schedule" || entry?.scheduleMethod === "smart_schedule_modified";
+
+    const conflictMsg = entry ? checkConflicts(entryId, entry.platform, newDate) : null;
 
     lastRescheduleRef.current = { entryId, previousScheduledAt };
 
@@ -308,32 +329,68 @@ export default function Calendar() {
     const dateLabel = newDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
     const timeLabel = newDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 
-    const toastConfig: { title: string; description?: string; action?: React.ReactElement; duration?: number } = {
-      title: `Rescheduled to ${dateLabel} at ${timeLabel}`,
-      action: (
-        <ToastAction altText="Undo reschedule" onClick={async () => {
-          const ref = lastRescheduleRef.current;
-          if (!ref) return;
-          await fetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ scheduledAt: ref.previousScheduledAt }),
-          });
-          setEntries(prev => prev.map(e =>
-            e.id === ref.entryId ? { ...e, scheduledAt: ref.previousScheduledAt } : e
-          ));
-          toast({ title: "Reverted" });
-        }}>Undo</ToastAction>
-      ),
-      duration: 15000,
-    };
+    if (conflictMsg) {
+      toast({
+        title: `Rescheduled to ${dateLabel} at ${timeLabel}`,
+        description: conflictMsg,
+        variant: "destructive",
+        action: (
+          <ToastAction altText="Undo reschedule" onClick={async () => {
+            const ref = lastRescheduleRef.current;
+            if (!ref) return;
+            await fetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ scheduledAt: ref.previousScheduledAt }),
+            });
+            setEntries(prev => prev.map(e =>
+              e.id === ref.entryId ? { ...e, scheduledAt: ref.previousScheduledAt } : e
+            ));
+            toast({ title: "Reverted" });
+          }}>Undo</ToastAction>
+        ),
+        duration: 15000,
+      });
+    } else {
+      const toastConfig: { title: string; description?: string; action?: React.ReactElement; duration?: number } = {
+        title: `Rescheduled to ${dateLabel} at ${timeLabel}`,
+        action: (
+          <ToastAction altText="Undo reschedule" onClick={async () => {
+            const ref = lastRescheduleRef.current;
+            if (!ref) return;
+            await fetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ scheduledAt: ref.previousScheduledAt }),
+            });
+            setEntries(prev => prev.map(e =>
+              e.id === ref.entryId ? { ...e, scheduledAt: ref.previousScheduledAt } : e
+            ));
+            toast({ title: "Reverted" });
+          }}>Undo</ToastAction>
+        ),
+        duration: 15000,
+      };
 
-    if (wasSmartScheduled) {
-      toastConfig.description = "Smart Schedule optimization may no longer apply to this post.";
+      if (wasSmartScheduled) {
+        toastConfig.description = "Smart Schedule optimization may no longer apply to this post.";
+      }
+
+      toast(toastConfig);
     }
+  }, [entries, toast, checkConflicts]);
 
-    toast(toastConfig);
-  }, [entries, toast]);
+  const handleEditTimeSave = useCallback(async () => {
+    if (!editTimeEntry || !editTimeValue) return;
+    const newDate = new Date(editTimeValue);
+    if (isNaN(newDate.getTime())) {
+      toast({ variant: "destructive", title: "Invalid date/time" });
+      return;
+    }
+    await commitReschedule(editTimeEntry.id, newDate);
+    setEditTimeEntry(null);
+    setEditTimeValue("");
+  }, [editTimeEntry, editTimeValue, commitReschedule, toast]);
 
 
   const handleDragStart = useCallback((e: React.DragEvent, entry: CalendarEntry) => {
@@ -680,6 +737,12 @@ export default function Calendar() {
                   <span className="text-[10px] text-muted-foreground">{pl.label}</span>
                   {renderSmartBadge(entry)}
                   {renderStatusBadge(entry)}
+                  {(entry.scheduleMethod === "smart_schedule" || entry.scheduleMethod === "smart_schedule_modified") && (
+                    <Badge variant="outline" className="text-[8px] px-1 py-0 bg-violet-500/10 border-violet-500/20 text-violet-400">
+                      <Sparkles size={7} className="mr-0.5" />
+                      {entry.scheduleMethod === "smart_schedule_modified" ? "Smart (edited)" : "Smart"}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs font-medium truncate" style={{ color: entry.brandColor }}>
                   {entry.creativeName || "Untitled"}
@@ -689,6 +752,22 @@ export default function Calendar() {
                   <span className="text-[10px] text-muted-foreground">{time}</span>
                 </div>
                 <div className="flex items-center gap-1 mt-1">
+                  {entry.publishStatus === "scheduled" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-5 text-[9px] px-1.5 bg-muted/50 border-border text-muted-foreground hover:bg-muted"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const dt = new Date(entry.scheduledAt);
+                        setEditTimeValue(dt.toISOString().slice(0, 16));
+                        setEditTimeEntry(entry);
+                      }}
+                    >
+                      <Edit3 size={9} className="mr-0.5" />
+                      Edit Time
+                    </Button>
+                  )}
                   {canPublish && (
                     <Button
                       size="sm"
@@ -1035,6 +1114,48 @@ export default function Calendar() {
               </span>
             );
           })}
+        </div>
+      )}
+
+      {editTimeEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setEditTimeEntry(null)} />
+          <div className="relative bg-card border border-border rounded-xl shadow-xl p-5 w-[360px] space-y-4 z-10">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                <Edit3 size={14} className="text-primary" />
+                Edit Scheduled Time
+              </h3>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditTimeEntry(null)}>
+                <AlertTriangle size={14} />
+              </Button>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">
+                {editTimeEntry.creativeName} — {PLATFORM_LABELS[editTimeEntry.platform]?.label || editTimeEntry.platform}
+              </p>
+              {editTimeEntry.scheduleMethod === "smart_schedule" && (
+                <p className="text-[10px] text-violet-400 flex items-center gap-1 mb-2">
+                  <Sparkles size={10} />
+                  Originally smart-scheduled — editing will mark as modified
+                </p>
+              )}
+              <input
+                type="datetime-local"
+                className="w-full h-9 px-3 text-sm rounded-md border border-border bg-background text-foreground"
+                value={editTimeValue}
+                onChange={(e) => setEditTimeValue(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEditTimeEntry(null)}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleEditTimeSave}>
+                Save
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

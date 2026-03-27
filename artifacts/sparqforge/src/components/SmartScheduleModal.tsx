@@ -1,33 +1,37 @@
-import { useState, useEffect, useMemo } from "react";
-import { Sparkles, Clock, AlertTriangle, Check, CalendarDays, Pencil } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import {
+  Sparkles, Clock, AlertTriangle, CheckCircle2, Loader2, X, Calendar,
+  ChevronDown, ChevronRight, Edit3, CalendarDays,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { PlatformIcon } from "@/components/ui/platform-icon";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-interface Proposal {
-  id: string;
-  creativeId: string;
+interface VariantProposal {
   variantId: string;
   platform: string;
   proposedAt: string;
-  score: number;
   rationale: string;
-  status: string;
-  hasConflict?: boolean;
-  conflictMessage?: string;
+  slotScore: number;
+  extended: boolean;
+  conflictNote?: string;
+}
+
+interface CreativeProposal {
+  creativeId: string;
+  creativeName: string;
+  variants: VariantProposal[];
 }
 
 interface SmartScheduleModalProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
-  creativeId: string;
-  creativeName: string;
+  onClose: () => void;
+  creativeIds: string[];
   onScheduled?: () => void;
 }
 
@@ -53,25 +57,28 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-function MiniTimeline({ proposals, timeOverrides }: { proposals: Proposal[]; timeOverrides: Record<string, string> }) {
+function MiniTimeline({ proposals }: { proposals: Record<string, CreativeProposal> }) {
   const days = useMemo(() => {
     const dayMap = new Map<string, { label: string; items: Array<{ platform: string; hour: number }> }>();
 
-    for (const p of proposals) {
-      const time = timeOverrides[p.id] ? new Date(timeOverrides[p.id]) : new Date(p.proposedAt);
-      const dayKey = time.toISOString().split("T")[0];
-      const dayLabel = time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    for (const cp of Object.values(proposals)) {
+      for (const v of cp.variants) {
+        if (!v.proposedAt) continue;
+        const time = new Date(v.proposedAt);
+        const dayKey = time.toISOString().split("T")[0];
+        const dayLabel = time.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
-      if (!dayMap.has(dayKey)) {
-        dayMap.set(dayKey, { label: dayLabel, items: [] });
+        if (!dayMap.has(dayKey)) {
+          dayMap.set(dayKey, { label: dayLabel, items: [] });
+        }
+        dayMap.get(dayKey)!.items.push({ platform: v.platform, hour: time.getHours() });
       }
-      dayMap.get(dayKey)!.items.push({ platform: p.platform, hour: time.getHours() });
     }
 
     return Array.from(dayMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([, value]) => value);
-  }, [proposals, timeOverrides]);
+  }, [proposals]);
 
   if (days.length === 0) return null;
 
@@ -79,7 +86,7 @@ function MiniTimeline({ proposals, timeOverrides }: { proposals: Proposal[]; tim
     <div className="bg-background/50 rounded-lg border border-border p-3">
       <div className="flex items-center gap-1.5 mb-2">
         <CalendarDays size={12} className="text-muted-foreground" />
-        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">7-Day Timeline</span>
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Schedule Timeline</span>
       </div>
       <div className="flex gap-1">
         {days.map((day, i) => (
@@ -109,45 +116,52 @@ function MiniTimeline({ proposals, timeOverrides }: { proposals: Proposal[]; tim
   );
 }
 
-export function SmartScheduleModal({ open, onOpenChange, creativeId, creativeName, onScheduled }: SmartScheduleModalProps) {
+export function SmartScheduleModal({ open, onClose, creativeIds, onScheduled }: SmartScheduleModalProps) {
   const { toast } = useToast();
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [timeOverrides, setTimeOverrides] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [proposals, setProposals] = useState<Record<string, CreativeProposal> | null>(null);
+  const [editingSlot, setEditingSlot] = useState<{ creativeId: string; variantId: string } | null>(null);
+  const [editDateTime, setEditDateTime] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [expandedCreatives, setExpandedCreatives] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchProposals = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setProposals(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/smart-schedule/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ creativeIds }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Failed to generate proposals" }));
+        setError(err.error || "Failed to generate schedule proposals");
+        return;
+      }
+
+      const data = await res.json();
+      setProposals(data.proposals);
+      setExpandedCreatives(new Set(Object.keys(data.proposals)));
+    } catch {
+      setError("Network error — could not reach the scheduling service");
+    } finally {
+      setLoading(false);
+    }
+  }, [creativeIds]);
 
   useEffect(() => {
-    if (!open || !creativeId) return;
+    if (open && creativeIds.length > 0 && !proposals && !loading) {
+      fetchProposals();
+    }
+  }, [open, creativeIds.length, proposals, loading, fetchProposals]);
 
-    setIsLoading(true);
-    setProposals([]);
-    setSelectedIds(new Set());
-    setTimeOverrides({});
-    setEditingId(null);
-
-    fetch(`${API_BASE}/api/creatives/${creativeId}/smart-schedule`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to generate schedule");
-        return res.json();
-      })
-      .then((data) => {
-        const p = data.proposals || [];
-        setProposals(p);
-        setSelectedIds(new Set(p.map((pr: Proposal) => pr.id)));
-      })
-      .catch((err) => {
-        toast({ variant: "destructive", title: "Smart Schedule failed", description: err.message });
-      })
-      .finally(() => setIsLoading(false));
-  }, [open, creativeId]);
-
-  const toggleSelected = (id: string) => {
-    setSelectedIds((prev) => {
+  const toggleCreativeExpand = (id: string) => {
+    setExpandedCreatives((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -155,226 +169,349 @@ export function SmartScheduleModal({ open, onOpenChange, creativeId, creativeNam
     });
   };
 
-  const handleTimeOverride = (proposalId: string, dateStr: string, timeStr: string) => {
-    const combined = new Date(`${dateStr}T${timeStr}:00`).toISOString();
-    setTimeOverrides((prev) => ({ ...prev, [proposalId]: combined }));
+  const handleEditTime = (creativeId: string, variantId: string, currentTime: string) => {
+    setEditingSlot({ creativeId, variantId });
+    if (currentTime) {
+      const dt = new Date(currentTime);
+      setEditDateTime(dt.toISOString().slice(0, 16));
+    } else {
+      setEditDateTime("");
+    }
   };
 
-  const handleConfirm = async (mode: "all" | "selected") => {
-    const ids = mode === "all" ? proposals.map((p) => p.id) : Array.from(selectedIds);
-    if (ids.length === 0) {
-      toast({ variant: "destructive", title: "Select at least one proposal" });
-      return;
-    }
+  const saveEditedTime = () => {
+    if (!editingSlot || !editDateTime || !proposals) return;
 
-    setIsConfirming(true);
+    const { creativeId, variantId } = editingSlot;
+    const newDate = new Date(editDateTime);
+
+    setProposals((prev) => {
+      if (!prev) return prev;
+      const creative = prev[creativeId];
+      if (!creative) return prev;
+
+      return {
+        ...prev,
+        [creativeId]: {
+          ...creative,
+          variants: creative.variants.map((v) =>
+            v.variantId === variantId
+              ? {
+                  ...v,
+                  proposedAt: newDate.toISOString(),
+                  rationale: `${v.rationale} (manually adjusted)`,
+                }
+              : v,
+          ),
+        },
+      };
+    });
+
+    setEditingSlot(null);
+  };
+
+  const handleConfirm = async () => {
+    if (!proposals) return;
+    setConfirming(true);
+
     try {
-      const resp = await fetch(`${API_BASE}/api/smart-schedule/confirm`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalIds: ids, timeOverrides }),
-      });
+      const allProposals = Object.values(proposals).flatMap((cp) =>
+        cp.variants
+          .filter((v) => v.proposedAt)
+          .map((v) => ({
+            creativeId: cp.creativeId,
+            variantId: v.variantId,
+            platform: v.platform,
+            scheduledAt: v.proposedAt,
+            rationale: v.rationale,
+            slotScore: v.slotScore,
+          })),
+      );
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Failed to confirm" }));
-        throw new Error(err.error);
+      if (allProposals.length === 0) {
+        toast({ variant: "destructive", title: "No valid proposals to schedule" });
+        setConfirming(false);
+        return;
       }
 
-      const data = await resp.json();
-      toast({ title: "Smart Scheduled!", description: `${data.count} post(s) added to calendar` });
-      onOpenChange(false);
+      const res = await fetch(`${API_BASE}/api/smart-schedule/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ proposals: allProposals }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Scheduling failed" }));
+        toast({ variant: "destructive", title: "Failed to confirm schedule", description: err.error });
+        return;
+      }
+
+      const data = await res.json();
+      toast({
+        title: "Smart Schedule confirmed",
+        description: `${data.created.length} entries scheduled across ${data.creativesScheduled.length} creative(s)`,
+      });
       onScheduled?.();
-    } catch (err) {
-      toast({ variant: "destructive", title: "Confirmation failed", description: err instanceof Error ? err.message : "Unknown error" });
+      onClose();
+      setProposals(null);
+    } catch {
+      toast({ variant: "destructive", title: "Scheduling failed" });
     } finally {
-      setIsConfirming(false);
+      setConfirming(false);
     }
   };
 
-  const hasConflicts = proposals.some((p) => p.hasConflict);
+  const handleClose = () => {
+    setProposals(null);
+    setError(null);
+    onClose();
+  };
+
+  const totalVariants = proposals
+    ? Object.values(proposals).reduce((sum, cp) => sum + cp.variants.filter((v) => v.proposedAt).length, 0)
+    : 0;
+
+  const hasExtended = proposals
+    ? Object.values(proposals).some((cp) => cp.variants.some((v) => v.extended))
+    : false;
+
+  const hasConflicts = proposals
+    ? Object.values(proposals).some((cp) => cp.variants.some((v) => v.conflictNote))
+    : false;
+
+  const getScoreColor = (score: number) => {
+    if (score >= 0.7) return "text-emerald-400";
+    if (score >= 0.5) return "text-amber-400";
+    if (score >= 0.3) return "text-orange-400";
+    return "text-red-400";
+  };
+
+  const getScoreBg = (score: number) => {
+    if (score >= 0.7) return "bg-emerald-500/10 border-emerald-500/20";
+    if (score >= 0.5) return "bg-amber-500/10 border-amber-500/20";
+    if (score >= 0.3) return "bg-orange-500/10 border-orange-500/20";
+    return "bg-red-500/10 border-red-500/20";
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-border sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col bg-card border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground flex items-center gap-2">
-            <Sparkles size={18} className="text-amber-400" />
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-400" />
             Smart Schedule
+            {creativeIds.length > 0 && (
+              <Badge variant="outline" className="ml-2 text-xs">
+                {creativeIds.length} creative{creativeIds.length > 1 ? "s" : ""}
+              </Badge>
+            )}
           </DialogTitle>
-          <DialogDescription className="text-muted-foreground">
-            AI-optimized time proposals for "{creativeName}"
-          </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="py-12 flex flex-col items-center gap-3">
-            <div className="relative">
-              <Sparkles size={24} className="text-amber-400 animate-pulse" />
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+              <p className="text-sm text-muted-foreground">
+                Analyzing schedule profiles and finding optimal slots...
+              </p>
+              <p className="text-xs text-muted-foreground">Checking calendar conflicts and platform peak hours</p>
             </div>
-            <p className="text-sm text-muted-foreground">Analyzing optimal posting times...</p>
-            <p className="text-xs text-muted-foreground">Checking calendar conflicts and platform peak hours</p>
-          </div>
-        ) : (
-          <div className="space-y-4 py-2">
-            {hasConflicts && (
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
-                <AlertTriangle size={14} className="text-amber-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold text-amber-400">Scheduling Conflicts Detected</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Some proposed times conflict with existing calendar entries. Fallback slots were used.
-                  </p>
-                </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-red-500/10 border border-red-500/20">
+              <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-red-400">Schedule generation failed</p>
+                <p className="text-xs text-muted-foreground mt-1">{error}</p>
+                <Button variant="outline" size="sm" className="mt-2" onClick={fetchProposals}>
+                  Try Again
+                </Button>
               </div>
-            )}
-
-            <div className="space-y-3">
-              {proposals.map((proposal) => {
-                const config = PLATFORM_MAP[proposal.platform] || { label: proposal.platform, icon: "twitter", color: "#888" };
-                const isSelected = selectedIds.has(proposal.id);
-                const isEditing = editingId === proposal.id;
-                const displayTime = timeOverrides[proposal.id]
-                  ? new Date(timeOverrides[proposal.id])
-                  : new Date(proposal.proposedAt);
-
-                return (
-                  <div
-                    key={proposal.id}
-                    className={`rounded-lg border p-3 transition-colors ${
-                      isSelected
-                        ? "border-primary/30 bg-primary/5"
-                        : "border-border bg-background/50 opacity-60"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => toggleSelected(proposal.id)}
-                        className="mt-1"
-                      />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <PlatformIcon platform={config.icon} className="w-4 h-4" />
-                          <span className="text-xs font-semibold text-foreground">{config.label}</span>
-                          {proposal.hasConflict && (
-                            <Badge variant="outline" className="text-[9px] bg-amber-500/10 border-amber-500/20 text-amber-400">
-                              Fallback
-                            </Badge>
-                          )}
-                          {timeOverrides[proposal.id] && (
-                            <Badge variant="outline" className="text-[9px] bg-blue-500/10 border-blue-500/20 text-blue-400">
-                              Modified
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock size={12} className="text-muted-foreground" />
-                          <span className="text-sm font-medium text-foreground">
-                            {displayTime.toLocaleDateString("en-US", {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            })}{" "}
-                            at{" "}
-                            {displayTime.toLocaleTimeString("en-US", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-5 w-5 p-0"
-                            onClick={() => setEditingId(isEditing ? null : proposal.id)}
-                          >
-                            <Pencil size={10} />
-                          </Button>
-                        </div>
-
-                        {isEditing && (
-                          <div className="flex gap-2 mb-2">
-                            <Input
-                              type="date"
-                              className="h-7 text-xs bg-background border-border flex-1"
-                              defaultValue={displayTime.toISOString().split("T")[0]}
-                              onChange={(e) => {
-                                const timeStr = displayTime.toTimeString().slice(0, 5);
-                                handleTimeOverride(proposal.id, e.target.value, timeStr);
-                              }}
-                            />
-                            <Input
-                              type="time"
-                              className="h-7 text-xs bg-background border-border w-28"
-                              defaultValue={displayTime.toTimeString().slice(0, 5)}
-                              onChange={(e) => {
-                                const dateStr = (timeOverrides[proposal.id]
-                                  ? new Date(timeOverrides[proposal.id])
-                                  : displayTime
-                                ).toISOString().split("T")[0];
-                                handleTimeOverride(proposal.id, dateStr, e.target.value);
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        <ScoreBar score={proposal.score} />
-
-                        <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
-                          {proposal.rationale}
-                        </p>
-
-                        {proposal.hasConflict && proposal.conflictMessage && (
-                          <div className="flex items-center gap-1 mt-1.5">
-                            <AlertTriangle size={10} className="text-amber-400" />
-                            <span className="text-[10px] text-amber-400">{proposal.conflictMessage}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
+          )}
 
-            {proposals.length > 0 && (
-              <MiniTimeline proposals={proposals} timeOverrides={timeOverrides} />
-            )}
+          {hasExtended && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-300">
+                Some slots were scheduled beyond the 7-day window due to conflicts.
+                The scheduling window was extended to 14 days.
+              </p>
+            </div>
+          )}
+
+          {hasConflicts && !hasExtended && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+              <Clock className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-300">
+                Some ideal slots were adjusted to avoid same-platform conflicts
+                (minimum 2-hour gap between posts on the same platform).
+              </p>
+            </div>
+          )}
+
+          {proposals &&
+            Object.values(proposals).map((cp) => {
+              const isExpanded = expandedCreatives.has(cp.creativeId);
+              const validVariants = cp.variants.filter((v) => v.proposedAt);
+              const avgScore =
+                validVariants.length > 0
+                  ? validVariants.reduce((s, v) => s + v.slotScore, 0) / validVariants.length
+                  : 0;
+
+              return (
+                <div
+                  key={cp.creativeId}
+                  className="border border-border rounded-lg overflow-hidden"
+                >
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+                    onClick={() => toggleCreativeExpand(cp.creativeId)}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{cp.creativeName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {validVariants.length} variant{validVariants.length !== 1 ? "s" : ""} •{" "}
+                        Avg score:{" "}
+                        <span className={getScoreColor(avgScore)}>
+                          {(avgScore * 100).toFixed(0)}%
+                        </span>
+                      </p>
+                    </div>
+                    {validVariants.length > 0 && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    )}
+                  </button>
+
+                  {isExpanded && (
+                    <div className="border-t border-border divide-y divide-border">
+                      {cp.variants.map((v) => {
+                        const config = PLATFORM_MAP[v.platform] || { label: v.platform, icon: "twitter", color: "#888" };
+                        return (
+                          <div key={v.variantId} className="px-4 py-3 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <PlatformIcon platform={config.icon} className="w-4 h-4" />
+                                <Badge variant="outline" className="text-[10px] shrink-0">
+                                  {config.label}
+                                </Badge>
+                                {v.proposedAt ? (
+                                  <span className="text-sm text-foreground">
+                                    {new Date(v.proposedAt).toLocaleDateString("en-US", {
+                                      weekday: "short",
+                                      month: "short",
+                                      day: "numeric",
+                                    })}{" "}
+                                    at{" "}
+                                    {new Date(v.proposedAt).toLocaleTimeString("en-US", {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                ) : (
+                                  <span className="text-sm text-red-400">No slot available</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {v.proposedAt && (
+                                  <>
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] ${getScoreBg(v.slotScore)} ${getScoreColor(v.slotScore)}`}
+                                    >
+                                      {(v.slotScore * 100).toFixed(0)}%
+                                    </Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 w-7 p-0"
+                                      onClick={() => handleEditTime(cp.creativeId, v.variantId, v.proposedAt)}
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            <ScoreBar score={v.slotScore} />
+
+                            <p className="text-xs text-muted-foreground">{v.rationale}</p>
+
+                            {v.extended && (
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3 h-3 text-amber-400" />
+                                <span className="text-[10px] text-amber-400">Extended window</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+          {proposals && totalVariants > 0 && (
+            <MiniTimeline proposals={proposals} />
+          )}
+        </div>
+
+        {editingSlot && (
+          <div className="border-t border-border pt-3 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">Edit proposed time</p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="datetime-local"
+                className="flex-1 h-8 text-xs"
+                value={editDateTime}
+                onChange={(e) => setEditDateTime(e.target.value)}
+              />
+              <Button size="sm" className="h-8" onClick={saveEditedTime}>
+                Save
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8"
+                onClick={() => setEditingSlot(null)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         )}
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="bg-card border-border">
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={handleClose} className="bg-card border-border">
             Cancel
           </Button>
-          {proposals.length > 0 && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => handleConfirm("selected")}
-                disabled={isConfirming || selectedIds.size === 0}
-                className="bg-card border-border"
-              >
-                <Check size={14} className="mr-1.5" />
-                Confirm Selected ({selectedIds.size})
-              </Button>
-              <Button
-                onClick={() => handleConfirm("all")}
-                disabled={isConfirming}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                {isConfirming ? (
-                  "Scheduling..."
-                ) : (
-                  <>
-                    <Sparkles size={14} className="mr-1.5" />
-                    Confirm All ({proposals.length})
-                  </>
-                )}
-              </Button>
-            </>
-          )}
+          <Button
+            onClick={handleConfirm}
+            disabled={!proposals || totalVariants === 0 || confirming}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {confirming ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Confirming...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Confirm Schedule ({totalVariants} variant{totalVariants !== 1 ? "s" : ""})
+              </>
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

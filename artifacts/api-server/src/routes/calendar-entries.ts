@@ -41,6 +41,7 @@ router.get("/calendar-entries", async (req, res): Promise<void> => {
       retryCount: calendarEntriesTable.retryCount,
       scheduleMethod: calendarEntriesTable.scheduleMethod,
       smartScheduleRationale: calendarEntriesTable.smartScheduleRationale,
+      proposalId: calendarEntriesTable.proposalId,
       creativeName: creativesTable.name,
       brandId: creativesTable.brandId,
       brandName: brandsTable.name,
@@ -89,7 +90,15 @@ router.put("/calendar-entries/:id", validateRequest({ params: IdParams, body: Up
   const { id } = req.params;
   const updates: Record<string, unknown> = {};
 
-  if (req.body.scheduledAt) updates.scheduledAt = new Date(req.body.scheduledAt);
+  if (req.body.scheduledAt) {
+    updates.scheduledAt = new Date(req.body.scheduledAt);
+
+    const [existing] = await db.select({ scheduleMethod: calendarEntriesTable.scheduleMethod })
+      .from(calendarEntriesTable).where(eq(calendarEntriesTable.id, id as string));
+    if (existing?.scheduleMethod === "smart_schedule") {
+      updates.scheduleMethod = "smart_schedule_modified";
+    }
+  }
   if (req.body.publishStatus) updates.publishStatus = req.body.publishStatus;
   if (req.body.socialAccountId !== undefined) updates.socialAccountId = req.body.socialAccountId;
   if (req.body.scheduleMethod) updates.scheduleMethod = req.body.scheduleMethod;

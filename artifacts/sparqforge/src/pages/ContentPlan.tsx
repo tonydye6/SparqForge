@@ -2,18 +2,20 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Upload, Plus, Search, Filter, ChevronDown, ChevronUp,
   Trash2, Edit3, Rocket, FileText, X, Check, AlertCircle,
-  ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet
+  ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, Sparkles
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { SmartScheduleModal } from "@/components/SmartScheduleModal";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -107,6 +109,8 @@ export default function ContentPlan() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [smartScheduleOpen, setSmartScheduleOpen] = useState(false);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -335,6 +339,30 @@ export default function ContentPlan() {
   const hasActiveFilters = filterPillar !== "all" || filterPlatform !== "all" ||
     filterStatus !== "all" || filterWeek !== "all" || filterBrandLayer !== "all" || searchQuery !== "";
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredItems.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredItems.map((i) => i.id)));
+    }
+  };
+
+  const selectedWithCreatives = useMemo(
+    () => filteredItems.filter((i) => selectedIds.has(i.id) && i.linkedCreativeId),
+    [filteredItems, selectedIds],
+  );
+
+  const batchSmartScheduleReady = selectedWithCreatives.length >= 2;
+
   return (
     <div className="flex-1 p-6 space-y-6 overflow-y-auto">
       <div className="flex items-center justify-between">
@@ -364,6 +392,26 @@ export default function ContentPlan() {
             <Plus className="w-4 h-4 mr-2" />
             New Plan Item
           </Button>
+          {selectedIds.size > 0 && (
+            <Button
+              variant={batchSmartScheduleReady ? "default" : "outline"}
+              disabled={!batchSmartScheduleReady}
+              onClick={() => setSmartScheduleOpen(true)}
+              title={
+                batchSmartScheduleReady
+                  ? `Smart schedule ${selectedWithCreatives.length} creatives`
+                  : "Select 2+ items with linked creatives"
+              }
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Batch Smart Schedule
+              {selectedWithCreatives.length > 0 && (
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  {selectedWithCreatives.length}
+                </Badge>
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -464,7 +512,13 @@ export default function ContentPlan() {
         />
       ) : (
         <div className="border border-border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_100px_130px_80px_90px_280px] gap-2 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <div className="grid grid-cols-[32px_1fr_100px_130px_80px_90px_280px] gap-2 bg-muted/50 border-b border-border px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
+                onCheckedChange={toggleSelectAll}
+              />
+            </div>
             <SortHeader field="title" label="Title" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
             <SortHeader field="primaryPlatform" label="Platform" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
             <SortHeader field="pillar" label="Pillar" sortField={sortField} sortDir={sortDir} onSort={toggleSort} />
@@ -474,11 +528,17 @@ export default function ContentPlan() {
           </div>
 
           {filteredItems.map(item => (
-            <div key={item.id} className="border-b border-border last:border-b-0">
+            <div key={item.id} className={`border-b border-border last:border-b-0 ${selectedIds.has(item.id) ? "bg-primary/5" : ""}`}>
               <div
-                className="grid grid-cols-[1fr_100px_130px_80px_90px_280px] gap-2 px-4 py-3 items-center hover:bg-muted/30 cursor-pointer transition-colors"
+                className="grid grid-cols-[32px_1fr_100px_130px_80px_90px_280px] gap-2 px-4 py-3 items-center hover:bg-muted/30 cursor-pointer transition-colors"
                 onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
               >
+                <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selectedIds.has(item.id)}
+                    onCheckedChange={() => toggleSelect(item.id)}
+                  />
+                </div>
                 <div className="flex items-center gap-2 min-w-0">
                   {expandedId === item.id ? (
                     <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -645,6 +705,16 @@ export default function ContentPlan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SmartScheduleModal
+        open={smartScheduleOpen}
+        onClose={() => setSmartScheduleOpen(false)}
+        creativeIds={selectedWithCreatives.map((i) => i.linkedCreativeId!)}
+        onScheduled={() => {
+          setSelectedIds(new Set());
+          fetchItems();
+        }}
+      />
 
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">

@@ -1220,9 +1220,8 @@ export default function CreativeStudio() {
           />
           <SmartScheduleModal
             open={smartScheduleModalOpen}
-            onOpenChange={setSmartScheduleModalOpen}
-            creativeId={creativeId}
-            creativeName={creativeName || "Untitled Creative"}
+            onClose={() => setSmartScheduleModalOpen(false)}
+            creativeIds={creativeId ? [creativeId] : []}
             onScheduled={() => {
               addLog("Smart scheduled", "done");
               toast({ title: "Smart Scheduled!", description: "AI-optimized schedule added to calendar." });
