@@ -12,6 +12,7 @@ export interface SocialAccount {
   accountName: string;
   accountId: string;
   tokenExpiry?: Date | null;
+  profileImageUrl?: string | null;
   brandId?: string | null;
   status: string;
   displayStatus: string;

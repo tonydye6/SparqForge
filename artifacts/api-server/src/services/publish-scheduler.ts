@@ -3,6 +3,7 @@ import { db, calendarEntriesTable, creativeVariantsTable, socialAccountsTable } 
 import { publishToTwitter } from "./publish-twitter";
 import { publishToInstagram } from "./publish-instagram";
 import { publishToLinkedIn } from "./publish-linkedin";
+import { publishToTikTok } from "./publish-tiktok";
 import { decryptToken } from "./token-encryption";
 import { logger } from "../lib/logger";
 
@@ -106,6 +107,7 @@ async function publishEntry(entryId: string): Promise<void> {
       instagram_feed: "instagram",
       instagram_story: "instagram",
       linkedin: "linkedin",
+      tiktok: "tiktok",
     };
     const expectedPlatform = platformMap[entry.platform] || entry.platform;
     if (socialAccount.platform !== expectedPlatform && socialAccount.platform !== entry.platform) {
@@ -145,6 +147,7 @@ async function publishEntry(entryId: string): Promise<void> {
   const caption = variant.caption || "";
   const imagePath = getImageFilePath(variant.compositedImageUrl);
   const publicImageUrl = getPublicImageUrl(variant.compositedImageUrl);
+  const videoPath = getImageFilePath(variant.mergedVideoUrl || variant.videoUrl);
 
   let result: { success: boolean; platformPostId?: string; error?: string; httpStatus?: number };
 
@@ -192,6 +195,13 @@ async function publishEntry(entryId: string): Promise<void> {
         authorUrn: socialAccount.accountId,
         text: caption,
         imagePath: imagePath || undefined,
+      });
+    } else if (platform === "tiktok") {
+      result = await publishToTikTok({
+        accessToken: decryptedAccessToken,
+        caption,
+        imagePath: videoPath ? undefined : (imagePath || undefined),
+        videoPath: videoPath || undefined,
       });
     } else {
       result = { success: false, error: `Unsupported platform: ${platform}` };

@@ -187,7 +187,8 @@ function BrandSettingsTab() {
           "twitter": { "char_limit": 280 },
           "instagram_feed": { "char_limit": 2200 },
           "instagram_story": { "char_limit": 2200 },
-          "linkedin": { "char_limit": 3000 }
+          "linkedin": { "char_limit": 3000 },
+          "tiktok": { "char_limit": 2200 }
         }
       }
     });
@@ -260,12 +261,14 @@ const PLATFORM_CONFIG: Record<string, { label: string; color: string; icon: stri
   twitter: { label: "Twitter / X", color: "#1DA1F2", icon: "X" },
   instagram: { label: "Instagram", color: "#E4405F", icon: "IG" },
   linkedin: { label: "LinkedIn", color: "#0A66C2", icon: "in" },
+  tiktok: { label: "TikTok", color: "#010101", icon: "TT" },
 };
 
 const AVAILABLE_PLATFORMS = [
   { id: "twitter", label: "Twitter / X", description: "Post tweets and threads" },
   { id: "instagram", label: "Instagram", description: "Share photos and reels" },
   { id: "linkedin", label: "LinkedIn", description: "Publish professional content" },
+  { id: "tiktok", label: "TikTok", description: "Share videos and photo posts" },
 ];
 
 function ConnectedAccountsTab() {
@@ -330,12 +333,20 @@ function ConnectedAccountsTab() {
               return (
                 <div key={account.id} className="flex items-center justify-between p-4 border border-border bg-background rounded-lg">
                   <div className="flex items-center gap-4">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                      style={{ backgroundColor: config.color }}
-                    >
-                      {config.icon}
-                    </div>
+                    {account.profileImageUrl ? (
+                      <img
+                        src={account.profileImageUrl}
+                        alt={account.accountName}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm"
+                        style={{ backgroundColor: config.color }}
+                      >
+                        {config.icon}
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{account.accountName}</span>

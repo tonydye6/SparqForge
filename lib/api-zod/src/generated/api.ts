@@ -36,7 +36,6 @@ export const GetBrandsResponseItem = zod.object({
   logoFileUrl: zod.string().nullish(),
   brandFonts: zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
   brandAssetConfig: zod.record(zod.string(), zod.unknown()).nullish(),
-  timezone: zod.string().optional().default("America/New_York"),
   isActive: zod.boolean(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -63,7 +62,6 @@ export const CreateBrandBody = zod.object({
   platformRules: zod.record(zod.string(), zod.unknown()),
   logoFileUrl: zod.string().nullish(),
   brandFonts: zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
-  timezone: zod.string().optional().default("America/New_York"),
 });
 
 /**
@@ -92,7 +90,6 @@ export const GetBrandResponse = zod.object({
   logoFileUrl: zod.string().nullish(),
   brandFonts: zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
   brandAssetConfig: zod.record(zod.string(), zod.unknown()).nullish(),
-  timezone: zod.string().optional().default("America/New_York"),
   isActive: zod.boolean(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -122,7 +119,6 @@ export const UpdateBrandBody = zod.object({
   platformRules: zod.record(zod.string(), zod.unknown()),
   logoFileUrl: zod.string().nullish(),
   brandFonts: zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
-  timezone: zod.string().optional(),
 });
 
 export const UpdateBrandResponse = zod.object({
@@ -144,7 +140,6 @@ export const UpdateBrandResponse = zod.object({
   logoFileUrl: zod.string().nullish(),
   brandFonts: zod.array(zod.record(zod.string(), zod.unknown())).nullish(),
   brandAssetConfig: zod.record(zod.string(), zod.unknown()).nullish(),
-  timezone: zod.string().optional().default("America/New_York"),
   isActive: zod.boolean(),
   createdAt: zod.date(),
   updatedAt: zod.date(),
@@ -666,6 +661,7 @@ export const GetSocialAccountsResponseItem = zod.object({
   accountName: zod.string(),
   accountId: zod.string(),
   tokenExpiry: zod.date().nullish(),
+  profileImageUrl: zod.string().nullish(),
   brandId: zod.string().nullish(),
   status: zod.string(),
   displayStatus: zod.string(),

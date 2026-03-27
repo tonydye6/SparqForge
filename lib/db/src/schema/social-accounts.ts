@@ -11,6 +11,7 @@ export const socialAccountsTable = pgTable("social_accounts", {
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
   tokenExpiry: timestamp("token_expiry"),
+  profileImageUrl: text("profile_image_url"),
   brandId: text("brand_id").references(() => brandsTable.id, { onDelete: "set null" }),
   status: text("status").notNull().default("connected"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

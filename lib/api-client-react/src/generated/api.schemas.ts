@@ -269,6 +269,7 @@ export interface SocialAccount {
   accountName: string;
   accountId: string;
   tokenExpiry?: string | null;
+  profileImageUrl?: string | null;
   brandId?: string | null;
   status: string;
   displayStatus: string;

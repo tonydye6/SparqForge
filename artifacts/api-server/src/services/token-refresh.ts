@@ -6,7 +6,9 @@ import type {
   TwitterTokenResponse,
   LinkedInTokenResponse,
   FacebookTokenResponse,
+  TikTokTokenResponse,
 } from "../types/oauth";
+import { TIKTOK_ENV_VARS } from "../constants";
 
 export async function refreshExpiringTokens(): Promise<void> {
   try {
@@ -32,6 +34,8 @@ export async function refreshExpiringTokens(): Promise<void> {
           await refreshTwitterToken(account);
         } else if (account.platform === "linkedin" && account.refreshToken) {
           await refreshLinkedInToken(account);
+        } else if (account.platform === "tiktok" && account.refreshToken) {
+          await refreshTikTokToken(account);
         } else if (account.platform === "instagram") {
           await refreshInstagramToken(account);
         } else {
@@ -131,6 +135,43 @@ async function refreshLinkedInToken(account: SocialAccountRecord): Promise<void>
     .where(eq(socialAccountsTable.id, account.id));
 
   logger.info({ platform: "linkedin", accountName: account.accountName }, "Token refreshed successfully");
+}
+
+async function refreshTikTokToken(account: SocialAccountRecord): Promise<void> {
+  const refreshTokenDecrypted = decryptToken(account.refreshToken!);
+  const clientKey = process.env[TIKTOK_ENV_VARS.clientId];
+  const clientSecret = process.env[TIKTOK_ENV_VARS.clientSecret];
+
+  const response = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_key: clientKey!,
+      client_secret: clientSecret!,
+      grant_type: "refresh_token",
+      refresh_token: refreshTokenDecrypted,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`TikTok refresh failed: ${response.status}`);
+  }
+
+  const data: TikTokTokenResponse = await response.json();
+  const expiresAt = data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : null;
+
+  await db
+    .update(socialAccountsTable)
+    .set({
+      accessToken: encryptToken(data.access_token),
+      refreshToken: data.refresh_token ? encryptToken(data.refresh_token) : account.refreshToken,
+      tokenExpiry: expiresAt,
+      status: "connected",
+      updatedAt: new Date(),
+    })
+    .where(eq(socialAccountsTable.id, account.id));
+
+  logger.info({ platform: "tiktok", accountName: account.accountName }, "Token refreshed successfully");
 }
 
 async function refreshInstagramToken(account: SocialAccountRecord): Promise<void> {

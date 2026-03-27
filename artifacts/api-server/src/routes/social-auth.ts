@@ -12,7 +12,10 @@ import type {
   InstagramUserResponse,
   LinkedInTokenResponse,
   LinkedInProfileResponse,
+  TikTokTokenResponse,
+  TikTokUserInfoResponse,
 } from "../types/oauth";
+import { TIKTOK_ENV_VARS } from "../constants";
 
 const router = Router();
 
@@ -375,6 +378,126 @@ router.get("/auth/linkedin/callback", async (req, res) => {
     res.redirect(`${getSettingsRedirectUrl()}&success=linkedin`);
   } catch (err) {
     logger.error(err, "LinkedIn callback error");
+    res.redirect(`${getSettingsRedirectUrl()}&error=callback_error`);
+  }
+});
+
+router.get("/auth/tiktok", (_req, res) => {
+  const clientKey = process.env[TIKTOK_ENV_VARS.clientId];
+  if (!clientKey) {
+    return res.status(500).json({ error: "TikTok Client Key not configured" });
+  }
+
+  const { verifier, challenge } = generatePKCE();
+  const state = crypto.randomBytes(16).toString("hex");
+
+  pkceStore.set(state, { verifier, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+  const callbackUrl = `${getCallbackBaseUrl()}/api/auth/tiktok/callback`;
+  const scopes = ["user.info.basic", "video.publish", "video.upload"].join(",");
+
+  const params = new URLSearchParams({
+    client_key: clientKey,
+    response_type: "code",
+    scope: scopes,
+    redirect_uri: callbackUrl,
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+
+  res.redirect(`https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`);
+});
+
+router.get("/auth/tiktok/callback", async (req, res) => {
+  try {
+    const { code, state } = req.query;
+
+    if (!code || !state || typeof code !== "string" || typeof state !== "string") {
+      return res.redirect(`${getSettingsRedirectUrl()}&error=missing_params`);
+    }
+
+    const pkceData = pkceStore.get(state);
+    if (!pkceData || pkceData.expiresAt < Date.now()) {
+      pkceStore.delete(state as string);
+      return res.redirect(`${getSettingsRedirectUrl()}&error=invalid_state`);
+    }
+    pkceStore.delete(state);
+
+    const clientKey = process.env[TIKTOK_ENV_VARS.clientId];
+    const clientSecret = process.env[TIKTOK_ENV_VARS.clientSecret];
+
+    if (!clientKey || !clientSecret) {
+      logger.error("TikTok client credentials not configured");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=config_missing`);
+    }
+
+    const callbackUrl = `${getCallbackBaseUrl()}/api/auth/tiktok/callback`;
+
+    const tokenResponse = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_key: clientKey,
+        client_secret: clientSecret,
+        code,
+        grant_type: "authorization_code",
+        redirect_uri: callbackUrl,
+        code_verifier: pkceData.verifier,
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errBody = await tokenResponse.text();
+      logger.error({ status: tokenResponse.status, body: errBody }, "TikTok token exchange failed");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=token_exchange_failed`);
+    }
+
+    const tokenData: TikTokTokenResponse = await tokenResponse.json();
+
+    if (!tokenData.access_token) {
+      logger.error({ tokenData }, "TikTok token response missing access_token");
+      return res.redirect(`${getSettingsRedirectUrl()}&error=token_exchange_failed`);
+    }
+
+    let accountName = "TikTok Creator";
+    let accountId = tokenData.open_id || "";
+    let profileImageUrl: string | null = null;
+
+    const userResponse = await fetch(
+      "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url",
+      {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      },
+    );
+
+    if (userResponse.ok) {
+      const userData: TikTokUserInfoResponse = await userResponse.json();
+      if (userData.data?.user) {
+        accountName = userData.data.user.display_name || "TikTok Creator";
+        accountId = userData.data.user.open_id || accountId;
+        profileImageUrl = userData.data.user.avatar_url || null;
+      }
+    }
+
+    const expiresAt = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000)
+      : null;
+
+    await db.insert(socialAccountsTable).values({
+      platform: "tiktok",
+      accountName,
+      accountId,
+      accessToken: encryptToken(tokenData.access_token),
+      refreshToken: tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : null,
+      tokenExpiry: expiresAt,
+      profileImageUrl,
+      status: "connected",
+    });
+
+    res.redirect(`${getSettingsRedirectUrl()}&success=tiktok`);
+  } catch (err) {
+    logger.error(err, "TikTok callback error");
     res.redirect(`${getSettingsRedirectUrl()}&error=callback_error`);
   }
 });

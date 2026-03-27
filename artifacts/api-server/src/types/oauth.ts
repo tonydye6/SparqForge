@@ -53,3 +53,28 @@ export interface LinkedInProfileResponse {
   family_name?: string;
   email?: string;
 }
+
+export interface TikTokTokenResponse {
+  access_token: string;
+  expires_in?: number;
+  refresh_token?: string;
+  refresh_expires_in?: number;
+  token_type: string;
+  scope: string;
+  open_id?: string;
+}
+
+export interface TikTokUserInfoResponse {
+  data?: {
+    user?: {
+      open_id?: string;
+      display_name?: string;
+      avatar_url?: string;
+      union_id?: string;
+    };
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+}

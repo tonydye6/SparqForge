@@ -7,7 +7,9 @@ import type {
   TwitterTokenResponse,
   LinkedInTokenResponse,
   FacebookTokenResponse,
+  TikTokTokenResponse,
 } from "../types/oauth";
+import { TIKTOK_ENV_VARS } from "../constants";
 
 const router = Router();
 
@@ -19,6 +21,7 @@ router.get("/social-accounts", async (_req, res) => {
       accountName: socialAccountsTable.accountName,
       accountId: socialAccountsTable.accountId,
       tokenExpiry: socialAccountsTable.tokenExpiry,
+      profileImageUrl: socialAccountsTable.profileImageUrl,
       brandId: socialAccountsTable.brandId,
       status: socialAccountsTable.status,
       createdAt: socialAccountsTable.createdAt,
@@ -221,6 +224,49 @@ router.post("/social-accounts/:id/refresh", async (req, res) => {
         .where(eq(socialAccountsTable.id, id));
 
       return res.json({ success: true, message: "Instagram token refreshed" });
+    }
+
+    if (account.platform === "tiktok" && account.refreshToken) {
+      const refreshTokenDecrypted = decryptToken(account.refreshToken);
+      const clientKey = process.env[TIKTOK_ENV_VARS.clientId];
+      const clientSecret = process.env[TIKTOK_ENV_VARS.clientSecret];
+
+      const tokenResponse = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_key: clientKey!,
+          client_secret: clientSecret!,
+          grant_type: "refresh_token",
+          refresh_token: refreshTokenDecrypted,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        await db
+          .update(socialAccountsTable)
+          .set({ status: "expired", updatedAt: new Date() })
+          .where(eq(socialAccountsTable.id, id));
+        return res.status(400).json({ error: "Token refresh failed" });
+      }
+
+      const tokenData: TikTokTokenResponse = await tokenResponse.json();
+      const expiresAt = tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000)
+        : null;
+
+      await db
+        .update(socialAccountsTable)
+        .set({
+          accessToken: encryptToken(tokenData.access_token),
+          refreshToken: tokenData.refresh_token ? encryptToken(tokenData.refresh_token) : account.refreshToken,
+          tokenExpiry: expiresAt,
+          status: "connected",
+          updatedAt: new Date(),
+        })
+        .where(eq(socialAccountsTable.id, id));
+
+      return res.json({ success: true, message: "TikTok token refreshed" });
     }
 
     res.status(400).json({ error: "No refresh mechanism available for this platform" });

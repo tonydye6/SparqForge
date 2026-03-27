@@ -1571,6 +1571,9 @@ components:
           type: string
           format: date-time
           nullable: true
+        profileImageUrl:
+          type: string
+          nullable: true
         brandId:
           type: string
           nullable: true
