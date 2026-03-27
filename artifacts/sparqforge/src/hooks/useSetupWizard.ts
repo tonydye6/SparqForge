@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
@@ -32,7 +33,7 @@ export function useSetupWizard() {
   } = useQuery<PaginatedBrandsResponse>({
     queryKey: ["brands"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/brands?limit=1`, {
+      const res = await apiFetch(`${API_BASE}/api/brands?limit=1`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch brands");

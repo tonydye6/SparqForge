@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import React, { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { WizardStepShell } from "@/components/setup/WizardStepShell";
@@ -36,7 +37,7 @@ export function StepConfigureVoice({
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/brands/${brandId}`, {
+      const res = await apiFetch(`/api/brands/${brandId}`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

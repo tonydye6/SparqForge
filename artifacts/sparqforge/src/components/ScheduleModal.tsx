@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { CalendarIcon, Clock, Send } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -43,7 +44,7 @@ export function ScheduleModal({ open, onOpenChange, creativeId, creativeName, on
 
   useEffect(() => {
     if (open) {
-      fetch(`${API_BASE}/api/social-accounts`)
+      apiFetch(`${API_BASE}/api/social-accounts`)
         .then(res => res.json())
         .then(data => setSocialAccounts(data || []))
         .catch(() => setSocialAccounts([]));
@@ -73,7 +74,7 @@ export function ScheduleModal({ open, onOpenChange, creativeId, creativeName, on
 
     setIsSubmitting(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/schedule`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt, socialAccounts: selectedAccounts }),

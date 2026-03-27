@@ -3,7 +3,7 @@ import { Type, Check } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { WizardStepShell } from "@/components/setup/WizardStepShell";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, apiFetch } from "@/lib/utils";
 
 interface StepUploadFontProps {
   brandId: string | null;
@@ -75,7 +75,7 @@ export default function StepUploadFont({
       formData.append("fontName", fontName);
       formData.append("fontWeight", fontWeight);
 
-      const res = await fetch(`/api/brands/${brandId}/fonts`, {
+      const res = await apiFetch(`/api/brands/${brandId}/fonts`, {
         method: "POST",
         credentials: "include",
         body: formData,

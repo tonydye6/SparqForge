@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import React from "react";
 import { useForm } from "react-hook-form";
 import { WizardStepShell } from "@/components/setup/WizardStepShell";
@@ -47,7 +48,7 @@ export function StepCreateBrand({ onNext, setBrandId }: StepCreateBrandProps) {
     const computedSlug = toSlug(name);
 
     try {
-      const res = await fetch("/api/brands", {
+      const res = await apiFetch("/api/brands", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

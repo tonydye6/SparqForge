@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import React, { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,7 +50,7 @@ export function StepCreateTemplate({
           ? { brandId, name: customName.trim(), description: customDescription.trim(), isActive: true }
           : { brandId, ...STARTER_TEMPLATES[selectedIndex!], isActive: true };
 
-      const res = await fetch("/api/templates", {
+      const res = await apiFetch("/api/templates", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

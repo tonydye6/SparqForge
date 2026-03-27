@@ -58,6 +58,7 @@ interface ScheduledSlot {
 }
 
 const MIN_PLATFORM_GAP_HOURS = 2;
+const MIN_CROSS_PLATFORM_GAP_HOURS = 1;
 const PRIMARY_WINDOW_DAYS = 7;
 const EXTENDED_WINDOW_DAYS = 14;
 
@@ -71,12 +72,15 @@ function hasConflict(
   existingSlots: ScheduledSlot[],
 ): boolean {
   const candidateTime = candidateDate.getTime();
-  const gapMs = MIN_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
+  const samePlatformGapMs = MIN_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
+  const crossPlatformGapMs = MIN_CROSS_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
 
   for (const slot of existingSlots) {
+    const diff = Math.abs(slot.date.getTime() - candidateTime);
     if (slot.platform === platform) {
-      const diff = Math.abs(slot.date.getTime() - candidateTime);
-      if (diff < gapMs) return true;
+      if (diff < samePlatformGapMs) return true;
+    } else {
+      if (diff < crossPlatformGapMs) return true;
     }
   }
   return false;
@@ -334,8 +338,13 @@ router.post(
         const profileKey = `${creative.brandId}:${profilePlatform}`;
         const profileSlots = brandProfiles[profileKey] || [];
 
-        const primaryCandidates = buildCandidateSlots(profileSlots, startDate, PRIMARY_WINDOW_DAYS);
-        const extendedCandidates = buildCandidateSlots(profileSlots, startDate, EXTENDED_WINDOW_DAYS);
+        const hasBrandProfile = profileSlots.length > 0;
+        const primaryCandidates = hasBrandProfile
+          ? buildCandidateSlots(profileSlots, startDate, PRIMARY_WINDOW_DAYS)
+          : buildFallbackCandidateSlots(variant.platform, startDate, PRIMARY_WINDOW_DAYS);
+        const extendedCandidates = hasBrandProfile
+          ? buildCandidateSlots(profileSlots, startDate, EXTENDED_WINDOW_DAYS)
+          : buildFallbackCandidateSlots(variant.platform, startDate, EXTENDED_WINDOW_DAYS);
 
         const result = findBestSlot(primaryCandidates, variant.platform, occupiedSlots, extendedCandidates);
 
@@ -530,7 +539,7 @@ router.post(
           variantId: p.variantId,
           platform: p.platform,
           proposedAt: p.proposedAt,
-          score: p.score,
+          slotScore: p.score,
           rationale: p.rationale,
           status: "pending",
         })
@@ -595,9 +604,35 @@ router.post(
     const created: (typeof calendarEntriesTable.$inferSelect)[] = [];
     const creativesScheduled: string[] = [];
     const creativeIdSet = new Set<string>();
+    const conflicts: string[] = [];
+    const samePlatformGapMs = MIN_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
+    const crossPlatformGapMs = MIN_CROSS_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
 
     await db.transaction(async (tx) => {
       for (const p of proposalInputs) {
+        const scheduledAt = new Date(p.scheduledAt);
+
+        const nearbyEntries = await tx
+          .select()
+          .from(calendarEntriesTable)
+          .where(
+            and(
+              gte(calendarEntriesTable.scheduledAt, new Date(scheduledAt.getTime() - samePlatformGapMs)),
+              lte(calendarEntriesTable.scheduledAt, new Date(scheduledAt.getTime() + samePlatformGapMs)),
+            ),
+          );
+
+        const hasConflictNow = nearbyEntries.some((e) => {
+          const diff = Math.abs(e.scheduledAt.getTime() - scheduledAt.getTime());
+          if (e.platform === p.platform) return diff < samePlatformGapMs;
+          return diff < crossPlatformGapMs;
+        });
+
+        if (hasConflictNow) {
+          conflicts.push(`${p.platform} variant at ${p.scheduledAt} conflicts with existing entry`);
+          continue;
+        }
+
         const proposalKey = `${p.creativeId}:${p.variantId}`;
         const matchedProposal = proposalMap.get(proposalKey);
 
@@ -607,7 +642,7 @@ router.post(
             creativeId: p.creativeId,
             variantId: p.variantId,
             platform: p.platform,
-            scheduledAt: new Date(p.scheduledAt),
+            scheduledAt,
             scheduleMethod: "smart_schedule",
             proposalId: matchedProposal?.id || null,
           })
@@ -622,7 +657,7 @@ router.post(
             .set({
               status: "confirmed",
               confirmedAt: new Date(),
-              finalTime: new Date(p.scheduledAt),
+              finalTime: scheduledAt,
               calendarEntryId: entry.id,
             })
             .where(eq(smartScheduleProposalsTable.id, matchedProposal.id));
@@ -638,7 +673,11 @@ router.post(
       }
     });
 
-    res.status(201).json({ created, creativesScheduled });
+    res.status(201).json({
+      created,
+      creativesScheduled,
+      conflicts: conflicts.length > 0 ? conflicts : undefined,
+    });
   },
 );
 
@@ -658,7 +697,8 @@ router.post(
   async (req, res): Promise<void> => {
     const { proposalIds, timeOverrides } = req.body;
 
-    const createdEntries = [];
+    const createdEntries: (typeof calendarEntriesTable.$inferSelect)[] = [];
+    const conflicts: string[] = [];
 
     for (const proposalId of proposalIds) {
       const proposal = await db
@@ -673,6 +713,29 @@ router.post(
       const scheduledAt = overriddenTime
         ? new Date(overriddenTime)
         : proposal.proposedAt;
+
+      const samePlatformGapMs = MIN_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
+      const crossPlatformGapMs = MIN_CROSS_PLATFORM_GAP_HOURS * 60 * 60 * 1000;
+      const nearbyEntries = await db
+        .select()
+        .from(calendarEntriesTable)
+        .where(
+          and(
+            gte(calendarEntriesTable.scheduledAt, new Date(scheduledAt.getTime() - samePlatformGapMs)),
+            lte(calendarEntriesTable.scheduledAt, new Date(scheduledAt.getTime() + samePlatformGapMs)),
+          ),
+        );
+
+      const hasConflictNow = nearbyEntries.some((e) => {
+        const diff = Math.abs(e.scheduledAt.getTime() - scheduledAt.getTime());
+        if (e.platform === proposal.platform) return diff < samePlatformGapMs;
+        return diff < crossPlatformGapMs;
+      });
+
+      if (hasConflictNow) {
+        conflicts.push(`Proposal ${proposalId} conflicts with existing entry`);
+        continue;
+      }
 
       const isModified = !!overriddenTime;
       const method = isModified ? "smart_schedule_modified" : "smart_schedule";
@@ -703,14 +766,20 @@ router.post(
     }
 
     if (createdEntries.length > 0) {
-      const creativeId = createdEntries[0].creativeId;
-      await db
-        .update(creativesTable)
-        .set({ status: "scheduled", updatedAt: new Date() })
-        .where(eq(creativesTable.id, creativeId));
+      const creativeIds = [...new Set(createdEntries.map((e) => e.creativeId))];
+      for (const cid of creativeIds) {
+        await db
+          .update(creativesTable)
+          .set({ status: "scheduled", updatedAt: new Date() })
+          .where(eq(creativesTable.id, cid));
+      }
     }
 
-    res.json({ entries: createdEntries, count: createdEntries.length });
+    res.json({
+      entries: createdEntries,
+      count: createdEntries.length,
+      conflicts: conflicts.length > 0 ? conflicts : undefined,
+    });
   },
 );
 

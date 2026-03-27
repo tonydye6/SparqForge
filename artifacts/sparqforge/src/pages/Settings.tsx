@@ -86,7 +86,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { useSearch } from "wouter";
 import { useDropzone } from "react-dropzone";
-import { cn } from "@/lib/utils";
+import { cn, apiFetch } from "@/lib/utils";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 import { LayoutSpecEditor } from "@/components/layout-editor";
 import { ScheduleProfileEditor } from "@/components/ScheduleProfileEditor";
@@ -1069,7 +1069,7 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
   const deleteFont = async (assetId: string) => {
     if (!confirm("Delete this font?")) return;
     try {
-      const res = await fetch(`${apiBase}/api/assets/${assetId}`, { method: "DELETE" });
+      const res = await apiFetch(`${apiBase}/api/assets/${assetId}`, { method: "DELETE" });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
         toast({ title: "Font deleted" });
@@ -1367,9 +1367,9 @@ function TemplateCard({ template, onDelete }: { template: Template; onDelete: ()
   const loadDetails = async () => {
     try {
       const [statsRes, recsRes, versRes] = await Promise.all([
-        fetch(`${apiBase}/api/templates/${template.id}/stats`),
-        fetch(`${apiBase}/api/templates/${template.id}/recommendations`),
-        fetch(`${apiBase}/api/templates/${template.id}/versions`),
+        apiFetch(`${apiBase}/api/templates/${template.id}/stats`),
+        apiFetch(`${apiBase}/api/templates/${template.id}/recommendations`),
+        apiFetch(`${apiBase}/api/templates/${template.id}/versions`),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (recsRes.ok) setRecommendations(await recsRes.json());
@@ -1386,7 +1386,7 @@ function TemplateCard({ template, onDelete }: { template: Template; onDelete: ()
   const handleAnalyze = async () => {
     setIsAnalyzing(true);
     try {
-      const res = await fetch(`${apiBase}/api/templates/${template.id}/analyze`, { method: "POST" });
+      const res = await apiFetch(`${apiBase}/api/templates/${template.id}/analyze`, { method: "POST" });
       if (!res.ok) {
         const err = await res.json();
         toast({ variant: "destructive", title: "Analysis failed", description: err.error });
@@ -1403,7 +1403,7 @@ function TemplateCard({ template, onDelete }: { template: Template; onDelete: ()
 
   const handleRecommendationAction = async (recId: string, action: "apply" | "dismiss") => {
     try {
-      const res = await fetch(`${apiBase}/api/templates/${template.id}/recommendations/${recId}`, {
+      const res = await apiFetch(`${apiBase}/api/templates/${template.id}/recommendations/${recId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
@@ -1420,7 +1420,7 @@ function TemplateCard({ template, onDelete }: { template: Template; onDelete: ()
 
   const handleRollback = async (versionId: string) => {
     try {
-      const res = await fetch(`${apiBase}/api/templates/${template.id}/rollback/${versionId}`, { method: "POST" });
+      const res = await apiFetch(`${apiBase}/api/templates/${template.id}/rollback/${versionId}`, { method: "POST" });
       if (res.ok) {
         toast({ title: "Template restored to previous version" });
         loadDetails();

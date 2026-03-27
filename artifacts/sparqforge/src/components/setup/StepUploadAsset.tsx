@@ -3,7 +3,7 @@ import { ImagePlus, Check } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { WizardStepShell } from "@/components/setup/WizardStepShell";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, apiFetch } from "@/lib/utils";
 
 interface StepUploadAssetProps {
   brandId: string | null;
@@ -51,7 +51,7 @@ export default function StepUploadAsset({
       const formData = new FormData();
       formData.append("file", file);
 
-      const uploadRes = await fetch("/api/upload", {
+      const uploadRes = await apiFetch("/api/upload", {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -64,7 +64,7 @@ export default function StepUploadAsset({
 
       const { url, thumbnailUrl } = await uploadRes.json();
 
-      const assetRes = await fetch("/api/assets", {
+      const assetRes = await apiFetch("/api/assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

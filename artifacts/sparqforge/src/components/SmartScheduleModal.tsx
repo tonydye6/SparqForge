@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import {
   Sparkles, Clock, AlertTriangle, CheckCircle2, Loader2, X, Calendar,
@@ -131,7 +132,7 @@ export function SmartScheduleModal({ open, onClose, creativeIds, onScheduled }: 
     setError(null);
     setProposals(null);
     try {
-      const res = await fetch(`${API_BASE}/api/smart-schedule/batch`, {
+      const res = await apiFetch(`${API_BASE}/api/smart-schedule/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -234,7 +235,7 @@ export function SmartScheduleModal({ open, onClose, creativeIds, onScheduled }: 
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/smart-schedule/confirm`, {
+      const res = await apiFetch(`${API_BASE}/api/smart-schedule/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { MoreHorizontal, MessageSquare, Clock, Eye, CheckCircle, Send, X, ChevronRight, ThumbsUp, ThumbsDown, Image as ImageIcon, CalendarIcon, RefreshCw, Check, XCircle, ClipboardCheck, LayoutGrid, Columns } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -125,7 +126,7 @@ export default function ReviewQueue() {
   const fetchVariants = useCallback(async (creativeId: string) => {
     setLoadingVariants(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants`);
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/variants`);
       if (resp.ok) {
         const data = await resp.json();
         setVariants(data);
@@ -206,7 +207,7 @@ export default function ReviewQueue() {
   const handleVariantApprove = async (variantId: string) => {
     if (!expandedCreativeId) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variantId}`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variantId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -241,7 +242,7 @@ export default function ReviewQueue() {
 
     try {
       if (rejectTarget.type === "single") {
-        const resp = await fetch(
+        const resp = await apiFetch(
           `${API_BASE}/api/creatives/${expandedCreativeId}/variants/${rejectTarget.variantId}`,
           {
             method: "PUT",
@@ -263,7 +264,7 @@ export default function ReviewQueue() {
           toast({ variant: "destructive", title: "Failed to reject post version" });
         }
       } else {
-        const resp = await fetch(
+        const resp = await apiFetch(
           `${API_BASE}/api/creatives/${expandedCreativeId}/variants/bulk-update`,
           {
             method: "POST",
@@ -333,7 +334,7 @@ export default function ReviewQueue() {
   const handleBulkApprove = async () => {
     if (!expandedCreativeId || selectedVariantIds.size === 0) return;
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/bulk-update`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/bulk-update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -747,7 +748,7 @@ export default function ReviewQueue() {
                                   className="h-6 text-[10px] text-muted-foreground w-full"
                                   onClick={async () => {
                                     try {
-                                      const resp = await fetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variant.id}`, {
+                                      const resp = await apiFetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variant.id}`, {
                                         method: "PUT",
                                         headers: { "Content-Type": "application/json" },
                                         credentials: "include",

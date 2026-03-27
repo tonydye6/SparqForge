@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import React, { useCallback, useRef, useState } from "react";
 import { Upload, CheckCircle2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -50,7 +51,7 @@ export default function StepUploadLogo({
         const formData = new FormData();
         formData.append("logo", file);
 
-        const res = await fetch(`/api/brands/${brandId}/logos`, {
+        const res = await apiFetch(`/api/brands/${brandId}/logos`, {
           method: "POST",
           body: formData,
           credentials: "include",

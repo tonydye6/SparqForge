@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect, useCallback } from "react";
 import { X, CalendarClock, Check, ChevronsRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
   const fetchCreatives = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/creatives?status=approved", {
+      const res = await apiFetch("/api/creatives?status=approved", {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch creatives");
@@ -142,7 +143,7 @@ export function BatchSchedulePanel({ open, onClose, onScheduled }: BatchSchedule
         return { creativeId, scheduledAt };
       });
 
-      const res = await fetch("/api/calendar-entries/batch", {
+      const res = await apiFetch("/api/calendar-entries/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

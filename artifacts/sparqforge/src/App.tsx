@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -57,7 +58,7 @@ function FirstRunGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/brands?limit=1", { credentials: "include" })
+    apiFetch("/api/brands?limit=1", { credentials: "include" })
       .then(res => res.json())
       .then(data => {
         setBrands(data.data || data || []);

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles, RotateCcw, Clock } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, apiFetch } from "@/lib/utils";
 
 interface SlotData {
   day: number;
@@ -74,7 +74,7 @@ export function ScheduleProfileEditor({ brandId, timezone }: ScheduleProfileEdit
 
   const loadProfiles = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/schedule-profile`, { credentials: "include" });
+      const res = await apiFetch(`${apiBase}/api/brands/${brandId}/schedule-profile`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setProfiles(data.profiles || {});
@@ -93,7 +93,7 @@ export function ScheduleProfileEditor({ brandId, timezone }: ScheduleProfileEdit
   const handleGenerate = async (platform?: string) => {
     setIsGenerating(true);
     try {
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/schedule-profile/generate`, {
+      const res = await apiFetch(`${apiBase}/api/brands/${brandId}/schedule-profile/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -155,7 +155,7 @@ export function ScheduleProfileEditor({ brandId, timezone }: ScheduleProfileEdit
         };
       });
 
-      const res = await fetch(`${apiBase}/api/brands/${brandId}/schedule-profile`, {
+      const res = await apiFetch(`${apiBase}/api/brands/${brandId}/schedule-profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

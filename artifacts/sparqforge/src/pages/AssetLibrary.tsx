@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, apiFetch } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -115,13 +115,13 @@ export default function AssetLibrary() {
       try {
         const formData = new FormData();
         formData.append("file", item.file);
-        const uploadRes = await fetch(`${API_BASE}/api/upload`, { method: "POST", body: formData });
+        const uploadRes = await apiFetch(`${API_BASE}/api/upload`, { method: "POST", body: formData });
         if (!uploadRes.ok) {
           const errData = await uploadRes.json().catch(() => ({ error: "Upload failed" }));
           throw new Error(errData.error || `HTTP ${uploadRes.status}`);
         }
         const { url } = await uploadRes.json();
-        const createRes = await fetch(`${API_BASE}/api/assets`, {
+        const createRes = await apiFetch(`${API_BASE}/api/assets`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -199,7 +199,7 @@ export default function AssetLibrary() {
     if (selectedIds.size === 0) return;
     setBulkLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/assets/bulk-update`, {
+      const res = await apiFetch(`${API_BASE}/api/assets/bulk-update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selectedIds), ...updates }),
@@ -461,7 +461,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode }: { asset:
   useEffect(() => {
     if (isOpen && usageData === null) {
       setUsageLoading(true);
-      fetch(`${API_BASE}/api/assets/${asset.id}/usage`)
+      apiFetch(`${API_BASE}/api/assets/${asset.id}/usage`)
         .then(res => res.json())
         .then(data => setUsageData(Array.isArray(data) ? data : []))
         .catch(() => setUsageData([]))

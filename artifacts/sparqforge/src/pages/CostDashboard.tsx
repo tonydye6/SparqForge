@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { DollarSign, TrendingUp, Zap, BarChart3, Calendar as CalendarIcon, AlertTriangle, Settings, Shield, Save } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -81,7 +82,7 @@ export default function CostDashboard() {
 
   const loadBudgetStatus = async () => {
     try {
-      const resp = await fetch(`${API_BASE}/api/settings/daily-budget-status`);
+      const resp = await apiFetch(`${API_BASE}/api/settings/daily-budget-status`);
       if (resp.ok) {
         const data = await resp.json();
         setBudgetStatus(data);
@@ -102,8 +103,8 @@ export default function CostDashboard() {
         if (endDate) params.set("endDate", endDate);
 
         const [summaryRes, logsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/cost-logs/summary?${params}`),
-          fetch(`${API_BASE}/api/cost-logs?${params}&limit=50`),
+          apiFetch(`${API_BASE}/api/cost-logs/summary?${params}`),
+          apiFetch(`${API_BASE}/api/cost-logs?${params}&limit=50`),
         ]);
 
         if (summaryRes.ok) setSummary(await summaryRes.json());
@@ -127,7 +128,7 @@ export default function CostDashboard() {
         return;
       }
 
-      const resp = await fetch(`${API_BASE}/api/settings`, {
+      const resp = await apiFetch(`${API_BASE}/api/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dailyCostThreshold: value || "0" }),

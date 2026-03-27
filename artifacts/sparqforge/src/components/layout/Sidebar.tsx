@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, apiFetch } from "@/lib/utils";
 import { useGetCreatives } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -63,17 +63,17 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    fetch(`/api/calendar-entries?start=${start.toISOString()}&end=${end.toISOString()}`)
+    apiFetch(`/api/calendar-entries?start=${start.toISOString()}&end=${end.toISOString()}`)
       .then(res => res.json())
       .then(data => setCalendarCount(Array.isArray(data) ? data.length : (data?.entries?.length ?? 0)))
-      .catch(() => {});
+      .catch((err) => console.error("Failed to load calendar count:", err));
   }, []);
 
   useEffect(() => {
-    fetch("/api/assets?status=uploaded&limit=1", { credentials: "include" })
+    apiFetch("/api/assets?status=uploaded&limit=1")
       .then(res => res.json())
       .then(data => setPendingAssetCount(data.total || 0))
-      .catch(() => {});
+      .catch((err) => console.error("Failed to load asset count:", err));
   }, []);
 
   const NAV_ITEMS = [

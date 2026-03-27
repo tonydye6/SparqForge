@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -18,7 +19,7 @@ export function useBrandReadiness(brandId: string | null | undefined) {
   return useQuery<BrandReadinessResult>({
     queryKey: ["brand-readiness", brandId],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/brand-readiness/${brandId}`, {
+      const res = await apiFetch(`${API_BASE}/api/brand-readiness/${brandId}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch brand readiness");

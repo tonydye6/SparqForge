@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { VariantGrid } from "@/components/creative-studio/VariantGrid";
 import { CreativeConfigPanel } from "@/components/creative-studio/CreativeConfigPanel";
@@ -90,10 +91,10 @@ export default function CreativeStudio() {
   const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/settings/daily-budget-status`, { credentials: "include" })
+    apiFetch(`${API_BASE}/api/settings/daily-budget-status`)
       .then(r => r.json())
       .then(setBudgetStatus)
-      .catch(() => {});
+      .catch((err) => console.error("Failed to load budget status:", err));
   }, [generatedVariants.length]);
 
   useEffect(() => {
@@ -101,9 +102,9 @@ export default function CreativeStudio() {
     const fetchRecommended = async () => {
       try {
         const [subRes, styRes, compRes] = await Promise.all([
-          fetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=subject_reference${selectedTemplate ? `&templateId=${selectedTemplate}` : ''}`),
-          fetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=style_reference${selectedTemplate ? `&templateId=${selectedTemplate}` : ''}`),
-          fetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=compositing`),
+          apiFetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=subject_reference${selectedTemplate ? `&templateId=${selectedTemplate}` : ''}`),
+          apiFetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=style_reference${selectedTemplate ? `&templateId=${selectedTemplate}` : ''}`),
+          apiFetch(`${API_BASE}/api/assets/recommended?brandId=${selectedBrand}&role=compositing`),
         ]);
         if (subRes.ok) setRecommendedSubjects(await subRes.json());
         if (styRes.ok) setRecommendedStyles(await styRes.json());
@@ -175,7 +176,7 @@ export default function CreativeStudio() {
 
   const loadPlanCreative = async (id: string) => {
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${id}`);
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${id}`);
       if (!resp.ok) return;
       const campaign = await resp.json();
 
@@ -196,7 +197,7 @@ export default function CreativeStudio() {
       }
 
       try {
-        const variantsResp = await fetch(`${API_BASE}/api/creatives/${id}/variants`);
+        const variantsResp = await apiFetch(`${API_BASE}/api/creatives/${id}/variants`);
         if (variantsResp.ok) {
           const variantsData = await variantsResp.json() as Array<Record<string, unknown>>;
           if (variantsData.length > 0) {
@@ -234,7 +235,7 @@ export default function CreativeStudio() {
 
   const loadRemixCreative = async (sourceId: string) => {
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${sourceId}`);
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${sourceId}`);
       if (!resp.ok) return;
       const source = await resp.json();
 
@@ -260,7 +261,7 @@ export default function CreativeStudio() {
 
     const checkDuplicate = async () => {
       try {
-        const resp = await fetch(`${API_BASE}/api/creatives/check-duplicate?templateId=${selectedTemplate}&primaryAssetId=${primaryAssetId}`);
+        const resp = await apiFetch(`${API_BASE}/api/creatives/check-duplicate?templateId=${selectedTemplate}&primaryAssetId=${primaryAssetId}`);
         if (resp.ok) {
           const data = await resp.json();
           setDuplicateInfo(data);
@@ -293,7 +294,7 @@ export default function CreativeStudio() {
     if (!selectedBrand) return null;
 
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -393,7 +394,7 @@ export default function CreativeStudio() {
     try {
       addLog("Capturing reference page...", "pending");
 
-      const resp = await fetch(`${API_BASE}/api/creatives/${cId}/analyze-url`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${cId}/analyze-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: referenceUrl }),
@@ -451,7 +452,7 @@ export default function CreativeStudio() {
       const formData = new FormData();
       formData.append("screenshot", file);
 
-      const resp = await fetch(`${API_BASE}/api/creatives/${cId}/analyze-upload`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${cId}/analyze-upload`, {
         method: "POST",
         body: formData,
       });
@@ -496,7 +497,7 @@ export default function CreativeStudio() {
 
     if (creativeId) {
       try {
-        await fetch(`${API_BASE}/api/creatives/${creativeId}/reference`, {
+        await apiFetch(`${API_BASE}/api/creatives/${creativeId}/reference`, {
           method: "DELETE",
         });
       } catch {
@@ -559,7 +560,7 @@ export default function CreativeStudio() {
       let cId = creativeId;
 
       if (!cId) {
-        const resp = await fetch(`${API_BASE}/api/creatives`, {
+        const resp = await apiFetch(`${API_BASE}/api/creatives`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -580,7 +581,7 @@ export default function CreativeStudio() {
         cId = campaign.id;
         setCreativeId(cId!);
       } else {
-        const resp = await fetch(`${API_BASE}/api/creatives/${cId}`, {
+        const resp = await apiFetch(`${API_BASE}/api/creatives/${cId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -601,7 +602,7 @@ export default function CreativeStudio() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const response = await fetch(`${API_BASE}/api/creatives/${cId}/generate`, {
+      const response = await apiFetch(`${API_BASE}/api/creatives/${cId}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platforms }),
@@ -766,7 +767,7 @@ export default function CreativeStudio() {
 
     if (variantId && creativeId) {
       try {
-        await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/caption`, {
+        await apiFetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/caption`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ caption: newCaption }),
@@ -778,7 +779,7 @@ export default function CreativeStudio() {
   }, [creativeId, toast]);
 
   const handleRewrite = useCallback(async (text: string, instruction: string): Promise<string> => {
-    const resp = await fetch(`${API_BASE}/api/rewrite`, {
+    const resp = await apiFetch(`${API_BASE}/api/rewrite`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, instruction }),
@@ -818,7 +819,7 @@ export default function CreativeStudio() {
     }
 
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/headline`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/headline`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ headline: newHeadline }),
@@ -853,7 +854,7 @@ export default function CreativeStudio() {
   const handleSubmitForReview = useCallback(async () => {
     if (!creativeId) return;
     try {
-      await fetch(`${API_BASE}/api/creatives/${creativeId}`, {
+      await apiFetch(`${API_BASE}/api/creatives/${creativeId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "pending_review" }),
@@ -875,7 +876,7 @@ export default function CreativeStudio() {
     addLog("Starting video generation...", "pending");
 
     try {
-      const response = await fetch(`${API_BASE}/api/creatives/${creativeId}/generate-video`, {
+      const response = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/generate-video`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orientations: ["landscape", "portrait"] }),
@@ -950,7 +951,7 @@ export default function CreativeStudio() {
     addLog(`Generating ${audioSource} audio...`, "pending");
 
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${audioDialogVariant.id}/audio`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/variants/${audioDialogVariant.id}/audio`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -994,7 +995,7 @@ export default function CreativeStudio() {
       formData.append("audio", file);
       formData.append("mode", audioMergeMode);
 
-      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/audio-upload`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/audio-upload`, {
         method: "POST",
         body: formData,
       });
@@ -1029,7 +1030,7 @@ export default function CreativeStudio() {
     addLog(`Regenerating ${PLATFORM_LABELS[platform]?.name || platform}...`, "pending");
 
     try {
-      const resp = await fetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/regenerate`, {
+      const resp = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/variants/${variantId}/regenerate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instruction }),
@@ -1070,7 +1071,7 @@ export default function CreativeStudio() {
     
     setSavingHashtags(true);
     try {
-      const resp = await fetch(`${API_BASE}/api/hashtag-sets`, {
+      const resp = await apiFetch(`${API_BASE}/api/hashtag-sets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

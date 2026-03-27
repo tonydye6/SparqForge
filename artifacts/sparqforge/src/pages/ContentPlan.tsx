@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Upload, Plus, Search, Filter, ChevronDown, ChevronUp,
@@ -114,7 +115,7 @@ export default function ContentPlan() {
 
   const fetchItems = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/content-plan?limit=200`);
+      const res = await apiFetch(`${API_BASE}/api/content-plan?limit=200`);
       if (res.ok) {
         const data = await res.json();
         setItems(Array.isArray(data) ? data : data.items || []);
@@ -181,7 +182,7 @@ export default function ContentPlan() {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${API_BASE}/api/content-plan/import`, {
+      const res = await apiFetch(`${API_BASE}/api/content-plan/import`, {
         method: "POST",
         body: formData,
       });
@@ -209,7 +210,7 @@ export default function ContentPlan() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/content-plan/${id}`, { method: "DELETE" });
+      const res = await apiFetch(`${API_BASE}/api/content-plan/${id}`, { method: "DELETE" });
       if (res.ok) {
         setItems(prev => prev.filter(i => i.id !== id));
         toast({ title: "Plan item deleted" });
@@ -222,7 +223,7 @@ export default function ContentPlan() {
 
   const handleCreateCreative = async (id: string) => {
     try {
-      const res = await fetch(`${API_BASE}/api/content-plan/${id}/create-creative`, { method: "POST" });
+      const res = await apiFetch(`${API_BASE}/api/content-plan/${id}/create-creative`, { method: "POST" });
       const data = await res.json();
 
       if (!res.ok) {
@@ -306,7 +307,7 @@ export default function ContentPlan() {
         : `${API_BASE}/api/content-plan`;
       const method = editingItem ? "PUT" : "POST";
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

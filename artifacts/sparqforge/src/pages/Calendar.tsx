@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Filter, Clock, Send, RotateCcw, AlertCircle, CheckCircle2, Loader2, CalendarPlus, Sparkles, Edit3, AlertTriangle } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -127,7 +128,7 @@ export default function Calendar() {
       params.set("brandId", brandFilter);
     }
 
-    fetch(`/api/calendar-entries?${params}`)
+    apiFetch(`/api/calendar-entries?${params}`)
       .then(res => res.json())
       .then(data => {
         setEntries(Array.isArray(data) ? data : (data?.entries ?? []));
@@ -222,7 +223,7 @@ export default function Calendar() {
     e.stopPropagation();
     setPublishingIds(prev => new Set(prev).add(entryId));
     try {
-      const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}/publish`, {
+      const resp = await apiFetch(`${API_BASE}/api/calendar-entries/${entryId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -250,7 +251,7 @@ export default function Calendar() {
     e.stopPropagation();
     setPublishingIds(prev => new Set(prev).add(entryId));
     try {
-      const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}/retry`, {
+      const resp = await apiFetch(`${API_BASE}/api/calendar-entries/${entryId}/retry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -312,7 +313,7 @@ export default function Calendar() {
       body.scheduleMethod = "smart_schedule_modified";
     }
 
-    const resp = await fetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
+    const resp = await apiFetch(`${API_BASE}/api/calendar-entries/${entryId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -338,7 +339,7 @@ export default function Calendar() {
           <ToastAction altText="Undo reschedule" onClick={async () => {
             const ref = lastRescheduleRef.current;
             if (!ref) return;
-            await fetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
+            await apiFetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ scheduledAt: ref.previousScheduledAt }),
@@ -358,7 +359,7 @@ export default function Calendar() {
           <ToastAction altText="Undo reschedule" onClick={async () => {
             const ref = lastRescheduleRef.current;
             if (!ref) return;
-            await fetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
+            await apiFetch(`${API_BASE}/api/calendar-entries/${ref.entryId}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ scheduledAt: ref.previousScheduledAt }),

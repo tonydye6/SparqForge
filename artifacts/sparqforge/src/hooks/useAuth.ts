@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/utils";
 import { useState, useEffect, useCallback, createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { createElement } from "react";
@@ -34,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+      const res = await apiFetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
       const data = await res.json();
       setState({
         authenticated: data.authenticated,
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await fetch(`${API_BASE}/api/auth/logout`, {
+      await apiFetch(`${API_BASE}/api/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
