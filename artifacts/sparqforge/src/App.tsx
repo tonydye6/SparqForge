@@ -17,6 +17,8 @@ import ContentPlan from "@/pages/ContentPlan";
 import Login from "@/pages/Login";
 import SetupWizard from "@/pages/SetupWizard";
 import NotFound from "@/pages/not-found";
+import Terms from "@/pages/Terms";
+import Privacy from "@/pages/Privacy";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +89,10 @@ function FirstRunGuard({ children }: { children: React.ReactNode }) {
 
 function Router() {
   return (
+    <Switch>
+      <Route path="/terms" component={Terms} />
+      <Route path="/privacy" component={Privacy} />
+      <Route>
     <AuthGate>
       <Switch>
         <Route path="/login" component={Login} />
@@ -121,6 +127,8 @@ function Router() {
         </Route>
       </Switch>
     </AuthGate>
+      </Route>
+    </Switch>
   );
 }
 
