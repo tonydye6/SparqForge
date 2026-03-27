@@ -78,7 +78,7 @@ import {
   Plus, Save, Hexagon, Shield, Hash, Type, Trash2, Edit2, LayoutTemplate,
   Share2, RefreshCw, Unplug, AlertTriangle, CheckCircle, CheckCircle2, XCircle,
   BarChart3, Sparkles, History, ChevronDown, ChevronUp, Check, X as XIcon,
-  Image as ImageIcon, Layers, FileType, Upload, ArrowRight
+  Image as ImageIcon, Layers, FileType, Upload, ArrowRight, Clock
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
@@ -89,10 +89,12 @@ import { useDropzone } from "react-dropzone";
 import { cn } from "@/lib/utils";
 import { useBrandReadiness } from "@/hooks/useBrandReadiness";
 import { LayoutSpecEditor } from "@/components/layout-editor";
+import { ScheduleProfileEditor } from "@/components/ScheduleProfileEditor";
 
 const SETTINGS_SECTIONS = [
   { id: "section-readiness", label: "Brand Readiness" },
   { id: "section-brand-dna", label: "Brand DNA" },
+  { id: "section-schedule-profile", label: "Schedule Profile" },
   { id: "section-character-style", label: "Character Style" },
   { id: "section-imagen", label: "Image Generation Settings" },
   { id: "section-platform-rules", label: "Platform Rules" },
@@ -507,6 +509,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
       colorAccent: brand.colorAccent,
       colorBackground: brand.colorBackground,
       voiceDescription: brand.voiceDescription || "",
+      timezone: (brand as Record<string, unknown>).timezone as string || "America/New_York",
       characterStyleRules: brand.characterStyleRules || "",
       imagenPrefix: brand.imagenPrefix || "",
       negativePrompt: brand.negativePrompt || "",
@@ -548,6 +551,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
           colorAccent: submitted.colorAccent ?? brand.colorAccent,
           colorBackground: submitted.colorBackground ?? brand.colorBackground,
           voiceDescription: submitted.voiceDescription ?? "",
+          timezone: (submitted as Record<string, unknown>).timezone as string ?? ((brand as Record<string, unknown>).timezone as string || "America/New_York"),
           characterStyleRules: submitted.characterStyleRules ?? "",
           imagenPrefix: submitted.imagenPrefix ?? "",
           negativePrompt: submitted.negativePrompt ?? "",
@@ -700,10 +704,48 @@ function BrandEditor({ brand }: { brand: Brand }) {
                 <label className="text-sm font-semibold text-foreground mb-2 block">Voice Description</label>
                 <Textarea {...register("voiceDescription")} className="font-mono text-sm bg-background border-border min-h-[120px]" />
               </div>
+              <div>
+                <label className="text-sm font-semibold text-foreground mb-2 block">Timezone</label>
+                <p className="text-xs text-muted-foreground mb-2">Used for Smart Schedule to determine optimal posting times in your audience's timezone.</p>
+                <select
+                  {...register("timezone")}
+                  className="w-full max-w-xs rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="America/New_York">Eastern Time (ET)</option>
+                  <option value="America/Chicago">Central Time (CT)</option>
+                  <option value="America/Denver">Mountain Time (MT)</option>
+                  <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                  <option value="America/Anchorage">Alaska Time (AKT)</option>
+                  <option value="Pacific/Honolulu">Hawaii Time (HT)</option>
+                  <option value="Europe/London">GMT / London</option>
+                  <option value="Europe/Paris">Central European (CET)</option>
+                  <option value="Europe/Berlin">Central European (CET)</option>
+                  <option value="Asia/Tokyo">Japan (JST)</option>
+                  <option value="Asia/Shanghai">China (CST)</option>
+                  <option value="Asia/Kolkata">India (IST)</option>
+                  <option value="Australia/Sydney">Sydney (AEST)</option>
+                  <option value="UTC">UTC</option>
+                </select>
+              </div>
             </div>
           </section>
 
           <BrandAssetGroups brandId={brand.id} />
+
+          {/* Schedule Profile */}
+          <section id="section-schedule-profile" className="bg-card border border-border rounded-xl p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+              <Clock className="text-primary" size={20} />
+              <h2 className="text-xl font-bold">Schedule Profile</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Define optimal posting windows per platform. Click cells to cycle between preferred, acceptable, and blocked. Use "Generate AI Profile" to auto-populate based on platform best practices.
+            </p>
+            <ScheduleProfileEditor
+              brandId={brand.id}
+              timezone={watch("timezone") || "America/New_York"}
+            />
+          </section>
 
           {/* Character Style Rules */}
           <section id="section-character-style" className="bg-card border border-border rounded-xl p-6 shadow-sm">

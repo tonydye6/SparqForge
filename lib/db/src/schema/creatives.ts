@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, json, index, real, integer, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, json, index, real, integer, foreignKey, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { brandsTable } from "./brands";
@@ -78,6 +78,8 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
   publishStatus: text("publish_status").notNull().default("scheduled"),
   publishError: text("publish_error"),
   retryCount: integer("retry_count").notNull().default(0),
+  scheduleMethod: text("schedule_method").notNull().default("manual"),
+  proposalId: text("proposal_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [
@@ -111,3 +113,34 @@ export const costLogsTable = pgTable("cost_logs", {
   outputTokens: text("output_tokens"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+export const brandScheduleProfilesTable = pgTable("brand_schedule_profiles", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  brandId: text("brand_id").notNull().references(() => brandsTable.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  hour: integer("hour").notNull(),
+  score: real("score").notNull().default(0.5),
+  status: text("status").notNull().default("acceptable"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("brand_schedule_profiles_unique_idx").on(table.brandId, table.platform, table.dayOfWeek, table.hour),
+  index("brand_schedule_profiles_brand_idx").on(table.brandId, table.platform),
+]);
+
+export const smartScheduleProposalsTable = pgTable("smart_schedule_proposals", {
+  id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  creativeId: text("creative_id").notNull().references(() => creativesTable.id, { onDelete: "cascade" }),
+  variantId: text("variant_id").notNull().references(() => creativeVariantsTable.id, { onDelete: "cascade" }),
+  platform: text("platform").notNull(),
+  proposedAt: timestamp("proposed_at").notNull(),
+  rationale: text("rationale"),
+  slotScore: real("slot_score"),
+  status: text("status").notNull().default("pending"),
+  finalTime: timestamp("final_time"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("smart_schedule_proposals_creative_idx").on(table.creativeId),
+]);

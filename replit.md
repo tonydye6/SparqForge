@@ -26,7 +26,7 @@ The frontend comprises several key pages:
 - **Review Queue**: A Kanban board with per-variant approve/reject (mandatory rejection comments feed refinement_logs). Supports bulk and individual variant review actions.
 - **Content Plan**: A planning layer for organizing content series (e.g., 30-post launch calendars). Supports CSV import, filterable table view (by pillar, platform, status, week, brand layer), expandable row details, manual CRUD, and plan-to-creative conversion that pre-fills Creative Studio.
 - **Cost Dashboard**: Displays total spend, daily spend charts, breakdowns by service/operation. Includes configurable daily budget threshold with pre-generation budget check and visual alerts.
-- **Settings**: Manages brand settings and connected social accounts.
+- **Settings**: Manages brand settings, connected social accounts, and Smart Schedule profiles. Includes a Schedule Profile Editor with per-platform 7×24 heat map grids, AI profile generation via Claude, and timezone configuration.
 
 **Technical Implementations & Feature Specifications:**
 - **AI Generation Pipeline**:
