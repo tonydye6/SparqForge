@@ -26,7 +26,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const ASSET_CLASS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   compositing: { label: "Brand Overlay", color: "text-purple-400", bg: "bg-purple-500/20" },
-  subject_reference: { label: "Character / Product Photo", color: "text-blue-400", bg: "bg-blue-500/20" },
+  subject_reference: { label: "Character Reference", color: "text-blue-400", bg: "bg-blue-500/20" },
   style_reference: { label: "Style Inspiration", color: "text-green-400", bg: "bg-green-500/20" },
   context: { label: "Context", color: "text-amber-400", bg: "bg-amber-500/20" },
 };
@@ -889,7 +889,7 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="compositing">Brand Overlay</SelectItem>
-                  <SelectItem value="subject_reference">Character / Product Photo</SelectItem>
+                  <SelectItem value="subject_reference">Character Reference</SelectItem>
                   <SelectItem value="style_reference">Style Inspiration</SelectItem>
                   <SelectItem value="context">Context</SelectItem>
                 </SelectContent>

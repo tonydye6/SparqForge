@@ -198,7 +198,7 @@ export function CreativeConfigPanel({
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-xs font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Star size={10} /> Character / Product Photo <span className="text-muted-foreground">(pick 1)</span>
+              <Star size={10} /> Character Reference <span className="text-muted-foreground">(pick 1)</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               {(recommendedSubjects.length > 0 ? recommendedSubjects : approvedVisualAssets).slice(0, 6).map((asset, idx) => {
