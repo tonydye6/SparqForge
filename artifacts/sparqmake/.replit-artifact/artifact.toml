@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "SparqForge"
+title = "SparqMake"
 version = "1.0.0"
 id = "artifacts/sparqforge"
 router = "path"
@@ -15,11 +15,11 @@ paths = [ "/" ]
 localPort = 19060
 
 [services.development]
-run = "pnpm --filter @workspace/sparqforge run dev"
+run = "pnpm --filter @workspace/sparqmake run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/sparqforge", "run", "build" ]
-publicDir = "artifacts/sparqforge/dist/public"
+build = [ "pnpm", "--filter", "@workspace/sparqmake", "run", "build" ]
+publicDir = "artifacts/sparqmake/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
