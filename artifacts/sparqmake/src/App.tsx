@@ -19,6 +19,7 @@ import SetupWizard from "@/pages/SetupWizard";
 import NotFound from "@/pages/not-found";
 import Terms from "@/pages/Terms";
 import Privacy from "@/pages/Privacy";
+import Feedback from "@/pages/Feedback";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,9 +36,18 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
+        <div className="flex flex-col items-center space-y-6">
+          <div className="flex items-center space-x-3">
+            <img
+              src={`${import.meta.env.BASE_URL}images/sparq-logo.png`}
+              alt="SparqMake"
+              className="w-10 h-10 rounded"
+            />
+            <span className="font-display font-bold text-2xl text-foreground">
+              SPARQ<span className="text-primary">MAKE</span>
+            </span>
+          </div>
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
@@ -121,6 +131,9 @@ function Router() {
         </Route>
         <Route path="/costs">
           <AppLayout><CostDashboard /></AppLayout>
+        </Route>
+        <Route path="/feedback">
+          <AppLayout><Feedback /></AppLayout>
         </Route>
         <Route>
           <AppLayout><NotFound /></AppLayout>

@@ -11,7 +11,8 @@ import {
   LogOut,
   Menu,
   X,
-  ClipboardList
+  ClipboardList,
+  MessageSquareText
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,6 +85,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     { href: "/review", label: "Review Queue", icon: CheckSquare, badge: reviewCount || undefined },
     { href: "/costs", label: "Cost Dashboard", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },
+    { href: "/feedback", label: "Feedback", icon: MessageSquareText },
   ];
 
   const collapsed = mode === "tablet" ? !tabletExpanded : mode === "desktop" ? desktopCollapsed : false;
