@@ -50,12 +50,23 @@ router.get(
       res.status(503).json({ error: "Google OAuth is not configured" });
       return;
     }
-    passport.authenticate("google", { failureRedirect: "/login?error=auth_failed" })(req, res, next);
-  },
-  (req, res): void => {
-    const returnTo = sanitizeReturnTo((req.session as any).returnTo);
-    delete (req.session as any).returnTo;
-    res.redirect(returnTo);
+    passport.authenticate("google", (err: Error | null, user: Express.User | false) => {
+      if (err || !user) {
+        console.error("Google OAuth callback error:", err?.message || "No user returned");
+        res.redirect("/login?error=auth_failed");
+        return;
+      }
+      req.logIn(user, (loginErr) => {
+        if (loginErr) {
+          console.error("Session login error:", loginErr.message);
+          res.redirect("/login?error=auth_failed");
+          return;
+        }
+        const returnTo = sanitizeReturnTo((req.session as any).returnTo);
+        delete (req.session as any).returnTo;
+        res.redirect(returnTo);
+      });
+    })(req, res, next);
   },
 );
 
