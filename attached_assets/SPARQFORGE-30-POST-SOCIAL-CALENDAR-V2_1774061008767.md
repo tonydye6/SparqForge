@@ -1,15 +1,15 @@
-# SparqForge 30-Post Social Calendar V2
+# SparqMake 30-Post Social Calendar V2
 
 ## Purpose
 
-This is a revised 30-post calendar built around the actual current state of the SparqForge codebase rather than the earlier spec-only understanding. It is designed to help Sparq use content strategy to improve both the brand and the product at the same time.
+This is a revised 30-post calendar built around the actual current state of the SparqMake codebase rather than the earlier spec-only understanding. It is designed to help Sparq use content strategy to improve both the brand and the product at the same time.
 
 This version assumes:
 - the app already has real generation, scheduling, review, and publishing infrastructure in place for some platforms
 - the asset model is still too flat
 - packet assembly is still too simple
 - TikTok and YouTube are not yet wired as deeply as Instagram, X, and LinkedIn in backend publishing flows
-- the strategy should be phased around system maturity, not just marketing ambition ([current repo commit](https://github.com/tonydye6/SparqForge/commit/c6816f9325b34d67838a845f3e504ae3b588e19b), [CampaignStudio implementation](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqforge/src/pages/CampaignStudio.tsx), [publish scheduler](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/publish-scheduler.ts), [assets schema](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/assets.ts)).
+- the strategy should be phased around system maturity, not just marketing ambition ([current repo commit](https://github.com/tonydye6/SparqMake/commit/c6816f9325b34d67838a845f3e504ae3b588e19b), [CampaignStudio implementation](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqmake/src/pages/CampaignStudio.tsx), [publish scheduler](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/publish-scheduler.ts), [assets schema](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/assets.ts)).
 
 ## New Planning Model
 
@@ -92,25 +92,25 @@ Expand once packet intelligence, grouped brand assets, and content-plan infrastr
 The current codebase is materially real for:
 - Instagram
 - X / Twitter
-- LinkedIn ([publish scheduler](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/publish-scheduler.ts), [social auth routes](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/social-auth.ts)).
+- LinkedIn ([publish scheduler](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/publish-scheduler.ts), [social auth routes](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/social-auth.ts)).
 
 ### Generate-and-export supported or partially supported
 The current codebase can meaningfully support generation for:
 - TikTok-style assets in UI and preview
 - YouTube-oriented visual/video assets at the content level
 
-But these should still be treated as manual/export workflows until backend support is implemented more deeply ([CampaignStudio implementation](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqforge/src/pages/CampaignStudio.tsx)).
+But these should still be treated as manual/export workflows until backend support is implemented more deeply ([CampaignStudio implementation](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqmake/src/pages/CampaignStudio.tsx)).
 
 ## Priority Product Gaps That Change Strategy
 
 ### Gap 1: Flat asset roles
-The current system still models asset selection as one primary plus the rest supporting. That means subject-heavy posts and style-heavy posts are still under-modeled ([CampaignStudio implementation](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqforge/src/pages/CampaignStudio.tsx), [context assembly service](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/context-assembly.ts)).
+The current system still models asset selection as one primary plus the rest supporting. That means subject-heavy posts and style-heavy posts are still under-modeled ([CampaignStudio implementation](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqmake/src/pages/CampaignStudio.tsx), [context assembly service](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/context-assembly.ts)).
 
 ### Gap 2: No content-plan layer
-Campaigns exist. Calendar entries exist. But a true planning object does not yet exist, so the strategy should not assume planning and execution are elegantly separated yet ([campaigns schema](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/campaigns.ts), [Calendar page](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqforge/src/pages/Calendar.tsx)).
+Campaigns exist. Calendar entries exist. But a true planning object does not yet exist, so the strategy should not assume planning and execution are elegantly separated yet ([campaigns schema](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/campaigns.ts), [Calendar page](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqmake/src/pages/Calendar.tsx)).
 
 ### Gap 3: Multiple brand marks and brand kits are not first-class yet
-Brand settings still center around a single logo field plus fonts, which is not enough for the real operational need ([brands schema](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/brands.ts)).
+Brand settings still center around a single logo field plus fonts, which is not enough for the real operational need ([brands schema](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/brands.ts)).
 
 ## Revised Success Criteria
 
@@ -127,4 +127,4 @@ Judge them by:
 
 The strategy should now be treated as product-aware.
 
-That means the calendar is no longer just a publishing plan. It is a maturity roadmap for SparqForge itself. The first 8 posts are where the product earns the right to handle the next 22 with confidence.
+That means the calendar is no longer just a publishing plan. It is a maturity roadmap for SparqMake itself. The first 8 posts are where the product earns the right to handle the next 22 with confidence.

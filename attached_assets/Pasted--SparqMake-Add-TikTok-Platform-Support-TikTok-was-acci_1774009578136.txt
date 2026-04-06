@@ -1,4 +1,4 @@
-# SparqForge™ — Add TikTok Platform Support
+# SparqMake™ — Add TikTok Platform Support
 
 TikTok was accidentally omitted from the original build spec. Add it everywhere the other platforms (Twitter/X, Instagram Feed, Instagram Story, LinkedIn) are referenced. Here's exactly what needs to change:
 

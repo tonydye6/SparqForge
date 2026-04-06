@@ -1,14 +1,14 @@
-# SparqForge™ — Replit Agent 4 Initial Build Prompt
+# SparqMake™ — Replit Agent 4 Initial Build Prompt
 
 ## Instructions
 
-Build a web application called **SparqForge™** — an AI-powered social media content generation and management tool for Sparq Games. The complete product specification is in the attached files. Start with **Phase 1: Foundation** as described below.
+Build a web application called **SparqMake™** — an AI-powered social media content generation and management tool for Sparq Games. The complete product specification is in the attached files. Start with **Phase 1: Foundation** as described below.
 
 ---
 
 ## Attached Documentation (reference these throughout the build)
 
-1. **PRD_SparqForge.md** — Complete product requirements document. This is the source of truth for what the application does.
+1. **PRD_SparqMake.md** — Complete product requirements document. This is the source of truth for what the application does.
 2. **TECH_SPEC.md** — Full technical specification with database schema, API routes, authentication flow, compositing pipeline, and error handling patterns.
 3. **UX_UI_DESIGN.md** — Comprehensive screen layouts, component inventory, interaction specs, design tokens, and responsive behavior.
 4. **GENERATION_PIPELINE.md** — The AI generation pipeline: context assembly, prompt templates, compositing step, audio pipeline, parallel execution strategy.
@@ -181,22 +181,22 @@ All API keys are already configured in Replit Account Secrets with the names bel
 DATABASE_URL=                          # Auto-provisioned — add PostgreSQL to this project
 NEXTAUTH_SECRET=                       # Generate: openssl rand -base64 32
 NEXTAUTH_URL=                          # This app's URL (https://[app].replit.app)
-SparqForge_Google_Client_ID=           # Google OAuth — use as GOOGLE_CLIENT_ID in NextAuth config
-SparqForge_Google_Client_Secret=       # Google OAuth — use as GOOGLE_CLIENT_SECRET in NextAuth config
+SparqMake_Google_Client_ID=           # Google OAuth — use as GOOGLE_CLIENT_ID in NextAuth config
+SparqMake_Google_Client_Secret=       # Google OAuth — use as GOOGLE_CLIENT_SECRET in NextAuth config
 ```
 
 **Phase 2+ (already in Account Secrets, use when you reach that phase):**
 ```
-SparqForge_Anthropic_API_Key=          # Claude API for captions + headlines (Phase 2)
-SparqForge_Gemeni_API_Key=             # Google AI / Gemini API — covers Imagen, Veo, Flash (Phase 2/3/6)
+SparqMake_Anthropic_API_Key=          # Claude API for captions + headlines (Phase 2)
+SparqMake_Gemeni_API_Key=             # Google AI / Gemini API — covers Imagen, Veo, Flash (Phase 2/3/6)
                                        # NOTE: "Gemeni" is intentionally spelled this way — it's the actual secret name
-SparqForge_ScreenshotOne_API_Key=      # ScreenshotOne for URL screenshots (Phase 3)
-X_SparqForge_X_API_Key=               # Twitter/X API (Phase 5)
-SparqForge_Instagram_App_ID=           # Meta/Instagram App ID (Phase 5)
-SparqForge_Instagram_App_Secret=       # Meta/Instagram App Secret (Phase 5)
-SparqForge_LinkedIn_Client_ID=         # LinkedIn Client ID (Phase 5)
-SparqForge_LinkedIn_Client_Secret=     # LinkedIn Client Secret (Phase 5)
-SparqForge_ElevenLabs_API_Key=         # ElevenLabs music/SFX/TTS (Phase 6)
+SparqMake_ScreenshotOne_API_Key=      # ScreenshotOne for URL screenshots (Phase 3)
+X_SparqMake_X_API_Key=               # Twitter/X API (Phase 5)
+SparqMake_Instagram_App_ID=           # Meta/Instagram App ID (Phase 5)
+SparqMake_Instagram_App_Secret=       # Meta/Instagram App Secret (Phase 5)
+SparqMake_LinkedIn_Client_ID=         # LinkedIn Client ID (Phase 5)
+SparqMake_LinkedIn_Client_Secret=     # LinkedIn Client Secret (Phase 5)
+SparqMake_ElevenLabs_API_Key=         # ElevenLabs music/SFX/TTS (Phase 6)
 ```
 
 ---

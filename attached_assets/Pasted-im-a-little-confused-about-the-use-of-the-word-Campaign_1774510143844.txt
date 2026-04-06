@@ -1,8 +1,8 @@
-im a little confused about the use of the word "Campaign" in the context of SparqForge. Don't make any changes, i just need you to help me understand?
+im a little confused about the use of the word "Campaign" in the context of SparqMake. Don't make any changes, i just need you to help me understand?
 
-Great question! Let me look into how "Campaign" is used in SparqForge so I can explain it clearly.
+Great question! Let me look into how "Campaign" is used in SparqMake so I can explain it clearly.
 
-Here's how "Campaign" works in SparqForge:
+Here's how "Campaign" works in SparqMake:
 
 In simple terms, a Campaign is basically a single content creation project. Think of it like a "session" where you bring together your brand, a design template, and some assets, then let the AI generate social media content for you.
 

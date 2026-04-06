@@ -1,18 +1,18 @@
-# SparqForge Agent 4 Repo-Specific Handoff
+# SparqMake Agent 4 Repo-Specific Handoff
 
 ## Purpose
 
-This handoff replaces the earlier abstract implementation guidance with directions that map directly onto the current SparqForge repository.
+This handoff replaces the earlier abstract implementation guidance with directions that map directly onto the current SparqMake repository.
 
 The current app is:
-- Vite + React frontend in `artifacts/sparqforge`
+- Vite + React frontend in `artifacts/sparqmake`
 - Express API server in `artifacts/api-server`
 - Drizzle/Postgres schema in `lib/db/src/schema`
-- generated API client/types in `lib/api-zod` and `lib/api-client-react` ([current repo commit](https://github.com/tonydye6/SparqForge/commit/c6816f9325b34d67838a845f3e504ae3b588e19b), [App.tsx](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqforge/src/App.tsx), [DB schema index](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/index.ts)).
+- generated API client/types in `lib/api-zod` and `lib/api-client-react` ([current repo commit](https://github.com/tonydye6/SparqMake/commit/c6816f9325b34d67838a845f3e504ae3b588e19b), [App.tsx](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqmake/src/App.tsx), [DB schema index](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/lib/db/src/schema/index.ts)).
 
 ## Main Product Shift
 
-SparqForge should stop behaving like a flat asset picker and start behaving like a role-aware reference-packet engine.
+SparqMake should stop behaving like a flat asset picker and start behaving like a role-aware reference-packet engine.
 
 That means the highest-impact upgrade is not cosmetic. It is structural.
 
@@ -28,10 +28,10 @@ Do not break:
 - SSE generation progress
 - compositing
 - cost logging
-- scheduling and publishing ([generate route](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/generate.ts), [publish scheduler](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/publish-scheduler.ts)).
+- scheduling and publishing ([generate route](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/generate.ts), [publish scheduler](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/publish-scheduler.ts)).
 
 ### 3. The current weak point is pre-generation intelligence
-Right now, Campaign Studio still uses a flat ordered asset list, and `assembleContext()` still only knows primary vs supporting assets ([CampaignStudio.tsx](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqforge/src/pages/CampaignStudio.tsx), [context-assembly.ts](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/context-assembly.ts)).
+Right now, Campaign Studio still uses a flat ordered asset list, and `assembleContext()` still only knows primary vs supporting assets ([CampaignStudio.tsx](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/sparqmake/src/pages/CampaignStudio.tsx), [context-assembly.ts](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/services/context-assembly.ts)).
 
 ## Required Workstreams
 
@@ -69,14 +69,14 @@ Track packet quality, pairing quality, and strategy quality.
 - add new routes for content plan import/list/create-campaign
 
 ### Frontend
-- `artifacts/sparqforge/src/pages/AssetLibrary.tsx`
-- `artifacts/sparqforge/src/pages/Settings.tsx`
-- `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+- `artifacts/sparqmake/src/pages/AssetLibrary.tsx`
+- `artifacts/sparqmake/src/pages/Settings.tsx`
+- `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 - add new content plan page or section
 
 ## Delivery Standard
 
-When this repo-specific work is complete, SparqForge should be able to:
+When this repo-specific work is complete, SparqMake should be able to:
 - store richer asset intelligence
 - recommend the right 2–3 references for a generation run
 - keep logos and exact marks out of model reference packets when they should be composited

@@ -10,7 +10,7 @@ export default function Privacy() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-white">1. Introduction</h2>
           <p>
-            This Privacy Policy explains how SparqForge, operated by Sparq Games ("we", "us", "our"), collects,
+            This Privacy Policy explains how SparqMake, operated by Sparq Games ("we", "us", "our"), collects,
             uses, and protects your information when you use our AI-powered social media content management platform.
           </p>
         </section>
@@ -89,7 +89,7 @@ export default function Privacy() {
           <p>You have the right to:</p>
           <ul className="list-disc pl-6 space-y-1">
             <li>Disconnect any linked social media account at any time</li>
-            <li>Delete your content and data from SparqForge</li>
+            <li>Delete your content and data from SparqMake</li>
             <li>Request information about what data we store about you</li>
             <li>Revoke platform permissions through each social media platform's settings</li>
           </ul>
@@ -131,7 +131,7 @@ export default function Privacy() {
         </section>
 
         <div className="pt-8 border-t border-gray-800">
-          <a href="/" className="text-blue-400 hover:text-blue-300 text-sm">&larr; Back to SparqForge</a>
+          <a href="/" className="text-blue-400 hover:text-blue-300 text-sm">&larr; Back to SparqMake</a>
         </div>
       </div>
     </div>

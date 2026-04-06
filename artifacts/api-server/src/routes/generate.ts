@@ -335,7 +335,7 @@ router.post("/creatives/:id/generate", async (req: Request, res: Response): Prom
 
     ensureDir(UPLOADS_DIR);
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sparqforge-gen-${creativeId}-`));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `sparqmake-gen-${creativeId}-`));
     const stagedFiles: Array<{ tmpPath: string; finalPath: string }> = [];
 
     const variantRecords = [];

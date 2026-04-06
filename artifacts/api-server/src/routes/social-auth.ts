@@ -75,7 +75,7 @@ function validateOAuthState(state: string | undefined): boolean {
 }
 
 router.get("/auth/twitter", (_req, res) => {
-  const clientId = process.env.X_SparqForge_X_API_Key;
+  const clientId = process.env.X_SparqMake_X_API_Key;
   if (!clientId) {
     return res.status(500).json({ error: "Twitter API key not configured" });
   }
@@ -116,7 +116,7 @@ router.get("/auth/twitter/callback", async (req, res) => {
     }
     pkceStore.delete(state);
 
-    const clientId = process.env.X_SparqForge_X_API_Key;
+    const clientId = process.env.X_SparqMake_X_API_Key;
     const callbackUrl = `${getCallbackBaseUrl()}/api/auth/twitter/callback`;
 
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
@@ -171,7 +171,7 @@ router.get("/auth/twitter/callback", async (req, res) => {
 });
 
 router.get("/auth/instagram", (_req, res) => {
-  const appId = process.env.SparqForge_Instagram_App_ID;
+  const appId = process.env.SparqMake_Instagram_App_ID;
   if (!appId) {
     return res.status(500).json({ error: "Instagram App ID not configured" });
   }
@@ -203,8 +203,8 @@ router.get("/auth/instagram/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=missing_code`);
     }
 
-    const appId = process.env.SparqForge_Instagram_App_ID;
-    const appSecret = process.env.SparqForge_Instagram_App_Secret;
+    const appId = process.env.SparqMake_Instagram_App_ID;
+    const appSecret = process.env.SparqMake_Instagram_App_Secret;
     const callbackUrl = `${getCallbackBaseUrl()}/api/auth/instagram/callback`;
 
     const tokenUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
@@ -288,7 +288,7 @@ router.get("/auth/instagram/callback", async (req, res) => {
 });
 
 router.get("/auth/linkedin", (_req, res) => {
-  const clientId = process.env.SparqForge_LinkedIn_Client_ID;
+  const clientId = process.env.SparqMake_LinkedIn_Client_ID;
   if (!clientId) {
     return res.status(500).json({ error: "LinkedIn Client ID not configured" });
   }
@@ -320,8 +320,8 @@ router.get("/auth/linkedin/callback", async (req, res) => {
       return res.redirect(`${getSettingsRedirectUrl()}&error=missing_code`);
     }
 
-    const clientId = process.env.SparqForge_LinkedIn_Client_ID;
-    const clientSecret = process.env.SparqForge_LinkedIn_Client_Secret;
+    const clientId = process.env.SparqMake_LinkedIn_Client_ID;
+    const clientSecret = process.env.SparqMake_LinkedIn_Client_Secret;
     const callbackUrl = `${getCallbackBaseUrl()}/api/auth/linkedin/callback`;
 
     const tokenResponse = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {

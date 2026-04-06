@@ -1,8 +1,8 @@
-# SparqForge First 8 Post Briefs
+# SparqMake First 8 Post Briefs
 
 ## Purpose
 
-These briefs expand the first 8 calibration posts into execution-ready creative instructions for SparqForge.
+These briefs expand the first 8 calibration posts into execution-ready creative instructions for SparqMake.
 
 ## Post 1 — What Sparq Is
 

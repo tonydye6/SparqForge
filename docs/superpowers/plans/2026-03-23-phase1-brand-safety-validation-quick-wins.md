@@ -21,9 +21,9 @@
 | `artifacts/api-server/src/lib/brand-readiness.ts` | Pure function: check brand readiness against 6 criteria |
 | `artifacts/api-server/src/routes/brand-readiness.ts` | Express route: GET /api/brand-readiness/:brandId |
 | `artifacts/api-server/src/middleware/validate.ts` | Reusable Zod validation middleware for Express |
-| `artifacts/sparqforge/src/hooks/useBrandReadiness.ts` | React Query hook wrapping brand-readiness API |
-| `artifacts/sparqforge/src/hooks/useFormDirty.ts` | Deep-equality dirty state tracker for forms |
-| `artifacts/sparqforge/src/components/ui/empty-state.tsx` | Convenience wrapper over existing `empty.tsx` primitives |
+| `artifacts/sparqmake/src/hooks/useBrandReadiness.ts` | React Query hook wrapping brand-readiness API |
+| `artifacts/sparqmake/src/hooks/useFormDirty.ts` | Deep-equality dirty state tracker for forms |
+| `artifacts/sparqmake/src/components/ui/empty-state.tsx` | Convenience wrapper over existing `empty.tsx` primitives |
 
 ### Modified Files
 
@@ -38,14 +38,14 @@
 | `artifacts/api-server/src/routes/hashtag-sets.ts` | Add pagination to GET /hashtag-sets |
 | `artifacts/api-server/src/routes/index.ts` | Register brandReadinessRouter |
 | `lib/api-spec/openapi.yaml` | Add paginated response schemas, brand-readiness endpoint |
-| `artifacts/sparqforge/src/pages/CampaignStudio.tsx` | Pre-gen validation tooltip, cost display, hashtag save |
-| `artifacts/sparqforge/src/pages/Settings.tsx` | Readiness card, section nav, unsaved changes warning |
-| `artifacts/sparqforge/src/pages/ReviewQueue.tsx` | Variant progress bar, empty state |
-| `artifacts/sparqforge/src/pages/Calendar.tsx` | Replace confirm with undo pattern, empty state |
-| `artifacts/sparqforge/src/pages/AssetLibrary.tsx` | Empty state |
-| `artifacts/sparqforge/src/pages/ContentPlan.tsx` | Empty state |
-| `artifacts/sparqforge/src/pages/CostDashboard.tsx` | Empty state |
-| `artifacts/sparqforge/src/components/layout/Sidebar.tsx` | Pending asset badge |
+| `artifacts/sparqmake/src/pages/CampaignStudio.tsx` | Pre-gen validation tooltip, cost display, hashtag save |
+| `artifacts/sparqmake/src/pages/Settings.tsx` | Readiness card, section nav, unsaved changes warning |
+| `artifacts/sparqmake/src/pages/ReviewQueue.tsx` | Variant progress bar, empty state |
+| `artifacts/sparqmake/src/pages/Calendar.tsx` | Replace confirm with undo pattern, empty state |
+| `artifacts/sparqmake/src/pages/AssetLibrary.tsx` | Empty state |
+| `artifacts/sparqmake/src/pages/ContentPlan.tsx` | Empty state |
+| `artifacts/sparqmake/src/pages/CostDashboard.tsx` | Empty state |
+| `artifacts/sparqmake/src/components/layout/Sidebar.tsx` | Pending asset badge |
 
 ---
 
@@ -514,7 +514,7 @@ Also add the `GET /brand-readiness/{brandId}` endpoint to the spec.
 - [ ] **Step 6: Regenerate orval client**
 
 ```bash
-cd /tmp/SparqForge && pnpm --filter @workspace/api-client-react run generate
+cd /tmp/SparqMake && pnpm --filter @workspace/api-client-react run generate
 ```
 
 This regenerates `lib/api-client-react/src/generated/api.ts` and `api.schemas.ts`. Verify the generated hooks now expect `{ data, total, limit, offset }` response shapes.
@@ -544,11 +544,11 @@ git commit -m "feat: add pagination to all list endpoints, update OpenAPI spec a
 ## Task 6: useBrandReadiness Frontend Hook
 
 **Files:**
-- Create: `artifacts/sparqforge/src/hooks/useBrandReadiness.ts`
+- Create: `artifacts/sparqmake/src/hooks/useBrandReadiness.ts`
 
 - [ ] **Step 1: Create the hook**
 
-Create `artifacts/sparqforge/src/hooks/useBrandReadiness.ts`:
+Create `artifacts/sparqmake/src/hooks/useBrandReadiness.ts`:
 
 ```typescript
 import { useQuery } from "@tanstack/react-query";
@@ -587,7 +587,7 @@ export function useBrandReadiness(brandId: string | null | undefined) {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/hooks/useBrandReadiness.ts
+git add artifacts/sparqmake/src/hooks/useBrandReadiness.ts
 git commit -m "feat: add useBrandReadiness React Query hook"
 ```
 
@@ -596,11 +596,11 @@ git commit -m "feat: add useBrandReadiness React Query hook"
 ## Task 7: EmptyState Convenience Wrapper
 
 **Files:**
-- Create: `artifacts/sparqforge/src/components/ui/empty-state.tsx`
+- Create: `artifacts/sparqmake/src/components/ui/empty-state.tsx`
 
 - [ ] **Step 1: Create the wrapper component**
 
-Create `artifacts/sparqforge/src/components/ui/empty-state.tsx`:
+Create `artifacts/sparqmake/src/components/ui/empty-state.tsx`:
 
 ```typescript
 import type { LucideIcon } from "lucide-react";
@@ -655,7 +655,7 @@ export function EmptyState({
 - [ ] **Step 2: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/components/ui/empty-state.tsx
+git add artifacts/sparqmake/src/components/ui/empty-state.tsx
 git commit -m "feat: add EmptyState convenience wrapper over empty.tsx primitives"
 ```
 
@@ -664,7 +664,7 @@ git commit -m "feat: add EmptyState convenience wrapper over empty.tsx primitive
 ## Task 8: CampaignStudio — Approved-Only Asset Filter
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/CampaignStudio.tsx:92`
+- Modify: `artifacts/sparqmake/src/pages/CampaignStudio.tsx:92`
 
 **Context:** Line 92 already passes `status: "approved"` — verify this is enforced as a non-removable filter. The asset picker should not expose a status toggle.
 
@@ -682,7 +682,7 @@ If there's a separate asset picker component or filter dropdown that exposes sta
 - [ ] **Step 2: Commit if changes were needed**
 
 ```bash
-git add artifacts/sparqforge/src/pages/CampaignStudio.tsx
+git add artifacts/sparqmake/src/pages/CampaignStudio.tsx
 git commit -m "fix: enforce approved-only asset filter in Campaign Studio"
 ```
 
@@ -691,7 +691,7 @@ git commit -m "fix: enforce approved-only asset filter in Campaign Studio"
 ## Task 9: Pre-Generation Validation UI
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+- Modify: `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 - [ ] **Step 1: Import useBrandReadiness**
 
@@ -760,7 +760,7 @@ Note: The `<span>` wrapper is needed because disabled buttons don't fire mouse e
 - [ ] **Step 4: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/CampaignStudio.tsx
+git add artifacts/sparqmake/src/pages/CampaignStudio.tsx
 git commit -m "feat: add pre-generation validation with tooltip reasons on Generate button"
 ```
 
@@ -769,7 +769,7 @@ git commit -m "feat: add pre-generation validation with tooltip reasons on Gener
 ## Task 10: Inline Cost Estimate in CampaignStudio
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+- Modify: `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 - [ ] **Step 1: Add budget status fetch**
 
@@ -813,7 +813,7 @@ Find the right panel / action buttons area. Add below the Generate button:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/CampaignStudio.tsx
+git add artifacts/sparqmake/src/pages/CampaignStudio.tsx
 git commit -m "feat: show inline cost estimate and budget status in Campaign Studio"
 ```
 
@@ -822,7 +822,7 @@ git commit -m "feat: show inline cost estimate and budget status in Campaign Stu
 ## Task 11: Save as Hashtag Set from Caption
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+- Modify: `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 **Context:** CampaignStudio already has `hashtagDialogOpen`, `hashtagSetName`, `hashtagsToSave`, and `savingHashtags` state (lines 115-118). There's already a dialog for this. Verify it works or wire it up if disconnected.
 
@@ -855,7 +855,7 @@ In each variant card's caption area, after the caption text, add:
 - [ ] **Step 3: Commit if changes made**
 
 ```bash
-git add artifacts/sparqforge/src/pages/CampaignStudio.tsx
+git add artifacts/sparqmake/src/pages/CampaignStudio.tsx
 git commit -m "feat: add Save as Hashtag Set action from variant captions"
 ```
 
@@ -864,7 +864,7 @@ git commit -m "feat: add Save as Hashtag Set action from variant captions"
 ## Task 12: Brand Readiness Indicator in Settings
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/Settings.tsx`
+- Modify: `artifacts/sparqmake/src/pages/Settings.tsx`
 
 - [ ] **Step 1: Import and use the hook**
 
@@ -929,7 +929,7 @@ The `queryClient` is already imported in Settings.tsx via `useQueryClient`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/Settings.tsx
+git add artifacts/sparqmake/src/pages/Settings.tsx
 git commit -m "feat: add brand readiness checklist card to Settings"
 ```
 
@@ -938,7 +938,7 @@ git commit -m "feat: add brand readiness checklist card to Settings"
 ## Task 13: Settings Section Navigation
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/Settings.tsx`
+- Modify: `artifacts/sparqmake/src/pages/Settings.tsx`
 
 - [ ] **Step 1: Add section IDs to each settings section**
 
@@ -1010,7 +1010,7 @@ Render the nav:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/Settings.tsx
+git add artifacts/sparqmake/src/pages/Settings.tsx
 git commit -m "feat: add sticky section navigation to Settings"
 ```
 
@@ -1019,12 +1019,12 @@ git commit -m "feat: add sticky section navigation to Settings"
 ## Task 14: Unsaved Changes Warning in Settings
 
 **Files:**
-- Create: `artifacts/sparqforge/src/hooks/useFormDirty.ts`
-- Modify: `artifacts/sparqforge/src/pages/Settings.tsx`
+- Create: `artifacts/sparqmake/src/hooks/useFormDirty.ts`
+- Modify: `artifacts/sparqmake/src/pages/Settings.tsx`
 
 - [ ] **Step 1: Create useFormDirty hook**
 
-Create `artifacts/sparqforge/src/hooks/useFormDirty.ts`:
+Create `artifacts/sparqmake/src/hooks/useFormDirty.ts`:
 
 ```typescript
 import { useMemo, useEffect } from "react";
@@ -1088,7 +1088,7 @@ At the top of the content area, show:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/hooks/useFormDirty.ts artifacts/sparqforge/src/pages/Settings.tsx
+git add artifacts/sparqmake/src/hooks/useFormDirty.ts artifacts/sparqmake/src/pages/Settings.tsx
 git commit -m "feat: add unsaved changes detection and warning in Settings"
 ```
 
@@ -1097,7 +1097,7 @@ git commit -m "feat: add unsaved changes detection and warning in Settings"
 ## Task 15: Variant Approval Progress Bar in Review Queue
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/ReviewQueue.tsx`
+- Modify: `artifacts/sparqmake/src/pages/ReviewQueue.tsx`
 
 - [ ] **Step 1: Add progress bar to expanded campaign view**
 
@@ -1143,7 +1143,7 @@ Find the expanded campaign detail section where variants are displayed. Add abov
 - [ ] **Step 2: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/ReviewQueue.tsx
+git add artifacts/sparqmake/src/pages/ReviewQueue.tsx
 git commit -m "feat: add variant approval progress bar to Review Queue"
 ```
 
@@ -1152,7 +1152,7 @@ git commit -m "feat: add variant approval progress bar to Review Queue"
 ## Task 16: Calendar Undo Reschedule
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/Calendar.tsx:271-311`
+- Modify: `artifacts/sparqmake/src/pages/Calendar.tsx:271-311`
 
 - [ ] **Step 1: Remove pendingReschedule state and confirm toast**
 
@@ -1231,7 +1231,7 @@ Also update `handleDrop`'s `useCallback` dependency array to include `commitResc
 - [ ] **Step 4: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/Calendar.tsx
+git add artifacts/sparqmake/src/pages/Calendar.tsx
 git commit -m "feat: replace confirm toast with undo reschedule pattern in Calendar"
 ```
 
@@ -1240,7 +1240,7 @@ git commit -m "feat: replace confirm toast with undo reschedule pattern in Calen
 ## Task 17: Pending Asset Badge in Sidebar
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/components/layout/Sidebar.tsx`
+- Modify: `artifacts/sparqmake/src/components/layout/Sidebar.tsx`
 
 **Dependency:** Requires pagination (Task 5) to be complete.
 
@@ -1269,7 +1269,7 @@ In the `NAV_ITEMS` array (line 72), update the Asset Library entry:
 - [ ] **Step 3: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/components/layout/Sidebar.tsx
+git add artifacts/sparqmake/src/components/layout/Sidebar.tsx
 git commit -m "feat: show pending asset count badge in Sidebar"
 ```
 
@@ -1278,12 +1278,12 @@ git commit -m "feat: show pending asset count badge in Sidebar"
 ## Task 18: Empty States on All Pages
 
 **Files:**
-- Modify: `artifacts/sparqforge/src/pages/AssetLibrary.tsx`
-- Modify: `artifacts/sparqforge/src/pages/Calendar.tsx`
-- Modify: `artifacts/sparqforge/src/pages/ReviewQueue.tsx`
-- Modify: `artifacts/sparqforge/src/pages/ContentPlan.tsx`
-- Modify: `artifacts/sparqforge/src/pages/CostDashboard.tsx`
-- Modify: `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+- Modify: `artifacts/sparqmake/src/pages/AssetLibrary.tsx`
+- Modify: `artifacts/sparqmake/src/pages/Calendar.tsx`
+- Modify: `artifacts/sparqmake/src/pages/ReviewQueue.tsx`
+- Modify: `artifacts/sparqmake/src/pages/ContentPlan.tsx`
+- Modify: `artifacts/sparqmake/src/pages/CostDashboard.tsx`
+- Modify: `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 - [ ] **Step 1: Add empty state to each page**
 
@@ -1341,7 +1341,7 @@ For each page, find the main content area where data is rendered. Add a conditio
 - [ ] **Step 2: Commit**
 
 ```bash
-git add artifacts/sparqforge/src/pages/AssetLibrary.tsx artifacts/sparqforge/src/pages/Calendar.tsx artifacts/sparqforge/src/pages/ReviewQueue.tsx artifacts/sparqforge/src/pages/ContentPlan.tsx artifacts/sparqforge/src/pages/CostDashboard.tsx artifacts/sparqforge/src/pages/CampaignStudio.tsx
+git add artifacts/sparqmake/src/pages/AssetLibrary.tsx artifacts/sparqmake/src/pages/Calendar.tsx artifacts/sparqmake/src/pages/ReviewQueue.tsx artifacts/sparqmake/src/pages/ContentPlan.tsx artifacts/sparqmake/src/pages/CostDashboard.tsx artifacts/sparqmake/src/pages/CampaignStudio.tsx
 git commit -m "feat: add meaningful empty states to all pages"
 ```
 
@@ -1351,9 +1351,9 @@ git commit -m "feat: add meaningful empty states to all pages"
 
 After all tasks are complete:
 
-- [ ] Server starts without errors: `cd /tmp/SparqForge && pnpm --filter api-server run dev`
-- [ ] Frontend builds: `cd /tmp/SparqForge && pnpm --filter sparqforge run build`
-- [ ] TypeScript compiles: `cd /tmp/SparqForge && pnpm --filter sparqforge run typecheck` (if script exists)
+- [ ] Server starts without errors: `cd /tmp/SparqMake && pnpm --filter api-server run dev`
+- [ ] Frontend builds: `cd /tmp/SparqMake && pnpm --filter sparqmake run build`
+- [ ] TypeScript compiles: `cd /tmp/SparqMake && pnpm --filter sparqmake run typecheck` (if script exists)
 - [ ] Brand readiness endpoint returns correct shape: `curl http://localhost:5000/api/brand-readiness/{brandId}`
 - [ ] Paginated endpoints return `{ data, total, limit, offset }` shape
 - [ ] Generate rejects unapproved assets with 400

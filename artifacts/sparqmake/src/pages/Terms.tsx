@@ -10,7 +10,7 @@ export default function Terms() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-white">1. Acceptance of Terms</h2>
           <p>
-            By accessing or using SparqForge ("the Service"), operated by Sparq Games, you agree to be bound by these
+            By accessing or using SparqMake ("the Service"), operated by Sparq Games, you agree to be bound by these
             Terms of Service. If you do not agree, do not use the Service.
           </p>
         </section>
@@ -18,7 +18,7 @@ export default function Terms() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-white">2. Description of Service</h2>
           <p>
-            SparqForge is an AI-powered social media content management platform that helps gaming brands create,
+            SparqMake is an AI-powered social media content management platform that helps gaming brands create,
             schedule, and publish content across multiple social media platforms including Twitter/X, Instagram,
             LinkedIn, TikTok, and YouTube.
           </p>
@@ -36,7 +36,7 @@ export default function Terms() {
           <h2 className="text-xl font-semibold text-white">4. Connected Social Media Accounts</h2>
           <p>
             By connecting third-party social media accounts (TikTok, YouTube, Twitter/X, Instagram, LinkedIn), you
-            authorize SparqForge to publish content on your behalf to those platforms. You may revoke access at any
+            authorize SparqMake to publish content on your behalf to those platforms. You may revoke access at any
             time through the Settings page or through the respective platform's account settings.
           </p>
         </section>
@@ -44,7 +44,7 @@ export default function Terms() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-white">5. Content Ownership</h2>
           <p>
-            You retain all ownership rights to the content you create, upload, or publish through SparqForge.
+            You retain all ownership rights to the content you create, upload, or publish through SparqMake.
             AI-generated content produced by the Service is provided for your use and you are responsible for
             ensuring it complies with applicable laws and platform policies.
           </p>
@@ -97,7 +97,7 @@ export default function Terms() {
         </section>
 
         <div className="pt-8 border-t border-gray-800">
-          <a href="/" className="text-blue-400 hover:text-blue-300 text-sm">&larr; Back to SparqForge</a>
+          <a href="/" className="text-blue-400 hover:text-blue-300 text-sm">&larr; Back to SparqMake</a>
         </div>
       </div>
     </div>

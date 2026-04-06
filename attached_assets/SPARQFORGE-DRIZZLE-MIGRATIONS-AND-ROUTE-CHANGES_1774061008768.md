@@ -1,8 +1,8 @@
-# SparqForge Exact Drizzle Migrations and Route Changes
+# SparqMake Exact Drizzle Migrations and Route Changes
 
 ## Purpose
 
-This document gives Agent 4 the exact structural changes to make in the current SparqForge repo.
+This document gives Agent 4 the exact structural changes to make in the current SparqMake repo.
 
 ## Drizzle Schema Changes
 

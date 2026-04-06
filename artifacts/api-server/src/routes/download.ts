@@ -43,7 +43,7 @@ router.get("/creatives/:id/download", validateRequest({ params: DownloadParams }
 
   const date = new Date().toISOString().split("T")[0];
   const safeName = campaign.name.replace(/[^a-zA-Z0-9]/g, "_");
-  const zipName = `SparqForge_${safeName}_${date}`;
+  const zipName = `SparqMake_${safeName}_${date}`;
 
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="${zipName}.zip"`);

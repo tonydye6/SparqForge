@@ -456,7 +456,7 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
 
-  artifacts/sparqforge:
+  artifacts/sparqmake:
     dependencies:
       react-dropzone:
         specifier: ^15.0.0

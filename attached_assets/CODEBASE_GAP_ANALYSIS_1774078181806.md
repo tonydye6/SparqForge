@@ -1,7 +1,7 @@
-# SparqForge™ — Comprehensive Codebase Gap Analysis
+# SparqMake™ — Comprehensive Codebase Gap Analysis
 
 **Date:** March 20, 2026
-**Scope:** Full audit of https://github.com/tonydye6/SparqForge
+**Scope:** Full audit of https://github.com/tonydye6/SparqMake
 **Purpose:** Identify every issue preventing features from working flawlessly. This document serves as the development plan input for Replit Agent.
 **Exclusions:** TikTok and YouTube integration gaps are excluded (tracked separately in `TIKTOK_PHASE5_PROMPT.md`).
 
@@ -27,7 +27,7 @@ Each issue includes the exact file path, line context, what's wrong, and how to 
 - `artifacts/api-server/src/middleware/auth.ts`
 - `artifacts/api-server/src/lib/passport.ts`
 
-**Problem:** The code checks for `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, but the actual Replit Secrets are named `SparqForge_Google_Client_ID` and `SparqForge_Google_Client_Secret`. Google OAuth login will fail in production because the env vars will be `undefined`.
+**Problem:** The code checks for `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, but the actual Replit Secrets are named `SparqMake_Google_Client_ID` and `SparqMake_Google_Client_Secret`. Google OAuth login will fail in production because the env vars will be `undefined`.
 
 **Fix:** In `passport.ts`, change:
 ```typescript
@@ -36,16 +36,16 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 ```
 to:
 ```typescript
-const GOOGLE_CLIENT_ID = process.env.SparqForge_Google_Client_ID || process.env.GOOGLE_CLIENT_ID;
-const GOOGLE_CLIENT_SECRET = process.env.SparqForge_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET;
+const GOOGLE_CLIENT_ID = process.env.SparqMake_Google_Client_ID || process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.SparqMake_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET;
 ```
 
 In `auth.ts`, update `isGoogleConfigured()` to check both naming conventions:
 ```typescript
 export function isGoogleConfigured(): boolean {
   return !!(
-    (process.env.SparqForge_Google_Client_ID || process.env.GOOGLE_CLIENT_ID) &&
-    (process.env.SparqForge_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET)
+    (process.env.SparqMake_Google_Client_ID || process.env.GOOGLE_CLIENT_ID) &&
+    (process.env.SparqMake_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET)
   );
 }
 ```
@@ -227,11 +227,11 @@ if (platform === "instagram_story") {
 
 **File:** `artifacts/api-server/src/services/publish-instagram.ts`
 
-**Problem:** The Instagram Graph API requires `image_url` to be a publicly accessible URL. If the Replit app serves images from `/api/files/generated/...`, this URL must be the full public URL (e.g., `https://sparqforge.replit.app/api/files/generated/...`), not a relative path.
+**Problem:** The Instagram Graph API requires `image_url` to be a publicly accessible URL. If the Replit app serves images from `/api/files/generated/...`, this URL must be the full public URL (e.g., `https://sparqmake.replit.app/api/files/generated/...`), not a relative path.
 
 **Fix:** When calling `publishToInstagram`, construct the full public URL:
 ```typescript
-const publicImageUrl = `${process.env.APP_URL || "https://sparqforge.replit.app"}/api/files/generated/${filename}`;
+const publicImageUrl = `${process.env.APP_URL || "https://sparqmake.replit.app"}/api/files/generated/${filename}`;
 ```
 Also ensure the file serving route does NOT require authentication for generated images (since Instagram's servers need to fetch them).
 
@@ -246,7 +246,7 @@ Also ensure the file serving route does NOT require authentication for generated
 **Fix:**
 ```typescript
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "https://sparqforge.replit.app",
+  origin: process.env.CORS_ORIGIN || "https://sparqmake.replit.app",
   credentials: true,
 }));
 ```
@@ -340,27 +340,27 @@ req.on("close", () => {
 ```
 # Core
 PORT=3000
-DATABASE_URL=postgresql://user:pass@localhost:5432/sparqforge
+DATABASE_URL=postgresql://user:pass@localhost:5432/sparqmake
 NODE_ENV=development
 SESSION_SECRET=change-me-in-production
 
 # Google OAuth
-SparqForge_Google_Client_ID=
-SparqForge_Google_Client_Secret=
+SparqMake_Google_Client_ID=
+SparqMake_Google_Client_Secret=
 GOOGLE_CALLBACK_URL=/api/auth/google/callback
 
 # AI Services
-SparqForge_Anthropic_API_Key=
-SparqForge_Gemeni_API_Key=
-SparqForge_ElevenLabs_API_Key=
-SparqForge_ScreenshotOne_API_Key=
+SparqMake_Anthropic_API_Key=
+SparqMake_Gemeni_API_Key=
+SparqMake_ElevenLabs_API_Key=
+SparqMake_ScreenshotOne_API_Key=
 
 # Social Media OAuth
-X_SparqForge_X_API_Key=
-SparqForge_Instagram_App_ID=
-SparqForge_Instagram_App_Secret=
-SparqForge_LinkedIn_Client_ID=
-SparqForge_LinkedIn_Client_Secret=
+X_SparqMake_X_API_Key=
+SparqMake_Instagram_App_ID=
+SparqMake_Instagram_App_Secret=
+SparqMake_LinkedIn_Client_ID=
+SparqMake_LinkedIn_Client_Secret=
 
 # Token Encryption
 TOKEN_ENCRYPTION_KEY=
@@ -368,7 +368,7 @@ TOKEN_ENCRYPTION_KEY=
 # Optional
 DEV_AUTH_BYPASS=false
 LOG_LEVEL=info
-CORS_ORIGIN=https://sparqforge.replit.app
+CORS_ORIGIN=https://sparqmake.replit.app
 ```
 
 ---
@@ -510,7 +510,7 @@ fetch("https://graph.facebook.com/v19.0/me/accounts", {
 
 ### M9. Calendar Week View Assumes Sunday Start
 
-**File:** `artifacts/sparqforge/src/pages/Calendar.tsx`
+**File:** `artifacts/sparqmake/src/pages/Calendar.tsx`
 
 **Problem:** Week calculation uses `getDay()` which returns 0 for Sunday (US convention). Users in regions where Monday is the first day of the week will see incorrect week boundaries.
 
@@ -520,7 +520,7 @@ fetch("https://graph.facebook.com/v19.0/me/accounts", {
 
 ### M10. CostDashboard Uses Raw fetch() Instead of API Client
 
-**File:** `artifacts/sparqforge/src/pages/CostDashboard.tsx`
+**File:** `artifacts/sparqmake/src/pages/CostDashboard.tsx`
 
 **Problem:** Uses raw `fetch()` calls instead of the generated React Query hooks from `@workspace/api-client-react`. This means no automatic retry, cache invalidation, or loading/error state management.
 
@@ -540,7 +540,7 @@ fetch("https://graph.facebook.com/v19.0/me/accounts", {
 
 ### M12. useAuth Hook Uses Module-Level Mutable State
 
-**File:** `artifacts/sparqforge/src/hooks/useAuth.ts`
+**File:** `artifacts/sparqmake/src/hooks/useAuth.ts`
 
 **Problem:** Uses module-level variables (`cachedState`, `listeners`) instead of React Context. This can cause race conditions with multiple component mounts, memory leaks from uncleared listeners, and stale state.
 
@@ -655,7 +655,7 @@ router.use("/api/*", (req, res) => {
 
 ### L9. Type Assertions with `as any` in Frontend
 
-**File:** `artifacts/sparqforge/src/pages/ReviewQueue.tsx`
+**File:** `artifacts/sparqmake/src/pages/ReviewQueue.tsx`
 
 **Problem:** Multiple unsafe `as any` type assertions when calling mutation hooks.
 
