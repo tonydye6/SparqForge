@@ -7,7 +7,7 @@ const PgSession = connectPgSimple(session);
 const SESSION_SECRET = process.env.SESSION_SECRET || (
   process.env.NODE_ENV === "production"
     ? (() => { throw new Error("SESSION_SECRET is required in production"); })()
-    : "sparqforge-dev-secret-change-in-production"
+    : "sparqmake-dev-secret-change-in-production"
 );
 
 export const sessionMiddleware = session({

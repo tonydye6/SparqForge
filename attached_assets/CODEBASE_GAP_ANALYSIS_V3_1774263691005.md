@@ -1,7 +1,7 @@
-# SparqForge™ — Codebase Gap Analysis V3
+# SparqMake™ — Codebase Gap Analysis V3
 
 **Date:** March 23, 2026
-**Scope:** Full re-audit of https://github.com/tonydye6/SparqForge after Tasks #26–28
+**Scope:** Full re-audit of https://github.com/tonydye6/SparqMake after Tasks #26–28
 **Purpose:** Identify every remaining issue. Supersedes V1 and V2.
 **Exclusions:** TikTok and YouTube integration (tracked separately).
 

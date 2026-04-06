@@ -103,7 +103,7 @@ export async function analyzeTemplate(templateId: string, template: Template) {
   const response = await anthropic.messages.create({
     model: AI_MODELS.CLAUDE_SONNET,
     max_tokens: 4096,
-    system: `You are a template optimization analyst for SparqForge, an AI-powered social media content tool for Sparq Games. Your job is to analyze usage patterns and user feedback data for a specific campaign template, then produce structured recommendations to improve the template's AI generation configuration.
+    system: `You are a template optimization analyst for SparqMake, an AI-powered social media content tool for Sparq Games. Your job is to analyze usage patterns and user feedback data for a specific campaign template, then produce structured recommendations to improve the template's AI generation configuration.
 
 Your recommendations should be specific, actionable changes to template fields that would reduce the need for manual refinement and increase first-pass approval rates.
 

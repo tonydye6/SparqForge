@@ -10,12 +10,12 @@ export default function Login() {
         <div className="flex flex-col items-center space-y-4">
           <img
             src={`${import.meta.env.BASE_URL}images/sparq-logo.png`}
-            alt="SparqForge Logo"
+            alt="SparqMake Logo"
             className="w-16 h-16 rounded-xl object-cover"
           />
           <div>
             <h1 className="text-2xl font-display font-bold text-center text-foreground">
-              SPARQ<span className="text-primary">FORGE</span>
+              SPARQ<span className="text-primary">MAKE</span>
             </h1>
             <p className="text-sm text-muted-foreground text-center mt-1">
               Sign in to continue

@@ -1,13 +1,13 @@
-# SparqForge
+# SparqMake
 
 ## Overview
-SparqForge is an AI-powered social media content generation and management tool designed for Sparq Games. It streamlines content creation, scheduling, and publishing across multiple social media platforms, including Instagram, Twitter/X, and LinkedIn. The tool leverages advanced AI models for generating captions, headlines, images, videos, and audio, along with robust features for content refinement, scheduling, and performance tracking. Its core purpose is to enhance content velocity and brand consistency for Sparq Games' various brands.
+SparqMake is an AI-powered social media content generation and management tool designed for Sparq Games. It streamlines content creation, scheduling, and publishing across multiple social media platforms, including Instagram, Twitter/X, and LinkedIn. The tool leverages advanced AI models for generating captions, headlines, images, videos, and audio, along with robust features for content refinement, scheduling, and performance tracking. Its core purpose is to enhance content velocity and brand consistency for Sparq Games' various brands.
 
 ## User Preferences
 The user wants the agent to focus on high-level features and architectural decisions. Avoid granular implementation details. Consolidate redundant information and eliminate repetition. Prioritize architectural decisions over implementation specifics. The agent should remove all changelogs, update logs, and date-wise entries.
 
 ## System Architecture
-SparqForge is built as a pnpm monorepo using Node.js 24 and TypeScript 5.9. The frontend is a React + Vite application, and the backend API is built with Express 5. PostgreSQL is used for data persistence with Drizzle ORM, and Zod handles validation. OpenAPI specifications are used for API codegen with Orval.
+SparqMake is built as a pnpm monorepo using Node.js 24 and TypeScript 5.9. The frontend is a React + Vite application, and the backend API is built with Express 5. PostgreSQL is used for data persistence with Drizzle ORM, and Zod handles validation. OpenAPI specifications are used for API codegen with Orval.
 
 **UI/UX Decisions:**
 The application features a dark mode only UI with a specific color palette:
@@ -42,7 +42,7 @@ The frontend comprises several key pages:
 - **Template Refinement Loop**: Tracks user edits (refinement logs), maintains template version history with rollback capabilities, and uses Claude for AI-powered refinement analysis and recommendations.
 
 **Authentication & Security:**
-Google OAuth sign-in via Passport.js with cookie-based sessions stored in PostgreSQL (connect-pg-simple). Google OAuth env vars support `SparqForge_Google_Client_ID`/`SparqForge_Google_Client_Secret` (preferred) with fallback to `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. In development, `DEV_AUTH_BYPASS=true` auto-authenticates as a dev user without requiring login (explicitly blocked in production with `NODE_ENV=production`). API routes are protected by `requireAuth` middleware (returns 401 for unauthenticated requests in production). Auth routes (`/api/auth/me`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/logout`) are mounted before the auth middleware. Health endpoint is also public. The frontend redirects unauthenticated users to `/login` in production. The sidebar displays the authenticated user's name and avatar from the session. Creative creation uses the authenticated user's ID for `createdBy`, and asset creation uses it for `uploadedBy`.
+Google OAuth sign-in via Passport.js with cookie-based sessions stored in PostgreSQL (connect-pg-simple). Google OAuth env vars support `SparqMake_Google_Client_ID`/`SparqMake_Google_Client_Secret` (preferred) with fallback to `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. In development, `DEV_AUTH_BYPASS=true` auto-authenticates as a dev user without requiring login (explicitly blocked in production with `NODE_ENV=production`). API routes are protected by `requireAuth` middleware (returns 401 for unauthenticated requests in production). Auth routes (`/api/auth/me`, `/api/auth/google`, `/api/auth/google/callback`, `/api/auth/logout`) are mounted before the auth middleware. Health endpoint is also public. The frontend redirects unauthenticated users to `/login` in production. The sidebar displays the authenticated user's name and avatar from the session. Creative creation uses the authenticated user's ID for `createdBy`, and asset creation uses it for `uploadedBy`.
 
 Security hardening includes: CORS restricted to allowed origins (CORS_ORIGIN env var, APP_URL, Replit domains, localhost in dev), CSRF protection via Origin/Referer header validation on state-changing methods, global rate limiting (200 req/min) with stricter limits on AI generation endpoints (5 req/min), API 404 JSON handler for unmatched routes, SSRF protection with IPv6-mapped private IP detection, and Instagram/Facebook API calls using Authorization headers instead of URL query params. A `.env.example` documents all required and optional environment variables.
 

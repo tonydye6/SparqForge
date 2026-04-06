@@ -1,4 +1,4 @@
-# SparqForge Agent 4 Implementation QA Checklist
+# SparqMake Agent 4 Implementation QA Checklist
 
 ## Purpose
 
@@ -49,5 +49,5 @@ Use this checklist to review Agent 4’s implementation of the upgraded asset sy
 
 ## Final QA Question
 
-Does SparqForge now feel like a smarter brand operating system, or just the same app with more fields?
+Does SparqMake now feel like a smarter brand operating system, or just the same app with more fields?
 If it feels like the latter, more work is needed.

@@ -1,12 +1,12 @@
-# SparqForge Social System Maturity and Measurement Plan
+# SparqMake Social System Maturity and Measurement Plan
 
 ## Purpose
 
-This document defines what SparqForge should measure, improve, and mature so that social strategy and product capability evolve together.
+This document defines what SparqMake should measure, improve, and mature so that social strategy and product capability evolve together.
 
 ## Why this matters
 
-Right now, SparqForge already tracks useful operational signals like generation cost, refinement history, template versions, and campaign states. That is strong. But it does not yet fully measure whether the system is getting better at brand execution, packet quality, or strategy support ([templates route](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/templates.ts), [cost dashboard route set](https://github.com/tonydye6/SparqForge/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/cost-logs.ts)).
+Right now, SparqMake already tracks useful operational signals like generation cost, refinement history, template versions, and campaign states. That is strong. But it does not yet fully measure whether the system is getting better at brand execution, packet quality, or strategy support ([templates route](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/templates.ts), [cost dashboard route set](https://github.com/tonydye6/SparqMake/blob/c6816f9325b34d67838a845f3e504ae3b588e19b/artifacts/api-server/src/routes/cost-logs.ts)).
 
 ## Maturity Stages
 
@@ -25,7 +25,7 @@ The app learns which asset packets, templates, and combinations produce better o
 ### Stage 5: Brand-memory aware
 The app can help the team see whether the brand is becoming more legible and more consistent over time.
 
-## What SparqForge Should Measure Beyond Cost and Refinements
+## What SparqMake Should Measure Beyond Cost and Refinements
 
 ### Asset packet quality
 Measure:
@@ -57,7 +57,7 @@ Measure:
 
 ## Recommended New Analytics Objects
 
-SparqForge should eventually add:
+SparqMake should eventually add:
 - packet performance summaries
 - content pillar summaries
 - audience mix summaries
@@ -87,7 +87,7 @@ Review:
 ## What else you may not have considered
 
 ### The product needs a strategy-memory layer
-Without a content-plan object and pillar-level metadata, SparqForge can become a very capable content generator that still has weak strategic memory.
+Without a content-plan object and pillar-level metadata, SparqMake can become a very capable content generator that still has weak strategic memory.
 
 ### The product needs asset retirement discipline
 A flat asset library makes it too easy for stale or legacy references to quietly remain influential.
@@ -103,7 +103,7 @@ It should not only log refinements. It should log whether the original packet ch
 
 ## Final Recommendation
 
-The strongest version of SparqForge is not just an AI content tool. It is a strategy-aware brand operating system. To get there, the next wave of work should improve:
+The strongest version of SparqMake is not just an AI content tool. It is a strategy-aware brand operating system. To get there, the next wave of work should improve:
 - asset intelligence
 - packet intelligence
 - planning intelligence

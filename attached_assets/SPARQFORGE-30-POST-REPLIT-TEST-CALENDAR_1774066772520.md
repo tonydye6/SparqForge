@@ -1,8 +1,8 @@
-# SparqForge 30-Post Replit Test Calendar
+# SparqMake 30-Post Replit Test Calendar
 
 ## Purpose
 
-This 30-post calendar is designed specifically to test the upgraded SparqForge build shown in the latest screenshot. It assumes these improvements are now present:
+This 30-post calendar is designed specifically to test the upgraded SparqMake build shown in the latest screenshot. It assumes these improvements are now present:
 - asset intelligence backend with packet assembly
 - asset intelligence frontend with role-based selection and grouped brand assets
 - content plan layer with CSV import and plan-to-campaign conversion
@@ -119,4 +119,4 @@ For each generated post, capture:
 
 ## Final recommendation
 
-Use this calendar as a product validation sequence first and a publishing calendar second. The more consistent the outputs become across repeated packet types, the more confident you can be that SparqForge is ready for higher-volume production.
+Use this calendar as a product validation sequence first and a publishing calendar second. The more consistent the outputs become across repeated packet types, the more confident you can be that SparqMake is ready for higher-volume production.

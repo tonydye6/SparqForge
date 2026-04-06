@@ -1,17 +1,17 @@
-# SparqForge Repo-Specific Package Manifest
+# SparqMake Repo-Specific Package Manifest
 
 ## Files
 
-### 1. SPARQFORGE-AGENT4-REPO-SPECIFIC-HANDOFF.md
+### 1. SPARQMAKE-AGENT4-REPO-SPECIFIC-HANDOFF.md
 Repo-aware implementation handoff aligned to the actual codebase.
 
-### 2. SPARQFORGE-DRIZZLE-MIGRATIONS-AND-ROUTE-CHANGES.md
+### 2. SPARQMAKE-DRIZZLE-MIGRATIONS-AND-ROUTE-CHANGES.md
 Exact schema and route change package for the live repo.
 
-### 3. SPARQFORGE-FIRST-8-POSTS-EXECUTION-PACK.md
+### 3. SPARQMAKE-FIRST-8-POSTS-EXECUTION-PACK.md
 Execution-ready calibration set for the first 8 posts.
 
-### 4. SPARQFORGE-AGENT4-REPO-SPECIFIC-EXECUTION-PROMPT.md
+### 4. SPARQMAKE-AGENT4-REPO-SPECIFIC-EXECUTION-PROMPT.md
 Paste-ready instruction set for Agent 4.
 
 ## Recommended use order

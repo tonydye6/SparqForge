@@ -1,8 +1,8 @@
-# SparqForge Content Plan Import Schema
+# SparqMake Content Plan Import Schema
 
 ## Purpose
 
-This document defines the CSV structure for importing planned content into SparqForge.
+This document defines the CSV structure for importing planned content into SparqMake.
 
 ## Required Columns
 
@@ -47,7 +47,7 @@ ISO date or blank
 
 ## Import Behavior
 
-On import, SparqForge should:
+On import, SparqMake should:
 - validate required fields
 - map rows into SocialContentPlanItem records
 - reject rows with invalid platform values

@@ -1,16 +1,16 @@
-# SparqForge Asset System and Generation Strategy
+# SparqMake Asset System and Generation Strategy
 
 ## Purpose
 
-This document defines how SparqForge should store, classify, prioritize, and assemble brand assets so the generation pipeline can get the best possible outputs from a limited number of reference images per call. This is the missing operating layer between “we have assets” and “the models can consistently produce strong social content.”
+This document defines how SparqMake should store, classify, prioritize, and assemble brand assets so the generation pipeline can get the best possible outputs from a limited number of reference images per call. This is the missing operating layer between “we have assets” and “the models can consistently produce strong social content.”
 
-It is grounded in SparqForge’s current product and pipeline docs, which already separate brand DNA, templates, selected assets, and context cards in deterministic application code before generation runs ([GENERATION_PIPELINE.md attachment](#), [PRD_SparqForge-3.md attachment](#), [TECH_SPEC-5.md attachment](#)). It also aligns to Google’s current guidance that reference-image-based image generation benefits from explicit reference roles and that, in some official Imagen customization paths, requests support a limited number of reference image objects, including subject and style references ([Google Cloud Imagen customization docs](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/model-reference/imagen-api-customization), [Google Cloud prompt guide](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/image/img-gen-prompt-guide)).
+It is grounded in SparqMake’s current product and pipeline docs, which already separate brand DNA, templates, selected assets, and context cards in deterministic application code before generation runs ([GENERATION_PIPELINE.md attachment](#), [PRD_SparqMake-3.md attachment](#), [TECH_SPEC-5.md attachment](#)). It also aligns to Google’s current guidance that reference-image-based image generation benefits from explicit reference roles and that, in some official Imagen customization paths, requests support a limited number of reference image objects, including subject and style references ([Google Cloud Imagen customization docs](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/model-reference/imagen-api-customization), [Google Cloud prompt guide](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/image/img-gen-prompt-guide)).
 
 ## Core Principle
 
 Do not treat all uploaded media as equal.
 
-SparqForge should treat each asset as one of several distinct reference roles, because the generation models and the compositing pipeline do not use all images the same way:
+SparqMake should treat each asset as one of several distinct reference roles, because the generation models and the compositing pipeline do not use all images the same way:
 - some assets should be passed into generation as subject references
 - some should be passed as style references
 - some should never be sent to generation and should only be composited afterward
@@ -20,7 +20,7 @@ If the system does not distinguish those roles, users will over-send noisy refer
 
 ## The Right Mental Model
 
-SparqForge needs two connected systems, not one:
+SparqMake needs two connected systems, not one:
 
 1. Asset Library
 This is the master repository of all approved content objects.
@@ -45,7 +45,7 @@ Examples:
 - watermark elements
 
 Why:
-These assets require fidelity. If passed into generation, they will often be distorted or approximated. SparqForge’s own compositing architecture is already designed to overlay logos and text after generation, which is the correct method ([GENERATION_PIPELINE.md attachment](#)).
+These assets require fidelity. If passed into generation, they will often be distorted or approximated. SparqMake’s own compositing architecture is already designed to overlay logos and text after generation, which is the correct method ([GENERATION_PIPELINE.md attachment](#)).
 
 Required fields:
 - asset_class = compositing
@@ -117,7 +117,7 @@ Required fields:
 - approved_for_generation = false
 - approved_for_prompt_assembly = true
 
-## The Metadata Schema SparqForge Actually Needs
+## The Metadata Schema SparqMake Actually Needs
 
 The current schema already has useful foundations like type, subtype, status, tags, usage count, and brand association ([TECH_SPEC-5.md attachment](#)). It should be expanded with these fields.
 
@@ -229,7 +229,7 @@ That lets the system suppress or warn against bad combinations.
 
 ## The Selection Strategy
 
-Because generation can only meaningfully use a few references at once, SparqForge should not ask the user to think in terms of a giant basket of images. It should build a best-of packet.
+Because generation can only meaningfully use a few references at once, SparqMake should not ask the user to think in terms of a giant basket of images. It should build a best-of packet.
 
 ### Default Selection Rule
 For most image generations, the system should assemble:
@@ -331,7 +331,7 @@ Each brand should support multiple asset groups:
 - compliance overlays
 - CLC-safe templates
 
-## The UX SparqForge Needs
+## The UX SparqMake Needs
 
 ### In Brand Settings
 The UI should not be “upload one logo.” It should be a structured brand asset manager with sections:
@@ -454,7 +454,7 @@ Add a deterministic preflight step:
 
 The best way I can help is by giving you the system design that Agent 4 can implement directly.
 
-The right answer is not “let users upload a bunch of assets.” The right answer is to make SparqForge behave like a reference-packet engine:
+The right answer is not “let users upload a bunch of assets.” The right answer is to make SparqMake behave like a reference-packet engine:
 - broad library
 - strict metadata
 - role-aware selection
@@ -463,4 +463,4 @@ The right answer is not “let users upload a bunch of assets.” The right answ
 - exact logo compositing
 - outcome-driven recommendations
 
-That is how you get better outputs while staying aligned to the real behavior of multimodal generation systems and to SparqForge’s current architecture ([GENERATION_PIPELINE.md attachment](#), [TECH_SPEC-5.md attachment](#), [Google Cloud Imagen customization docs](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/model-reference/imagen-api-customization), [Google Cloud prompt guide](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/image/img-gen-prompt-guide)).
+That is how you get better outputs while staying aligned to the real behavior of multimodal generation systems and to SparqMake’s current architecture ([GENERATION_PIPELINE.md attachment](#), [TECH_SPEC-5.md attachment](#), [Google Cloud Imagen customization docs](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/model-reference/imagen-api-customization), [Google Cloud prompt guide](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/image/img-gen-prompt-guide)).

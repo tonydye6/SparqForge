@@ -108,9 +108,9 @@ export async function captureScreenshots(
   targetUrl: string,
   creativeId: string,
 ): Promise<ScreenshotResult[]> {
-  const apiKey = process.env.SparqForge_ScreenshotOne_API_Key;
+  const apiKey = process.env.SparqMake_ScreenshotOne_API_Key;
   if (!apiKey) {
-    throw new Error("ScreenshotOne API key not configured (SparqForge_ScreenshotOne_API_Key)");
+    throw new Error("ScreenshotOne API key not configured (SparqMake_ScreenshotOne_API_Key)");
   }
 
   ensureDir(UPLOADS_DIR);

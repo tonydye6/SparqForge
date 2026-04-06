@@ -1,18 +1,18 @@
-# SparqForge Agent 4 Repo-Specific Execution Prompt
+# SparqMake Agent 4 Repo-Specific Execution Prompt
 
 Read these files first:
-- SPARQFORGE-AGENT4-REPO-SPECIFIC-HANDOFF.md
-- SPARQFORGE-DRIZZLE-MIGRATIONS-AND-ROUTE-CHANGES.md
-- SPARQFORGE-FIRST-8-POSTS-EXECUTION-PACK.md
-- SPARQFORGE-ASSET-SYSTEM-AND-GENERATION-STRATEGY.md
-- SPARQFORGE-30-POST-SOCIAL-CALENDAR-V2.md
-- SPARQFORGE-SOCIAL-SYSTEM-MATURITY-AND-MEASUREMENT-PLAN.md
+- SPARQMAKE-AGENT4-REPO-SPECIFIC-HANDOFF.md
+- SPARQMAKE-DRIZZLE-MIGRATIONS-AND-ROUTE-CHANGES.md
+- SPARQMAKE-FIRST-8-POSTS-EXECUTION-PACK.md
+- SPARQMAKE-ASSET-SYSTEM-AND-GENERATION-STRATEGY.md
+- SPARQMAKE-30-POST-SOCIAL-CALENDAR-V2.md
+- SPARQMAKE-SOCIAL-SYSTEM-MATURITY-AND-MEASUREMENT-PLAN.md
 
 Also use the live repo structure as source of truth. This is a Vite React + Express + Drizzle monorepo, not a Next.js + Prisma app.
 
 ## Mission
 
-Upgrade SparqForge so the real codebase moves from a flat asset picker to a role-aware reference-packet engine.
+Upgrade SparqMake so the real codebase moves from a flat asset picker to a role-aware reference-packet engine.
 
 ## Critical rules
 

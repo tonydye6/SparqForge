@@ -1,7 +1,7 @@
-# SparqForge™ — Codebase Gap Analysis V2 (Post-Fix Audit)
+# SparqMake™ — Codebase Gap Analysis V2 (Post-Fix Audit)
 
 **Date:** March 21, 2026
-**Scope:** Full re-audit of https://github.com/tonydye6/SparqForge after Tasks #17–24
+**Scope:** Full re-audit of https://github.com/tonydye6/SparqMake after Tasks #17–24
 **Purpose:** Identify every remaining issue preventing features from working flawlessly. Supersedes V1.
 **Exclusions:** TikTok and YouTube integration (tracked separately).
 
@@ -187,7 +187,7 @@ const records = parse(csvContent, { columns: true, skip_empty_lines: true });
 ```typescript
 return matchNames.some(m => bName.includes(m) || m.includes(bName) || bSlug === m)
 ```
-The `m.includes(bName)` check means a brand named "sparq" would match an import row for "sparqforge" — unrelated brands could be matched.
+The `m.includes(bName)` check means a brand named "sparq" would match an import row for "sparqmake" — unrelated brands could be matched.
 
 **Fix:** Use exact match or prefix match only:
 ```typescript
@@ -288,7 +288,7 @@ Surface these warnings in the SSE progress events so the frontend can display th
 
 ### M4. CampaignStudio Has Multiple Silent Error Catches
 
-**File:** `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+**File:** `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 **Problem:** Several fetch operations catch errors silently without user feedback:
 - Line ~140: `fetchRecommended` — silently fails (user sees no recommendations with no explanation)
@@ -306,7 +306,7 @@ catch (err) {
 
 ### M5. ReviewQueue Approve/Reject Failures Are Silent
 
-**File:** `artifacts/sparqforge/src/pages/ReviewQueue.tsx` (~lines 170, 192)
+**File:** `artifacts/sparqmake/src/pages/ReviewQueue.tsx` (~lines 170, 192)
 
 **Problem:** When variant approval or rejection API calls fail, the error is caught silently. The user clicks "Approve" and nothing happens — no success confirmation, no error message.
 
@@ -336,7 +336,7 @@ const offset = parseInt(req.query.offset as string) || 0;
 
 ### M7. AssetLibrary Uses Inconsistent API Base URL
 
-**File:** `artifacts/sparqforge/src/pages/AssetLibrary.tsx` (~line 148)
+**File:** `artifacts/sparqmake/src/pages/AssetLibrary.tsx` (~line 148)
 
 **Problem:** The `bulkUpdate` function uses a relative URL `/api/assets/bulk-update` instead of the `API_BASE` variable used elsewhere in the same component. This inconsistency could break if the API is served from a different origin.
 
@@ -406,9 +406,9 @@ const offset = parseInt(req.query.offset as string) || 0;
 **Fix:** Add:
 ```
 # ---------- AI Services ----------
-# SparqForge_Anthropic_API_Key=
-# SparqForge_Gemeni_API_Key=
-# SparqForge_ElevenLabs_API_Key=
+# SparqMake_Anthropic_API_Key=
+# SparqMake_Gemeni_API_Key=
+# SparqMake_ElevenLabs_API_Key=
 ```
 
 ---

@@ -61,7 +61,7 @@ type SocialAccountRecord = typeof socialAccountsTable.$inferSelect;
 
 async function refreshTwitterToken(account: SocialAccountRecord): Promise<void> {
   const refreshTokenDecrypted = decryptToken(account.refreshToken!);
-  const clientId = process.env.X_SparqForge_X_API_Key;
+  const clientId = process.env.X_SparqMake_X_API_Key;
 
   const response = await fetch("https://api.twitter.com/2/oauth2/token", {
     method: "POST",
@@ -96,8 +96,8 @@ async function refreshTwitterToken(account: SocialAccountRecord): Promise<void> 
 
 async function refreshLinkedInToken(account: SocialAccountRecord): Promise<void> {
   const refreshTokenDecrypted = decryptToken(account.refreshToken!);
-  const clientId = process.env.SparqForge_LinkedIn_Client_ID;
-  const clientSecret = process.env.SparqForge_LinkedIn_Client_Secret;
+  const clientId = process.env.SparqMake_LinkedIn_Client_ID;
+  const clientSecret = process.env.SparqMake_LinkedIn_Client_Secret;
 
   const response = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
     method: "POST",
@@ -135,8 +135,8 @@ async function refreshLinkedInToken(account: SocialAccountRecord): Promise<void>
 
 async function refreshInstagramToken(account: SocialAccountRecord): Promise<void> {
   const accessTokenDecrypted = decryptToken(account.accessToken);
-  const appId = process.env.SparqForge_Instagram_App_ID;
-  const appSecret = process.env.SparqForge_Instagram_App_Secret;
+  const appId = process.env.SparqMake_Instagram_App_ID;
+  const appSecret = process.env.SparqMake_Instagram_App_Secret;
 
   const refreshUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
   refreshUrl.searchParams.set("grant_type", "fb_exchange_token");

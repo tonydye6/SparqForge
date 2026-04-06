@@ -114,12 +114,12 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       <div className="h-16 flex items-center px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
         <img 
           src={`${import.meta.env.BASE_URL}images/sparq-logo.png`} 
-          alt="SparqForge Logo" 
+          alt="SparqMake Logo" 
           className="w-8 h-8 rounded shrink-0 object-cover"
         />
         {(mode === "mobile" || !collapsed) && (
           <span className="ml-3 font-display font-bold text-xl text-foreground whitespace-nowrap">
-            SPARQ<span className="text-primary">FORGE</span>
+            SPARQ<span className="text-primary">MAKE</span>
           </span>
         )}
         {mode === "mobile" && (
@@ -269,11 +269,11 @@ export function MobileTopBar({ onMenuClick }: { onMenuClick: () => void }) {
       </button>
       <img 
         src={`${import.meta.env.BASE_URL}images/sparq-logo.png`} 
-        alt="SparqForge Logo" 
+        alt="SparqMake Logo" 
         className="w-7 h-7 rounded shrink-0 object-cover ml-3"
       />
       <span className="ml-2 font-display font-bold text-lg text-foreground whitespace-nowrap">
-        SPARQ<span className="text-primary">FORGE</span>
+        SPARQ<span className="text-primary">MAKE</span>
       </span>
     </div>
   );

@@ -1,4 +1,4 @@
-# SparqForge™ — Codebase Gap Analysis V5
+# SparqMake™ — Codebase Gap Analysis V5
 
 **Date:** March 23, 2026
 **Scope:** Full re-audit after Phase 1 implementation (~9,700 lines added, 68 files changed)
@@ -38,7 +38,7 @@ Massive feature drop — 50+ new commits adding:
 
 #### H1. VariantCard Caption Length Crash
 
-**File:** `artifacts/sparqforge/src/components/campaign-studio/VariantCard.tsx` (line 194)
+**File:** `artifacts/sparqmake/src/components/campaign-studio/VariantCard.tsx` (line 194)
 
 **Problem:** Accesses `variant.caption.length` without null check. If a variant has no caption (null or undefined), this crashes the component:
 ```typescript
@@ -54,7 +54,7 @@ Massive feature drop — 50+ new commits adding:
 
 #### H2. onRefineSubmit Handler Is Empty (Lost Feature)
 
-**File:** `artifacts/sparqforge/src/pages/CampaignStudio.tsx` (line 1157)
+**File:** `artifacts/sparqmake/src/pages/CampaignStudio.tsx` (line 1157)
 
 **Problem:** During the decomposition refactor, the "refine all variants" functionality was lost. The handler is wired up as an empty function:
 ```typescript
@@ -69,8 +69,8 @@ The VariantGrid component renders a search bar with a submit button (VariantGrid
 #### H3. Upload Race Condition in Setup Wizard
 
 **Files:**
-- `artifacts/sparqforge/src/components/setup/StepUploadFont.tsx` (~lines 69-100)
-- `artifacts/sparqforge/src/components/setup/StepUploadAsset.tsx` (~lines 50-104)
+- `artifacts/sparqmake/src/components/setup/StepUploadFont.tsx` (~lines 69-100)
+- `artifacts/sparqmake/src/components/setup/StepUploadAsset.tsx` (~lines 50-104)
 
 **Problem:** Multi-file uploads run serially in a loop. If one upload fails mid-loop, `setUploading(false)` fires after ALL attempts complete, but remaining uploads still execute after the error. The user sees a generic error but files after the failure may or may not have uploaded.
 
@@ -138,7 +138,7 @@ await db.transaction(async (tx) => {
 
 #### M1. SetupWizard stepStatuses May Reference Stale Data
 
-**File:** `artifacts/sparqforge/src/hooks/useSetupWizard.ts` (~line 80)
+**File:** `artifacts/sparqmake/src/hooks/useSetupWizard.ts` (~line 80)
 
 **Problem:** `stepStatuses` is computed from `brandReadiness` query data, but when `readinessLoading` is true, the computed statuses may be stale. The `findIndex()` for the first incomplete step could navigate to the wrong step during loading.
 
@@ -151,7 +151,7 @@ const firstIncomplete = readinessLoading ? currentStep : stepStatuses.findIndex(
 
 #### M2. LayoutSpecEditor JSON.stringify Comparison Risk
 
-**File:** `artifacts/sparqforge/src/components/layout-editor/LayoutSpecEditor.tsx` (~lines 105-110)
+**File:** `artifacts/sparqmake/src/components/layout-editor/LayoutSpecEditor.tsx` (~lines 105-110)
 
 **Problem:** Uses `JSON.stringify()` to detect external value changes. Floating-point values like gradient opacity (0.05 increments) may serialize differently on different updates (e.g., `0.30000000000000004` vs `0.3`), causing unnecessary re-renders or infinite update loops.
 
@@ -165,7 +165,7 @@ if (!isEqual(value, localSpec)) setLocalSpec(value);
 
 #### M3. RejectReasonDialog Weak Comment Validation
 
-**File:** `artifacts/sparqforge/src/components/review/RejectReasonDialog.tsx` (~line 42)
+**File:** `artifacts/sparqmake/src/components/review/RejectReasonDialog.tsx` (~line 42)
 
 **Problem:** Validates `comment.length < 10` but doesn't trim whitespace. A comment of 10+ spaces passes validation.
 
@@ -182,7 +182,7 @@ if (trimmed.length < 10) {
 
 #### M4. HeadlineZoneEditor Accepts Partial Hex Colors
 
-**File:** `artifacts/sparqforge/src/components/layout-editor/HeadlineZoneEditor.tsx` (~lines 227-230)
+**File:** `artifacts/sparqmake/src/components/layout-editor/HeadlineZoneEditor.tsx` (~lines 227-230)
 
 **Problem:** Regex `/^#[0-9A-Fa-f]{0,6}$/` accepts incomplete hex values like `#1` or `#12`. These invalid colors render incorrectly in the preview.
 
@@ -196,7 +196,7 @@ if (isValidHex) onChange(value);
 
 #### M5. VariantComparisonView Missing Image Fallback
 
-**File:** `artifacts/sparqforge/src/components/review/VariantComparisonView.tsx` (~line 96)
+**File:** `artifacts/sparqmake/src/components/review/VariantComparisonView.tsx` (~line 96)
 
 **Problem:** If both `compositedImageUrl` and `rawImageUrl` are null, renders an empty card with no visual feedback. User sees blank space.
 
@@ -215,7 +215,7 @@ if (isValidHex) onChange(value);
 
 #### M6. LayoutPreviewCanvas Silent Logo Load Failure
 
-**File:** `artifacts/sparqforge/src/components/layout-editor/LayoutPreviewCanvas.tsx` (~line 249)
+**File:** `artifacts/sparqmake/src/components/layout-editor/LayoutPreviewCanvas.tsx` (~line 249)
 
 **Problem:** `onError={() => {}}` silently ignores logo image load failures. User sees "LOGO" placeholder text but doesn't know if their actual logo URL is broken.
 
@@ -231,7 +231,7 @@ onError={() => setLogoError(true)}
 
 #### M7. StepReadinessCheck Hardcoded Step Mapping
 
-**File:** `artifacts/sparqforge/src/components/setup/StepReadinessCheck.tsx` (lines 18-25)
+**File:** `artifacts/sparqmake/src/components/setup/StepReadinessCheck.tsx` (lines 18-25)
 
 **Problem:** `READINESS_TO_STEP` maps readiness check names to wizard step indices with hardcoded numbers. If `WIZARD_STEPS` in setup-defaults.ts is reordered, this mapping breaks silently.
 
@@ -294,7 +294,7 @@ const READINESS_TO_STEP = Object.fromEntries(
 
 #### L4. WizardStepShell Missing Focus Management
 
-**File:** `artifacts/sparqforge/src/components/setup/WizardStepShell.tsx`
+**File:** `artifacts/sparqmake/src/components/setup/WizardStepShell.tsx`
 
 **Problem:** When navigating between wizard steps, keyboard focus stays on the previous step's button. Keyboard-only users must tab through the entire page to reach the new step content.
 

@@ -1,8 +1,8 @@
-# SparqForge™ — Replit Agent 4 Initial Build Prompt
+# SparqMake™ — Replit Agent 4 Initial Build Prompt
 
 ## Instructions
 
-Build a web application called **SparqForge™** — an AI-powered social media content generation and management tool for Sparq Games. The complete product specification is in the attached files. Start with **Phase 1: Foundation** as described below.
+Build a web application called **SparqMake™** — an AI-powered social media content generation and management tool for Sparq Games. The complete product specification is in the attached files. Start with **Phase 1: Foundation** as described below.
 
 ---
 

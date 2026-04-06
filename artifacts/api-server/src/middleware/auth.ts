@@ -5,7 +5,7 @@ import { logger } from "../lib/logger";
 
 const DEV_USER = {
   id: "dev-user-00000000-0000-0000-0000-000000000000",
-  email: "dev@sparqforge.local",
+  email: "dev@sparqmake.local",
   name: "Dev User",
   image: null,
   role: "editor",
@@ -61,8 +61,8 @@ if (isDevBypass()) {
 
 export function isGoogleConfigured(): boolean {
   return !!(
-    (process.env.SparqForge_Google_Client_ID || process.env.GOOGLE_CLIENT_ID) &&
-    (process.env.SparqForge_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET)
+    (process.env.SparqMake_Google_Client_ID || process.env.GOOGLE_CLIENT_ID) &&
+    (process.env.SparqMake_Google_Client_Secret || process.env.GOOGLE_CLIENT_SECRET)
   );
 }
 

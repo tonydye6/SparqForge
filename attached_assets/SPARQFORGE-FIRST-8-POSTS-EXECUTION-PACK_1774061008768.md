@@ -1,8 +1,8 @@
-# SparqForge First 8 Posts Execution Pack
+# SparqMake First 8 Posts Execution Pack
 
 ## Purpose
 
-This document gives the first 8 calibration posts in an execution-ready format that matches the real SparqForge codebase and the revised social strategy.
+This document gives the first 8 calibration posts in an execution-ready format that matches the real SparqMake codebase and the revised social strategy.
 
 These 8 posts should be treated as calibration posts, meaning they are used both to create content and to validate the upgraded product behavior.
 
@@ -235,7 +235,7 @@ Role-aware packet assembly with strong subject consistency.
 Evaluation:
 Does the character remain strong while the style stays on-brand?
 
-## Recommended build order inside SparqForge
+## Recommended build order inside SparqMake
 
 Build these in this order:
 1. Post 1

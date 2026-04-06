@@ -26,7 +26,7 @@
 
 ### 1.1 Asset Picker Filters to Approved Only
 
-**File:** `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+**File:** `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 The asset picker query in CampaignStudio must include `status=approved` as a non-removable filter. Users should not see unapproved or archived assets when selecting for campaigns.
 
@@ -52,7 +52,7 @@ Before generation begins, validate that every asset ID in `selectedAssets` has `
 
 **Files:**
 - New: `artifacts/api-server/src/lib/brand-readiness.ts`
-- New: `artifacts/sparqforge/src/hooks/useBrandReadiness.ts`
+- New: `artifacts/sparqmake/src/hooks/useBrandReadiness.ts`
 - Modified: `artifacts/api-server/src/routes/generate.ts`
 - New: `artifacts/api-server/src/routes/brand-readiness.ts`
 
@@ -146,13 +146,13 @@ There are two `GET /assets/recommended` handlers (approximately lines 67 and 206
 
 ### 3.1 Brand Readiness Indicator in Settings
 
-**File:** `artifacts/sparqforge/src/pages/Settings.tsx`
+**File:** `artifacts/sparqmake/src/pages/Settings.tsx`
 
 At the top of each brand tab, render a `BrandReadinessCard` component using the `useBrandReadiness` hook. Shows a checklist of 6 items with green check / red X per item. If all pass, show a green "Ready for generation" badge. If any fail, show amber "Setup incomplete" with the missing items listed.
 
 ### 3.2 Variant Approval Progress Bar in Review Queue
 
-**File:** `artifacts/sparqforge/src/pages/ReviewQueue.tsx`
+**File:** `artifacts/sparqmake/src/pages/ReviewQueue.tsx`
 
 In the expanded campaign detail view, above the variant grid, add a progress bar:
 
@@ -164,9 +164,9 @@ Use the variant statuses to calculate: approved count / total count. Color: gree
 
 ### 3.3 Meaningful Empty States
 
-**Files:** Modified: `artifacts/sparqforge/src/components/ui/empty-state.tsx` (convenience wrapper), all page components
+**Files:** Modified: `artifacts/sparqmake/src/components/ui/empty-state.tsx` (convenience wrapper), all page components
 
-**Note:** The codebase already has `artifacts/sparqforge/src/components/ui/empty.tsx` with composable primitives (`Empty`, `EmptyHeader`, `EmptyTitle`, `EmptyDescription`, etc.). Rather than creating a parallel system, create a thin convenience wrapper component that uses the existing primitives internally:
+**Note:** The codebase already has `artifacts/sparqmake/src/components/ui/empty.tsx` with composable primitives (`Empty`, `EmptyHeader`, `EmptyTitle`, `EmptyDescription`, etc.). Rather than creating a parallel system, create a thin convenience wrapper component that uses the existing primitives internally:
 
 Create `empty-state.tsx` as a prop-based wrapper:
 
@@ -193,7 +193,7 @@ Apply to each page:
 
 ### 3.4 Calendar Drag-Drop Undo
 
-**File:** `artifacts/sparqforge/src/pages/Calendar.tsx`
+**File:** `artifacts/sparqmake/src/pages/Calendar.tsx`
 
 **Replace the existing pre-commit confirm pattern.** The current code uses a `pendingReschedule` state and a "Reschedule?" confirmation toast (lines ~295-311). Replace this with a post-commit undo pattern:
 
@@ -206,7 +206,7 @@ Apply to each page:
 
 ### 3.5 Inline Cost Estimate in CampaignStudio
 
-**File:** `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+**File:** `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 In the right panel (action buttons area), add a small cost display below the action buttons:
 
@@ -219,7 +219,7 @@ Fetch from the existing `/api/settings/daily-budget-status` endpoint. Show amber
 
 ### 3.6 Save as Hashtag Set from Caption
 
-**File:** `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+**File:** `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 Below the hashtags in each variant card's caption area, add a "Save as Hashtag Set" link. On click:
 
@@ -230,7 +230,7 @@ Below the hashtags in each variant card's caption area, add a "Save as Hashtag S
 
 ### 3.7 Pre-Generation Validation UI
 
-**File:** `artifacts/sparqforge/src/pages/CampaignStudio.tsx`
+**File:** `artifacts/sparqmake/src/pages/CampaignStudio.tsx`
 
 The Generate button behavior:
 
@@ -244,7 +244,7 @@ Use `TooltipProvider` + `Tooltip` from existing UI components wrapping the butto
 
 ### 3.8 Settings Section Navigation
 
-**File:** `artifacts/sparqforge/src/pages/Settings.tsx`
+**File:** `artifacts/sparqmake/src/pages/Settings.tsx`
 
 Add a sticky left-hand section nav within the Settings content area (not replacing the main sidebar). Sections:
 
@@ -260,7 +260,7 @@ Each item scrolls to its section via `scrollIntoView({ behavior: 'smooth' })`. A
 
 ### 3.9 Unsaved Changes Warning in Settings
 
-**File:** `artifacts/sparqforge/src/pages/Settings.tsx`
+**File:** `artifacts/sparqmake/src/pages/Settings.tsx`
 
 Track form dirty state per section. When any section has unsaved changes:
 
@@ -272,7 +272,7 @@ Implementation: a `useFormDirty(initialValues, currentValues)` hook that uses de
 
 ### 3.10 Pending Asset Badge in Sidebar
 
-**File:** `artifacts/sparqforge/src/components/layout/Sidebar.tsx`
+**File:** `artifacts/sparqmake/src/components/layout/Sidebar.tsx`
 
 Add a badge to the "Asset Library" nav item showing the count of assets with `status=uploaded` (pending approval).
 
@@ -291,8 +291,8 @@ Use the same badge style as the existing Review Queue badge.
 | `api-server/src/lib/brand-readiness.ts` | Shared brand readiness check function |
 | `api-server/src/routes/brand-readiness.ts` | GET /api/brand-readiness/:brandId endpoint |
 | `api-server/src/middleware/validate.ts` | Zod validation middleware |
-| `sparqforge/src/hooks/useBrandReadiness.ts` | Frontend hook for brand readiness |
-| `sparqforge/src/components/ui/empty-state.tsx` | Shared empty state component |
+| `sparqmake/src/hooks/useBrandReadiness.ts` | Frontend hook for brand readiness |
+| `sparqmake/src/components/ui/empty-state.tsx` | Shared empty state component |
 
 ## Modified Files Summary
 
@@ -308,14 +308,14 @@ Use the same badge style as the existing Review Queue badge.
 | `api-server/src/routes/index.ts` | Register brand-readiness routes (NOT app.ts — all routes are registered here) |
 | `lib/api-spec/openapi.yaml` | Update response schemas for paginated endpoints, regenerate client |
 | `lib/api-client-react/src/generated/api.ts` | Regenerated by orval after OpenAPI spec update |
-| `sparqforge/src/pages/CampaignStudio.tsx` | Approved-only assets, pre-gen validation, cost display, save hashtag set |
-| `sparqforge/src/pages/ReviewQueue.tsx` | Variant progress bar, empty state |
-| `sparqforge/src/pages/Settings.tsx` | Readiness card, section nav, unsaved changes, invalidate brand-readiness on save |
-| `sparqforge/src/pages/AssetLibrary.tsx` | Empty states |
-| `sparqforge/src/pages/Calendar.tsx` | Replace confirm toast with undo pattern, empty state |
-| `sparqforge/src/pages/ContentPlan.tsx` | Empty state |
-| `sparqforge/src/pages/CostDashboard.tsx` | Empty state |
-| `sparqforge/src/components/layout/Sidebar.tsx` | Pending asset badge |
+| `sparqmake/src/pages/CampaignStudio.tsx` | Approved-only assets, pre-gen validation, cost display, save hashtag set |
+| `sparqmake/src/pages/ReviewQueue.tsx` | Variant progress bar, empty state |
+| `sparqmake/src/pages/Settings.tsx` | Readiness card, section nav, unsaved changes, invalidate brand-readiness on save |
+| `sparqmake/src/pages/AssetLibrary.tsx` | Empty states |
+| `sparqmake/src/pages/Calendar.tsx` | Replace confirm toast with undo pattern, empty state |
+| `sparqmake/src/pages/ContentPlan.tsx` | Empty state |
+| `sparqmake/src/pages/CostDashboard.tsx` | Empty state |
+| `sparqmake/src/components/layout/Sidebar.tsx` | Pending asset badge |
 
 ---
 

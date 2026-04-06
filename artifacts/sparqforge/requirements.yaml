@@ -8,13 +8,13 @@ packages:
   "react-hook-form": "Form state management"
 
 images:
-  - path: "artifacts/sparqforge/public/images/sparq-logo.png"
-    description: "Minimalist, aggressive gaming logo mark for 'SparqForge', glowing electric blue on pure black background, sharp angles"
+  - path: "artifacts/sparqmake/public/images/sparq-logo.png"
+    description: "Minimalist, aggressive gaming logo mark for 'SparqMake', glowing electric blue on pure black background, sharp angles"
     aspect_ratio: "1:1"
-  - path: "artifacts/sparqforge/public/images/avatar.png"
+  - path: "artifacts/sparqmake/public/images/avatar.png"
     description: "Cyberpunk esports gamer profile avatar, neon lighting, dark background"
     aspect_ratio: "1:1"
-  - path: "artifacts/sparqforge/public/images/empty-state.png"
+  - path: "artifacts/sparqmake/public/images/empty-state.png"
     description: "Abstract 3D wireframe mesh in dark void with subtle blue glowing nodes, shallow depth of field"
     aspect_ratio: "16:9"
 

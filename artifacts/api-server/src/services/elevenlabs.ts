@@ -1,4 +1,4 @@
-const ELEVENLABS_API_KEY = process.env.SparqForge_ElevenLabs_API_Key;
+const ELEVENLABS_API_KEY = process.env.SparqMake_ElevenLabs_API_Key;
 const BASE_URL = "https://api.elevenlabs.io/v1";
 
 export type AudioType = "music" | "sfx";

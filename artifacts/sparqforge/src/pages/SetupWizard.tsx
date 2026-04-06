@@ -51,7 +51,7 @@ export default function SetupWizard() {
     <div className="min-h-screen bg-background">
       {/* Top bar */}
       <div className="flex items-center justify-between">
-        <span className="text-xl font-bold text-primary p-6">SparqForge</span>
+        <span className="text-xl font-bold text-primary p-6">SparqMake</span>
         <span className="text-sm text-muted-foreground p-6">
           Step {currentStepIndex + 1} of 8
         </span>

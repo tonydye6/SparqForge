@@ -17,7 +17,7 @@ export interface MergeOptions {
 }
 
 export async function mergeAudioVideo(options: MergeOptions): Promise<Buffer> {
-  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sparqforge-merge-"));
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sparqmake-merge-"));
   const videoPath = path.join(tmpDir, "input.mp4");
   const audioPath = path.join(tmpDir, "audio.mp3");
   const outputPath = path.join(tmpDir, "output.mp4");
