@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/utils";
-import { useState, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useEffect, useCallback, createContext, useContext, useRef } from "react";
 import type { ReactNode } from "react";
 import { createElement } from "react";
 
@@ -25,6 +25,26 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1500;
+
+async function fetchAuthWithRetry(attempt = 0): Promise<{ authenticated: boolean; user: AuthUser | null }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
+    if (!res.ok && attempt < MAX_RETRIES) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      return fetchAuthWithRetry(attempt + 1);
+    }
+    const data = await res.json();
+    return { authenticated: data.authenticated, user: data.user || null };
+  } catch {
+    if (attempt < MAX_RETRIES) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      return fetchAuthWithRetry(attempt + 1);
+    }
+    return { authenticated: false, user: null };
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -32,18 +52,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     loading: true,
   });
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
-    try {
-      const res = await apiFetch(`${API_BASE}/api/auth/me`, { credentials: "include" });
-      const data = await res.json();
-      setState({
-        authenticated: data.authenticated,
-        user: data.user || null,
-        loading: false,
-      });
-    } catch {
-      setState({ authenticated: false, user: null, loading: false });
+    const result = await fetchAuthWithRetry();
+    if (mountedRef.current) {
+      setState({ ...result, loading: false });
     }
   }, []);
 
@@ -59,7 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     refresh();
+    return () => { mountedRef.current = false; };
   }, [refresh]);
 
   return createElement(
