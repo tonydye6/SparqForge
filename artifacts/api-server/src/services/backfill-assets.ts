@@ -145,8 +145,12 @@ export async function backfillAssetClassifications(): Promise<{ updated: number;
     const data: Record<string, unknown> = {};
     let changed = false;
 
-    if (asset.assetClass === null || asset.assetClass === "subject_reference") {
-      if (classification.assetClass !== (asset.assetClass ?? "subject_reference") ||
+    if (asset.assetClass === null) {
+      data.assetClass = classification.assetClass;
+      data.generationRole = classification.generationRole;
+      changed = true;
+    } else if (asset.assetClass === "subject_reference") {
+      if (classification.assetClass !== "subject_reference" ||
           classification.generationRole !== asset.generationRole) {
         data.assetClass = classification.assetClass;
         data.generationRole = classification.generationRole;
@@ -154,13 +158,40 @@ export async function backfillAssetClassifications(): Promise<{ updated: number;
       }
     }
 
+    if (asset.generationRole === null && classification.generationRole !== null) {
+      data.generationRole = classification.generationRole;
+      changed = true;
+    }
+
     const resolvedClass = (data.assetClass as string) || asset.assetClass || "subject_reference";
 
-    const classChanged = "assetClass" in data;
-    if (classChanged) {
-      data.compositingOnly = classification.compositingOnly;
-      data.generationAllowed = classification.generationAllowed;
-      data.approvedForCompositing = classification.approvedForCompositing;
+    if (resolvedClass === "compositing") {
+      if (asset.compositingOnly !== true) {
+        data.compositingOnly = true;
+        changed = true;
+      }
+      if (asset.generationAllowed !== false) {
+        data.generationAllowed = false;
+        changed = true;
+      }
+      if (asset.approvedForCompositing !== true) {
+        data.approvedForCompositing = true;
+        changed = true;
+      }
+    } else if (resolvedClass === "subject_reference" || resolvedClass === "style_reference") {
+      if (asset.compositingOnly !== false) {
+        data.compositingOnly = false;
+        changed = true;
+      }
+      if (asset.generationAllowed !== true) {
+        data.generationAllowed = true;
+        changed = true;
+      }
+    } else if (resolvedClass === "context") {
+      if (asset.generationAllowed !== false) {
+        data.generationAllowed = false;
+        changed = true;
+      }
     }
 
     if (asset.franchise === null) {
