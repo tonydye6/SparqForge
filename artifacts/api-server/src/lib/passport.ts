@@ -45,6 +45,13 @@ function resolveGoogleCallbackUrl(): string {
   if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL;
   const callbackPath = "/api/auth/google/callback";
   if (process.env.APP_URL) return `${process.env.APP_URL.replace(/\/$/, "")}${callbackPath}`;
+  if (process.env.REPLIT_DEPLOYMENT) {
+    const domains = process.env.REPLIT_DOMAINS;
+    if (domains) {
+      const first = domains.split(",")[0]?.trim();
+      if (first) return `https://${first}${callbackPath}`;
+    }
+  }
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}${callbackPath}`;
   if (process.env.REPLIT_DOMAINS) {
     const first = process.env.REPLIT_DOMAINS.split(",")[0]?.trim();

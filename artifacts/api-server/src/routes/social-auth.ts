@@ -26,6 +26,15 @@ function resolveBaseUrl(): string {
   if (process.env.APP_URL) {
     return process.env.APP_URL.replace(/\/$/, "");
   }
+  if (process.env.REPLIT_DEPLOYMENT) {
+    const domains = process.env.REPLIT_DOMAINS;
+    if (domains) {
+      const firstDomain = domains.split(",")[0].trim();
+      if (firstDomain) {
+        return `https://${firstDomain}`;
+      }
+    }
+  }
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
   if (devDomain) {
     return `https://${devDomain}`;

@@ -25,6 +25,16 @@ function resolvePublicImageUrl(imageUrl: string): string {
     return `${appUrl.replace(/\/$/, "")}${imageUrl}`;
   }
 
+  if (process.env.REPLIT_DEPLOYMENT) {
+    const domains = process.env.REPLIT_DOMAINS;
+    if (domains) {
+      const firstDomain = domains.split(",")[0].trim();
+      if (firstDomain) {
+        return `https://${firstDomain}${imageUrl}`;
+      }
+    }
+  }
+
   const devDomain = process.env.REPLIT_DEV_DOMAIN;
   if (devDomain) {
     return `https://${devDomain}${imageUrl}`;
