@@ -187,6 +187,10 @@ export async function backfillAssetClassifications(): Promise<{ updated: number;
         data.generationAllowed = true;
         changed = true;
       }
+      if (asset.approvedForCompositing !== false) {
+        data.approvedForCompositing = false;
+        changed = true;
+      }
     } else if (resolvedClass === "context") {
       if (asset.generationAllowed !== false) {
         data.generationAllowed = false;
