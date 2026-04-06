@@ -156,23 +156,11 @@ export async function backfillAssetClassifications(): Promise<{ updated: number;
 
     const resolvedClass = (data.assetClass as string) || asset.assetClass || "subject_reference";
 
-    if (asset.compositingOnly === null || asset.compositingOnly === false) {
-      if (classification.compositingOnly !== (asset.compositingOnly ?? false)) {
-        data.compositingOnly = classification.compositingOnly;
-        changed = true;
-      }
-    }
-    if (asset.generationAllowed === null || asset.generationAllowed === true) {
-      if (classification.generationAllowed !== (asset.generationAllowed ?? true)) {
-        data.generationAllowed = classification.generationAllowed;
-        changed = true;
-      }
-    }
-    if (asset.approvedForCompositing === null || asset.approvedForCompositing === false) {
-      if (classification.approvedForCompositing !== (asset.approvedForCompositing ?? false)) {
-        data.approvedForCompositing = classification.approvedForCompositing;
-        changed = true;
-      }
+    const classChanged = "assetClass" in data;
+    if (classChanged) {
+      data.compositingOnly = classification.compositingOnly;
+      data.generationAllowed = classification.generationAllowed;
+      data.approvedForCompositing = classification.approvedForCompositing;
     }
 
     if (asset.franchise === null) {
@@ -191,7 +179,7 @@ export async function backfillAssetClassifications(): Promise<{ updated: number;
       }
     }
 
-    if (asset.conflictTags === null) {
+    if (asset.conflictTags === null || (Array.isArray(asset.conflictTags) && asset.conflictTags.length === 0)) {
       const tags = detectConflictTags(nameLower);
       if (tags && tags.length > 0) {
         data.conflictTags = tags;
