@@ -18,7 +18,7 @@ import type {
   GoogleTokenResponse,
   YouTubeChannelResponse,
 } from "../types/oauth";
-import { getSocialCredential } from "../services/social-credentials";
+import { getSocialCredential, getInstagramConfigId } from "../services/social-credentials";
 
 const router = Router();
 
@@ -275,15 +275,26 @@ router.get("/auth/instagram", async (req, res) => {
 
   const state = createOAuthState(userId, brandId);
   const callbackUrl = `${getCallbackBaseUrl()}/api/auth/instagram/callback`;
-  const scopes = ["instagram_basic", "instagram_content_publish", "pages_show_list"].join(",");
 
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: callbackUrl,
-    scope: scopes,
     response_type: "code",
     state,
   });
+
+  // Newer Meta "business" apps (Facebook Login for Business) reject the
+  // classic scope list with "Invalid Scopes" and require a configuration ID
+  // created in the Meta dashboard instead. Prefer config_id when available.
+  const configId = getInstagramConfigId();
+  if (configId) {
+    params.set("config_id", configId);
+  } else {
+    params.set(
+      "scope",
+      ["instagram_basic", "instagram_content_publish", "pages_show_list"].join(","),
+    );
+  }
 
   res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`);
 });

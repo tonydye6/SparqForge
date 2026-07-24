@@ -116,6 +116,23 @@ function isPlaceholder(value: string): boolean {
   return false;
 }
 
+/**
+ * Optional Instagram "Facebook Login for Business" configuration ID.
+ * Newer Meta business apps reject the classic scope list
+ * (instagram_basic,instagram_content_publish,pages_show_list) with
+ * "Invalid Scopes" and require a config_id created under
+ * Facebook Login for Business → Configurations instead.
+ */
+const INSTAGRAM_CONFIG_ID_SOURCE: CredentialSource = {
+  label: "Instagram Login Configuration ID",
+  canonical: "SparqMake_Instagram_Config_ID",
+  aliases: ["SparqForge_Instagram_Config_ID"],
+};
+
+export function getInstagramConfigId(): string | null {
+  return readEnv(INSTAGRAM_CONFIG_ID_SOURCE);
+}
+
 function readEnv(source: CredentialSource): string | null {
   for (const name of [source.canonical, ...source.aliases]) {
     const value = process.env[name];
