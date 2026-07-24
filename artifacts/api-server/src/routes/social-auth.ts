@@ -435,7 +435,17 @@ router.get("/auth/linkedin", async (req, res) => {
 
 router.get("/auth/linkedin/callback", async (req, res) => {
   try {
-    const { code, state } = req.query;
+    const { code, state, error, error_description } = req.query;
+
+    if (error) {
+      logger.error(
+        { error, errorDescription: error_description },
+        "LinkedIn authorization was rejected before issuing a code",
+      );
+      return res.redirect(
+        `${getSettingsRedirectUrl()}&error=${encodeURIComponent(String(error))}&platform=linkedin`,
+      );
+    }
 
     const stateData = consumeOAuthState(state as string | undefined, req.user?.id);
     if (!stateData) {
