@@ -35,16 +35,29 @@ router.get("/social-accounts", async (_req, res) => {
       lastRefreshError: socialAccountsTable.lastRefreshError,
       createdAt: socialAccountsTable.createdAt,
       updatedAt: socialAccountsTable.updatedAt,
+      refreshToken: socialAccountsTable.refreshToken,
     }).from(socialAccountsTable);
 
-    const enriched = accounts.map(account => {
+    const enriched = accounts.map(({ refreshToken, ...account }) => {
+      // Platforms with an auto-refresh path: Instagram long-lived tokens can
+      // always be extended; the others need a stored refresh token.
+      const autoRefreshes =
+        account.platform === "instagram" ||
+        (Boolean(refreshToken) &&
+          ["twitter", "linkedin", "tiktok", "youtube"].includes(account.platform));
+
       let displayStatus = account.status;
       if (account.status === "connected" && account.tokenExpiry) {
         const hoursUntilExpiry = (account.tokenExpiry.getTime() - Date.now()) / (1000 * 60 * 60);
         if (hoursUntilExpiry <= 0) {
           displayStatus = "expired";
         } else if (hoursUntilExpiry <= 72) {
-          displayStatus = "expiring";
+          // Short-lived tokens that renew automatically (e.g. X's 2-hour
+          // tokens) are always "within 72h of expiry" — only warn when the
+          // last automatic renewal actually failed or none is possible.
+          if (!autoRefreshes || account.lastRefreshError) {
+            displayStatus = "expiring";
+          }
         }
       }
       return { ...account, displayStatus };

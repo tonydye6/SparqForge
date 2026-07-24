@@ -143,7 +143,7 @@ async function upsertSocialAccount(values: typeof socialAccountsTable.$inferInse
 router.get("/auth/twitter", async (req, res) => {
   const clientId = getSocialCredential("twitter", "clientId");
   if (!clientId) {
-    logger.error("Twitter connect attempted but API key is not configured");
+    logger.error("Twitter connect attempted but OAuth 2.0 Client ID is not configured");
     return res.redirect(`${getSettingsRedirectUrl()}&error=not_configured&platform=twitter`);
   }
 
@@ -199,7 +199,7 @@ router.get("/auth/twitter/callback", async (req, res) => {
 
     const clientId = getSocialCredential("twitter", "clientId");
     if (!clientId) {
-      logger.error("Twitter OAuth callback but API key is not configured");
+      logger.error("Twitter OAuth callback but OAuth 2.0 Client ID is not configured");
       return res.redirect(`${getSettingsRedirectUrl()}&error=not_configured&platform=twitter`);
     }
     const callbackUrl = `${getCallbackBaseUrl()}/api/auth/twitter/callback`;

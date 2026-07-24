@@ -206,7 +206,7 @@ async function refreshTwitterToken(account: SocialAccountRecord): Promise<void> 
   const refreshTokenDecrypted = decryptToken(account.refreshToken!);
   const clientId = getSocialCredential("twitter", "clientId");
   if (!clientId) {
-    throw new TokenRefreshError("Twitter refresh skipped: X/Twitter API Key not configured", false);
+    throw new TokenRefreshError("Twitter refresh skipped: X OAuth 2.0 Client ID not configured", false);
   }
 
   const response = await fetch("https://api.twitter.com/2/oauth2/token", {
