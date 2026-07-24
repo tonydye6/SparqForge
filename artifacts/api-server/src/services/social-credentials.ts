@@ -28,9 +28,13 @@ interface CredentialSource {
 const CREDENTIAL_SOURCES: Record<SocialPlatform, Record<CredentialKey, CredentialSource>> = {
   twitter: {
     clientId: {
-      label: "X (Twitter) API Key",
-      canonical: "X_SparqMake_X_API_Key",
-      aliases: ["X_SparqForge_X_API_Key"],
+      // OAuth2 PKCE flow needs the OAuth 2.0 Client ID from the X developer
+      // portal ("User authentication settings"), NOT the OAuth 1.0a API Key.
+      // The legacy X_SparqMake_X_API_Key secret holds an API Key, which X
+      // rejects at the authorize step — so it is intentionally not an alias.
+      label: "X (Twitter) OAuth 2.0 Client ID",
+      canonical: "SparqMake_X_OAuth2_Client_ID",
+      aliases: [],
     },
     clientSecret: {
       label: "X (Twitter) API Secret",

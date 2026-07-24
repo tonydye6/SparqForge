@@ -52,6 +52,7 @@ timeoutMs = 180000
 ALLOWED_EMAIL_DOMAINS = "sparqgames.com"
 ADMIN_EMAILS = "tony@sparqgames.com,da@sparqgames.com,chase@sparqgames.com,jeffrey@sparqgames.com,jan@sparqgames.com"
 SparqMake_Instagram_Config_ID = "1007507908570224"
+SparqMake_X_OAuth2_Client_ID = "X3RGZ0lMcklpWnRDNklOT19Rc3c6MTpjaQ"
 
 [userenv.development]
 DEV_AUTH_BYPASS = "true"
