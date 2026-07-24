@@ -811,6 +811,16 @@ function ConnectedAccountsTab() {
     return () => { cancelled = true; };
   }, [baseUrl]);
 
+  // The OAuth flow completes in a separate tab — refresh the accounts list
+  // when the user returns to this tab so the new connection appears.
+  useEffect(() => {
+    const onFocus = () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [queryClient]);
+
   // Surface OAuth redirect results (?success=... / ?error=...) instead of failing silently.
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -871,7 +881,20 @@ function ConnectedAccountsTab() {
       toast({ variant: "destructive", title: "Select a brand", description: "Choose which brand to connect this account to." });
       return;
     }
-    window.location.href = `${baseUrl}/api/auth/${platform}?brandId=${encodeURIComponent(connectBrandId)}`;
+    const authUrl = `${baseUrl}/api/auth/${platform}?brandId=${encodeURIComponent(connectBrandId)}`;
+    // OAuth providers (Facebook, Google, etc.) refuse to render inside an
+    // iframe (X-Frame-Options), and this app is often viewed in an embedded
+    // preview. Open the flow in a top-level tab instead.
+    const opened = window.open(authUrl, "_blank", "noopener");
+    if (!opened) {
+      // Popup blocked — fall back to same-window navigation.
+      window.location.href = authUrl;
+      return;
+    }
+    toast({
+      title: "Continue in the new tab",
+      description: "Finish signing in there, then come back here — this list refreshes automatically.",
+    });
   };
 
   const brandNameById = new Map((brands || []).map(b => [b.id, b.name]));
