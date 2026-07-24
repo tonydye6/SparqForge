@@ -33,6 +33,37 @@ import { PLATFORM_CONFIGS } from "./imagen.js";
 import { extractJSON } from "../lib/extract-json.js";
 import type { CaptionResult } from "./claude.js";
 import type { StudioSession, SessionTurn, Asset } from "@workspace/db";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * Extract a representative still frame (PNG) from a video buffer using ffmpeg.
+ * Used by fan_out when the session's active variant is a video: platform
+ * images must be derived from the LATEST video frame content (which includes
+ * all video edits), not the stale pre-conversion source image.
+ * Tries a 1-second offset first (past any initial fade), falls back to frame 0.
+ */
+async function extractVideoFrame(videoBuffer: Buffer): Promise<Buffer> {
+  const dir = await mkdtemp(join(tmpdir(), "fanout-frame-"));
+  const inPath = join(dir, "in.mp4");
+  const outPath = join(dir, "frame.png");
+  try {
+    await writeFile(inPath, videoBuffer);
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-ss", "1", "-i", inPath, "-frames:v", "1", outPath], { timeout: 30_000 });
+    } catch {
+      await execFileAsync("ffmpeg", ["-y", "-i", inPath, "-frames:v", "1", outPath], { timeout: 30_000 });
+    }
+    return await readFile(outPath);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
 export type { StudioSession, SessionTurn };
 
@@ -1946,13 +1977,33 @@ async function executeFanOut(params: {
     .where(eq(creativeVariantsTable.id, activeVariantId));
   if (!variant) throw new Error("Active variant not found");
 
-  const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
-  if (!imageUrl) throw new Error("Active variant has no image");
-
-  const loc = resolveUrl(imageUrl);
-  if (!loc) throw new Error("Cannot resolve image URL");
-  const imageBuffer = await readBuffer(loc);
-  if (!imageBuffer) throw new Error("Could not read image buffer");
+  // When the active variant is a video (convert_video/edit_video result), the
+  // platform set must be built from the LATEST video content — a video
+  // variant's image URLs are copies of the pre-conversion still and would
+  // silently discard all video edits. Extract a frame from the current video
+  // to use as the fan-out base image, and carry the video onto the platform
+  // variants so video-capable platforms schedule the clip itself.
+  const sourceVideoUrl = (variant as { videoUrl?: string | null }).videoUrl || null;
+  let imageBuffer: Buffer;
+  let baseMimeType: string;
+  if (sourceVideoUrl) {
+    onProgress({ type: "progress", step: "fan_out", message: "Extracting frame from current video..." });
+    const vloc = resolveUrl(sourceVideoUrl);
+    if (!vloc) throw new Error("Cannot resolve video URL for fan-out");
+    const videoBuffer = await readBuffer(vloc);
+    if (!videoBuffer) throw new Error("Could not read video for fan-out");
+    imageBuffer = await extractVideoFrame(videoBuffer);
+    baseMimeType = "image/png";
+  } else {
+    const imageUrl = variant.compositedImageUrl || variant.rawImageUrl;
+    if (!imageUrl) throw new Error("Active variant has no image");
+    const loc = resolveUrl(imageUrl);
+    if (!loc) throw new Error("Cannot resolve image URL");
+    const buf = await readBuffer(loc);
+    if (!buf) throw new Error("Could not read image buffer");
+    imageBuffer = buf;
+    baseMimeType = contentTypeFor(loc.filename) || "image/png";
+  }
 
   onProgress({ type: "progress", step: "fan_out", message: "Detecting subject for smart reframe..." });
 
@@ -1966,7 +2017,7 @@ async function executeFanOut(params: {
     brandId: creative.brandId,
     briefText: input.instruction || creative.briefText || "",
     imageBuffer,
-    imageMimeType: contentTypeFor(loc.filename) || "image/png",
+    imageMimeType: baseMimeType,
     intent: creative.intent,
   });
   const fanOutCaptions = fanOutCaptionResult as unknown as Record<string, { caption: string; headline: string }>;
@@ -2031,7 +2082,7 @@ async function executeFanOut(params: {
       if (willClip) {
         outputBuffer = await outpaintImage(
           imageBuffer,
-          contentTypeFor(loc.filename) || "image/png",
+          baseMimeType,
           config.aspectRatio,
           input.instruction || creative.briefText || undefined,
         );
@@ -2058,6 +2109,9 @@ async function executeFanOut(params: {
           headlineText: cap.headline,
           status: "generated",
           sourceVariantId: activeVariantId,
+          // Carry the source video onto platform variants so video-capable
+          // platforms (e.g. YouTube) schedule the clip itself, not just a still.
+          ...(sourceVideoUrl ? { videoUrl: sourceVideoUrl } : {}),
         })
         .returning({ id: creativeVariantsTable.id });
 
@@ -2073,10 +2127,11 @@ async function executeFanOut(params: {
         // Insights-backed schedule time: uses historical engagement data
         // from performance-insights.ts rather than hardcoded hour slots.
         suggestedAt: nextSlot(platformKey).toISOString(),
-        // YouTube is a video platform — the thumbnail reframe is stored so the
-        // card appears in the inline grid, but the user must run convert_video
-        // before scheduling.  Card renders a "Generate video first" CTA.
-        ...(platformKey === "youtube" ? { requiresVideo: true } : {}),
+        // YouTube is a video platform — when fanning out from a still image,
+        // the user must run convert_video before scheduling (card renders a
+        // "Generate video first" CTA).  When fanning out from a video, the
+        // clip is already carried onto the variant, so no conversion is needed.
+        ...(platformKey === "youtube" && !sourceVideoUrl ? { requiresVideo: true } : {}),
       });
     } catch (err) {
       logger.warn({ err, platform: platformKey }, "Fan-out reframe failed for platform — skipping");
