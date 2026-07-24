@@ -73,12 +73,9 @@ export async function generateVideo(
       aspect_ratio: config.aspectRatio as "16:9" | "9:16",
       duration: "6s",
     } as Record<string, unknown>,
-    safety_settings: [
-      { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_LOW_AND_ABOVE" },
-      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_LOW_AND_ABOVE" },
-      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_LOW_AND_ABOVE" },
-      { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_LOW_AND_ABOVE" },
-    ] as unknown as Parameters<typeof ai.interactions.create>[0]["safety_settings"],
+    // Note: `safety_settings` is not supported on the public Gemini
+    // Interactions API (400 error, live-verified 2026-07-22); default model
+    // safety enforcement applies, plus the "Do not show people" prompt rule.
   } as unknown as Parameters<typeof ai.interactions.create>[0]);
 
   const abortPromise = new Promise<never>((_, reject) => {

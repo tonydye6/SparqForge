@@ -146,30 +146,25 @@ const IMAGE_TIMEOUT_MS = 180_000;
 const VIDEO_TIMEOUT_MS = 300_000;
 
 // D3: Normalize any input aspect ratio to the nearest supported video value.
-// Ratios: 16:9 ≈ 1.78 (landscape), 9:16 ≈ 0.56 (portrait), 1:1 = 1.0 (square).
-// Thresholds: >1.2 → 16:9; <0.7 → 9:16; otherwise 1:1.
-// This prevents invalid ratios like "1.91:1" (LinkedIn) from reaching the model.
-function normalizeVideoAspectRatio(ratio: string): "16:9" | "9:16" | "1:1" {
+// The public Gemini Interactions API only supports '16:9' and '9:16' for
+// video (400 on '1:1', live-verified 2026-07-22), so square and landscape
+// inputs map to 16:9 and portrait inputs (<1.0) map to 9:16. This also
+// prevents invalid ratios like "1.91:1" (LinkedIn) from reaching the model.
+function normalizeVideoAspectRatio(ratio: string): "16:9" | "9:16" {
   const parts = ratio.split(":").map(Number);
   if (parts.length !== 2 || !Number.isFinite(parts[0]) || !Number.isFinite(parts[1]) || parts[1] === 0) {
-    return "1:1";
+    return "16:9";
   }
   const r = parts[0]! / parts[1]!;
-  if (r >= 1.2) return "16:9";
-  if (r <= 0.7) return "9:16";
-  return "1:1";
+  return r < 1 ? "9:16" : "16:9";
 }
 
-// D2: Strictest applicable safety settings for Interactions video.
-// personGeneration has no equivalent in the Interactions API (accepted residual
-// risk per spec); we mitigate with SEXUALLY_EXPLICIT BLOCK_LOW_AND_ABOVE and
-// prompt instruction "Do not show people."
-const VIDEO_SAFETY_SETTINGS = [
-  { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-  { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-  { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_LOW_AND_ABOVE" },
-  { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_ONLY_HIGH" },
-];
+// Note: `safety_settings` is NOT supported on the public Gemini Interactions
+// API (400: "The parameter 'safety_settings' is not available on the Gemini
+// API but it is available on the Gemini Enterprise Agent Platform") — verified
+// live 2026-07-22 when a convert_video turn failed with that error. The
+// model's default safety enforcement still applies; we additionally mitigate
+// via the prompt instruction "Do not show people."
 
 export async function runVideoInteraction(params: {
   prompt: string;
@@ -209,10 +204,9 @@ export async function runVideoInteraction(params: {
       // D2: Fixed 6s duration per spec; consistent with B4 cost reservation.
       duration: "6s",
     },
-    // D3: Request inline base64 delivery to avoid needing to fetch a URI.
-    delivery: "inline",
-    // D2: Safety settings — strictest applicable for video generation.
-    safety_settings: VIDEO_SAFETY_SETTINGS,
+    // Note: `delivery` is also not supported on the public Gemini Interactions
+    // API (400 Unknown parameter, live-verified 2026-07-22). The response
+    // handler below already accepts inline base64 or a URI fallback.
   };
 
   if (previousInteractionId) {
