@@ -173,25 +173,53 @@ export async function runVideoInteraction(params: {
   previousInteractionId?: string | null;
   aspectRatio?: string;
   signal?: AbortSignal;
+  // Asset Library reference images (e.g. an exact logo) sent as additional
+  // untyped image content blocks with prose role labels.
+  slots?: ImageSlot[];
 }): Promise<InteractionVideoResult> {
-  const { prompt, imageBuffer, imageMimeType, previousInteractionId, aspectRatio = "1:1", signal } = params;
+  const { prompt, imageBuffer, imageMimeType, previousInteractionId, aspectRatio = "1:1", signal, slots = [] } = params;
   if (signal?.aborted) throw new Error("Video interaction cancelled before start");
 
   // D3: Normalize aspect ratio to nearest supported video value before the request.
   const normalizedAspectRatio = normalizeVideoAspectRatio(aspectRatio);
 
+  // Reference slots (Asset Library attachments) travel as additional image
+  // content blocks after the seed image, with prose role labels in the text
+  // prompt — same untyped-reference pattern as image interactions.
+  const slotDescriptions = slots
+    .map((s, i) => {
+      const label = s.slot === "character"
+        ? "Subject/character reference"
+        : s.slot === "object"
+          ? "Object reference"
+          : "Style reference";
+      const desc = s.description ? ` — ${s.description}` : "";
+      return `[Reference image ${i + 1}: ${label}${desc}]`;
+    })
+    .join(" ");
+  const promptText = slots.length > 0
+    ? `${prompt}\n\nReference images provided: ${slotDescriptions}`
+    : prompt;
+
   let inputValue: ContentBlock[] | string;
-  if (imageBuffer) {
+  if (imageBuffer || slots.length > 0) {
     inputValue = [
-      { type: "text", text: prompt },
-      {
-        type: "image",
-        data: imageBuffer.toString("base64"),
-        mime_type: imageMimeType || "image/png",
-      },
+      { type: "text", text: promptText },
+      ...(imageBuffer
+        ? [{
+            type: "image" as const,
+            data: imageBuffer.toString("base64"),
+            mime_type: imageMimeType || "image/png",
+          }]
+        : []),
+      ...slots.map((s) => ({
+        type: "image" as const,
+        data: s.imageBuffer.toString("base64"),
+        mime_type: s.mimeType || "image/png",
+      })),
     ];
   } else {
-    inputValue = prompt;
+    inputValue = promptText;
   }
 
   const requestBody: Record<string, unknown> = {

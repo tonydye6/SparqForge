@@ -1802,6 +1802,18 @@ async function executeConvertVideo(params: {
   const imageBuffer = await readBuffer(loc);
   if (!imageBuffer) throw new Error("Could not read image buffer");
 
+  // Attach real Asset Library images (picker selection or names mentioned in
+  // the instruction) so the model uses the actual asset (e.g. the exact logo)
+  // instead of inventing one — parity with edit_video and edit_image.
+  const attached = await loadAttachedAssetSlots({
+    brandId: creative.brandId,
+    instruction: input.instruction,
+    assetIds: input.assetIds,
+  });
+  if (attached.names.length > 0) {
+    onProgress({ type: "progress", step: "video", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });
+  }
+
   onProgress({
     type: "progress",
     step: "video",
@@ -1818,6 +1830,7 @@ async function executeConvertVideo(params: {
     prompt: input.instruction || "Convert this image into a short, dynamic video clip. Animate the subject naturally with subtle movement, camera drift, and ambient motion. Keep the brand framing intact.",
     imageBuffer,
     imageMimeType: contentTypeFor(loc.filename) || "image/png",
+    slots: attached.slots,
     previousInteractionId: null,
     aspectRatio,
     signal: input.signal,
@@ -1861,7 +1874,14 @@ async function executeConvertVideo(params: {
     thumbnailUrl: imageUrl,
     // sourceVariantId in metadata lets the frontend update fan-out card state
     // when this conversion was triggered from a YouTube fan-out card button.
-    metadata: { videoUrl, aspectRatio, durationSeconds, costUsd, sourceVariantId: targetVariantId },
+    metadata: {
+      videoUrl,
+      aspectRatio,
+      durationSeconds,
+      costUsd,
+      sourceVariantId: targetVariantId,
+      ...(attached.names.length > 0 ? { attachedAssetNames: attached.names } : {}),
+    },
     modelUsed: COPILOT_MODELS.OMNI_VIDEO_MODEL,
     // C3: Fan-out card conversions don't change the session's primary creative
     // focus — the YouTube video is a side-output, not a new main variant.
@@ -1879,6 +1899,18 @@ async function executeEditVideo(params: {
 
   if (!session.videoInteractionId) {
     throw new Error("No previous video interaction to edit. Convert an image to video first.");
+  }
+
+  // Attach real Asset Library images (picker selection or names mentioned in
+  // the instruction) so the model uses the actual asset (e.g. the exact logo)
+  // instead of inventing one — same slot pipeline as edit_image.
+  const attached = await loadAttachedAssetSlots({
+    brandId: creative.brandId,
+    instruction: input.instruction,
+    assetIds: input.assetIds,
+  });
+  if (attached.names.length > 0) {
+    onProgress({ type: "progress", step: "video", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });
   }
 
   onProgress({
@@ -1904,6 +1936,7 @@ async function executeEditVideo(params: {
     prompt: input.instruction,
     signal: input.signal,
     imageBuffer: null,
+    slots: attached.slots,
     previousInteractionId: session.videoInteractionId,
     aspectRatio: inheritedAspectRatio,
   });
@@ -1942,7 +1975,12 @@ async function executeEditVideo(params: {
     costUsd,
     summary: "Video edit applied — targeted change while preserving the clip",
     thumbnailUrl,
-    metadata: { videoUrl, durationSeconds, costUsd },
+    metadata: {
+      videoUrl,
+      durationSeconds,
+      costUsd,
+      ...(attached.names.length > 0 ? { attachedAssetNames: attached.names } : {}),
+    },
     modelUsed: COPILOT_MODELS.OMNI_VIDEO_MODEL,
   };
 }

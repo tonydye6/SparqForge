@@ -189,7 +189,9 @@ export function Composer({
           action,
           instruction: instruction ||
             "Convert this image into a dynamic short video clip with natural movement and ambient animation",
-          assetIds: [],
+          // Attached library assets (e.g. an exact logo) are wired into video
+          // turns as model reference slots, same as image edits.
+          assetIds,
         };
       }
       case "/set":
@@ -227,7 +229,8 @@ export function Composer({
       const instruction =
         text ||
         "Convert this image into a dynamic short video clip with natural movement and ambient animation";
-      void runTurn(action, instruction);
+      const assetIds = attachedAssets.map(a => a.id);
+      void runTurn(action, instruction, undefined, undefined, undefined, undefined, assetIds.length > 0 ? assetIds : undefined);
       dispatch({ type: "setComposer", text: "" });
       setAttachedAssets([]);
       setPendingAction(null);

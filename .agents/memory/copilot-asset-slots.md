@@ -2,7 +2,7 @@
 name: Copilot attached-asset slots
 description: How library assets reach the image model in Co-pilot edit turns
 ---
-Edit turns (`edit_image`, `edit_region`) previously sent text only — the model hallucinated logos/assets. Now `loadAttachedAssetSlots` (session-service) turns brand assets into `ImageSlot` entries (slot "object", faithful-reproduction description).
+Edit turns (`edit_image`, `edit_region`) and video turns (`convert_video`, `edit_video`) previously sent text only — the model hallucinated logos/assets. Now `loadAttachedAssetSlots` (session-service) turns brand assets into `ImageSlot` entries (slot "object", faithful-reproduction description). Video interactions accept reference slots as extra untyped image content blocks after the seed image (live-verified with previous_interaction_id chaining — no 400).
 
 **Rules:**
 - Sources: explicit `assetIds` from the composer paperclip picker (max 3), OR auto-match asset names mentioned case-insensitively in the instruction.
