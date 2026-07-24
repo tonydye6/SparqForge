@@ -420,7 +420,7 @@ router.get("/auth/linkedin", async (req, res) => {
 
   const state = createOAuthState(userId, brandId);
   const callbackUrl = `${getCallbackBaseUrl()}/api/auth/linkedin/callback`;
-  const scopes = ["openid", "profile", "w_member_social", "offline_access"].join(" ");
+  const scopes = ["openid", "profile", "w_member_social"].join(" ");
 
   const params = new URLSearchParams({
     response_type: "code",
