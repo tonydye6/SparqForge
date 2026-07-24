@@ -104,7 +104,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 import { useDropzone } from "react-dropzone";
 import { cn, apiFetch, isForbidden, PERMISSION_DENIED_MESSAGE } from "@/lib/utils";
 import { useIsAdmin, useAuth } from "@/hooks/useAuth";
@@ -162,6 +162,17 @@ export default function Settings() {
     : tabParam === "users" && isAdmin ? "users"
     : "brands";
   const [activeSettingsTab, setActiveSettingsTab] = useState(initialTab);
+
+  // Keep the active tab in sync when the URL's ?tab= changes while Settings
+  // is already mounted (e.g. the Brand Settings section nav jumps to the
+  // Connected Accounts tab via navigation).
+  useEffect(() => {
+    if (tabParam === "accounts" || tabParam === "designers" || (tabParam === "users" && isAdmin)) {
+      setActiveSettingsTab(tabParam);
+    } else if (tabParam === "brands") {
+      setActiveSettingsTab("brands");
+    }
+  }, [tabParam, isAdmin]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden p-6 max-w-[1200px] mx-auto w-full">
@@ -1141,6 +1152,7 @@ function BrandEditor({ brand }: { brand: Brand }) {
   const { data: brandReadiness } = useBrandReadiness(brand.id);
   const [activeSection, setActiveSection] = useState("section-readiness");
   const [deleteBrandOpen, setDeleteBrandOpen] = useState(false);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     const observers: IntersectionObserver[] = [];
@@ -1254,7 +1266,16 @@ function BrandEditor({ brand }: { brand: Brand }) {
                 ? "bg-accent text-accent-foreground font-medium"
                 : "text-muted-foreground hover:text-foreground"
             }`}
-            onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })}
+            onClick={() => {
+              if (id === "section-accounts") {
+                // Connected Accounts lives on its own tab, not in this form.
+                // Scrolling to a dead anchor here used to drag ancestor
+                // containers out of view — navigate to the tab instead.
+                navigate("/settings?tab=accounts");
+                return;
+              }
+              document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
           >
             {label}
           </button>
@@ -1480,9 +1501,6 @@ function BrandEditor({ brand }: { brand: Brand }) {
           <div id="section-fonts">
             <BrandFontManagement brandId={brand.id} />
           </div>
-
-          {/* Connected Accounts anchor for section nav */}
-          <div id="section-accounts" />
 
           <div className="flex justify-end pt-4 pb-8">
             <Button type="submit" disabled={updateBrandMutation.isPending} className="bg-primary hover:bg-primary/90 font-bold px-8 shadow-lg shadow-primary/25">
