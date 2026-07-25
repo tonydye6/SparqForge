@@ -19,6 +19,7 @@ import {
   loadBrand, type DirectorAssetSelection, type AssetCatalog,
 } from "./creative-direction.js";
 import { INTENT_COPY_DIRECTIVES, isIntent } from "../lib/intents.js";
+import { accountPlatformFor } from "../lib/platform-accounts.js";
 import { compositeImage, reframeImage, imageDimensions } from "./compositing.js";
 import { detectSubject, predictClip } from "./focal-point.js";
 import { outpaintImage } from "./imagen.js";
@@ -2307,16 +2308,8 @@ async function executeSchedule(params: {
     ownedVariants.set(sched.variantId, variant as Record<string, unknown>);
   }
 
-  // Mirror the platform-to-account-platform mapping used by publish-scheduler
-  // so we can resolve the correct connected social account for each entry.
-  const ACCOUNT_PLATFORM_MAP: Record<string, string> = {
-    twitter:         "twitter",
-    instagram_feed:  "instagram",
-    instagram_story: "instagram",
-    linkedin:        "linkedin",
-    tiktok:          "tiktok",
-    youtube:         "youtube",
-  };
+  // Platform-to-account mapping is shared with the publish scheduler and the
+  // smart scheduler (lib/platform-accounts.ts) so the three paths cannot drift.
 
   // Load all connected accounts for this brand once, keyed by account platform.
   const brandAccounts = await db
@@ -2334,7 +2327,7 @@ async function executeSchedule(params: {
   // inserting any rows — fail fast with a clear message so the user can
   // connect the missing account in Settings first.
   for (const sched of schedules) {
-    const accountPlatform = ACCOUNT_PLATFORM_MAP[sched.platform] ?? sched.platform;
+    const accountPlatform = accountPlatformFor(sched.platform);
     if (!accountByPlatform.has(accountPlatform)) {
       throw new Error(
         `No connected ${sched.platform} account found for this brand. ` +
@@ -2365,7 +2358,7 @@ async function executeSchedule(params: {
   // publish-scheduler (pollAndPublish) will pick it up at the scheduled time
   // and dispatch through the platform-specific publish services.
   for (const sched of schedules) {
-    const accountPlatform = ACCOUNT_PLATFORM_MAP[sched.platform] ?? sched.platform;
+    const accountPlatform = accountPlatformFor(sched.platform);
     const socialAccountId = accountByPlatform.get(accountPlatform) ?? null;
     const [entry] = await db
       .insert(calendarEntriesTable)

@@ -1,6 +1,6 @@
 import { str } from "../lib/http-params.js";
 import { Router, type IRouter } from "express";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, sql, desc } from "drizzle-orm";
 import { db, creativesTable, creativeVariantsTable, calendarEntriesTable } from "@workspace/db";
 import {
   GetCreativesQueryParams,
@@ -60,9 +60,13 @@ router.get("/creatives", async (req, res): Promise<void> => {
     .where(baseCondition);
   const total = countResult?.count ?? 0;
 
+  // Newest first. Every consumer of this list (Creative History, Review Queue,
+  // the sidebar's review badge) is a "recent work" surface, and each caps the
+  // result at 40-50 rows — so ascending order meant that once the account had
+  // more creatives than the cap, newly created work never appeared at all.
   const results = baseCondition
-    ? await db.select().from(creativesTable).where(baseCondition).orderBy(creativesTable.createdAt).limit(limit).offset(offset)
-    : await db.select().from(creativesTable).orderBy(creativesTable.createdAt).limit(limit).offset(offset);
+    ? await db.select().from(creativesTable).where(baseCondition).orderBy(desc(creativesTable.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(creativesTable).orderBy(desc(creativesTable.createdAt)).limit(limit).offset(offset);
 
   res.json({ data: results, total, limit, offset });
 });

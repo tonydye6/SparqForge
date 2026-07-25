@@ -9,6 +9,7 @@ import { decryptToken } from "./token-encryption";
 import { logger } from "../lib/logger";
 import { sweepPublishFailureAlerts } from "./publish-alerts";
 import { MAX_RETRIES } from "./publish-constants";
+import { accountPlatformFor } from "../lib/platform-accounts";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -113,15 +114,9 @@ async function publishEntry(entryId: string): Promise<void> {
       return null;
     }
 
-    const platformMap: Record<string, string> = {
-      twitter: "twitter",
-      instagram_feed: "instagram",
-      instagram_story: "instagram",
-      linkedin: "linkedin",
-      tiktok: "tiktok",
-      youtube: "youtube",
-    };
-    const expectedPlatform = platformMap[entry.platform] || entry.platform;
+    // Shared with the Co-pilot and smart schedulers (lib/platform-accounts.ts)
+    // so entry creation and publish-time validation cannot disagree.
+    const expectedPlatform = accountPlatformFor(entry.platform);
     if (socialAccount.platform !== expectedPlatform && socialAccount.platform !== entry.platform) {
       await tx.update(calendarEntriesTable)
         .set({
