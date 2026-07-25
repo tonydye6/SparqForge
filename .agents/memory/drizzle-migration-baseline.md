@@ -35,6 +35,14 @@ Note: a task agent's direct `psql`/migrate against ITS isolated env does NOT
 affect the main dev DB — verify the main dev DB's real state, don't assume a
 merged task already applied its migration here.
 
+## Out-of-order journal `when` silently skips a migration
+Drizzle's watermark is the max `created_at` in `__drizzle_migrations`. If a new
+migration's `when` in `meta/_journal.json` is EARLIER than the last applied
+entry (e.g. hand-written or backdated), `migrate` reports "applied successfully"
+while skipping it — routes then 500 on the missing column even though data is
+intact. Fix: bump that entry's `when` above the previous entry and re-run
+migrate. Verify by checking the column exists, not by migrate's exit code.
+
 ## Parallel-task migration collisions
 When two tasks both generate migration N in parallel, resolve the rebase by keeping main's N (and snapshots/journal), deleting your migration file, and regenerating yours as the next index with `pnpm --filter @workspace/db run generate`. If the dev DB already applied your old migration, drop the affected column/table and delete its `drizzle.__drizzle_migrations` row before `migrate`, or it fails with a name-collision error.
 Update (July 2026): a task env's dev DB was found missing migration 0014
