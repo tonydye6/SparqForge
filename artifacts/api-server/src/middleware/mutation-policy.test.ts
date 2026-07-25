@@ -45,11 +45,11 @@ function runGuard(guard: (req: Request, res: Response, next: () => void) => void
 }
 
 describe("mutation authorization policy", () => {
-  it("classifies bulk and destructive mutations as admin-only, standard writes as editor", () => {
+  it("classifies all mutation classes as editor-and-above (owner decision, July 2026)", () => {
     expect(MUTATION_POLICY).toEqual({
       standardWrite: "editor",
-      bulk: "admin",
-      destructive: "admin",
+      bulk: "editor",
+      destructive: "editor",
     });
   });
 
@@ -75,23 +75,21 @@ describe("mutation authorization policy", () => {
   describe.each([
     ["requireBulkMutation", () => requireBulkMutation] as const,
     ["requireDestructive", () => requireDestructive] as const,
-  ])("%s (admin-only)", (_name, getGuard) => {
+  ])("%s (editor and above)", (_name, getGuard) => {
     it("denies a viewer with 403", () => {
       const { allowed, status } = runGuard(getGuard(), "viewer");
       expect(allowed).toBe(false);
       expect(status).toHaveBeenCalledWith(403);
     });
-    it("denies an editor with 403", () => {
-      const { allowed, status } = runGuard(getGuard(), "editor");
-      expect(allowed).toBe(false);
-      expect(status).toHaveBeenCalledWith(403);
+    it("allows an editor", () => {
+      expect(runGuard(getGuard(), "editor").allowed).toBe(true);
     });
     it("allows an admin", () => {
       expect(runGuard(getGuard(), "admin").allowed).toBe(true);
     });
   });
 
-  describe("requireBrandScopedBulkMutation (editor when brand-scoped, admin otherwise)", () => {
+  describe("requireBrandScopedBulkMutation (editor and above, scoped or not)", () => {
     function runScoped(role: Role, body?: Record<string, unknown>) {
       const next = vi.fn();
       const { res, status } = mockRes();
@@ -99,19 +97,14 @@ describe("mutation authorization policy", () => {
       return { allowed: next.mock.calls.length > 0, status };
     }
 
-    it("denies an editor without a brandId (library-wide) with 403", () => {
-      const { allowed, status } = runScoped("editor", {});
-      expect(allowed).toBe(false);
-      expect(status).toHaveBeenCalledWith(403);
+    it("allows an editor without a brandId (library-wide) now that bulk is editor-level", () => {
+      expect(runScoped("editor", {}).allowed).toBe(true);
     });
-    it("denies an editor when brandId is blank", () => {
-      expect(runScoped("editor", { brandId: "  " }).allowed).toBe(false);
+    it("allows an editor when brandId is blank (falls back to bulk policy, editor-level)", () => {
+      expect(runScoped("editor", { brandId: "  " }).allowed).toBe(true);
     });
-    it("denies an editor when brandId is not a string", () => {
-      expect(runScoped("editor", { brandId: 42 }).allowed).toBe(false);
-    });
-    it("denies an editor when the body is missing", () => {
-      expect(runScoped("editor", undefined).allowed).toBe(false);
+    it("allows an editor when the body is missing (bulk policy, editor-level)", () => {
+      expect(runScoped("editor", undefined).allowed).toBe(true);
     });
     it("allows an editor with a brandId (brand-scoped)", () => {
       expect(runScoped("editor", { brandId: "brand-1" }).allowed).toBe(true);

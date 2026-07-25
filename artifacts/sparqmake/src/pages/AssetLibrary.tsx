@@ -449,14 +449,6 @@ export default function AssetLibrary() {
   // Kicks off AI vision analysis for every unanalyzed image asset (optionally
   // scoped to the selected brand). Runs server-side; can take a while.
   const runAnalyzeBackfill = async () => {
-    if (!isAdmin && selectedBrand === "all") {
-      toast({
-        variant: "destructive",
-        title: "Admin only",
-        description: "Analyzing all brands at once requires an admin. Select a specific brand to analyze just that brand.",
-      });
-      return;
-    }
     setBackfillLoading(true);
     try {
       const res = await apiFetch(`${API_BASE}/api/assets/analyze-backfill`, {
@@ -546,8 +538,7 @@ export default function AssetLibrary() {
             <Button
               variant="outline"
               onClick={runAnalyzeBackfill}
-              disabled={backfillLoading || (!isAdmin && selectedBrand === "all")}
-              title={!isAdmin && selectedBrand === "all" ? "Analyzing all brands requires an admin. Select a brand to analyze just that brand." : undefined}
+              disabled={backfillLoading}
               className="border-border"
               data-testid="analyze-all-assets"
             >

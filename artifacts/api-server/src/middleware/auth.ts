@@ -202,8 +202,11 @@ export type MutationClass = "standardWrite" | "bulk" | "destructive";
 
 export const MUTATION_POLICY: Record<MutationClass, AppRole> = {
   standardWrite: "editor",
-  bulk: "admin",
-  destructive: "admin",
+  // Owner decision (July 2026): bulk and destructive operations are open to
+  // editors — viewers remain read-only. The class distinction is kept so the
+  // policy can be re-tightened in one place if roles are ever separated again.
+  bulk: "editor",
+  destructive: "editor",
 };
 
 export function requireMutation(mutationClass: MutationClass) {
