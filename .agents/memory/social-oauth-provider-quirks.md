@@ -14,6 +14,16 @@ description: Meta/X dashboard + credential traps hit while wiring Instagram and 
 - App type "Native App" (public client) matches our secretless PKCE token exchange.
 - X access tokens live ~2h; the hourly token-refresh sweep renews within 24h of expiry. Because of that, "expiring soon" UI is computed as: only warn when the account has no auto-refresh path or lastRefreshError is set.
 
+## TikTok
+- Production client key won't work until app review passes; **sandbox has its own client key/secret** (keys start with `sb`) and its own Login Kit/redirect/scope config plus explicit target users. Swap secrets to sandbox values for testing, back to production after approval.
+- URL-property verification for replit.app domains: use "URL prefix" with a signature txt file served from the frontend `public/` dir (DNS option impossible); prod must be republished before clicking Verify.
+- Unused products (e.g. Share Kit) on the app delay/fail review — remove before submitting.
+
+## LinkedIn
+- `offline_access` is partner-only: authorize fails with `invalid_scope_error: Unknown scope "offline_access"`. Request only `openid profile w_member_social`; tokens last ~60 days with no refresh, user reconnects.
+- Standard products only allow posting as the **person**. Posting as a company page needs the **Community Management API**, which must be the ONLY product on the app → requires a second dedicated LinkedIn app, page association + admin verification, and manual review.
+- LinkedIn's "Bummer" error page doesn't say why; callback must log `error`/`error_description` query params to see the real reason.
+
 ## General
 - OAuth dialogs (Facebook, X) refuse to render inside the Replit preview iframe — Connect buttons must `window.open` a top-level tab; accounts list refetches on window focus.
 - Both dev (picard.replit.dev) and prod (sparqmake.replit.app) callback URLs must be registered per provider.
