@@ -1,6 +1,6 @@
 ---
 name: Social OAuth provider quirks
-description: Meta/X dashboard + credential traps hit while wiring Instagram and X account connections
+description: Meta/X/TikTok/LinkedIn dashboard + credential traps hit while wiring social account connections
 ---
 
 ## Meta (Instagram via Facebook Login for Business)
