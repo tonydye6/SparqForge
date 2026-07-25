@@ -86,6 +86,8 @@ export default function AssetLibrary() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [bulkAnalyzeLoading, setBulkAnalyzeLoading] = useState(false);
+  const [bulkAnalyzeConfirmOpen, setBulkAnalyzeConfirmOpen] = useState(false);
   
   const { data: brands } = useGetBrands();
 
@@ -305,6 +307,56 @@ export default function AssetLibrary() {
 
   const bulkMode = selectedIds.size > 0;
 
+  const BULK_ANALYZE_LARGE_THRESHOLD = 10;
+
+  const eligibleAnalyzeIds = visuals?.data
+    ? Array.from(selectedIds).filter((id) => {
+        const asset = visuals.data.find((a) => a.id === id);
+        return (
+          asset &&
+          asset.type === "visual" &&
+          !asset.aiAnalyzedAt &&
+          !(asset.mimeType || "").includes("video")
+        );
+      })
+    : [];
+
+  const runBulkAnalyze = async () => {
+    if (eligibleAnalyzeIds.length === 0) return;
+    setBulkAnalyzeLoading(true);
+    setBulkAnalyzeConfirmOpen(false);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/assets/bulk-analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (!res.ok) {
+        if (isForbidden(res)) {
+          toast({ variant: "destructive", title: PERMISSION_DENIED_MESSAGE });
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Bulk analyze failed");
+      }
+      const data = await res.json() as { analyzed: number; skipped: number; failed: number };
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+      const parts: string[] = [];
+      if (data.analyzed > 0) parts.push(`${data.analyzed} analyzed`);
+      if (data.skipped > 0) parts.push(`${data.skipped} skipped`);
+      if (data.failed > 0) parts.push(`${data.failed} failed`);
+      toast({
+        title: "Analysis complete",
+        description: parts.join(", ") || "No assets were eligible.",
+        variant: data.failed > 0 ? "destructive" : "default",
+      });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Analysis failed", description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setBulkAnalyzeLoading(false);
+    }
+  };
+
   // Kicks off AI vision analysis for every unanalyzed image asset (optionally
   // scoped to the selected brand). Runs server-side; can take a while.
   const runAnalyzeBackfill = async () => {
@@ -426,14 +478,35 @@ export default function AssetLibrary() {
               </Button>
               {canWrite && (
                 <>
-                  <Button size="sm" onClick={() => bulkUpdate({ status: "approved" })} disabled={bulkLoading} className="bg-success hover:bg-success/90 text-white">
+                  <Button size="sm" onClick={() => bulkUpdate({ status: "approved" })} disabled={bulkLoading || bulkAnalyzeLoading} className="bg-success hover:bg-success/90 text-white">
                     <Check className="w-3.5 h-3.5 mr-1.5" /> Approve Selected
                   </Button>
-                  <Button size="sm" onClick={() => bulkUpdate({ status: "archived" })} disabled={bulkLoading} className="bg-warning hover:bg-warning/90 text-black">
+                  <Button size="sm" onClick={() => bulkUpdate({ status: "archived" })} disabled={bulkLoading || bulkAnalyzeLoading} className="bg-warning hover:bg-warning/90 text-black">
                     <Archive className="w-3.5 h-3.5 mr-1.5" /> Archive Selected
                   </Button>
-                  <BulkTagDialog onApply={(tags) => bulkUpdate({ tags })} disabled={bulkLoading} />
-                  <Button size="sm" onClick={() => setDeleteConfirmOpen(true)} disabled={bulkLoading} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                  <BulkTagDialog onApply={(tags) => bulkUpdate({ tags })} disabled={bulkLoading || bulkAnalyzeLoading} />
+                  {eligibleAnalyzeIds.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        eligibleAnalyzeIds.length > BULK_ANALYZE_LARGE_THRESHOLD
+                          ? setBulkAnalyzeConfirmOpen(true)
+                          : runBulkAnalyze()
+                      }
+                      disabled={bulkLoading || bulkAnalyzeLoading}
+                      className="border-primary/30 text-primary hover:bg-primary/20"
+                      data-testid="bulk-analyze-selected"
+                    >
+                      {bulkAnalyzeLoading ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <Zap className="w-3.5 h-3.5 mr-1.5" />
+                      )}
+                      Analyze Selected ({eligibleAnalyzeIds.length})
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => setDeleteConfirmOpen(true)} disabled={bulkLoading || bulkAnalyzeLoading} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                     <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete Selected
                   </Button>
                 </>
@@ -461,6 +534,27 @@ export default function AssetLibrary() {
                 >
                   {bulkLoading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1.5" />}
                   Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={bulkAnalyzeConfirmOpen} onOpenChange={setBulkAnalyzeConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Analyze {eligibleAnalyzeIds.length} assets?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will run AI analysis on {eligibleAnalyzeIds.length} image{eligibleAnalyzeIds.length !== 1 ? "s" : ""}. Large batches may take a few minutes to complete.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); void runBulkAnalyze(); }}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <Zap className="w-4 h-4 mr-1.5" />
+                  Analyze
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -122,6 +122,53 @@ router.post("/assets/match", async (req, res): Promise<void> => {
   });
 });
 
+router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promise<void> => {
+  const { ids } = req.body as { ids?: string[] };
+
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: "ids array is required and must not be empty" });
+    return;
+  }
+
+  const uniqueIds = [...new Set(ids)];
+
+  const assets = await db.select().from(assetsTable).where(inArray(assetsTable.id, uniqueIds));
+  const notFound = uniqueIds.length - assets.length;
+
+  const eligible = assets.filter(a => isAnalyzableAsset(a) && !a.aiAnalyzedAt);
+  const skippedCount = assets.length - eligible.length + notFound;
+
+  const result = {
+    queued: eligible.length,
+    skipped: skippedCount,
+    analyzed: 0,
+    failed: 0,
+    errors: [] as Array<{ assetId: string; name: string; error: string }>,
+  };
+
+  const CONCURRENCY = 3;
+  for (let i = 0; i < eligible.length; i += CONCURRENCY) {
+    const batch = eligible.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      batch.map(async (asset) => {
+        try {
+          await analyzeAndStoreAsset(asset.id);
+          result.analyzed++;
+        } catch (err) {
+          result.failed++;
+          result.errors.push({
+            assetId: asset.id,
+            name: asset.name,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }),
+    );
+  }
+
+  res.json(result);
+});
+
 router.post("/assets/analyze-backfill", requireBrandScopedBulkMutation, async (req, res): Promise<void> => {
   const { brandId, force, limit } = (req.body || {}) as { brandId?: string; force?: boolean; limit?: number };
   try {
