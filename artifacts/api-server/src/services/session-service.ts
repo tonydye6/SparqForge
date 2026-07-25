@@ -1072,10 +1072,19 @@ async function loadAttachedAssetSlots(params: {
     if (!asset.fileUrl) continue;
     // Enforce policy hard constraints — generationAllowed=false assets and
     // channel/template-gated assets must not reach the model as reference slots.
+    // Compositing-class assets (logos) are checked under the "compositing"
+    // role: an explicit attachment (picker or name-match) is direct user
+    // intent, and the Co-pilot deliberately allows real logos as in-image
+    // references with the verbatim-fidelity note — the same allowance the
+    // director's catalog grants them. Checking them as "generation_reference"
+    // would silently skip the exact logo the user just attached.
+    const policyRole = (asset.compositingOnly || asset.assetClass === "compositing")
+      ? ("compositing" as const)
+      : ("generation_reference" as const);
     const policyCheck = checkGenerationEligibility(
       asset,
       { channel: channel ?? undefined, template: template ?? undefined },
-      "generation_reference",
+      policyRole,
     );
     if (!policyCheck.eligible) {
       logger.warn({ assetId: asset.id, name: asset.name, reason: policyCheck.reason }, "Attached asset blocked by policy; skipping");
