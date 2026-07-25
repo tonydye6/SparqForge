@@ -87,6 +87,7 @@ export default function AssetLibrary() {
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [bulkAnalyzeLoading, setBulkAnalyzeLoading] = useState(false);
+  const [bulkAnalyzeProgress, setBulkAnalyzeProgress] = useState<{ done: number; total: number } | null>(null);
   const [bulkAnalyzeConfirmOpen, setBulkAnalyzeConfirmOpen] = useState(false);
   
   const { data: brands } = useGetBrands();
@@ -324,9 +325,10 @@ export default function AssetLibrary() {
   const runBulkAnalyze = async () => {
     if (eligibleAnalyzeIds.length === 0) return;
     setBulkAnalyzeLoading(true);
+    setBulkAnalyzeProgress({ done: 0, total: eligibleAnalyzeIds.length });
     setBulkAnalyzeConfirmOpen(false);
     try {
-      const res = await apiFetch(`${API_BASE}/api/assets/bulk-analyze`, {
+      const res = await apiFetch(`${API_BASE}/api/assets/bulk-analyze?stream=1`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: Array.from(selectedIds) }),
@@ -339,7 +341,61 @@ export default function AssetLibrary() {
         const data = await res.json().catch(() => ({}));
         throw new Error((data as { error?: string }).error || "Bulk analyze failed");
       }
-      const data = await res.json() as { analyzed: number; skipped: number; failed: number };
+
+      type BulkAnalyzeResult = { analyzed: number; skipped: number; failed: number };
+      type StreamEvent =
+        | { type: "start"; total: number; skipped: number }
+        | { type: "progress"; assetId: string; ok: boolean; done: number; total: number }
+        | { type: "done"; result: BulkAnalyzeResult };
+
+      let finalResult: BulkAnalyzeResult | null = null;
+
+      const handleEvent = (event: StreamEvent) => {
+        if (event.type === "start") {
+          setBulkAnalyzeProgress({ done: 0, total: event.total });
+        } else if (event.type === "progress") {
+          setBulkAnalyzeProgress({ done: event.done, total: event.total });
+          queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+        } else if (event.type === "done") {
+          finalResult = event.result;
+        }
+      };
+
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("ndjson") && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              handleEvent(JSON.parse(line) as StreamEvent);
+            } catch {
+              // ignore malformed lines
+            }
+          }
+        }
+        if (buffer.trim()) {
+          try {
+            handleEvent(JSON.parse(buffer) as StreamEvent);
+          } catch {
+            // ignore malformed trailing line
+          }
+        }
+      } else {
+        finalResult = await res.json() as BulkAnalyzeResult;
+      }
+
+      if (!finalResult) {
+        throw new Error("Analysis was interrupted before it finished.");
+      }
+      const data = finalResult;
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       const parts: string[] = [];
       if (data.analyzed > 0) parts.push(`${data.analyzed} analyzed`);
@@ -351,9 +407,11 @@ export default function AssetLibrary() {
         variant: data.failed > 0 ? "destructive" : "default",
       });
     } catch (err) {
+      queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       toast({ variant: "destructive", title: "Analysis failed", description: err instanceof Error ? err.message : "Please try again." });
     } finally {
       setBulkAnalyzeLoading(false);
+      setBulkAnalyzeProgress(null);
     }
   };
 
@@ -485,7 +543,7 @@ export default function AssetLibrary() {
                     <Archive className="w-3.5 h-3.5 mr-1.5" /> Archive Selected
                   </Button>
                   <BulkTagDialog onApply={(tags) => bulkUpdate({ tags })} disabled={bulkLoading || bulkAnalyzeLoading} />
-                  {eligibleAnalyzeIds.length > 0 && (
+                  {(eligibleAnalyzeIds.length > 0 || bulkAnalyzeLoading) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -503,7 +561,9 @@ export default function AssetLibrary() {
                       ) : (
                         <Zap className="w-3.5 h-3.5 mr-1.5" />
                       )}
-                      Analyze Selected ({eligibleAnalyzeIds.length})
+                      {bulkAnalyzeLoading && bulkAnalyzeProgress
+                        ? `Analyzing\u2026 ${bulkAnalyzeProgress.done} / ${bulkAnalyzeProgress.total}`
+                        : `Analyze Selected (${eligibleAnalyzeIds.length})`}
                     </Button>
                   )}
                   <Button size="sm" onClick={() => setDeleteConfirmOpen(true)} disabled={bulkLoading || bulkAnalyzeLoading} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">

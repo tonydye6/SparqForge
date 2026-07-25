@@ -126,6 +126,7 @@ export const MAX_BULK_ANALYZE = 50;
 
 router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promise<void> => {
   const { ids } = req.body as { ids?: string[] };
+  const stream = req.query.stream === "1";
 
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     res.status(400).json({ error: "ids array is required and must not be empty" });
@@ -156,6 +157,24 @@ router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promi
     errors: [] as Array<{ assetId: string; name: string; error: string }>,
   };
 
+  let clientGone = false;
+  const emit = (event: Record<string, unknown>) => {
+    if (!stream || clientGone || res.writableEnded) return;
+    res.write(`${JSON.stringify(event)}\n`);
+  };
+
+  if (stream) {
+    res.status(200);
+    res.setHeader("Content-Type", "application/x-ndjson");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+    res.on("close", () => {
+      if (!res.writableEnded) clientGone = true;
+    });
+    emit({ type: "start", total: eligible.length, skipped: skippedCount });
+  }
+
   const CONCURRENCY = 3;
   for (let i = 0; i < eligible.length; i += CONCURRENCY) {
     const batch = eligible.slice(i, i + CONCURRENCY);
@@ -164,6 +183,7 @@ router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promi
         try {
           await analyzeAndStoreAsset(asset.id);
           result.analyzed++;
+          emit({ type: "progress", assetId: asset.id, ok: true, done: result.analyzed + result.failed, total: eligible.length });
         } catch (err) {
           result.failed++;
           result.errors.push({
@@ -171,12 +191,18 @@ router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promi
             name: asset.name,
             error: err instanceof Error ? err.message : String(err),
           });
+          emit({ type: "progress", assetId: asset.id, ok: false, done: result.analyzed + result.failed, total: eligible.length });
         }
       }),
     );
   }
 
-  res.json(result);
+  if (stream) {
+    emit({ type: "done", result });
+    if (!res.writableEnded) res.end();
+  } else {
+    res.json(result);
+  }
 });
 
 router.post("/assets/analyze-backfill", requireBrandScopedBulkMutation, async (req, res): Promise<void> => {
