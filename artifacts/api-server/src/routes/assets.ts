@@ -122,6 +122,8 @@ router.post("/assets/match", async (req, res): Promise<void> => {
   });
 });
 
+export const MAX_BULK_ANALYZE = 50;
+
 router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promise<void> => {
   const { ids } = req.body as { ids?: string[] };
 
@@ -130,7 +132,15 @@ router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promi
     return;
   }
 
+  // De-duplicate before enforcing the cap so a caller passing repeats isn't
+  // rejected for exceeding a limit it doesn't actually hit.
   const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length > MAX_BULK_ANALYZE) {
+    res.status(400).json({
+      error: `Too many ids: ${uniqueIds.length}. A single bulk analyze accepts at most ${MAX_BULK_ANALYZE}.`,
+    });
+    return;
+  }
 
   const assets = await db.select().from(assetsTable).where(inArray(assetsTable.id, uniqueIds));
   const notFound = uniqueIds.length - assets.length;
