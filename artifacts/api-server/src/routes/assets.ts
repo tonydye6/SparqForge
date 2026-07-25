@@ -18,7 +18,7 @@ import { backfillAssetClassifications } from "../services/backfill-assets.js";
 import { analyzeAndStoreAsset, backfillAssetAnalysis, analyzeAssetInBackground, isAnalyzableAsset } from "../services/asset-analysis.js";
 import { matchAssetsToBrief } from "../services/asset-matching.js";
 import { validateRequest } from "../middleware/validate.js";
-import { requireBulkMutation, requireBrandScopedBulkMutation, requireDestructive } from "../middleware/auth.js";
+import { requireBulkMutation, requireBrandScopedBulkMutation, requireDestructive, requireStandardWrite } from "../middleware/auth.js";
 import { recordAudit, actorFromRequest } from "../lib/audit.js";
 import { softDeleteBackingObjects, MAX_BULK_DELETE } from "../services/deletion.js";
 
@@ -144,7 +144,9 @@ router.post("/assets/match", async (req, res): Promise<void> => {
 
 export const MAX_BULK_ANALYZE = 50;
 
-router.post("/assets/bulk-analyze", requireBulkMutation, async (req, res): Promise<void> => {
+// Analysis is additive and provenance-aware (never overwrites user-confirmed
+// values), so unlike bulk-update/delete it is gated at editor, not admin.
+router.post("/assets/bulk-analyze", requireStandardWrite, async (req, res): Promise<void> => {
   const { ids } = req.body as { ids?: string[] };
   const stream = req.query.stream === "1";
 

@@ -152,6 +152,7 @@ function routeHasGuard(
 describe("destructive & bulk endpoints are wired to the policy guards", () => {
   it.each([
     ["assets analyze-backfill", assetsRouter, "post", "/assets/analyze-backfill", requireBrandScopedBulkMutation],
+    ["assets bulk-analyze", assetsRouter, "post", "/assets/bulk-analyze", requireStandardWrite],
     ["assets bulk-update", assetsRouter, "post", "/assets/bulk-update", requireBulkMutation],
     ["assets bulk-delete", assetsRouter, "post", "/assets/bulk-delete", requireBulkMutation],
     ["asset delete", assetsRouter, "delete", "/assets/:id", requireDestructive],
