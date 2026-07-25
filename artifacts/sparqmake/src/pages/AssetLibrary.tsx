@@ -817,7 +817,19 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
   const [usageLoading, setUsageLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [thumbBroken, setThumbBroken] = useState(false);
+  const [thumbRetries, setThumbRetries] = useState(0);
   const [fileBroken, setFileBroken] = useState(false);
+
+  const handleThumbError = () => {
+    // Transient failures (e.g. rate-limited bursts on page load) shouldn't
+    // permanently show "File missing" — retry a couple of times with backoff.
+    if (thumbRetries < 2) {
+      const next = thumbRetries + 1;
+      setTimeout(() => setThumbRetries(next), 1500 * next);
+    } else {
+      setThumbBroken(true);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && usageData === null) {
@@ -924,10 +936,11 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
         <div className="aspect-square bg-muted/30 relative overflow-hidden">
           {(asset.thumbnailUrl || asset.fileUrl) && !thumbBroken ? (
             <img 
-              src={asset.thumbnailUrl || asset.fileUrl || ""} 
+              key={thumbRetries}
+              src={`${asset.thumbnailUrl || asset.fileUrl || ""}${thumbRetries > 0 ? `?r=${thumbRetries}` : ""}`} 
               alt={asset.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100"
-              onError={() => setThumbBroken(true)}
+              onError={handleThumbError}
             />
           ) : thumbBroken ? (
             <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-muted-foreground" data-testid={`asset-file-missing-${asset.id}`}>

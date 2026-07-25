@@ -88,9 +88,11 @@ app.use((req, _res, next) => {
 app.use("/api", healthRouter);
 app.use("/api", authRouter);
 
+// Media/thumbnail serving: an Asset Library page load alone fires 50+ image
+// requests at once, so this must be much higher than the global API limit.
 const fileServingLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many file requests, please try again later." },
