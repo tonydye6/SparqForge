@@ -43,6 +43,7 @@ export interface Asset {
   colors?: string[] | null;
   styleNotes?: string | null;
   aiAnalyzedAt?: Date | null;
+  aiSuggestedFields?: string[] | null;
   lastUsedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;

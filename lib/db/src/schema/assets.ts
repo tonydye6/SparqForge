@@ -40,6 +40,7 @@ export const assetsTable = pgTable("assets", {
   colors: text("colors").array().default([]),
   styleNotes: text("style_notes"),
   aiAnalyzedAt: timestamp("ai_analyzed_at"),
+  aiSuggestedFields: text("ai_suggested_fields").array().default([]),
   lastUsedAt: timestamp("last_used_at"),
   fontWeight: text("font_weight"),
   fontName: text("font_name"),

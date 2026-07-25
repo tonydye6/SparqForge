@@ -2336,6 +2336,12 @@ components:
           type: string
           format: date-time
           nullable: true
+        aiSuggestedFields:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Intelligence field names that were set by AI analysis and have not yet been confirmed by a user edit.
         lastUsedAt:
           type: string
           format: date-time
@@ -2480,6 +2486,10 @@ components:
           nullable: true
         characterIdentityNote:
           type: string
+        conflictTags:
+          type: array
+          items:
+            type: string
         depictedEntities:
           type: array
           items:

@@ -15,6 +15,12 @@ export interface AssetAnalysisResult {
   colors: string[];
   styleNotes: string;
   characterIdentityNote: string;
+  brandLayer: string | null;
+  subjectIdentityScore: number | null;
+  styleStrengthScore: number | null;
+  freshnessScore: number | null;
+  generationAllowed: boolean;
+  conflictTagHints: string[];
 }
 
 const KIND_TO_CLASS: Record<string, { assetClass: string; generationRole: string }> = {
@@ -29,6 +35,20 @@ const KIND_TO_CLASS: Record<string, { assetClass: string; generationRole: string
   graphic: { assetClass: "style_reference", generationRole: "supporting" },
 };
 
+const INTELLIGENCE_FIELDS = [
+  "assetClass",
+  "generationRole",
+  "brandLayer",
+  "compositingOnly",
+  "generationAllowed",
+  "subjectIdentityScore",
+  "styleStrengthScore",
+  "freshnessScore",
+  "conflictTags",
+] as const;
+
+type IntelligenceField = typeof INTELLIGENCE_FIELDS[number];
+
 function buildPrompt(asset: Asset): string {
   return `You are an asset librarian for a sports marketing content platform.
 
@@ -41,6 +61,12 @@ Analyze the provided image (asset filename: "${asset.name}"). Return a JSON obje
 - "colors": array of 2-5 dominant colors as simple names or hex (e.g. ["navy blue", "#F5A623", "white"])
 - "styleNotes": one sentence on visual style (e.g. "high-contrast dramatic stadium photography with cool tones")
 - "characterIdentityNote": if kind is character/mascot/person, one sentence identifying who this is with distinguishing features for identity-consistent AI generation; otherwise empty string.
+- "brandLayer": if the image is a logo or brand mark, one of "primary_logo", "secondary_mark", "watermark", "partner"; otherwise null.
+- "subjectIdentityScore": integer 1-5 rating how clearly and fully the subject is depicted for AI identity reference (5=very clear full-body or close-up, high quality; 1=barely visible or heavily obscured). Only meaningful for character/mascot/person/product kinds — return null for logos, scenes, backgrounds, or textures.
+- "styleStrengthScore": integer 1-5 rating how distinctive and strong the visual style is (5=very distinctive recognizable style; 1=generic/bland). Most meaningful for scene/background/texture/graphic kinds — return null for logos.
+- "freshnessScore": integer 1-5 rating how modern and high-production the asset feels (5=very polished and contemporary; 1=dated or very low quality).
+- "generationAllowed": boolean, true in almost all cases. Set false only if the image clearly contains a competitor brand's trademark/logo, external celebrity likeness without apparent authorization, or other content that should not be used for AI generation.
+- "conflictTagHints": array of 0-3 short strings suggesting potential conflict categories only when you have strong visual evidence (e.g. ["competitor_logo"] if a rival brand mark is clearly visible). Usually return empty array [].
 
 Return ONLY valid JSON, no markdown code blocks or extra text.`;
 }
@@ -85,6 +111,16 @@ export async function analyzeAssetImage(asset: Asset): Promise<AssetAnalysisResu
   const toStringArray = (v: unknown): string[] =>
     Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map(s => s.trim()).filter(Boolean) : [];
 
+  const toNullableInt = (v: unknown, min = 1, max = 5): number | null => {
+    if (v === null || v === undefined) return null;
+    const n = typeof v === "number" ? Math.round(v) : parseInt(String(v), 10);
+    if (isNaN(n)) return null;
+    return Math.max(min, Math.min(max, n));
+  };
+
+  const VALID_BRAND_LAYERS = ["primary_logo", "secondary_mark", "watermark", "partner"];
+  const brandLayerRaw = typeof parsed.brandLayer === "string" ? parsed.brandLayer : null;
+
   return {
     description: typeof parsed.description === "string" ? parsed.description : "",
     kind: typeof parsed.kind === "string" ? parsed.kind.toLowerCase() : "other",
@@ -93,6 +129,12 @@ export async function analyzeAssetImage(asset: Asset): Promise<AssetAnalysisResu
     colors: toStringArray(parsed.colors),
     styleNotes: typeof parsed.styleNotes === "string" ? parsed.styleNotes : "",
     characterIdentityNote: typeof parsed.characterIdentityNote === "string" ? parsed.characterIdentityNote : "",
+    brandLayer: brandLayerRaw && VALID_BRAND_LAYERS.includes(brandLayerRaw) ? brandLayerRaw : null,
+    subjectIdentityScore: toNullableInt(parsed.subjectIdentityScore),
+    styleStrengthScore: toNullableInt(parsed.styleStrengthScore),
+    freshnessScore: toNullableInt(parsed.freshnessScore),
+    generationAllowed: parsed.generationAllowed === false ? false : true,
+    conflictTagHints: toStringArray(parsed.conflictTagHints),
   };
 }
 
@@ -109,6 +151,23 @@ export async function analyzeAndStoreAsset(assetId: string): Promise<Asset> {
 
   const analysis = await analyzeAssetImage(asset);
 
+  const currentAiFields = new Set<string>(asset.aiSuggestedFields || []);
+
+  // Overwrite rule for non-boolean intelligence fields:
+  //   • Field is in aiSuggestedFields  → AI set it last time, not yet user-confirmed → refresh it
+  //   • Field is genuinely unset (null / empty string / empty array) → AI can populate for first time
+  //   • Anything else → user has a real value (pre-analysis manual entry or confirmed save) → skip
+  // NOTE: booleans use setIntelligenceBool below because null/undefined can't be the proxy for
+  //   "never set" (Postgres fills in the column default before we can see it).
+  const canOverwrite = (fieldName: IntelligenceField, currentValue: unknown): boolean => {
+    if (currentAiFields.has(fieldName)) return true;
+    if (currentValue === null || currentValue === undefined || currentValue === "") return true;
+    if (Array.isArray(currentValue) && currentValue.length === 0) return true;
+    return false;
+  };
+
+  const newAiSuggestedFields = new Set<string>(currentAiFields);
+
   const mergedTags = [...new Set([...(asset.tags || []), ...analysis.tags])];
   const updates: Record<string, unknown> = {
     description: analysis.description || asset.description,
@@ -120,18 +179,103 @@ export async function analyzeAndStoreAsset(assetId: string): Promise<Asset> {
     updatedAt: new Date(),
   };
 
+  // Standard helper: skip null/undefined/empty-array AI values; respect canOverwrite.
+  const setIntelligenceField = (
+    fieldName: IntelligenceField,
+    currentValue: unknown,
+    newValue: unknown,
+  ) => {
+    if (newValue === null || newValue === undefined) return;
+    if (Array.isArray(newValue) && newValue.length === 0) return;
+    if (canOverwrite(fieldName, currentValue)) {
+      updates[fieldName] = newValue;
+      newAiSuggestedFields.add(fieldName);
+    }
+  };
+
+  // Boolean helper: booleans always have a Postgres default so we can't use "is null" to detect
+  // "never set".  Rules:
+  //   1. Field already AI-suggested → always refresh (allows flipping back to true, etc.)
+  //   2. AI wants to set a NON-default value AND current value equals the schema default
+  //      → field is almost certainly at its DB-initialised default, not user-confirmed → set it.
+  //   3. Otherwise (user confirmed a non-default value, or AI just reaffirms an already-default
+  //      value with no provenance) → skip.
+  const setIntelligenceBool = (
+    fieldName: IntelligenceField,
+    currentValue: boolean | null | undefined,
+    newValue: boolean,
+    schemaDefault: boolean,
+  ) => {
+    if (currentAiFields.has(fieldName)) {
+      updates[fieldName] = newValue;
+      newAiSuggestedFields.add(fieldName);
+    } else if (
+      newValue !== schemaDefault &&
+      (currentValue === schemaDefault || currentValue === null || currentValue === undefined)
+    ) {
+      updates[fieldName] = newValue;
+      newAiSuggestedFields.add(fieldName);
+    }
+  };
+
+  // Clearable array helper: when the field is AI-suggested, refresh even to [] (AI "cleared" its
+  // own suggestion); otherwise behave like setIntelligenceField.
+  const setIntelligenceArrayClearable = (
+    fieldName: IntelligenceField,
+    currentValue: unknown,
+    newValue: unknown[],
+  ) => {
+    if (currentAiFields.has(fieldName)) {
+      updates[fieldName] = newValue;
+      if (newValue.length > 0) {
+        newAiSuggestedFields.add(fieldName);
+      } else {
+        newAiSuggestedFields.delete(fieldName);
+      }
+    } else if (newValue.length > 0 && canOverwrite(fieldName, currentValue)) {
+      updates[fieldName] = newValue;
+      newAiSuggestedFields.add(fieldName);
+    }
+  };
+
   const mapping = KIND_TO_CLASS[analysis.kind];
-  if (mapping && !asset.assetClass) {
-    updates.assetClass = mapping.assetClass;
-    if (!asset.generationRole) updates.generationRole = mapping.generationRole;
+  if (mapping) {
+    setIntelligenceField("assetClass", asset.assetClass, mapping.assetClass);
+    setIntelligenceField("generationRole", asset.generationRole, mapping.generationRole);
     if (mapping.assetClass === "compositing") {
-      updates.compositingOnly = true;
-      updates.approvedForCompositing = true;
+      setIntelligenceBool("compositingOnly", asset.compositingOnly, true, false);
+      if (!asset.approvedForCompositing) updates.approvedForCompositing = true;
     }
   }
+
+  if (analysis.brandLayer) {
+    setIntelligenceField("brandLayer", asset.brandLayer, analysis.brandLayer);
+  }
+
+  if (analysis.subjectIdentityScore !== null) {
+    setIntelligenceField("subjectIdentityScore", asset.subjectIdentityScore, analysis.subjectIdentityScore / 5);
+  }
+
+  if (analysis.styleStrengthScore !== null) {
+    setIntelligenceField("styleStrengthScore", asset.styleStrengthScore, analysis.styleStrengthScore / 5);
+  }
+
+  if (analysis.freshnessScore !== null) {
+    setIntelligenceField("freshnessScore", asset.freshnessScore, analysis.freshnessScore / 5);
+  }
+
+  // Always pass generationAllowed (true or false) so re-analysis can refresh an AI-suggested
+  // false back to true when content is later deemed safe.
+  setIntelligenceBool("generationAllowed", asset.generationAllowed, analysis.generationAllowed, true);
+
+  // Use clearable helper so existing AI-suggested conflict tags are cleared when AI finds none.
+  setIntelligenceArrayClearable("conflictTags", asset.conflictTags, analysis.conflictTagHints);
+
   if (analysis.characterIdentityNote && !asset.characterIdentityNote) {
     updates.characterIdentityNote = analysis.characterIdentityNote;
   }
+
+  updates.aiSuggestedFields = Array.from(newAiSuggestedFields);
 
   const [updated] = await db
     .update(assetsTable)

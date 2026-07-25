@@ -1443,6 +1443,14 @@ function BriefsTab({ briefs, brands, isLoading, canWrite }: { briefs: Asset[], b
   );
 }
 
+function AiBadge() {
+  return (
+    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-primary/15 text-primary border border-primary/30 leading-none">
+      <Zap size={8} />AI
+    </span>
+  );
+}
+
 function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUpdate: (updates: any) => void; isPending: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [assetClass, setAssetClass] = useState(asset.assetClass || "");
@@ -1457,6 +1465,24 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
   const [conflictTagsStr, setConflictTagsStr] = useState((asset.conflictTags || []).join(", "));
   const [approvedChannelsStr, setApprovedChannelsStr] = useState((asset.approvedChannels || []).join(", "));
   const [approvedTemplatesStr, setApprovedTemplatesStr] = useState((asset.approvedTemplates || []).join(", "));
+
+  const aiSuggested = new Set(asset.aiSuggestedFields || []);
+  const isAi = (field: string) => aiSuggested.has(field);
+
+  useEffect(() => {
+    setAssetClass(asset.assetClass || "");
+    setGenerationRole(asset.generationRole || "");
+    setBrandLayer(asset.brandLayer || "");
+    setFranchise(asset.franchise || "");
+    setSubjectScore(Math.round((asset.subjectIdentityScore || 0) * 5));
+    setStyleScore(Math.round((asset.styleStrengthScore || 0) * 5));
+    setFreshnessScoreVal(Math.round((asset.freshnessScore || 0) * 5));
+    setCompositingOnly(asset.compositingOnly || false);
+    setGenerationAllowed(asset.generationAllowed !== false);
+    setConflictTagsStr((asset.conflictTags || []).join(", "));
+    setApprovedChannelsStr((asset.approvedChannels || []).join(", "));
+    setApprovedTemplatesStr((asset.approvedTemplates || []).join(", "));
+  }, [asset.id, asset.aiAnalyzedAt]);
 
   const handleSave = () => {
     onUpdate({
@@ -1475,6 +1501,8 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
     });
   };
 
+  const hasSuggestions = aiSuggested.size > 0;
+
   return (
     <div className="bg-background rounded-lg border border-border overflow-hidden">
       <button
@@ -1484,15 +1512,27 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
         <div className="flex items-center gap-2">
           <Zap size={14} className="text-primary" />
           <span className="text-xs uppercase font-semibold text-muted-foreground">Asset Intelligence</span>
+          {hasSuggestions && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-primary/15 text-primary border border-primary/30">
+              <Zap size={8} /> {aiSuggested.size} AI suggestion{aiSuggested.size !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
         <span className="text-xs text-muted-foreground">{expanded ? "Collapse" : "Expand"}</span>
       </button>
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4 border-t border-border pt-4">
+          {hasSuggestions && (
+            <p className="text-[11px] text-muted-foreground bg-primary/5 border border-primary/20 rounded-md px-3 py-2">
+              Fields marked <AiBadge /> were filled by AI analysis. Save to confirm them, or edit before saving.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Asset Role</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Asset Role {isAi("assetClass") && <AiBadge />}
+              </label>
               <Select value={assetClass} onValueChange={setAssetClass}>
                 <SelectTrigger className="h-8 text-xs bg-card border-border">
                   <SelectValue placeholder="Select class" />
@@ -1506,7 +1546,9 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Generation Role</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Generation Role {isAi("generationRole") && <AiBadge />}
+              </label>
               <Select value={generationRole} onValueChange={setGenerationRole}>
                 <SelectTrigger className="h-8 text-xs bg-card border-border">
                   <SelectValue placeholder="Select role" />
@@ -1523,7 +1565,9 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Brand Layer</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Brand Layer {isAi("brandLayer") && <AiBadge />}
+              </label>
               <Select value={brandLayer} onValueChange={setBrandLayer}>
                 <SelectTrigger className="h-8 text-xs bg-card border-border">
                   <SelectValue placeholder="Select layer" />
@@ -1555,26 +1599,36 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Subject Identity Score</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Subject Identity Score {isAi("subjectIdentityScore") && <AiBadge />}
+              </label>
               <StarRating value={subjectScore} onChange={setSubjectScore} size={12} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Style Strength Score</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Style Strength Score {isAi("styleStrengthScore") && <AiBadge />}
+              </label>
               <StarRating value={styleScore} onChange={setStyleScore} size={12} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Freshness Score</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Freshness Score {isAi("freshnessScore") && <AiBadge />}
+              </label>
               <StarRating value={freshnessScoreVal} onChange={setFreshnessScoreVal} size={12} />
             </div>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Compositing Only</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Compositing Only {isAi("compositingOnly") && <AiBadge />}
+              </label>
               <Switch checked={compositingOnly} onCheckedChange={setCompositingOnly} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Generation Allowed</label>
+              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+                Generation Allowed {isAi("generationAllowed") && <AiBadge />}
+              </label>
               <Switch checked={generationAllowed} onCheckedChange={setGenerationAllowed} />
             </div>
           </div>
@@ -1590,12 +1644,14 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Conflict Tags (comma separated)</label>
+            <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              Conflict Tags (comma separated) {isAi("conflictTags") && <AiBadge />}
+            </label>
             <Input value={conflictTagsStr} onChange={e => setConflictTagsStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="e.g. competitor_a, rival_brand" />
           </div>
 
           <Button size="sm" onClick={handleSave} disabled={isPending} className="w-full">
-            {isPending ? "Saving..." : "Save Intelligence Data"}
+            {isPending ? "Saving..." : hasSuggestions ? "Confirm & Save Intelligence" : "Save Intelligence Data"}
           </Button>
         </div>
       )}

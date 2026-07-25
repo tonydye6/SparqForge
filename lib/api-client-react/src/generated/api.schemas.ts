@@ -80,6 +80,7 @@ export interface Asset {
   colors?: string[] | null;
   styleNotes?: string | null;
   aiAnalyzedAt?: string | null;
+  aiSuggestedFields?: string[] | null;
   lastUsedAt?: string | null;
   createdAt: string;
   updatedAt: string;

@@ -408,6 +408,26 @@ router.put("/assets/:id", validateRequest({ params: UpdateAssetParams, body: Upd
     updateData.approvedAt = new Date();
   }
 
+  const INTELLIGENCE_FIELDS_PUT = [
+    "assetClass", "generationRole", "brandLayer", "compositingOnly",
+    "generationAllowed", "subjectIdentityScore", "styleStrengthScore",
+    "freshnessScore", "conflictTags",
+  ];
+  const intelligenceFieldsBeingSet = INTELLIGENCE_FIELDS_PUT.filter(
+    f => req.body[f] !== undefined,
+  );
+
+  if (intelligenceFieldsBeingSet.length > 0) {
+    const [current] = await db
+      .select({ aiSuggestedFields: assetsTable.aiSuggestedFields })
+      .from(assetsTable)
+      .where(eq(assetsTable.id, str(req.params.id)));
+    if (current) {
+      updateData.aiSuggestedFields = (current.aiSuggestedFields || [])
+        .filter((f: string) => !intelligenceFieldsBeingSet.includes(f));
+    }
+  }
+
   const [asset] = await db
     .update(assetsTable)
     .set(updateData)
@@ -464,7 +484,30 @@ router.put("/assets/:id/metadata", async (req, res): Promise<void> => {
     return;
   }
 
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  const [current] = await db.select({ aiSuggestedFields: assetsTable.aiSuggestedFields })
+    .from(assetsTable).where(eq(assetsTable.id, assetId));
+  if (!current) {
+    res.status(404).json({ error: "Asset not found" });
+    return;
+  }
+
+  const INTELLIGENCE_FIELDS = [
+    "assetClass", "generationRole", "brandLayer", "compositingOnly",
+    "generationAllowed", "subjectIdentityScore", "styleStrengthScore",
+    "freshnessScore", "conflictTags",
+  ];
+  const fieldsBeingSet = new Set(
+    Object.entries(req.body)
+      .filter(([k, v]) => INTELLIGENCE_FIELDS.includes(k) && v !== undefined)
+      .map(([k]) => k),
+  );
+  const remainingAiFields = (current.aiSuggestedFields || [])
+    .filter(f => !fieldsBeingSet.has(f));
+
+  const updateData: Record<string, unknown> = {
+    updatedAt: new Date(),
+    aiSuggestedFields: remainingAiFields,
+  };
   if (assetClass !== undefined) updateData.assetClass = assetClass;
   if (generationRole !== undefined) updateData.generationRole = generationRole;
   if (brandLayer !== undefined) updateData.brandLayer = brandLayer;
