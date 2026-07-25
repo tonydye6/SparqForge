@@ -8,6 +8,25 @@
 
 const LOGO_TERM = /\b(logos?|word\s?marks?|logo\s?marks?|watermarks?|brand\s?marks?)\b/i;
 
+// Broader mark vocabulary, used ONLY to decide whether an instruction is
+// talking about a brand mark at all. Kept separate from LOGO_TERM on purpose:
+// LOGO_TERM drives sanitizeLogoInstructions (which strips sentences out of
+// legacy image prompts), and widening it would change what the legacy pipeline
+// removes from briefs.
+const MARK_TERM = /\b(logos?|word\s?marks?|logo\s?marks?|watermarks?|brand\s?marks?|icons?|badges?|crests?|emblems?)\b/i;
+
+/**
+ * Does this text ask for a brand mark?
+ *
+ * Used by the Co-pilot attachment path: a compositing-class asset (a logo) is
+ * only auto-attached by name match when the user is actually talking about a
+ * mark. Without this gate, a logo asset named after the brand would be pulled
+ * into every instruction that merely mentions the brand.
+ */
+export function mentionsBrandMark(text: string | null | undefined): boolean {
+  return MARK_TERM.test(text || "");
+}
+
 export type LogoPlacementPosition = "top_left" | "top_right" | "bottom_left" | "bottom_right";
 
 export interface LogoAssetLite {

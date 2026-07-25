@@ -435,18 +435,28 @@ export function SessionView({ sessionId, onBack, autoDraftBrief }: SessionViewPr
           generationAllowed?: boolean | null;
           compositingOnly?: boolean | null;
           assetClass?: string | null;
+          approvedForCompositing?: boolean | null;
         }>;
       };
       const list = (data.data ?? [])
         .filter(a => a.fileUrl && (!a.mimeType || a.mimeType.startsWith("image/")))
         .map(a => {
-          // Annotate assets that are ineligible as generation references so
-          // the asset picker can badge them with a human-readable reason.
+          // Mirror of the server's checkAttachmentEligibility for an explicit
+          // pick (services/asset-policy.ts). Keep the two in step: a mismatch
+          // either hides a usable asset or lets a blocked one be attached and
+          // then silently dropped server-side.
+          //
+          // Brand marks ARE attachable: the Co-pilot passes a picked logo to
+          // the model as an exact in-image reference. Only an explicit human
+          // opt-out on a managed row blocks them.
           let ineligibleReason: string | undefined;
-          if (a.generationAllowed === false) {
+          const isMark = Boolean(a.compositingOnly || a.assetClass === "compositing");
+          if (isMark) {
+            if (a.assetClass === "compositing" && a.approvedForCompositing === false) {
+              ineligibleReason = "Not approved for logo use";
+            }
+          } else if (a.generationAllowed === false) {
             ineligibleReason = "Not approved for AI generation";
-          } else if (a.compositingOnly || a.assetClass === "compositing") {
-            ineligibleReason = "Compositing-only asset (use logo overlay instead)";
           }
           return { ...a, ineligibleReason };
         });
