@@ -9,9 +9,11 @@ import {
   creativeVariantsTable,
   calendarEntriesTable,
   smartScheduleProposalsTable,
+  socialAccountsTable,
 } from "@workspace/db";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
+import { accountPlatformFor } from "../lib/platform-accounts.js";
 
 const router: IRouter = Router();
 
@@ -605,10 +607,56 @@ router.post(
     // Goal-aware posting: snapshot each creative's intent onto its entries.
     const confirmCreativeIds = [...new Set(proposalInputs.map((p: { creativeId: string }) => p.creativeId))];
     const confirmCreatives = await db
-      .select({ id: creativesTable.id, intent: creativesTable.intent })
+      .select({ id: creativesTable.id, intent: creativesTable.intent, brandId: creativesTable.brandId })
       .from(creativesTable)
       .where(sql`${creativesTable.id} = ANY(${confirmCreativeIds})`);
     const intentByCreative = new Map(confirmCreatives.map((c) => [c.id, c.intent]));
+    const brandByCreative = new Map(confirmCreatives.map((c) => [c.id, c.brandId]));
+
+    // Resolve the connected social account for every entry BEFORE inserting.
+    // The publisher refuses to send an entry without a socialAccountId and the
+    // auto-retry sweep skips those rows, so an entry created without one fails
+    // permanently and silently. This path used to omit it entirely; the
+    // Co-pilot's own scheduling has always resolved it (see session-service).
+    const confirmBrandIds = [...new Set([...brandByCreative.values()].filter(Boolean))] as string[];
+    const connectedAccounts = confirmBrandIds.length > 0
+      ? await db
+          .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform, brandId: socialAccountsTable.brandId })
+          .from(socialAccountsTable)
+          .where(
+            and(
+              sql`${socialAccountsTable.brandId} = ANY(${confirmBrandIds})`,
+              eq(socialAccountsTable.status, "connected"),
+            ),
+          )
+      : [];
+    const accountByBrandPlatform = new Map(
+      connectedAccounts.map((a) => [`${a.brandId}:${a.platform}`, a.id]),
+    );
+
+    const accountIdFor = (creativeId: string, platform: string): string | undefined => {
+      const brandId = brandByCreative.get(creativeId);
+      if (!brandId) return undefined;
+      return accountByBrandPlatform.get(`${brandId}:${accountPlatformFor(platform)}`);
+    };
+
+    // Fail the whole batch rather than scheduling posts that cannot publish.
+    const unconnected = [
+      ...new Set(
+        proposalInputs
+          .filter((p: { creativeId: string; platform: string }) => !accountIdFor(p.creativeId, p.platform))
+          .map((p: { platform: string }) => p.platform),
+      ),
+    ];
+    if (unconnected.length > 0) {
+      res.status(400).json({
+        error:
+          `No connected account for: ${unconnected.join(", ")}. ` +
+          `Connect the account in Settings before scheduling, or deselect those platforms.`,
+        unconnectedPlatforms: unconnected,
+      });
+      return;
+    }
 
     const created: (typeof calendarEntriesTable.$inferSelect)[] = [];
     const creativesScheduled: string[] = [];
@@ -651,6 +699,7 @@ router.post(
             creativeId: p.creativeId,
             variantId: p.variantId,
             platform: p.platform,
+            socialAccountId: accountIdFor(p.creativeId, p.platform) ?? null,
             scheduledAt,
             scheduleMethod: "smart_schedule",
             proposalId: matchedProposal?.id || null,

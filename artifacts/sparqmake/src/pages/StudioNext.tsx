@@ -339,8 +339,12 @@ function HistoryPicker({ dispatch }: { dispatch: Dispatch<StudioAction> }) {
     void apiFetch(`${API_BASE}/api/creatives?limit=40`)
       .then((r) => (r.ok ? r.json() : { data: [] }))
       .then((data: { data?: HistoryCreative[] }) => {
+        // The API returns newest-first; render in that order. (This used to
+        // reverse the list to compensate for an ascending server sort, which
+        // combined with the 40-row cap to hide all recent work once the
+        // account had more than 40 creatives.)
         const list = Array.isArray(data.data) ? data.data : [];
-        setCreatives(list.slice().reverse());
+        setCreatives(list);
         setLoading(false);
       })
       .catch(() => setLoading(false));
