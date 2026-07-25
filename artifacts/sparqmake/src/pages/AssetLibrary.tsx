@@ -309,6 +309,8 @@ export default function AssetLibrary() {
   const bulkMode = selectedIds.size > 0;
 
   const BULK_ANALYZE_LARGE_THRESHOLD = 10;
+  // Must not exceed MAX_BULK_ANALYZE in artifacts/api-server/src/routes/assets.ts
+  const BULK_ANALYZE_BATCH_SIZE = 50;
 
   const eligibleAnalyzeIds = visuals?.data
     ? Array.from(selectedIds).filter((id) => {
@@ -328,83 +330,112 @@ export default function AssetLibrary() {
     setBulkAnalyzeProgress({ done: 0, total: eligibleAnalyzeIds.length });
     setBulkAnalyzeConfirmOpen(false);
     try {
-      const res = await apiFetch(`${API_BASE}/api/assets/bulk-analyze?stream=1`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selectedIds) }),
-      });
-      if (!res.ok) {
-        if (isForbidden(res)) {
-          toast({ variant: "destructive", title: PERMISSION_DENIED_MESSAGE });
-          return;
-        }
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error || "Bulk analyze failed");
-      }
-
       type BulkAnalyzeResult = { analyzed: number; skipped: number; failed: number };
       type StreamEvent =
         | { type: "start"; total: number; skipped: number }
         | { type: "progress"; assetId: string; ok: boolean; done: number; total: number }
         | { type: "done"; result: BulkAnalyzeResult };
 
-      let finalResult: BulkAnalyzeResult | null = null;
+      const allIds = Array.from(selectedIds);
+      const batches: string[][] = [];
+      for (let i = 0; i < allIds.length; i += BULK_ANALYZE_BATCH_SIZE) {
+        batches.push(allIds.slice(i, i + BULK_ANALYZE_BATCH_SIZE));
+      }
+      const overallTotal = eligibleAnalyzeIds.length;
+      const totals = { analyzed: 0, skipped: 0, failed: 0 };
+      let completedBatches = 0;
+      let doneOffset = 0;
 
-      const handleEvent = (event: StreamEvent) => {
-        if (event.type === "start") {
-          setBulkAnalyzeProgress({ done: 0, total: event.total });
-        } else if (event.type === "progress") {
-          setBulkAnalyzeProgress({ done: event.done, total: event.total });
-          queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
-        } else if (event.type === "done") {
-          finalResult = event.result;
+      for (const batch of batches) {
+        const res = await apiFetch(`${API_BASE}/api/assets/bulk-analyze?stream=1`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: batch }),
+        });
+        if (!res.ok) {
+          if (isForbidden(res)) {
+            toast({ variant: "destructive", title: PERMISSION_DENIED_MESSAGE });
+            return;
+          }
+          const data = await res.json().catch(() => ({}));
+          const message = (data as { error?: string }).error || "Bulk analyze failed";
+          if (completedBatches > 0) {
+            throw new Error(
+              `${message} (stopped after ${completedBatches} of ${batches.length} batches: ${totals.analyzed} analyzed, ${totals.skipped} skipped, ${totals.failed} failed)`,
+            );
+          }
+          throw new Error(message);
         }
-      };
 
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("ndjson") && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              handleEvent(JSON.parse(line) as StreamEvent);
-            } catch {
-              // ignore malformed lines
+        let batchResult: BulkAnalyzeResult | null = null;
+        let batchDone = 0;
+
+        const handleEvent = (event: StreamEvent) => {
+          if (event.type === "progress") {
+            batchDone = event.done;
+            setBulkAnalyzeProgress({ done: doneOffset + batchDone, total: overallTotal });
+            queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
+          } else if (event.type === "done") {
+            batchResult = event.result;
+          }
+        };
+
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("ndjson") && res.body) {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                handleEvent(JSON.parse(line) as StreamEvent);
+              } catch {
+                // ignore malformed lines
+              }
             }
           }
-        }
-        if (buffer.trim()) {
-          try {
-            handleEvent(JSON.parse(buffer) as StreamEvent);
-          } catch {
-            // ignore malformed trailing line
+          if (buffer.trim()) {
+            try {
+              handleEvent(JSON.parse(buffer) as StreamEvent);
+            } catch {
+              // ignore malformed trailing line
+            }
           }
+        } else {
+          batchResult = await res.json() as BulkAnalyzeResult;
         }
-      } else {
-        finalResult = await res.json() as BulkAnalyzeResult;
-      }
 
-      if (!finalResult) {
-        throw new Error("Analysis was interrupted before it finished.");
+        if (!batchResult) {
+          if (completedBatches > 0) {
+            throw new Error(
+              `Analysis was interrupted before it finished (completed ${completedBatches} of ${batches.length} batches: ${totals.analyzed} analyzed, ${totals.skipped} skipped, ${totals.failed} failed).`,
+            );
+          }
+          throw new Error("Analysis was interrupted before it finished.");
+        }
+        const result: BulkAnalyzeResult = batchResult;
+        totals.analyzed += result.analyzed ?? 0;
+        totals.skipped += result.skipped ?? 0;
+        totals.failed += result.failed ?? 0;
+        completedBatches += 1;
+        doneOffset += Math.max(batchDone, (result.analyzed ?? 0) + (result.failed ?? 0));
+        setBulkAnalyzeProgress({ done: Math.min(doneOffset, overallTotal), total: overallTotal });
       }
-      const data = finalResult;
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
       const parts: string[] = [];
-      if (data.analyzed > 0) parts.push(`${data.analyzed} analyzed`);
-      if (data.skipped > 0) parts.push(`${data.skipped} skipped`);
-      if (data.failed > 0) parts.push(`${data.failed} failed`);
+      if (totals.analyzed > 0) parts.push(`${totals.analyzed} analyzed`);
+      if (totals.skipped > 0) parts.push(`${totals.skipped} skipped`);
+      if (totals.failed > 0) parts.push(`${totals.failed} failed`);
       toast({
         title: "Analysis complete",
         description: parts.join(", ") || "No assets were eligible.",
-        variant: data.failed > 0 ? "destructive" : "default",
+        variant: totals.failed > 0 ? "destructive" : "default",
       });
     } catch (err) {
       queryClient.invalidateQueries({ queryKey: ["/api/assets"] });
