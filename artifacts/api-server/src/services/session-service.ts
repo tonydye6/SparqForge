@@ -12,7 +12,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { runImageInteraction, runVideoInteraction, typedRefsEnabled, MAX_TYPED_REFERENCES, type ImageSlot } from "./interactions-client.js";
 import { resolveStyleProfile, resolveDesignerPersona } from "./context-assembly.js";
-import { checkGenerationEligibility } from "./asset-policy.js";
+import { checkAttachmentEligibility } from "./asset-policy.js";
 import {
   buildSessionStyleContract, wrapEditInstruction, slotTypeForAsset, slotDescriptionForAsset,
   mergeReferenceSlots, buildAssetCatalog, buildCreativeDirection, buildOverflowDescriptors,
@@ -1051,11 +1051,16 @@ async function loadAttachedAssetSlots(params: {
   const { inArray } = await import("drizzle-orm");
 
   let candidates: Array<typeof assetsTable.$inferSelect> = [];
+  // Explicit picks carry direct user intent; name matches are a heuristic.
+  // The policy treats brand marks differently between the two (see
+  // checkAttachmentEligibility).
+  let source: "explicit" | "auto_match" = "explicit";
 
   if (assetIds && assetIds.length > 0) {
     candidates = await db.select().from(assetsTable)
       .where(and(inArray(assetsTable.id, assetIds.slice(0, MAX_ATTACHED_ASSETS)), eq(assetsTable.brandId, brandId)));
   } else if (instruction.trim().length >= 3) {
+    source = "auto_match";
     // Auto-match: brand assets whose name appears in the instruction text.
     const brandAssets = await db.select().from(assetsTable)
       .where(eq(assetsTable.brandId, brandId));
@@ -1070,21 +1075,16 @@ async function loadAttachedAssetSlots(params: {
   for (const asset of candidates) {
     if (slots.length >= MAX_ATTACHED_ASSETS) break;
     if (!asset.fileUrl) continue;
-    // Enforce policy hard constraints — generationAllowed=false assets and
-    // channel/template-gated assets must not reach the model as reference slots.
-    // Compositing-class assets (logos) are checked under the "compositing"
-    // role: an explicit attachment (picker or name-match) is direct user
-    // intent, and the Co-pilot deliberately allows real logos as in-image
-    // references with the verbatim-fidelity note — the same allowance the
-    // director's catalog grants them. Checking them as "generation_reference"
-    // would silently skip the exact logo the user just attached.
-    const policyRole = (asset.compositingOnly || asset.assetClass === "compositing")
-      ? ("compositing" as const)
-      : ("generation_reference" as const);
-    const policyCheck = checkGenerationEligibility(
+    // Enforce policy hard constraints. Role is derived from the asset, so an
+    // attached brand mark is judged as a mark (allowed as an exact in-image
+    // reference) instead of being rejected as a generic generation reference —
+    // the same allowance the director's catalog grants. Owner blocks and
+    // channel/template gates still apply.
+    const policyCheck = checkAttachmentEligibility(
       asset,
       { channel: channel ?? undefined, template: template ?? undefined },
-      policyRole,
+      source,
+      instruction,
     );
     if (!policyCheck.eligible) {
       logger.warn({ assetId: asset.id, name: asset.name, reason: policyCheck.reason }, "Attached asset blocked by policy; skipping");

@@ -7,14 +7,38 @@
  *
  * ── Hard constraints (enforced before any model call) ─────────────────────
  *
- *  generationAllowed === false
+ *  generationAllowed === false        [generation_reference role ONLY]
  *    The asset owner explicitly blocked AI reference use.
  *    → Never include as a generation reference.
+ *    NOT applied to the compositing role: every logo is stored with
+ *      generationAllowed=false by brand seeding (routes/brands.ts), the
+ *      backfill service, and AI analysis, so for a mark the flag carries no
+ *      human intent — it just means "not a generic generation reference".
+ *      Gating the compositing role on it made every logo permanently
+ *      ineligible, which is the bug this ordering fixes.
  *
  *  compositingOnly === true  (or assetClass === "compositing")
  *    The asset is a logo / brand mark intended only for post-compositing.
  *    → Never include as a subject / style / context generation reference.
  *      (Compositing slots are still valid; pass role="compositing".)
+ *
+ *  approvedForCompositing === false   [compositing role, managed rows]
+ *    A human turned off mark usage in Asset Details. Applied when the row is
+ *    managed (assetClass === "compositing"), because every path that sets that
+ *    class also writes approvedForCompositing=true — so `false` there is a
+ *    deliberate opt-out. NOT applied to hand-toggled compositingOnly rows that
+ *    were never classified, where the column is merely at its schema default
+ *    (false) and blocking would make the asset unusable in every role.
+ *
+ * ── Note on the two pipelines ─────────────────────────────────────────────
+ *
+ * The legacy StudioNext path never renders logos: it strips logo mentions from
+ * the prompt (services/logo-intent.ts) and composites the real mark on after
+ * generation. The Co-pilot Studio path deliberately diverges — Nano Banana Pro
+ * reproduces a supplied mark faithfully, so an attached or director-selected
+ * logo is passed in as an exact in-image reference and there is no compositing
+ * step. Both behaviors are intentional; do not "unify" them without deciding
+ * which pipeline owns logo placement.
  *
  *  approvedChannels non-empty and target channel absent
  *    The asset owner scoped the asset to specific distribution channels.
@@ -59,6 +83,19 @@
  */
 
 import type { Asset } from "@workspace/db";
+import { mentionsBrandMark } from "./logo-intent.js";
+
+/** The asset columns every policy check reads. */
+export type PolicyAsset = Pick<
+  Asset,
+  | "generationAllowed"
+  | "compositingOnly"
+  | "assetClass"
+  | "approvedForCompositing"
+  | "approvedChannels"
+  | "approvedTemplates"
+  | "conflictTags"
+>;
 
 // ── Context ─────────────────────────────────────────────────────────────────
 
@@ -106,32 +143,34 @@ export type PolicyResult = EligibilityResult | IneligibilityResult;
  *   - "generation_reference"  (default) — subject/style/object image refs
  *   - "compositing"           — post-compositing overlay (logo, mask)
  *
- * For compositing role: only `generationAllowed` and conflict tags apply;
- * `compositingOnly` is NOT a constraint (it's the intended use).
+ * For the compositing role, `generationAllowed` and `compositingOnly` are NOT
+ * constraints (they describe the intended use); `approvedForCompositing` is the
+ * human opt-out. See the header for why.
  */
 export function checkGenerationEligibility(
-  asset: Pick<
-    Asset,
-    | "generationAllowed"
-    | "compositingOnly"
-    | "assetClass"
-    | "approvedChannels"
-    | "approvedTemplates"
-    | "conflictTags"
-  >,
+  asset: PolicyAsset,
   context: GenerationContext = {},
   role: "generation_reference" | "compositing" = "generation_reference",
 ): PolicyResult {
-  // 1. generationAllowed=false — hard stop for all roles.
-  if (asset.generationAllowed === false) {
-    return { eligible: false, reason: "Not approved for AI generation" };
-  }
-
-  // 2. compositingOnly — only applies when the slot is a generation reference
-  //    (not a compositing slot where it's the correct use).
   if (role === "generation_reference") {
+    // 1. generationAllowed=false — the owner blocked AI reference use.
+    if (asset.generationAllowed === false) {
+      return { eligible: false, reason: "Not approved for AI generation" };
+    }
+    // 2. Compositing-class assets are not generic generation references.
     if (asset.compositingOnly || asset.assetClass === "compositing") {
       return { eligible: false, reason: "Compositing-only asset (use logo overlay instead)" };
+    }
+  } else {
+    // Compositing role. generationAllowed is deliberately not consulted (it is
+    // false on every seeded/analyzed logo). A managed compositing row whose
+    // approvedForCompositing was turned off is a human opt-out; the reason text
+    // names the control so the block is actionable rather than mysterious.
+    if (asset.assetClass === "compositing" && asset.approvedForCompositing === false) {
+      return {
+        eligible: false,
+        reason: "Not approved for logo use (enable Approved for compositing in Asset Details)",
+      };
     }
   }
 
@@ -241,6 +280,37 @@ export function derivePolicyRole(
 ): "generation_reference" | "compositing" {
   if (asset.compositingOnly || asset.assetClass === "compositing") return "compositing";
   return "generation_reference";
+}
+
+/**
+ * Eligibility for a Co-pilot turn attachment (the 📎 picker or an instruction
+ * name match), where the asset becomes an in-image reference slot.
+ *
+ * Role is derived from the asset, so an attached logo is judged as a mark
+ * (verbatim in-image reference) rather than being rejected as a generic
+ * generation reference.
+ *
+ * `source` distinguishes intent:
+ *   - "explicit"   — the user picked this asset. Marks are allowed.
+ *   - "auto_match" — the asset's name merely appeared in the instruction text.
+ *                    Marks additionally require the instruction to talk about a
+ *                    logo/mark, so a logo named after the brand is not baked
+ *                    into every instruction that mentions the brand.
+ */
+export function checkAttachmentEligibility(
+  asset: PolicyAsset,
+  context: GenerationContext,
+  source: "explicit" | "auto_match",
+  instruction: string,
+): PolicyResult {
+  const role = derivePolicyRole(asset);
+  if (role === "compositing" && source === "auto_match" && !mentionsBrandMark(instruction)) {
+    return {
+      eligible: false,
+      reason: "Brand mark not attached: pick it explicitly or mention the logo",
+    };
+  }
+  return checkGenerationEligibility(asset, context, role);
 }
 
 // ── Slot description enrichment ──────────────────────────────────────────────

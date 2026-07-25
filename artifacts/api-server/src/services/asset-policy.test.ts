@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   checkGenerationEligibility,
+  checkAttachmentEligibility,
+  derivePolicyRole,
   computeRankingAdjustment,
   buildConflictTagSet,
   enrichSlotDescription,
@@ -72,14 +74,41 @@ describe("checkGenerationEligibility — hard constraints", () => {
     expect(result.reason).toContain("Not approved for AI generation");
   });
 
-  it("blocks generationAllowed=false even for compositing role", () => {
+  // generationAllowed is deliberately NOT a compositing-role constraint: brand
+  // seeding, the backfill service, and AI analysis all store logos with
+  // generationAllowed=false, so gating on it made every logo permanently
+  // ineligible even when the user attached it explicitly.
+  it("ignores generationAllowed=false for the compositing role", () => {
     const result = checkGenerationEligibility(
-      makeAsset({ generationAllowed: false, compositingOnly: true }),
+      makeAsset({ generationAllowed: false, compositingOnly: true, approvedForCompositing: true }),
+      {},
+      "compositing",
+    );
+    expect(result.eligible).toBe(true);
+  });
+
+  it("blocks a managed compositing row whose approvedForCompositing was turned off", () => {
+    const result = checkGenerationEligibility(
+      makeAsset({ assetClass: "compositing", generationAllowed: false, approvedForCompositing: false }),
       {},
       "compositing",
     );
     expect(result.eligible).toBe(false);
-    expect(result.reason).toContain("Not approved for AI generation");
+    expect(result.reason).toContain("Not approved for logo use");
+    // The reason must name the control so the block is actionable.
+    expect(result.reason).toContain("Asset Details");
+  });
+
+  it("does not block a hand-toggled compositingOnly row at the schema default", () => {
+    // compositingOnly set by hand, never classified: approvedForCompositing is
+    // merely at its default (false) and carries no human decision. Blocking
+    // here would make the asset unusable in every role.
+    const result = checkGenerationEligibility(
+      makeAsset({ compositingOnly: true, assetClass: null, approvedForCompositing: false }),
+      {},
+      "compositing",
+    );
+    expect(result.eligible).toBe(true);
   });
 
   // 2. compositingOnly / assetClass === "compositing"
@@ -97,7 +126,7 @@ describe("checkGenerationEligibility — hard constraints", () => {
 
   it("allows compositingOnly assets for the compositing role", () => {
     const result = checkGenerationEligibility(
-      makeAsset({ compositingOnly: true }),
+      makeAsset({ compositingOnly: true, approvedForCompositing: true }),
       {},
       "compositing",
     );
@@ -322,4 +351,102 @@ describe("enrichSlotDescription", () => {
     expect(result).toContain("hero");
   });
 
+});
+
+// ── Role derivation ───────────────────────────────────────────────────────────
+
+describe("derivePolicyRole", () => {
+  it("routes marks to the compositing role", () => {
+    expect(derivePolicyRole(makeAsset({ compositingOnly: true }))).toBe("compositing");
+    expect(derivePolicyRole(makeAsset({ assetClass: "compositing" }))).toBe("compositing");
+  });
+
+  it("routes everything else to generation_reference", () => {
+    expect(derivePolicyRole(makeAsset())).toBe("generation_reference");
+    expect(derivePolicyRole(makeAsset({ assetClass: "subject_reference" }))).toBe("generation_reference");
+  });
+});
+
+// ── Co-pilot attachments ──────────────────────────────────────────────────────
+
+describe("checkAttachmentEligibility", () => {
+  // A logo as brand seeding / backfill / AI analysis stores it.
+  const logo = () => makeAsset({
+    name: "Crown U icon",
+    assetClass: "compositing",
+    compositingOnly: true,
+    generationAllowed: false,
+    approvedForCompositing: true,
+  });
+
+  it("allows an explicitly picked brand mark", () => {
+    const result = checkAttachmentEligibility(logo(), {}, "explicit", "swap in the icon");
+    expect(result.eligible).toBe(true);
+  });
+
+  it("allows an auto-matched mark when the instruction talks about a logo", () => {
+    const result = checkAttachmentEligibility(
+      logo(), {}, "auto_match",
+      "replace the current crown u logo with the correct uploaded crown u icon",
+    );
+    expect(result.eligible).toBe(true);
+  });
+
+  it("does not auto-attach a mark on a bare brand mention", () => {
+    // The regression this guards: a logo asset named after the brand would
+    // otherwise be baked into every instruction naming the brand.
+    const result = checkAttachmentEligibility(
+      logo(), {}, "auto_match",
+      "hype post for the crown u championship run",
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain("pick it explicitly");
+  });
+
+  it("still honors an explicit opt-out on an explicitly picked mark", () => {
+    const result = checkAttachmentEligibility(
+      logo(), {}, "explicit", "add the logo",
+    );
+    expect(result.eligible).toBe(true);
+    const blocked = checkAttachmentEligibility(
+      makeAsset({ assetClass: "compositing", approvedForCompositing: false }),
+      {}, "explicit", "add the logo",
+    );
+    expect(blocked.eligible).toBe(false);
+    expect(blocked.reason).toContain("Not approved for logo use");
+  });
+
+  it("still blocks a non-mark asset the owner excluded from AI generation", () => {
+    const result = checkAttachmentEligibility(
+      makeAsset({ generationAllowed: false }), {}, "explicit", "use this photo",
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain("Not approved for AI generation");
+  });
+
+  it("still applies channel gating to attachments", () => {
+    const result = checkAttachmentEligibility(
+      makeAsset({ approvedChannels: ["instagram_feed"] }),
+      { channel: "twitter" },
+      "explicit",
+      "use this",
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain("twitter");
+  });
+
+  it("applies channel gating to marks as well", () => {
+    const result = checkAttachmentEligibility(
+      makeAsset({
+        assetClass: "compositing",
+        approvedForCompositing: true,
+        approvedChannels: ["linkedin"],
+      }),
+      { channel: "twitter" },
+      "explicit",
+      "add the logo",
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain("twitter");
+  });
 });
