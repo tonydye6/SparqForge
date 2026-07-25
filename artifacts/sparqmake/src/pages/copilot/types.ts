@@ -90,6 +90,13 @@ export interface BrandAsset {
   type: string;
   thumbnailUrl: string | null;
   fileUrl: string | null;
+  /**
+   * When set, the asset is ineligible as a generation reference.
+   * The picker shows this reason as a badge to explain why the asset
+   * cannot be used for AI generation (though it may still be attached
+   * as an editing reference for certain operations).
+   */
+  ineligibleReason?: string;
 }
 
 export interface Region {

@@ -30,6 +30,11 @@ import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { COPILOT_MODELS } from "../lib/ai-config.js";
 import { INTENT_IMAGE_DIRECTIVES, isIntent } from "../lib/intents.js";
 import { scoreAssetAgainstBrief, buildBriefTokenSet } from "./asset-matching.js";
+import {
+  checkGenerationEligibility,
+  enrichSlotDescription,
+  buildConflictTagSet,
+} from "./asset-policy.js";
 import { extractJSON } from "../lib/extract-json.js";
 import { logger } from "../lib/logger.js";
 import type { ImageSlot } from "./interactions-client.js";
@@ -146,15 +151,18 @@ export function slotTypeForAsset(asset: Pick<Asset, "assetClass" | "compositingO
  * actual brand logo); style references ask for treatment matching instead.
  */
 export function slotDescriptionForAsset(
-  asset: Pick<Asset, "name" | "description" | "characterIdentityNote">,
+  asset: Pick<Asset, "name" | "description" | "characterIdentityNote" | "assetClass" | "generationRole" | "brandLayer" | "franchise">,
   slotType: ImageSlot["slot"],
 ): string {
   const base = `Brand asset "${asset.name}"${asset.description ? ` — ${asset.description}` : ""}`;
+  let description: string;
   if (slotType === "style") {
-    return `${base}. Match this asset's visual style, treatment, and mood.`;
+    description = `${base}. Match this asset's visual style, treatment, and mood.`;
+  } else {
+    const identity = asset.characterIdentityNote ? ` ${asset.characterIdentityNote}` : "";
+    description = `${base}.${identity} Reproduce this exact asset faithfully as shown — do not redesign, restyle, or invent a different version of it.`;
   }
-  const identity = asset.characterIdentityNote ? ` ${asset.characterIdentityNote}` : "";
-  return `${base}.${identity} Reproduce this exact asset faithfully as shown — do not redesign, restyle, or invent a different version of it.`;
+  return enrichSlotDescription(description, asset);
 }
 
 /** Guaranteed persona work-sample slots when a persona is selected. */
@@ -255,14 +263,22 @@ function catalogKindLabel(asset: Asset): string {
  * director. Compositing-class assets (logos) are always included: the old
  * structural exclusion is lifted for the Co-pilot path so the director can
  * select the real brand marks.
+ *
+ * The shared asset-policy module enforces hard constraints so disallowed
+ * assets (generationAllowed=false, compositing-only for non-compositing roles,
+ * etc.) are never given an id in the catalog — the model cannot select them.
  */
 export async function buildAssetCatalog(params: {
   brandId: string;
   briefText: string;
   maxLines?: number;
+  channel?: string | null;
+  template?: string | null;
 }): Promise<AssetCatalog> {
   const { brandId, briefText } = params;
   const maxLines = params.maxLines ?? CATALOG_MAX_LINES;
+  const channel = params.channel ?? null;
+  const template = params.template ?? null;
 
   const assets = await db.select().from(assetsTable).where(and(
     eq(assetsTable.brandId, brandId),
@@ -271,20 +287,28 @@ export async function buildAssetCatalog(params: {
 
   const briefTokens = buildBriefTokenSet(briefText);
 
-  const eligible = assets.filter(a =>
-    a.type === "visual" &&
-    a.generationAllowed !== false &&
-    Boolean(a.fileUrl) &&
-    !(a.mimeType || "").includes("video"),
-  );
+  // Policy context shared by both compositing and generation-reference filters.
+  const context = { channel, template };
+
+  // Compositing assets (logos/overlays) are eligible for the compositing role.
+  // Apply the shared policy here too — assets with generationAllowed=false or
+  // channel/template conflicts must not receive a catalog id.
   const compositing = assets.filter(a =>
     (a.compositingOnly || a.assetClass === "compositing") &&
     Boolean(a.fileUrl) &&
-    !(a.mimeType || "").includes("video"),
+    !(a.mimeType || "").includes("video") &&
+    checkGenerationEligibility(a, context, "compositing").eligible,
+  );
+  const compositingIds = new Set(compositing.map(a => a.id));
+  const eligible = assets.filter(a =>
+    a.type === "visual" &&
+    Boolean(a.fileUrl) &&
+    !(a.mimeType || "").includes("video") &&
+    !compositingIds.has(a.id) &&
+    checkGenerationEligibility(a, context, "generation_reference").eligible,
   );
 
   const scored = eligible
-    .filter(a => !compositing.includes(a))
     .map(a => ({ asset: a, ...scoreAssetAgainstBrief(a, briefTokens) }))
     .sort((x, y) => y.score - x.score);
 
@@ -490,17 +514,45 @@ export async function buildCreativeDirection(params: {
     if (retryText) {
       const retryDirection = parseDirectorOutput(retryText, validIds);
       if (!retryDirection.usedFallback) {
-        return retryDirection;
-      }
-      // Prefer whichever attempt produced usable prose for the fallback.
-      if (!direction || !direction.prompt) {
-        text = retryText;
         direction = retryDirection;
+      } else {
+        // Prefer whichever attempt produced usable prose for the fallback.
+        if (!direction || !direction.prompt) {
+          text = retryText;
+          direction = retryDirection;
+        }
       }
     }
   }
 
   if (!direction) throw new Error("No creative direction from model");
+
+  // Apply conflict-tag hard constraint to director selections: if two selected
+  // assets share a conflict tag (e.g. competing mascots), drop the lower-
+  // priority one (later in the list). This mirrors the matcher's accumulation
+  // logic but operates on the director's compact selection list.
+  if (direction.assetSelections.length > 1) {
+    const accumulatedConflict = new Set<string>();
+    const filteredSelections: typeof direction.assetSelections = [];
+    for (const sel of direction.assetSelections) {
+      const asset = catalog.byId.get(sel.assetId);
+      if (!asset) continue;
+      const ctags = (asset.conflictTags as string[] | null | undefined) ?? [];
+      const hasClash = ctags.some(t => accumulatedConflict.has(t));
+      if (hasClash) {
+        logger.debug(
+          { brandId: brand.id, assetId: sel.assetId },
+          "Creative director selection dropped — conflict tag clash",
+        );
+        continue;
+      }
+      filteredSelections.push(sel);
+      for (const t of ctags) accumulatedConflict.add(t);
+    }
+    if (filteredSelections.length !== direction.assetSelections.length) {
+      direction = { ...direction, assetSelections: filteredSelections };
+    }
+  }
 
   if (direction.usedFallback) {
     logger.warn(

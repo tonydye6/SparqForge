@@ -118,7 +118,15 @@ describe("slotTypeForAsset", () => {
 });
 
 describe("slotDescriptionForAsset", () => {
-  const asset = { name: "Crown U icon", description: "Gold crown mark", characterIdentityNote: "" };
+  const asset = {
+    name: "Crown U icon",
+    description: "Gold crown mark",
+    characterIdentityNote: "",
+    assetClass: null,
+    generationRole: null,
+    brandLayer: null,
+    franchise: null,
+  };
   it("carries the verbatim-fidelity note for object references", () => {
     expect(slotDescriptionForAsset(asset, "object")).toContain("Reproduce this exact asset faithfully");
   });

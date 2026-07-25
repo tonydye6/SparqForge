@@ -12,6 +12,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { runImageInteraction, runVideoInteraction, typedRefsEnabled, MAX_TYPED_REFERENCES, type ImageSlot } from "./interactions-client.js";
 import { resolveStyleProfile, resolveDesignerPersona } from "./context-assembly.js";
+import { checkGenerationEligibility } from "./asset-policy.js";
 import {
   buildSessionStyleContract, wrapEditInstruction, slotTypeForAsset, slotDescriptionForAsset,
   mergeReferenceSlots, buildAssetCatalog, buildCreativeDirection, buildOverflowDescriptors,
@@ -230,6 +231,8 @@ async function assembleGenerationPlan(params: {
     brandId: creative.brandId,
     instruction: input.instruction,
     assetIds: input.assetIds,
+    channel: input.platform ?? null,
+    template: creative.templateId ?? null,
   });
   if (attached.names.length > 0) {
     onProgress({ type: "progress", step: "packet", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });
@@ -237,7 +240,7 @@ async function assembleGenerationPlan(params: {
 
   onProgress({ type: "progress", step: "art-direction", message: "Creative director: reading the brief and the asset library..." });
 
-  const catalog: AssetCatalog = await buildAssetCatalog({ brandId: creative.brandId, briefText });
+  const catalog: AssetCatalog = await buildAssetCatalog({ brandId: creative.brandId, briefText, channel: input.platform ?? null, template: creative.templateId ?? null });
   const direction = await buildCreativeDirection({
     brand,
     styleContract,
@@ -279,13 +282,42 @@ async function assembleGenerationPlan(params: {
 
   const personaSlots = await loadPersonaSlots(creative.personaId);
   const cap = typedRefsEnabled() ? MAX_TYPED_REFERENCES : MAX_IMAGE_REFERENCES;
-  const slots = mergeReferenceSlots({
+  const merged = mergeReferenceSlots({
     attached: attached.slots,
     director: directorSlots,
     packet: packetSlots,
     persona: personaSlots,
     cap,
   });
+
+  // Cross-source conflict-tag enforcement: after merging slots from attached,
+  // director, and packet sources, remove assets whose conflict tags clash with
+  // those already claimed by an earlier slot. First-in-list wins (attached >
+  // director > packet > persona priority is preserved by mergeReferenceSlots).
+  const mergedAssetIds = merged.map(s => s.assetId).filter((id): id is string => Boolean(id));
+  const conflictTagsByAssetId = new Map<string, string[]>();
+  if (mergedAssetIds.length > 0) {
+    const { inArray: inArrayIds } = await import("drizzle-orm");
+    const rows = await db.select({ id: assetsTable.id, conflictTags: assetsTable.conflictTags })
+      .from(assetsTable)
+      .where(inArrayIds(assetsTable.id, mergedAssetIds));
+    for (const row of rows) {
+      conflictTagsByAssetId.set(row.id, (row.conflictTags as string[] | null) ?? []);
+    }
+  }
+  const claimedConflictTags = new Set<string>();
+  const slots: typeof merged = [];
+  for (const slot of merged) {
+    if (!slot.assetId) { slots.push(slot); continue; }
+    const tags = conflictTagsByAssetId.get(slot.assetId) ?? [];
+    if (tags.some(t => claimedConflictTags.has(t))) {
+      logger.warn({ assetId: slot.assetId }, "Cross-source conflict-tag clash in merged slot set; dropping slot");
+      continue;
+    }
+    for (const t of tags) claimedConflictTags.add(t);
+    slots.push(slot);
+  }
+
   onProgress({ type: "progress", step: "packet", message: `References: ${slots.length} image${slots.length !== 1 ? "s" : ""} attached`, done: true });
 
   // Selected assets that missed the slot budget still steer as text (ported
@@ -1012,8 +1044,10 @@ async function loadAttachedAssetSlots(params: {
   brandId: string;
   instruction: string;
   assetIds?: string[];
+  channel?: string | null;
+  template?: string | null;
 }): Promise<{ slots: ImageSlot[]; names: string[] }> {
-  const { brandId, instruction, assetIds } = params;
+  const { brandId, instruction, assetIds, channel, template } = params;
   const { inArray } = await import("drizzle-orm");
 
   let candidates: Array<typeof assetsTable.$inferSelect> = [];
@@ -1036,6 +1070,17 @@ async function loadAttachedAssetSlots(params: {
   for (const asset of candidates) {
     if (slots.length >= MAX_ATTACHED_ASSETS) break;
     if (!asset.fileUrl) continue;
+    // Enforce policy hard constraints — generationAllowed=false assets and
+    // channel/template-gated assets must not reach the model as reference slots.
+    const policyCheck = checkGenerationEligibility(
+      asset,
+      { channel: channel ?? undefined, template: template ?? undefined },
+      "generation_reference",
+    );
+    if (!policyCheck.eligible) {
+      logger.warn({ assetId: asset.id, name: asset.name, reason: policyCheck.reason }, "Attached asset blocked by policy; skipping");
+      continue;
+    }
     const loc = resolveUrl(asset.fileUrl);
     if (!loc) continue;
     // Only image assets can be model reference slots — a PDF or font file
@@ -1083,6 +1128,8 @@ async function executeEditImage(params: {
     brandId: creative.brandId,
     instruction: input.instruction,
     assetIds: input.assetIds,
+    channel: input.platform ?? null,
+    template: creative.templateId ?? null,
   });
   if (attached.names.length > 0) {
     onProgress({ type: "progress", step: "image", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });
@@ -1619,6 +1666,8 @@ async function executeEditImageWithQa(params: {
     brandId: params.creative.brandId,
     instruction: params.input.instruction,
     assetIds: params.input.assetIds,
+    channel: params.input.platform ?? null,
+    template: params.creative.templateId ?? null,
   });
   const qa = await applyQaPass({
     variantIds: result.variantIds,
@@ -1679,6 +1728,8 @@ async function executeEditRegion(params: {
     brandId: creative.brandId,
     instruction: input.instruction,
     assetIds: input.assetIds,
+    channel: input.platform ?? null,
+    template: creative.templateId ?? null,
   });
   if (attached.names.length > 0) {
     onProgress({ type: "progress", step: "image", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });
@@ -1809,6 +1860,8 @@ async function executeConvertVideo(params: {
     brandId: creative.brandId,
     instruction: input.instruction,
     assetIds: input.assetIds,
+    channel: input.platform ?? null,
+    template: creative.templateId ?? null,
   });
   if (attached.names.length > 0) {
     onProgress({ type: "progress", step: "video", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });
@@ -1908,6 +1961,8 @@ async function executeEditVideo(params: {
     brandId: creative.brandId,
     instruction: input.instruction,
     assetIds: input.assetIds,
+    channel: input.platform ?? null,
+    template: creative.templateId ?? null,
   });
   if (attached.names.length > 0) {
     onProgress({ type: "progress", step: "video", message: `Using library asset${attached.names.length > 1 ? "s" : ""}: ${attached.names.join(", ")}` });

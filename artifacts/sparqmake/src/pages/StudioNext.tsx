@@ -86,6 +86,14 @@ interface AssetSuggestion {
   tier: "image" | "description" | "compositing" | "context";
 }
 
+// An asset that matched the brief but was blocked by a policy hard constraint.
+interface ExcludedSuggestion {
+  id: string;
+  name: string;
+  thumbnailUrl: string | null;
+  ineligibleReason: string;
+}
+
 const TIER_LABELS: Record<AssetSuggestion["tier"], string> = {
   image: "Strong match — used as a visual reference",
   description: "Described to the model as text guidance",
@@ -473,6 +481,7 @@ function BeatHome({
   const [loadingConcepts, setLoadingConcepts] = useState(false);
   const [matchLoading, setMatchLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<AssetSuggestion[] | null>(null);
+  const [excludedSuggestions, setExcludedSuggestions] = useState<ExcludedSuggestion[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [logos, setLogos] = useState<BrandLogo[]>([]);
   // Ref mirror so the async matcher can exclude logos without re-memoizing.
@@ -573,6 +582,9 @@ function BeatHome({
       }
       setMatchLoading(true);
       try {
+        // The legacy Studio brief flow has no explicit platform/channel picker —
+        // channel is intentionally omitted here (null = no channel restriction applied).
+        // Channel gating only activates when a channel is explicitly provided by the caller.
         const res = await postJson(`${API_BASE}/api/assets/match`, { brandId, briefText: briefFull });
         const tiers: Array<{ list: any[]; tier: AssetSuggestion["tier"] }> = [
           { list: res.imageReferences || [], tier: "image" },
@@ -600,14 +612,36 @@ function BeatHome({
             });
           }
         }
-        if (flat.length === 0) {
+
+        // Parse assets excluded by policy hard constraints.
+        const excluded: ExcludedSuggestion[] = [];
+        for (const m of (res.excluded || [])) {
+          const a = m.asset || {};
+          if (!a.id || seen.has(a.id) || a.status !== "approved") continue;
+          if (logoIdsRef.current.has(a.id) || a.generationRole === "compositing_logo") continue;
+          seen.add(a.id);
+          excluded.push({
+            id: a.id,
+            name: a.name || "Untitled asset",
+            thumbnailUrl: a.thumbnailUrl || a.fileUrl || null,
+            ineligibleReason: m.reason,
+          });
+        }
+        setExcludedSuggestions(excluded);
+
+        if (flat.length === 0 && excluded.length === 0) {
           dispatch({ type: "setSelectedAssets", assets: [] });
           onAdvance();
           return;
         }
-        setSuggestions(flat);
+        setSuggestions(flat.length > 0 ? flat : []);
         // Pre-check the image-reference tier — those are the strongest matches.
         setPicked(new Set(flat.filter((s) => s.tier === "image").map((s) => s.id)));
+        // If no eligible assets but some excluded, still show the picker so
+        // users understand why assets are unavailable.
+        if (flat.length === 0) {
+          setSuggestions([]);
+        }
       } catch {
         // Matching is best-effort; never block generation on it.
         dispatch({ type: "setSelectedAssets", assets: [] });
@@ -727,6 +761,37 @@ function BeatHome({
             );
           })}
         </div>
+
+        {/* Ineligible assets: matched but blocked by policy hard constraints */}
+        {excludedSuggestions.length > 0 && (
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-xs font-medium text-muted-foreground">
+              Assets not available for generation
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {excludedSuggestions.map((s) => (
+                <div
+                  key={s.id}
+                  className="p-3 flex items-center gap-3 rounded-lg border border-border opacity-60"
+                  title={s.ineligibleReason}
+                >
+                  <div className="w-10 h-10 rounded-md bg-muted overflow-hidden shrink-0 flex items-center justify-center">
+                    {s.thumbnailUrl ? (
+                      <img src={`${API_BASE}${s.thumbnailUrl}`} alt={s.name} className="w-full h-full object-cover grayscale" />
+                    ) : (
+                      <Sparkles size={14} className="text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-muted-foreground truncate block">{s.name}</span>
+                    <span className="text-[11px] text-muted-foreground/70 truncate block">{s.ineligibleReason}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {logos.length > 0 && (
           <div className="flex items-center gap-3 border-t border-border pt-4">
             <span className="text-sm font-medium text-foreground">Logo overlay</span>

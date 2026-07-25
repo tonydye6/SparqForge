@@ -432,11 +432,24 @@ export function SessionView({ sessionId, onBack, autoDraftBrief }: SessionViewPr
         data?: Array<{
           id: string; name: string; type: string;
           thumbnailUrl: string | null; fileUrl: string | null; mimeType: string | null;
+          generationAllowed?: boolean | null;
+          compositingOnly?: boolean | null;
+          assetClass?: string | null;
         }>;
       };
-      const list = (data.data ?? []).filter(
-        a => a.fileUrl && (!a.mimeType || a.mimeType.startsWith("image/")),
-      );
+      const list = (data.data ?? [])
+        .filter(a => a.fileUrl && (!a.mimeType || a.mimeType.startsWith("image/")))
+        .map(a => {
+          // Annotate assets that are ineligible as generation references so
+          // the asset picker can badge them with a human-readable reason.
+          let ineligibleReason: string | undefined;
+          if (a.generationAllowed === false) {
+            ineligibleReason = "Not approved for AI generation";
+          } else if (a.compositingOnly || a.assetClass === "compositing") {
+            ineligibleReason = "Compositing-only asset (use logo overlay instead)";
+          }
+          return { ...a, ineligibleReason };
+        });
       setBrandAssets(list);
     } catch {
       setBrandAssets([]);

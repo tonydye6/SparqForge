@@ -1,6 +1,12 @@
 import { db, assetsTable } from "@workspace/db";
 import type { Asset } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
+import {
+  checkGenerationEligibility,
+  computeRankingAdjustment,
+  buildConflictTagSet,
+  type GenerationContext,
+} from "./asset-policy.js";
 
 export type MatchRole = "image_reference" | "text_description" | "compositing" | "context";
 
@@ -11,11 +17,19 @@ export interface AssetMatch {
   matchedTerms: string[];
 }
 
+export interface ExcludedAsset {
+  asset: Asset;
+  reason: string;
+  matchedTerms: string[];
+}
+
 export interface MatchResult {
   imageReferences: AssetMatch[];
   textDescriptions: AssetMatch[];
   compositing: AssetMatch[];
   context: AssetMatch[];
+  /** Assets that matched the brief but were filtered by policy hard constraints. */
+  excluded: ExcludedAsset[];
 }
 
 const STOP_WORDS = new Set([
@@ -99,6 +113,10 @@ export function scoreAssetAgainstBrief(asset: Asset, briefTokens: Set<string>): 
   if (asset.aiAnalyzedAt) score += 0.25;
   score += Math.min(asset.usageCount || 0, 5) * 0.1;
 
+  // Apply soft policy ranking adjustments (subjectIdentityScore,
+  // styleStrengthScore, freshnessScore, referencePriorityDefault, brandLayer).
+  score += computeRankingAdjustment(asset);
+
   return { score, matchedTerms: [...matched] };
 }
 
@@ -107,10 +125,12 @@ export async function matchAssetsToBrief(params: {
   briefText: string;
   maxImageRefs?: number;
   maxTextDescriptors?: number;
+  context?: GenerationContext;
 }): Promise<MatchResult> {
   const { brandId, briefText } = params;
   const maxImageRefs = params.maxImageRefs ?? 3;
   const maxTextDescriptors = params.maxTextDescriptors ?? 3;
+  const context = params.context ?? {};
 
   const rawTokens = tokenize(briefText);
   const briefTokens = new Set<string>([...rawTokens, ...rawTokens.map(stem)]);
@@ -120,32 +140,67 @@ export async function matchAssetsToBrief(params: {
     ne(assetsTable.status, "archived"),
   ));
 
-  const scored: AssetMatch[] = [];
+  const scored: Array<{ asset: Asset; score: number; matchedTerms: string[] }> = [];
   for (const asset of assets) {
     const { score, matchedTerms } = scoreAssetAgainstBrief(asset, briefTokens);
     if (matchedTerms.length === 0) continue;
-    scored.push({ asset, score, role: "text_description", matchedTerms });
+    scored.push({ asset, score, matchedTerms });
   }
   scored.sort((a, b) => b.score - a.score);
 
   const compositing: AssetMatch[] = [];
-  const context: AssetMatch[] = [];
+  const context_results: AssetMatch[] = [];
   const generationEligible: AssetMatch[] = [];
+  const excluded: ExcludedAsset[] = [];
 
-  for (const match of scored) {
-    const a = match.asset;
+  // Build conflict-tag set from assets already committed (empty for the
+  // initial match — callers with multi-round selection pass it in context).
+  const conflictTagsInUse = context.conflictTagsInUse ?? new Set<string>();
+
+  // Track conflict tags accumulated as we walk in rank order so that
+  // within a single match run, conflicting assets are excluded transitively.
+  const accumulatedConflictTags = new Set<string>(conflictTagsInUse);
+
+  for (const { asset: a, score, matchedTerms } of scored) {
+    // Compositing-class assets (logos, overlays) — always route to the
+    // compositing bucket regardless of generationAllowed.
     if (a.assetClass === "compositing" || a.compositingOnly) {
-      if (compositing.length < 2) compositing.push({ ...match, role: "compositing" });
+      const policyResult = checkGenerationEligibility(a, context, "compositing");
+      if (!policyResult.eligible) {
+        excluded.push({ asset: a, reason: policyResult.reason, matchedTerms });
+        continue;
+      }
+      if (compositing.length < 2) compositing.push({ asset: a, score, role: "compositing", matchedTerms });
       continue;
     }
+
+    // Context-class assets.
     if (a.type === "context" || a.assetClass === "context") {
-      if (context.length < 3) context.push({ ...match, role: "context" });
+      if (context_results.length < 3) context_results.push({ asset: a, score, role: "context", matchedTerms });
       continue;
     }
+
+    // Only visuals reach generation reference slots.
     if (a.type !== "visual") continue;
-    if (a.generationAllowed === false) continue;
     if (!a.fileUrl || (a.mimeType || "").includes("video")) continue;
-    generationEligible.push(match);
+
+    // Apply policy hard constraints (generation_reference role).
+    const contextWithAccumulated: GenerationContext = {
+      ...context,
+      conflictTagsInUse: accumulatedConflictTags,
+    };
+    const policyResult = checkGenerationEligibility(a, contextWithAccumulated, "generation_reference");
+    if (!policyResult.eligible) {
+      excluded.push({ asset: a, reason: policyResult.reason, matchedTerms });
+      continue;
+    }
+
+    // Asset passed all constraints — accumulate its conflict tags.
+    for (const t of (a.conflictTags as string[] | null | undefined) ?? []) {
+      accumulatedConflictTags.add(t);
+    }
+
+    generationEligible.push({ asset: a, score, role: "text_description", matchedTerms });
   }
 
   const imageReferences = generationEligible
@@ -156,5 +211,5 @@ export async function matchAssetsToBrief(params: {
     .filter(m => !!(m.asset.description || m.asset.styleNotes))
     .map(m => ({ ...m, role: "text_description" as MatchRole }));
 
-  return { imageReferences, textDescriptions, compositing, context };
+  return { imageReferences, textDescriptions, compositing, context: context_results, excluded };
 }

@@ -102,16 +102,35 @@ router.post("/assets", validateRequest({ body: CreateAssetBody }), async (req, r
 });
 
 router.post("/assets/match", async (req, res): Promise<void> => {
-  const { brandId, briefText } = req.body as { brandId?: string; briefText?: string };
+  const {
+    brandId,
+    briefText,
+    channel,
+    template,
+  } = req.body as {
+    brandId?: string;
+    briefText?: string;
+    channel?: string;
+    template?: string;
+  };
   if (!brandId || !briefText || !briefText.trim()) {
     res.status(400).json({ error: "brandId and briefText are required" });
     return;
   }
-  const result = await matchAssetsToBrief({ brandId, briefText });
+  const context = {
+    channel: channel || null,
+    template: template || null,
+  };
+  const result = await matchAssetsToBrief({ brandId, briefText, context });
   const serialize = (m: { asset: Record<string, unknown>; score: number; role: string; matchedTerms: string[] }) => ({
     asset: m.asset,
     score: Math.round(m.score * 100) / 100,
     role: m.role,
+    matchedTerms: m.matchedTerms,
+  });
+  const serializeExcluded = (m: { asset: Record<string, unknown>; reason: string; matchedTerms: string[] }) => ({
+    asset: m.asset,
+    reason: m.reason,
     matchedTerms: m.matchedTerms,
   });
   res.json({
@@ -119,6 +138,7 @@ router.post("/assets/match", async (req, res): Promise<void> => {
     textDescriptions: result.textDescriptions.map(serialize),
     compositing: result.compositing.map(serialize),
     context: result.context.map(serialize),
+    excluded: result.excluded.map(serializeExcluded),
   });
 });
 

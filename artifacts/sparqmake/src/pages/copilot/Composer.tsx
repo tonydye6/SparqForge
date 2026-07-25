@@ -519,23 +519,28 @@ export function Composer({
             {!assetsLoading &&
               filteredAssets.map(a => {
                 const selected = attachedAssets.some(s => s.id === a.id);
+                const ineligible = Boolean(a.ineligibleReason);
                 return (
                   <button
                     key={a.id}
                     onMouseDown={e => {
                       e.preventDefault();
+                      // Ineligible assets are shown but cannot be selected.
+                      if (ineligible) return;
                       if (attachedAssets.length < 3 || selected) pickAsset(a);
                     }}
+                    title={ineligible ? a.ineligibleReason : undefined}
                     className={cn(
                       "w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors",
-                      selected ? "bg-primary/10 text-primary" : "hover:bg-muted",
+                      selected ? "bg-primary/10 text-primary" : !ineligible && "hover:bg-muted",
+                      ineligible && "opacity-50 cursor-default",
                     )}
                   >
                     {a.thumbnailUrl ? (
                       <img
                         src={`${API_BASE}${a.thumbnailUrl}`}
                         alt=""
-                        className="w-7 h-7 rounded object-cover shrink-0"
+                        className={cn("w-7 h-7 rounded object-cover shrink-0", ineligible && "grayscale")}
                       />
                     ) : (
                       <div className="w-7 h-7 rounded bg-muted flex items-center justify-center shrink-0">
@@ -543,7 +548,12 @@ export function Composer({
                       </div>
                     )}
                     <span className="flex-1 truncate">{a.name}</span>
-                    {selected && <Check size={11} className="shrink-0 text-primary" />}
+                    {ineligible && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground border border-border rounded px-1 leading-4">
+                        {a.ineligibleReason}
+                      </span>
+                    )}
+                    {selected && !ineligible && <Check size={11} className="shrink-0 text-primary" />}
                   </button>
                 );
               })}
