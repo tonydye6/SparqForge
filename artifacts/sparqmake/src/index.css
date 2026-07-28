@@ -5,6 +5,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* =========================================================================
+   SparqMake v2 design tokens · Phase 1
+   Spec: SparqMake Sandbox/20_SPEC_00_PRINCIPLES.md §1.6, §1.7, §1.8, §4
+
+   Two rules govern this file, stated here because this is where they will
+   actually be read:
+
+   1. GROUNDS ARE FULLY DESATURATED (hue 0, saturation 0%). This is colour
+      science, not taste: a tinted chrome shifts how you perceive the imagery
+      you are judging inside it, which is why Adobe and Blender both specify
+      neutral greys for image work. The previous ramp was hue 240 at 20%
+      saturation, a blue-violet cast. Personality comes from type, density,
+      the mark and material instead.
+
+   2. COLOUR MEANS STATE, NEVER DECORATION. Every saturated colour below has
+      exactly one job. If a new element seems to need colour, it needs a
+      state, not a swatch. Client brand colours (Crown U gold, Rumble U,
+      Mascot Mayhem) are CONTENT identity and never appear in chrome.
+   ========================================================================= */
+
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -12,9 +32,16 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
 
+  /* Used only immediately around work being judged, per Spectrum's three-layer
+     model: surround / chrome / content. */
+  --color-surround: hsl(var(--surround));
+
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
   --color-card-border: hsl(var(--card-border));
+
+  --color-raised: hsl(var(--raised));
+  --color-raised-2: hsl(var(--raised-2));
 
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
@@ -32,6 +59,9 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-muted-border: var(--muted-border);
 
+  /* Third text tier. Passes 4.5:1 on panel grounds; the previous #666 did not. */
+  --color-dim: hsl(var(--dim));
+
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-accent-border: var(--accent-border);
@@ -40,6 +70,23 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
+  /* ---- Named brand state colours. One job each. ---- */
+  --color-state-selected: hsl(var(--grit-teal));
+  --color-state-live: hsl(var(--cyber-teal));
+  --color-state-published: hsl(var(--victory-gold));
+  --color-state-attention: hsl(var(--rebel-pink));
+  --color-state-destructive: hsl(var(--outlaw-red));
+
+  --color-grit-teal: hsl(var(--grit-teal));
+  --color-cyber-teal: hsl(var(--cyber-teal));
+  --color-victory-gold: hsl(var(--victory-gold));
+  --color-rebel-pink: hsl(var(--rebel-pink));
+  --color-outlaw-red: hsl(var(--outlaw-red));
+  --color-graphite: hsl(var(--graphite));
+
+  /* Kept as aliases so existing consumers keep compiling. Note that "success"
+     is not a brand idea: shipped work is Victory Gold, warnings are Rebel
+     Pink, and there is no green anywhere in the system. */
   --color-success: hsl(var(--status-success));
   --color-warning: hsl(var(--status-warning));
 
@@ -53,57 +100,102 @@
 
   --font-sans: 'Inter', sans-serif;
   --font-display: 'Rajdhani', sans-serif;
+  /* Every number that lines up in a column uses this, per Principles §3.5.
+     A system stack: no extra network request, and these are the faces that
+     actually ship tabular figures. */
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Sharp, not the safe 8px. Written literally rather than as arithmetic on
+     --radius so the small end cannot compute to a negative value. */
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
 }
 
 :root {
-  /* DARK MODE ONLY APP */
-  --background: 240 20% 5%;
-  --foreground: 240 20% 95%;
-  
-  --card: 240 18% 9%;
-  --card-foreground: 240 20% 95%;
-  --card-border: 240 21% 15%;
-  
-  --popover: 240 18% 9%;
-  --popover-foreground: 240 20% 95%;
-  --popover-border: 240 21% 15%;
-  
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
-  
-  --secondary: 240 21% 13%;
-  --secondary-foreground: 240 20% 95%;
-  
-  --muted: 240 21% 13%;
-  --muted-foreground: 215 14% 65%;
-  
-  --accent: 217 91% 60%;
-  --accent-foreground: 0 0% 100%;
-  
-  --destructive: 0 84% 60%;
+  /* ---------------- DARK MODE ONLY APP ---------------- */
+
+  /* Ground ramp, fully desaturated. Hex in comments because the spec and the
+     design artifacts are both written in hex. */
+  --surround:   0 0% 4%;    /* #0A0A0A · around the work only */
+  --background: 0 0% 6%;    /* #101010 · app ground */
+  --foreground: 0 0% 92%;   /* #EAEAEA */
+
+  --card: 0 0% 9%;          /* #181818 · panels, rails */
+  --card-foreground: 0 0% 92%;
+  --card-border: 0 0% 16%;  /* #2A2A2A */
+
+  --raised: 0 0% 12%;       /* #1F1F1F · raised objects */
+  --raised-2: 0 0% 15%;     /* #262626 */
+
+  --popover: 0 0% 9%;
+  --popover-foreground: 0 0% 92%;
+  --popover-border: 0 0% 16%;
+
+  /* ---- Brand state colours, from the Sparq brand guide ---- */
+  --grit-teal:    178 100% 32%;  /* #00A19C · selection, scheduled, focus */
+  --cyber-teal:   178 100% 47%;  /* #00F2EA · live: generating, active */
+  --victory-gold:  51 100% 50%;  /* #FFD700 · published, shipped */
+  --rebel-pink:   347 100% 61%;  /* #FF3864 · needs attention. THE ONLY warning hue */
+  --outlaw-red:   350 100% 46%;  /* #EB0028 · destructive and parent brand only */
+  --graphite:     203  12% 29%;  /* #404B52 · supporting neutral.
+                                    The brand guide prints #404BF2, a blue.
+                                    Confirmed with Tony 2026-07-28 as a typo:
+                                    the printed swatch is charcoal. */
+
+  /* Steel #1E1E24 and Carbon #2B2B42 are the guide's other supporting
+     neutrals. Both carry a blue cast and are DELIBERATELY absent from the
+     ground ramp, per rule 1 at the top of this file. */
+
+  /* Primary is Grit Teal. Its foreground is near-black, not white: white on
+     Grit Teal is 3.2:1 and fails, near-black is 6.0:1 and passes. Gold and
+     pink are light enough to need the same treatment. */
+  --primary: 178 100% 32%;
+  --primary-foreground: 0 0% 5%;
+
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 92%;
+
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 65%;  /* #A6A6A6 · 7.3:1 on panels */
+  --dim: 0 0% 54%;               /* #8A8A8A · 5.1:1 on panels. Was #666 at 3.1:1 */
+
+  /* Accent is the same instrument colour as primary. There is deliberately no
+     second brand hue available for decoration. */
+  --accent: 178 100% 32%;
+  --accent-foreground: 0 0% 5%;
+
+  --destructive: 350 100% 46%;   /* Outlaw Red · destructive actions only */
   --destructive-foreground: 0 0% 100%;
 
-  --status-success: 142 71% 45%;
-  --status-warning: 38 92% 50%;
-  
-  --border: 240 21% 15%;
-  --input: 240 21% 13%;
-  --ring: 217 91% 60%;
-  
-  --sidebar: 240 20% 5%;
-  --sidebar-foreground: 240 20% 95%;
-  --sidebar-border: 240 21% 15%;
-  --sidebar-primary: 217 91% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 21% 13%;
-  --sidebar-accent-foreground: 240 20% 95%;
-  
-  --radius: 0.5rem;
+  --status-success: 178 100% 32%;
+  --status-warning: 347 100% 61%;
+
+  --border: 0 0% 16%;       /* #2A2A2A */
+  --border-soft: 0 0% 13%;  /* #202020 · divisions inside a panel */
+  --input: 0 0% 12%;
+  --ring: 178 100% 32%;
+
+  /* Per-variant borders. These were referenced by @theme inline but never
+     defined, in this file's entire history, so five border utilities have
+     always silently compiled to nothing. Defined here as full colour values
+     rather than HSL triplets, because @theme consumes them without hsl(). */
+  --primary-border: hsl(178 100% 32% / 0.42);
+  --secondary-border: hsl(0 0% 16%);
+  --muted-border: hsl(0 0% 16%);
+  --accent-border: hsl(178 100% 32% / 0.42);
+  --destructive-border: hsl(350 100% 46% / 0.45);
+
+  --sidebar: 0 0% 4%;
+  --sidebar-foreground: 0 0% 92%;
+  --sidebar-border: 0 0% 13%;
+  --sidebar-primary: 178 100% 32%;
+  --sidebar-primary-foreground: 0 0% 5%;
+  --sidebar-accent: 0 0% 12%;
+  --sidebar-accent-foreground: 0 0% 92%;
+
+  --radius: 0.125rem;  /* 2px */
 }
 
 @layer base {
@@ -114,15 +206,38 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
     /* Force dark color scheme for scrollbars */
-    color-scheme: dark; 
+    color-scheme: dark;
+    /* Signature token: fine grain on the app ground. One declaration, and it
+       is what keeps a fully neutral ground reading as deliberate rather than
+       unfinished. Inlined SVG, so no network request. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-wide uppercase;
   }
+
+  /* Accessibility floor, Principles §4.2. Focus is the instrument colour, so
+     focus and selection read as the same idea. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--grit-teal));
+    outline-offset: 2px;
+  }
+
+  /* Numbers line up. Principles §3.5. */
+  .tabular,
+  [data-numeric] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
 }
 
-/* Custom scrollbar for a gaming feel */
+/* Grain for a panel that sits on its own ground. */
+@utility grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+}
+
+/* Custom scrollbar. Neutral now, and no longer picks up a hue. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -133,17 +248,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted));
-  border-radius: 4px;
+  background: hsl(var(--raised-2));
+  border-radius: 1px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground));
-}
-
-/* Glassmorphism utilities */
-.glass-panel {
-  @apply bg-card/60 backdrop-blur-md border border-white/5 shadow-xl;
+  background: hsl(var(--dim));
 }
 
 @keyframes shimmer {
@@ -168,4 +278,17 @@
 @keyframes crossfadeIn {
   from { opacity: 0; filter: blur(4px); }
   to { opacity: 1; filter: blur(0px); }
+}
+
+/* Principles §4.5. Respect the OS setting rather than assuming everyone wants
+   the motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
