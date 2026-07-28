@@ -111,6 +111,16 @@
   --radius-md: 2px;
   --radius-lg: 2px;
   --radius-xl: 3px;
+
+  /* The forge. Used by GenerationIndicator and nowhere else: the entire
+     novelty budget for the product is spent on that one moment. Applied via
+     motion-safe: so the reduced-motion block is not the only guard. */
+  --animate-flicker: flicker 1.6s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 0.75; transform: scale(0.97); }
+  50%      { opacity: 1;    transform: scale(1.03); }
 }
 
 :root {
@@ -187,6 +197,13 @@
   --accent-border: hsl(178 100% 32% / 0.42);
   --destructive-border: hsl(350 100% 46% / 0.45);
 
+  /* Referenced by components/ui/badge.tsx and button.tsx and, like the five
+     above, never defined anywhere until now. Verified as genuinely missing
+     rather than set inline: sidebar.tsx does assign --sidebar-width and
+     --skeleton-width at runtime, so those are correctly absent from here. */
+  --badge-outline: hsl(0 0% 16%);
+  --button-outline: hsl(0 0% 16%);
+
   --sidebar: 0 0% 4%;
   --sidebar-foreground: 0 0% 92%;
   --sidebar-border: 0 0% 13%;
@@ -229,6 +246,22 @@
   [data-numeric] {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+  }
+}
+
+/* `hover-elevate` is applied by badge.tsx and button.tsx from the original
+   Replit scaffold but was never defined, so those elements have had no hover
+   feedback at all. A background lift rather than a shadow, because shadows on a
+   near-black ground read as smudges. */
+@utility hover-elevate {
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+
+  &:hover {
+    background-image: linear-gradient(hsl(0 0% 100% / 0.055), hsl(0 0% 100% / 0.055));
+  }
+
+  &:active {
+    background-image: linear-gradient(hsl(0 0% 0% / 0.12), hsl(0 0% 0% / 0.12));
   }
 }
 
