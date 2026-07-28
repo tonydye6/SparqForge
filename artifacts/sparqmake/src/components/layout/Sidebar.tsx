@@ -10,7 +10,6 @@ import {
   LogOut,
   Menu,
   X,
-  ClipboardList,
   MessageSquareText,
   Sparkles,
   Palette,
@@ -78,18 +77,32 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       .catch((err) => console.error("Failed to load asset count:", err));
   }, []);
 
+  /**
+   * Phase 2 consolidation. Spec: SparqMake Sandbox/22_IMPLEMENTATION_PLAN.md
+   *
+   * Was 11 items, now 9. Calendar and Content Plan are gone, merged into
+   * Pipeline, and Feedback has moved to the footer where a link that gets used
+   * twice a year belongs.
+   *
+   * The plan's target is 7, and the remaining two come out when their
+   * replacements actually exist, not before:
+   *
+   *   Creative History  → retires into the Studio session rail in Phase 4
+   *   Review Queue      → dissolves when approval-on-the-artifact ships in Phase 6
+   *
+   * Removing either now would take a working feature off the nav and leave
+   * nothing in its place, which is a regression dressed up as progress.
+   */
   const NAV_ITEMS = [
     { href: "/", label: "Studio", icon: MessageSquareText },
+    { href: "/pipeline", label: "Pipeline", icon: CalendarIcon, badge: calendarCount || undefined },
     { href: "/studio", label: "Creative History", icon: Sparkles },
-    { href: "/brand", label: "Brand", icon: Palette },
     { href: "/assets", label: "Asset Library", icon: Library, badge: pendingAssetCount || undefined },
-    { href: "/calendar", label: "Calendar", icon: CalendarIcon, badge: calendarCount || undefined },
-    { href: "/content-plan", label: "Content Plan", icon: ClipboardList },
+    { href: "/brand", label: "Brand", icon: Palette },
     { href: "/review", label: "Review Queue", icon: CheckSquare, badge: reviewCount || undefined },
     { href: "/performance", label: "Performance", icon: TrendingUp },
     { href: "/costs", label: "Cost Dashboard", icon: DollarSign },
     { href: "/settings", label: "Settings", icon: Settings },
-    { href: "/feedback", label: "Feedback", icon: MessageSquareText },
   ];
 
   const collapsed = mode === "tablet" ? !tabletExpanded : mode === "desktop" ? desktopCollapsed : false;
@@ -202,6 +215,30 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* Secondary links. Feedback used to occupy a full nav slot; a link used
+          twice a year does not earn one. /design is the internal design system
+          reference and is deliberately not in the nav at all. */}
+      {(mode === "mobile" || !collapsed) && (
+        <div className="shrink-0 border-t border-sidebar-border px-3 py-2">
+          <div className="flex items-center gap-3 px-3">
+            <Link
+              href="/feedback"
+              onClick={handleNavClick}
+              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+            >
+              Feedback
+            </Link>
+            <Link
+              href="/design"
+              onClick={handleNavClick}
+              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+            >
+              Design
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="p-4 border-t border-sidebar-border shrink-0">
         <div className={cn("flex items-center", collapsed && mode !== "mobile" ? "justify-center" : "justify-between")}>
