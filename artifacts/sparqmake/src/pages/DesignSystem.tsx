@@ -2,6 +2,7 @@ import { MediaTile } from "@/components/ui/media-tile";
 import { StateChip } from "@/components/ui/state-chip";
 import { TimelineLane, TimelineRuler } from "@/components/ui/timeline-lane";
 import { GenerationIndicator } from "@/components/ui/generation-indicator";
+import { StageSpine, ReopenBar, type SpineStage, type SpineEdge } from "@/components/studio/StageSpine";
 import { CREATIVE_STATES, type CreativeState } from "@/lib/creative-state";
 
 /**
@@ -35,6 +36,45 @@ const STATE_COLOURS = [
 ];
 
 const ALL_STATES = Object.keys(CREATIVE_STATES) as CreativeState[];
+
+/** A post being worked normally: each stage consumed the one before it. */
+const SPINE_NORMAL: SpineStage[] = [
+  { id: "a", stageNumber: 1, label: "Brief", summary: "Hype post, championship run", status: "done" },
+  { id: "b", stageNumber: 2, label: "Direction", summary: "Arena night · Ava K panels", status: "done" },
+  { id: "c", stageNumber: 3, label: "Image", summary: "8 takes · 2 kept", status: "active" },
+  { id: "d", stageNumber: 4, label: "Copy", summary: "Hook, caption, hashtags", status: "empty" },
+  { id: "e", stageNumber: 5, label: "Channel crops", summary: "IG · Story · X · TikTok", status: "empty" },
+];
+const SPINE_NORMAL_EDGES: SpineEdge[] = [
+  { from: "a", to: "b", direction: "forward" },
+  { from: "b", to: "c", direction: "forward" },
+  { from: "c", to: "d", direction: "forward" },
+  { from: "d", to: "e", direction: "forward" },
+];
+
+/** The copy-led case: stage 03 consumed stage 04, so that edge is inverted. */
+const SPINE_COPY_LED: SpineStage[] = [
+  { id: "a", stageNumber: 1, label: "Brief", summary: "Hype post, championship run", status: "done" },
+  { id: "b", stageNumber: 2, label: "Direction", summary: "Arena night · Ava K panels", status: "done" },
+  { id: "c", stageNumber: 3, label: "Image", summary: "Fitting the locked line", status: "active" },
+  { id: "d", stageNumber: 4, label: "Copy", summary: "The Floor Is Yours. Clear It.", status: "locked" },
+  { id: "e", stageNumber: 5, label: "Channel crops", summary: "IG · Story · X · TikTok", status: "empty" },
+];
+const SPINE_COPY_LED_EDGES: SpineEdge[] = [
+  { from: "a", to: "b", direction: "forward" },
+  { from: "b", to: "c", direction: "forward" },
+  { from: "c", to: "d", direction: "inverted" },
+  { from: "d", to: "e", direction: "forward" },
+];
+
+/** After reopening Direction: what it fed is stale, the locked stage is not. */
+const SPINE_STALE: SpineStage[] = [
+  { id: "a", stageNumber: 1, label: "Brief", summary: "Hype post, championship run", status: "done" },
+  { id: "b", stageNumber: 2, label: "Direction", summary: "Choosing the designer", status: "active" },
+  { id: "c", stageNumber: 3, label: "Image", summary: "Built on the old direction", status: "stale" },
+  { id: "d", stageNumber: 4, label: "Copy", summary: "Built on the old direction", status: "stale" },
+  { id: "e", stageNumber: 5, label: "Channel crops", summary: "Not made yet", status: "empty" },
+];
 
 /** A stand-in image so tiles have something to desaturate and frame. */
 const SAMPLE =
@@ -261,6 +301,53 @@ export default function DesignSystem() {
               protecting="Checking every take against Crown U's palette"
               size="sm"
             />
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        title="The spine"
+        note="What replaces back and forward. Those are a stack: they know only the previous step, they forget the branch you abandoned, and they cannot tell you what going back will cost. This is addressable history. Arrow direction comes from the dependency engine on the server, never from position, which is why the copy-led example below renders a reversed arrow: the graph really is reversed. Tab into a spine and use the arrow keys."
+      >
+        <div className="space-y-6">
+          <div>
+            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.1em] text-dim">
+              Normal · working at stage 03
+            </p>
+            <StageSpine stages={SPINE_NORMAL} edges={SPINE_NORMAL_EDGES} activeStageId="c" onOpenStage={() => {}} />
+          </div>
+
+          <div>
+            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.1em] text-dim">
+              Copy-led · the hook was written first and locked, so the image was built to fit it
+            </p>
+            <StageSpine stages={SPINE_COPY_LED} edges={SPINE_COPY_LED_EDGES} activeStageId="c" onOpenStage={() => {}} />
+            <p className="mt-2 max-w-[80ch] text-[11px] leading-relaxed text-dim">
+              Copy still sits at position 04, because display order is a fixed reading convention. The arrow
+              between 03 and 04 points backwards because stage 03 consumed stage 04. Position and dependency
+              are different things, and only one of them needs to stay fixed.
+            </p>
+          </div>
+
+          <div>
+            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.1em] text-dim">
+              After reopening Direction · downstream marked stale, with the offer
+            </p>
+            <div className="overflow-hidden rounded-sm border border-border/60">
+              <StageSpine stages={SPINE_STALE} edges={SPINE_NORMAL_EDGES} activeStageId="b" onOpenStage={() => {}} />
+              <ReopenBar
+                summary="Asset and copy were built on this, so they are marked stale. 1 locked stage is untouched."
+                staleCount={2}
+                rerunCents={19}
+                onRerun={() => {}}
+                onKeep={() => {}}
+              />
+            </div>
+            <p className="mt-2 max-w-[80ch] text-[11px] leading-relaxed text-dim">
+              Keep them as they are sits beside the re-run with equal weight. Reopening one decision is not
+              consent to redo the things built on top of it, and the price is shown because hiding it would
+              make the choice dishonest.
+            </p>
           </div>
         </div>
       </Section>
