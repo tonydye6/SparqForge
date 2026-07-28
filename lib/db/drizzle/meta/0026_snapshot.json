@@ -1,5 +1,5 @@
 {
-  "id": "6b830123-728e-49c9-943e-72243625ca63",
+  "id": "09ecb535-aad8-4656-a686-d57a98ee50a1",
   "prevId": "445ee989-24c0-4810-b7c6-ff9216a85b00",
   "version": "7",
   "dialect": "postgresql",
@@ -4781,8 +4781,8 @@
         }
       },
       "indexes": {
-        "stage_states_creative_idx": {
-          "name": "stage_states_creative_idx",
+        "stage_states_creative_status_idx": {
+          "name": "stage_states_creative_status_idx",
           "columns": [
             {
               "expression": "creative_id",
@@ -4790,21 +4790,6 @@
               "asc": true,
               "nulls": "last"
             },
-            {
-              "expression": "stage_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "stage_states_status_idx": {
-          "name": "stage_states_status_idx",
-          "columns": [
             {
               "expression": "status",
               "isExpression": false,
@@ -4858,7 +4843,36 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "stage_states_number_range_check": {
+          "name": "stage_states_number_range_check",
+          "value": "\"stage_states\".\"stage_number\" between 1 and 5"
+        },
+        "stage_states_kind_check": {
+          "name": "stage_states_kind_check",
+          "value": "\"stage_kind\" in ('brief', 'direction', 'asset', 'copy', 'crops')"
+        },
+        "stage_states_mode_check": {
+          "name": "stage_states_mode_check",
+          "value": "\"mode\" in ('explore', 'refine')"
+        },
+        "stage_states_status_check": {
+          "name": "stage_states_status_check",
+          "value": "\"status\" in ('empty', 'active', 'done', 'stale', 'locked')"
+        },
+        "stage_states_number_kind_check": {
+          "name": "stage_states_number_kind_check",
+          "value": "(\"stage_number\" = 1 and \"stage_kind\" = 'brief') or (\"stage_number\" = 2 and \"stage_kind\" = 'direction') or (\"stage_number\" = 3 and \"stage_kind\" = 'asset') or (\"stage_number\" = 4 and \"stage_kind\" = 'copy') or (\"stage_number\" = 5 and \"stage_kind\" = 'crops')"
+        },
+        "stage_states_consumed_is_array_check": {
+          "name": "stage_states_consumed_is_array_check",
+          "value": "jsonb_typeof(\"stage_states\".\"consumed_from\") = 'array'"
+        },
+        "stage_states_locked_provenance_check": {
+          "name": "stage_states_locked_provenance_check",
+          "value": "(\"stage_states\".\"status\" <> 'locked') or (\"stage_states\".\"locked_at\" is not null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.stage_takes": {
@@ -4930,8 +4944,8 @@
         }
       },
       "indexes": {
-        "stage_takes_slot_idx": {
-          "name": "stage_takes_slot_idx",
+        "stage_takes_one_current_per_slot_uq": {
+          "name": "stage_takes_one_current_per_slot_uq",
           "columns": [
             {
               "expression": "stage_state_id",
@@ -4944,36 +4958,10 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
-            },
-            {
-              "expression": "take_index",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
             }
           ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "stage_takes_current_idx": {
-          "name": "stage_takes_current_idx",
-          "columns": [
-            {
-              "expression": "stage_state_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "is_current",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
+          "isUnique": true,
+          "where": "\"stage_takes\".\"is_current\"",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -5008,9 +4996,28 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "stage_takes_slot_take_uq": {
+          "name": "stage_takes_slot_take_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "stage_state_id",
+            "slot_key",
+            "take_index"
+          ]
+        }
+      },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "stage_takes_origin_check": {
+          "name": "stage_takes_origin_check",
+          "value": "\"origin\" in ('generated', 'region_edit', 'user_typed', 'swapped_in')"
+        },
+        "stage_takes_index_positive_check": {
+          "name": "stage_takes_index_positive_check",
+          "value": "\"stage_takes\".\"take_index\" >= 1"
+        }
+      },
       "isRLSEnabled": false
     }
   },
