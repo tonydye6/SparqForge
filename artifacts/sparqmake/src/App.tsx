@@ -23,6 +23,8 @@ import StudioNext from "@/pages/StudioNext";
 import BrandNext from "@/pages/BrandNext";
 import CalendarNext from "@/pages/CalendarNext";
 import CopilotStudio from "@/pages/CopilotStudio";
+import Pipeline from "@/pages/Pipeline";
+import DesignSystem from "@/pages/DesignSystem";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -146,13 +148,33 @@ function Router() {
         <Route path="/assets">
           <AppLayout><AssetLibrary /></AppLayout>
         </Route>
+        <Route path="/pipeline">
+          <FirstRunGuard>
+            <AppLayout><Pipeline /></AppLayout>
+          </FirstRunGuard>
+        </Route>
+        {/* Calendar and Content Plan are consolidated into Pipeline. These
+            redirects keep existing bookmarks and any links in old emails or
+            Slack messages working rather than dropping people on a 404. */}
         <Route path="/calendar">
+          <Redirect to="/pipeline" />
+        </Route>
+        <Route path="/content-plan">
+          <Redirect to="/pipeline" />
+        </Route>
+        {/* Reachable by URL while Pipeline is proven out, so nothing is lost if
+            it turns out one of them still does something Pipeline does not. */}
+        <Route path="/calendar-legacy">
           <FirstRunGuard>
             <AppLayout><CalendarNext /></AppLayout>
           </FirstRunGuard>
         </Route>
-        <Route path="/content-plan">
+        <Route path="/content-plan-legacy">
           <AppLayout><ContentPlan /></AppLayout>
+        </Route>
+        {/* Internal design system reference. Linked from the sidebar footer. */}
+        <Route path="/design">
+          <AppLayout><DesignSystem /></AppLayout>
         </Route>
         <Route path="/review">
           <AppLayout><ReviewQueue /></AppLayout>
