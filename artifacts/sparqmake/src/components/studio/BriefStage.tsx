@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
 
@@ -13,7 +13,8 @@ import { apiFetch, cn } from "@/lib/utils";
  * how a form would behave:
  *
  *   1. ONE LINE IS ALWAYS ENOUGH. Nothing gates you. You type six words and
- *      proceed.
+ *      proceed. The derivation below is advisory: it can be mid-flight, stale or
+ *      failed and Save still works.
  *   2. YOUR LINE IS NEVER REWRITTEN. It sits verbatim at the top. Everything
  *      else is derived from it and labelled with who decided it.
  *   3. IT ASKS ONLY WHAT CHANGES THE OUTPUT, and every question shows the
@@ -27,10 +28,16 @@ import { apiFetch, cn } from "@/lib/utils";
  * hand, so per §1.12 direct typing is primary here and instruction is
  * secondary: the composer handles "shorter" and "less formal", this handles
  * knowing exactly what you want to say.
+ *
+ * The derived rows and the interview come from POST /api/brief-intake. Editing
+ * any derived row flips its label to yours and that row is then sent as authored
+ * rather than inferred, which is the entire point of showing provenance.
  */
 
 interface BriefStageProps {
   creativeId: string;
+  /** Needed for the brand-sourced rows. Null is handled, not assumed away. */
+  brandId: string | null;
   stageId: string;
   locked: boolean;
   onSaved: () => void;
@@ -50,13 +57,15 @@ interface DerivedRow {
   label: string;
   value: string;
   provenance: Provenance;
+  note?: string;
 }
 
 /**
  * A question worth asking, with the assumption it falls back to.
  *
  * `assumption` is not optional. A question with no stated default is a gate,
- * and gates are what make people abandon a brief.
+ * and gates are what make people abandon a brief. The server drops any question
+ * that arrives without one.
  */
 interface OpenQuestion {
   id: string;
@@ -65,49 +74,112 @@ interface OpenQuestion {
   assumption: string;
 }
 
-export function BriefStage({ creativeId, stageId, locked, onSaved }: BriefStageProps) {
+interface IntakeResponse {
+  intent: { id: string; label: string; confidence: number; reasoning: string | null } | null;
+  derived: DerivedRow[];
+  questions: OpenQuestion[];
+  degraded: boolean;
+  degradedReason?: string;
+}
+
+/** Below this there is not enough to infer anything worth showing. */
+const MIN_WORDS_TO_DERIVE = 3;
+/** Long enough that we are not billing a model call on every keystroke. */
+const DEBOUNCE_MS = 800;
+
+const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
+
+export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: BriefStageProps) {
   const [line, setLine] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
-  /**
-   * Derived rows and questions are placeholders until the intent service is
-   * wired in the next Phase 4 commit. They are shaped exactly as the real
-   * payload will be, and every one is labelled, so what is on screen is honest
-   * about being derived rather than pretending to be your words.
-   */
-  const derived: DerivedRow[] = line.trim()
-    ? [
-        { key: "goal", label: "Goal", value: "Drive engagement from existing followers", provenance: "inferred" },
-        { key: "audience", label: "Audience", value: "Existing players, not new installs", provenance: "inferred" },
-        { key: "channels", label: "Channels", value: "IG feed, Story, X, TikTok", provenance: "brand" },
-        { key: "mustnot", label: "Must not", value: "No trash talk, no red, no fake sponsor boards", provenance: "brand" },
-      ]
-    : [];
+  const [derived, setDerived] = useState<DerivedRow[]>([]);
+  const [questions, setQuestions] = useState<OpenQuestion[]>([]);
+  const [degraded, setDegraded] = useState<string | null>(null);
+  const [thinking, setThinking] = useState(false);
+  /** The line the rows on screen were derived from, so we can say when they lag. */
+  const [derivedFrom, setDerivedFrom] = useState("");
 
-  const questions: OpenQuestion[] = line.trim()
-    ? [
-        {
-          id: "timing",
-          question: "Is this live now, or a tease?",
-          options: ["Live now", "Tease", "Dated soon"],
-          assumption: "live now, because your last three posts of this kind were",
-        },
-        {
-          id: "art",
-          question: "Lead with art you supply, or generate a scene?",
-          options: ["Use my art", "Generate around it"],
-          assumption: "use your art, composited and never redrawn",
-        },
-      ]
-    : [];
+  const [editingKey, setEditingKey] = useState<string | null>(null);
 
-  const yourWords = line.trim() ? line.trim().split(/\s+/).length : 0;
+  // One in-flight derivation at a time. An abandoned request is cancelled rather
+  // than left to land late and overwrite newer rows (and, on a metered model, to
+  // be billed for an answer nobody will see).
+  const abortRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const derive = useCallback(
+    async (text: string) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setThinking(true);
+      try {
+        const res = await apiFetch(`/api/brief-intake`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ briefText: text, ...(brandId ? { brandId } : {}) }),
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = (await res.json()) as IntakeResponse;
+        if (controller.signal.aborted) return;
+        setDerived(data.derived ?? []);
+        setQuestions(data.questions ?? []);
+        setDegraded(data.degraded ? (data.degradedReason ?? "Only the brand record is shown.") : null);
+        setDerivedFrom(text);
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        // Rule 1: a failed derivation is not allowed to become a blocked brief.
+        setDegraded("The derivation could not be reached, so nothing below is filled in. Your line still saves.");
+        setDerived([]);
+        setQuestions([]);
+        setDerivedFrom(text);
+      } finally {
+        if (!controller.signal.aborted) setThinking(false);
+      }
+    },
+    [brandId],
+  );
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const text = line.trim();
+    if (locked || wordCount(text) < MIN_WORDS_TO_DERIVE) {
+      abortRef.current?.abort();
+      setThinking(false);
+      return;
+    }
+    timerRef.current = setTimeout(() => void derive(text), DEBOUNCE_MS);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [line, locked, derive]);
+
+  // Cancel anything in flight when the stage unmounts.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  /** Editing a row makes it yours. That is the whole contract of the badge. */
+  function editRow(key: string, value: string) {
+    setDerived((rows) =>
+      rows.map((r) =>
+        r.key === key ? { ...r, value, provenance: "you", note: undefined } : r,
+      ),
+    );
+    setSaved(false);
+  }
+
+  const yourWords = wordCount(line);
   // The gap the user is entitled to see: their words versus everything the
-  // model will actually receive.
-  const derivedWords = derived.reduce((n, d) => n + d.value.split(/\s+/).length, 0);
-  const totalWords = yourWords + derivedWords;
+  // model will actually receive. Counted off what is really on screen, so it
+  // cannot drift from the panel above it.
+  const derivedWords = derived.reduce((n, d) => n + wordCount(d.value), 0);
+  const answerWords = Object.values(answers).reduce((n, a) => n + wordCount(a), 0);
+  const totalWords = yourWords + derivedWords + answerWords;
+
+  const stale = derivedFrom !== "" && derivedFrom !== line.trim();
 
   async function save() {
     if (!line.trim() || locked) return;
@@ -121,7 +193,21 @@ export function BriefStage({ creativeId, stageId, locked, onSaved }: BriefStageP
           // Typed by hand, so the engine auto-locks this stage and no upstream
           // re-run can overwrite the words someone chose.
           origin: "user_typed",
-          payload: line.trim(),
+          // Everything on screen, and nothing that is not. The rows carry their
+          // provenance so a downstream stage can tell an authored constraint
+          // from an inferred one instead of flattening both into prose.
+          payload: {
+            line: line.trim(),
+            derived: derived.map((d) => ({
+              key: d.key,
+              label: d.label,
+              value: d.value,
+              provenance: d.provenance,
+            })),
+            answers: questions
+              .filter((q) => answers[q.id])
+              .map((q) => ({ id: q.id, question: q.question, answer: answers[q.id] })),
+          },
           // The brief consumes nothing. Recording that truthfully is what makes
           // it unstaleable, which is the whole copy-led mechanism.
           consumedFrom: [],
@@ -160,19 +246,56 @@ export function BriefStage({ creativeId, stageId, locked, onSaved }: BriefStageP
         </p>
       </div>
 
-      {derived.length > 0 && (
+      {degraded && (
+        <p className="rounded-sm border border-victory-gold/40 bg-card px-3 py-2 text-[11px] leading-relaxed text-victory-gold">
+          {degraded}
+        </p>
+      )}
+
+      {(derived.length > 0 || thinking) && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-sm border border-border/60 bg-card p-3.5">
-            <p className="mb-2 font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
+            <p className="mb-2 flex items-center gap-2 font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
               What I derived from that
+              {thinking && <span className="text-cyber-teal">reading</span>}
+              {!thinking && stale && <span className="text-victory-gold">from your previous line</span>}
             </p>
+
+            {derived.length === 0 && thinking && (
+              <p className="py-1.5 text-[11.5px] text-dim">Working out what this implies.</p>
+            )}
+
             {derived.map((d) => (
-              <div key={d.key} className="grid grid-cols-[70px_1fr] gap-2 border-b border-border/40 py-1.5 last:border-b-0">
+              <div
+                key={d.key}
+                className="grid grid-cols-[70px_1fr] gap-2 border-b border-border/40 py-1.5 last:border-b-0"
+              >
                 <span className="pt-0.5 font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">
                   {d.label}
                 </span>
                 <span className="text-[11.5px] leading-snug text-foreground">
-                  {d.value}
+                  {editingKey === d.key ? (
+                    <input
+                      autoFocus
+                      value={d.value}
+                      onChange={(e) => editRow(d.key, e.target.value)}
+                      onBlur={() => setEditingKey(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === "Escape") setEditingKey(null);
+                      }}
+                      aria-label={`${d.label}, editable`}
+                      className="w-full rounded-sm border border-grit-teal bg-raised px-1 py-0.5 text-[11.5px] text-foreground outline-none"
+                    />
+                  ) : (
+                    <button
+                      onClick={() => !locked && setEditingKey(d.key)}
+                      disabled={locked}
+                      className="text-left hover:text-cyber-teal disabled:hover:text-foreground"
+                      title={locked ? undefined : "Edit this line"}
+                    >
+                      {d.value}
+                    </button>
+                  )}
                   <span
                     className={cn(
                       "ml-1.5 whitespace-nowrap rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em]",
@@ -181,18 +304,34 @@ export function BriefStage({ creativeId, stageId, locked, onSaved }: BriefStageP
                   >
                     {PROVENANCE_STYLES[d.provenance].label}
                   </span>
+                  {d.note && (
+                    <span className="ml-1.5 font-mono text-[7.5px] uppercase tracking-[0.06em] text-dim">
+                      {d.note}
+                    </span>
+                  )}
                 </span>
               </div>
             ))}
-            <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
-              Every line is editable and any edit flips its label to yours. Nothing is sent that is not here.
-            </p>
+
+            {derived.length > 0 && (
+              <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
+                Every line is editable and any edit flips its label to yours. Nothing is sent that is not here.
+              </p>
+            )}
           </div>
 
           <div className="rounded-sm border border-border/60 bg-card p-3.5">
             <p className="mb-2 font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
               What I actually need from you · {questions.length}
             </p>
+
+            {questions.length === 0 && !thinking && (
+              <p className="text-[11.5px] leading-relaxed text-dim">
+                Nothing. Your line already says enough to start, so there is no question worth spending your
+                attention on.
+              </p>
+            )}
+
             {questions.map((q) => (
               <div key={q.id} className="mb-2 rounded-sm border border-border bg-raised px-2.5 py-2 last:mb-0">
                 <p className="text-[12px] leading-snug text-foreground">{q.question}</p>
@@ -200,7 +339,17 @@ export function BriefStage({ creativeId, stageId, locked, onSaved }: BriefStageP
                   {q.options.map((opt) => (
                     <button
                       key={opt}
-                      onClick={() => setAnswers((a) => ({ ...a, [q.id]: opt }))}
+                      onClick={() =>
+                        setAnswers((a) => {
+                          // Tapping the chosen option again clears it, so an
+                          // accidental answer can go back to the assumption.
+                          const next = { ...a };
+                          if (next[q.id] === opt) delete next[q.id];
+                          else next[q.id] = opt;
+                          return next;
+                        })
+                      }
+                      aria-pressed={answers[q.id] === opt}
                       className={cn(
                         "rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em] hover-elevate",
                         answers[q.id] === opt
@@ -213,14 +362,26 @@ export function BriefStage({ creativeId, stageId, locked, onSaved }: BriefStageP
                   ))}
                 </div>
                 <p className="mt-1.5 text-[10px] leading-snug text-dim">
-                  Skip and I assume <span className="text-muted-foreground">{q.assumption}</span>.
+                  {answers[q.id] ? (
+                    <>
+                      You chose <span className="text-muted-foreground">{answers[q.id]}</span>. Tap it again to go
+                      back to the assumption.
+                    </>
+                  ) : (
+                    <>
+                      Skip and I assume <span className="text-muted-foreground">{q.assumption}</span>.
+                    </>
+                  )}
                 </p>
               </div>
             ))}
-            <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
-              Only questions that change the output get asked, and each shows the assumption it will make if you
-              ignore it. This is an interview, not a form.
-            </p>
+
+            {questions.length > 0 && (
+              <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
+                Only questions that change the output get asked, and each shows the assumption it will make if you
+                ignore it. This is an interview, not a form.
+              </p>
+            )}
           </div>
         </div>
       )}
