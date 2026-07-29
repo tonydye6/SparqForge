@@ -292,6 +292,9 @@ export default function StudioV2() {
                 {activeStage?.stageKind === "brief" ? (
                   <BriefStage
                     creativeId={creativeId}
+                    brandId={
+                      (creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null
+                    }
                     stageId={activeStage.id}
                     locked={activeStage.status === "locked"}
                     onSaved={() => void loadSpine(creativeId)}

@@ -64,9 +64,18 @@ router.get("/creatives", async (req, res): Promise<void> => {
   // the sidebar's review badge) is a "recent work" surface, and each caps the
   // result at 40-50 rows — so ascending order meant that once the account had
   // more creatives than the cap, newly created work never appeared at all.
+  //
+  // `id` is the tiebreaker, and it is not decoration. createdAt is not unique
+  // here: seeding and fan-out both insert batches inside one transaction, so
+  // many rows share a timestamp to the microsecond. Ordering by a non-unique
+  // column alone leaves row order among ties unspecified, which under LIMIT and
+  // OFFSET lets the same row arrive on two pages while another is never
+  // returned at all. Adding the primary key makes the sort total, so pagination
+  // is stable and repeated fetches agree with each other.
+  const orderBy = [desc(creativesTable.createdAt), desc(creativesTable.id)] as const;
   const results = baseCondition
-    ? await db.select().from(creativesTable).where(baseCondition).orderBy(desc(creativesTable.createdAt)).limit(limit).offset(offset)
-    : await db.select().from(creativesTable).orderBy(desc(creativesTable.createdAt)).limit(limit).offset(offset);
+    ? await db.select().from(creativesTable).where(baseCondition).orderBy(...orderBy).limit(limit).offset(offset)
+    : await db.select().from(creativesTable).orderBy(...orderBy).limit(limit).offset(offset);
 
   res.json({ data: results, total, limit, offset });
 });
