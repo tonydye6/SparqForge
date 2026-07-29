@@ -11,6 +11,7 @@ import { z } from "zod";
 import { assembleContext } from "../services/context-assembly.js";
 import { generateImage } from "../services/imagen.js";
 import { buildGenerationPacket } from "../services/packet-assembly.js";
+import { matchAssetsToBrief } from "../services/asset-matching.js";
 import {
   buildReferenceImages,
   loadPersonaReferenceImages,
@@ -276,14 +277,41 @@ router.post(
       const persona = await directorFor(creativeId, creative.brandId);
       let referenceImages: Awaited<ReturnType<typeof buildReferenceImages>> = [];
       let referenceNote: string | null = null;
+      let matchedAssetIds: string[] = [];
       try {
+        /*
+         * Find the brand's own assets for this brief. This is the step v2 was
+         * missing and v1 has always had.
+         *
+         * matchAssetsToBrief is the real library scanner: it scores every
+         * non-archived asset for the brand against the brief's tokens and applies
+         * the asset policy. StudioNext calls it behind its asset-confirm screen,
+         * which is why character fidelity works there. Explore was passing
+         * selectedAssetIds: [] and hoping buildGenerationPacket would find
+         * something on its own, and a packet with no selected assets reaches the
+         * library only through style-profile references. So the Crown U character
+         * never went to the model as an image, only as prose, and prose cannot hold
+         * a character's identity.
+         *
+         * Subject references first and explicitly: a spread explores COMPOSITION,
+         * and the thing that must not vary across it is who is in the picture.
+         */
+        const matched = await matchAssetsToBrief({
+          brandId: creative.brandId,
+          briefText: ctx.combinedBrief,
+        });
+        matchedAssetIds = [
+          ...matched.imageReferences.map(m => m.asset.id),
+          ...matched.compositing.map(m => m.asset.id),
+        ];
+
         const personaRefs = await loadPersonaReferenceImages(persona);
         const packet = await buildGenerationPacket({
           creativeId,
           brandId: creative.brandId,
           templateId,
           platform: "instagram_feed",
-          selectedAssetIds: [],
+          selectedAssetIds: matchedAssetIds,
           briefText: ctx.combinedBrief,
           // The spread is exploring composition, so neither subjects nor styles
           // should dominate the slots before the axes have had their say.
@@ -374,6 +402,8 @@ router.post(
                 // run response is gone (§1.17).
                 material: {
                   referenceCount: referenceImages.length,
+                  matchedCount: matchedAssetIds.length,
+                  subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
                   director: persona?.name ?? null,
                 },
               },
@@ -396,6 +426,10 @@ router.post(
           referenceCount: referenceImages.length,
           subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
           styleCount: referenceImages.filter(r => r.role === "style_reference").length,
+          // Matched and sent are different numbers, and the gap between them is
+          // where character fidelity gets lost. Reported separately so a future
+          // failure is diagnosable without another round of guessing.
+          matchedCount: matchedAssetIds.length,
           director: persona?.name ?? null,
           personaNote: referenceNote,
         },

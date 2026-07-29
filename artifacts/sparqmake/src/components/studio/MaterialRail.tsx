@@ -126,6 +126,29 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
     return null;
   })();
 
+  /**
+   * How many library assets the brief MATCHED, which is a different number from
+   * how many were sent. The gap between them is exactly where character fidelity
+   * is lost, so the rail shows both rather than one.
+   */
+  const matchedAssets = (() => {
+    for (const t of rendered) {
+      const p = t.payload as { material?: { matchedCount?: unknown } } | undefined;
+      const n = p?.material?.matchedCount;
+      if (typeof n === "number") return n;
+    }
+    return null;
+  })();
+
+  const subjectRefs = (() => {
+    for (const t of rendered) {
+      const p = t.payload as { material?: { subjectCount?: unknown } } | undefined;
+      const n = p?.material?.subjectCount;
+      if (typeof n === "number") return n;
+    }
+    return null;
+  })();
+
   return (
     <div className="px-3 py-2.5">
       <p className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</p>
@@ -174,6 +197,27 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
                 </>
               )}
             </Line>
+            {matchedAssets !== null && (
+              <Line label="Matched the brief">
+                {matchedAssets === 0 ? (
+                  <span className="text-rebel-pink">
+                    No library asset matched this brief, so nothing could be sent
+                  </span>
+                ) : (
+                  <>
+                    {matchedAssets} asset{matchedAssets === 1 ? "" : "s"}
+                    {subjectRefs !== null && (
+                      <>
+                        {" · "}
+                        <span className={subjectRefs === 0 ? "text-rebel-pink" : undefined}>
+                          {subjectRefs} as subject
+                        </span>
+                      </>
+                    )}
+                  </>
+                )}
+              </Line>
+            )}
             <Line label="Prose steering">
               Brand rules, palette and negative prompt, plus the goal, the director's fingerprint and
               any style profile
