@@ -9,6 +9,7 @@ import { BriefStage } from "@/components/studio/BriefStage";
 import { DirectionStage } from "@/components/studio/DirectionStage";
 import { ImageStage } from "@/components/studio/ImageStage";
 import { BrandContract } from "@/components/studio/BrandContract";
+import { MaterialRail } from "@/components/studio/MaterialRail";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -354,15 +355,11 @@ export default function StudioV2() {
               <BrandContract
                 brandId={(creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null}
               />
-              <div className="px-3 py-2.5">
-                <p className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</p>
-                <p className="mt-0.5 text-[10px] leading-snug text-dim">
-                  What the director reached for at this stage.
-                </p>
-              </div>
-              <p className="mt-auto border-t border-border/60 px-3 py-2 font-mono text-[8.5px] leading-relaxed tracking-[0.06em] text-dim">
-                Populated from stage 02 onward
-              </p>
+              <MaterialRail
+                stages={spine.stages}
+                activeStage={activeStage}
+                takesByStage={spine.takes}
+              />
             </aside>
           </div>
         </>
