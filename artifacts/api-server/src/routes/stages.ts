@@ -313,6 +313,27 @@ router.post("/creatives/:creativeId/stages/:stageId/takes", async (req, res): Pr
       return;
     }
 
+    /**
+     * A locked stage cannot be written to. Principle 1.4: a locked stage stops
+     * being an output and becomes an input to every other stage. Without this
+     * guard the lock is advisory, enforced only by a disabled textarea in one
+     * client, and any other caller can rewrite a locked brief. The damage is not
+     * just the overwrite: downstream stages that consumed it are left stale in
+     * fact but "done" in the record, because staleness is marked by the reopen
+     * ceremony (§1.5, reopening is consent) which such a caller skipped.
+     *
+     * 409 rather than 403: nothing is wrong with the caller's permissions, the
+     * resource is in a state that refuses the write. Unlock, or reopen, first.
+     */
+    if (stage.status === "locked") {
+      res.status(409).json({
+        error:
+          "This stage is locked, so it was not changed. Unlock it first, which lets you choose what happens to the stages that used it.",
+        stageStatus: "locked",
+      });
+      return;
+    }
+
     const created = await db.transaction(async (tx) => {
       const existing = await tx
         .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
