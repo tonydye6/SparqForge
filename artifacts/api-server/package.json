@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "lsof -ti tcp:${PORT:-8080} | xargs -r kill -9; NODE_ENV=development exec tsx ./src/index.ts",
     "build": "tsx ./build.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
     "test": "vitest run"
   },
   "dependencies": {
