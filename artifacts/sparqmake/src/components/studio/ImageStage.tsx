@@ -117,7 +117,10 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
   /**
    * The column where the spread stops honouring the brief and starts departing.
    *
-   * This is drawn as a rule down the grid, and it is the cue that has to last.
+   * Drawn as a gutter, and the gutter is what actually reads: a hairline rule
+   * against this ground is invisible, so the void between the columns is the
+   * cue. Verified against a filled-tile mock, where it works BETTER than empty,
+   * because busy imagery makes a void more visible rather than less.
    * The raised ground and the dashed border both stop working the moment tiles
    * contain generated images: the fill is hidden and every border becomes solid.
    * A rule between columns is independent of what is inside the tiles, so it
@@ -322,7 +325,7 @@ function FragmentRow({
           <div className="flex min-w-0 justify-end">
             {t.offBrief && (
               <span
-                className="flex min-w-0 items-center gap-0.5 rounded-sm border border-muted-foreground/50 px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-muted-foreground"
+                className="flex min-w-0 items-center gap-0.5 rounded-sm border border-muted-foreground/50 bg-surround px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-muted-foreground"
                 title={t.offBrief.reason}
               >
                 {/*
