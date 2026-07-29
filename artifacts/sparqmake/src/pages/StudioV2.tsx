@@ -6,6 +6,7 @@ import { Lock, Unlock } from "lucide-react";
 import { apiFetch, cn } from "@/lib/utils";
 import { StageSpine, ReopenBar, type SpineStage, type SpineEdge, type SpineStatus } from "@/components/studio/StageSpine";
 import { BriefStage } from "@/components/studio/BriefStage";
+import { DirectionStage } from "@/components/studio/DirectionStage";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -296,6 +297,16 @@ export default function StudioV2() {
                       (creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null
                     }
                     stageId={activeStage.id}
+                    locked={activeStage.status === "locked"}
+                    onSaved={() => void loadSpine(creativeId)}
+                  />
+                ) : activeStage?.stageKind === "direction" ? (
+                  <DirectionStage
+                    creativeId={creativeId}
+                    stageId={activeStage.id}
+                    // Direction consumes the brief, so it needs the brief's id to
+                    // record that edge. Null is handled rather than assumed away.
+                    briefStageId={spine.stages.find((s) => s.stageKind === "brief")?.id ?? null}
                     locked={activeStage.status === "locked"}
                     onSaved={() => void loadSpine(creativeId)}
                   />
