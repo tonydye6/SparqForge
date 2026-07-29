@@ -25,6 +25,7 @@ import CalendarNext from "@/pages/CalendarNext";
 import CopilotStudio from "@/pages/CopilotStudio";
 import Pipeline from "@/pages/Pipeline";
 import DesignSystem from "@/pages/DesignSystem";
+import StudioV2 from "@/pages/StudioV2";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -171,6 +172,13 @@ function Router() {
         </Route>
         <Route path="/content-plan-legacy">
           <AppLayout><ContentPlan /></AppLayout>
+        </Route>
+        {/* Studio v2, built stage by stage across Phase 4. Runs BESIDE the
+            existing Studio rather than replacing it, so nothing anyone relies
+            on has moved. Legacy retires when this is genuinely better, not when
+            it is merely newer. */}
+        <Route path="/studio-v2">
+          <AppLayout><StudioV2 /></AppLayout>
         </Route>
         {/* Internal design system reference. Linked from the sidebar footer. */}
         <Route path="/design">
