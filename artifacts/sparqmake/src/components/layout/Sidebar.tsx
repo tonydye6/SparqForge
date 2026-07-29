@@ -185,7 +185,16 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map((item) => {
-          const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+          // Match on a path SEGMENT boundary, not a bare prefix.
+          //
+          // A bare startsWith lit up two nav items at once: Creative History is
+          // "/studio" and Studio v2 is "/studio-v2", and "/studio-v2" starts with
+          // "/studio", so both highlighted and the sidebar said you were somewhere
+          // you were not. Requiring the next character to be "/" keeps
+          // "/studio/123" matching "/studio" while "/studio-v2" no longer does.
+          const isActive =
+            location === item.href ||
+            (item.href !== "/" && location.startsWith(`${item.href}/`));
           const showLabel = mode === "mobile" || !collapsed;
           return (
             <Link 

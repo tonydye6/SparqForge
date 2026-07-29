@@ -197,8 +197,10 @@ export default function StudioV2() {
           </p>
           <h1 className="font-display text-2xl tracking-wide text-foreground">Pick something to open</h1>
           <p className="max-w-[76ch] text-[12.5px] leading-relaxed text-muted-foreground">
-            This is the v2 Studio being built stage by stage. It runs beside the existing Studio rather than
-            replacing it, so nothing you rely on has moved. Stage 01 is live; the rest arrive through Phase 4.
+            The v2 Studio, built stage by stage. It runs beside the existing Studio rather than replacing
+            it, so nothing you rely on has moved. <span className="text-foreground">Brief, Direction and
+            Image are live.</span> Copy and Channel crops arrive later in Phase 4. Open something below and
+            the spine across the top is how you move between stages.
           </p>
         </div>
         <div className="space-y-1.5">
