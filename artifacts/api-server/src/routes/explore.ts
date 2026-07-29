@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { AI_MODELS, COST_ESTIMATES } from "../lib/ai-config.js";
+import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
@@ -16,14 +16,13 @@ import {
   loadPersonaReferenceImages,
   mergePersonaReferences,
   personaNoteFor,
+  readFileByUrl,
 } from "../services/reference-images.js";
 import { writeBuffer } from "../services/storage.js";
-import { readFileByUrl } from "../services/reference-images.js";
 import { buildSessionStyleContract, wrapEditInstruction } from "../services/creative-direction.js";
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction } from "../services/interactions-client.js";
-import { estimateImagenCost } from "../lib/ai-config.js";
 import { buildExplorePlan } from "../services/explore-plan.js";
 import {
   RUN_CONCURRENCY,
