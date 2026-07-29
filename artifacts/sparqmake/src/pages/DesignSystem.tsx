@@ -75,6 +75,7 @@ const SPINE_STALE: SpineStage[] = [
   { id: "d", stageNumber: 4, label: "Copy", summary: "Built on the old direction", status: "stale" },
   { id: "e", stageNumber: 5, label: "Channel crops", summary: "Not made yet", status: "empty" },
 ];
+
 /** A stand-in image so tiles have something to desaturate and frame. */
 const SAMPLE =
   "data:image/svg+xml," +
