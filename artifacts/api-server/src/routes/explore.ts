@@ -24,6 +24,7 @@ import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction } from "../services/interactions-client.js";
 import { buildExplorePlan } from "../services/explore-plan.js";
+import { nextTakeIndex } from "../services/stage-graph.js";
 import {
   RUN_CONCURRENCY,
   briefForTake,
@@ -314,6 +315,30 @@ router.post(
           : { takeId: take.id, ok: false, error: takeErrorMessage(r?.error) };
       });
 
+      /*
+       * Settle the real spend BEFORE recording the takes.
+       *
+       * The order is the whole point. These images have already been generated and
+       * already been billed upstream, so the cost is a fact the moment the calls
+       * returned. Settling afterwards meant that a failure while recording takes
+       * rolled back the settlement too, and the money vanished from cost_logs while
+       * still having left the account. Recording spend first cannot lose it.
+       */
+      const settled = settledCostUsd(outcomes, perImageUsd);
+      await db.transaction(async (tx) => {
+        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
+        if (settled > 0) {
+          await tx.insert(costLogsTable).values({
+            creativeId,
+            service: "gemini",
+            operation: "explore_spread",
+            model: AI_MODELS.GEMINI_FLASH_IMAGE,
+            costUsd: settled,
+          });
+        }
+      });
+      reservationId = null;
+
       // Record every take that produced an image. A slot per take id, so a
       // re-run of one take supersedes only itself.
       const succeeded = outcomes.filter(o => o.ok);
@@ -325,14 +350,18 @@ router.post(
               .update(stageTakesTable)
               .set({ isCurrent: false })
               .where(and(eq(stageTakesTable.stageStateId, stage.id), eq(stageTakesTable.slotKey, o.takeId)));
+            // stage_takes has a CHECK (take_index >= 1), and nextTakeIndex is the
+            // one place that already owns the 1-based convention. Using a 0-based
+            // array length here violated the constraint on the very first take of
+            // every slot, which rolled back the whole spread.
             const existing = await tx
-              .select({ takeIndex: stageTakesTable.takeIndex })
+              .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
               .from(stageTakesTable)
               .where(and(eq(stageTakesTable.stageStateId, stage.id), eq(stageTakesTable.slotKey, o.takeId)));
             await tx.insert(stageTakesTable).values({
               stageStateId: stage.id,
               slotKey: o.takeId,
-              takeIndex: existing.length,
+              takeIndex: nextTakeIndex(existing, o.takeId),
               origin: "generated",
               payload: {
                 imageUrl: o.imageUrl,
@@ -355,21 +384,6 @@ router.post(
         });
       }
 
-      // Settle: drop the reservation and record what actually landed.
-      const settled = settledCostUsd(outcomes, perImageUsd);
-      await db.transaction(async (tx) => {
-        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
-        if (settled > 0) {
-          await tx.insert(costLogsTable).values({
-            creativeId,
-            service: "gemini",
-            operation: "explore_spread",
-            model: AI_MODELS.GEMINI_FLASH_IMAGE,
-            costUsd: settled,
-          });
-        }
-      });
-      reservationId = null;
 
       res.json({
         outcomes,
@@ -393,7 +407,13 @@ router.post(
         try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
       }
       console.error("Explore run failed", err);
-      res.status(500).json({ error: "The spread could not be run. Nothing was charged." });
+      // Never claim nothing was charged without knowing it. If images came back
+      // before the failure they were already billed upstream, and saying otherwise
+      // is the one thing worse than the failure itself (§1.14).
+      res.status(500).json({
+        error:
+          "The spread could not be saved. Any images that had already been generated were still billed, and the cost has been recorded.",
+      });
     }
   },
 );
@@ -455,13 +475,13 @@ router.post(
             .set({ isCurrent: false })
             .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
           const prior = await tx
-            .select({ takeIndex: stageTakesTable.takeIndex })
+            .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
             .from(stageTakesTable)
             .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
           await tx.insert(stageTakesTable).values({
             stageStateId: stageId,
             slotKey: "selected",
-            takeIndex: prior.length,
+            takeIndex: nextTakeIndex(prior, "selected"),
             origin: "swapped_in",
             payload: { slotKey },
             isCurrent: true,
@@ -662,13 +682,13 @@ router.post(
           .set({ isCurrent: false })
           .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
         const prior = await tx
-          .select({ takeIndex: stageTakesTable.takeIndex })
+          .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
           .from(stageTakesTable)
           .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
         await tx.insert(stageTakesTable).values({
           stageStateId: stageId,
           slotKey,
-          takeIndex: prior.length,
+          takeIndex: nextTakeIndex(prior, slotKey),
           origin: "region_edit",
           payload: {
             imageUrl: afterUrl,
