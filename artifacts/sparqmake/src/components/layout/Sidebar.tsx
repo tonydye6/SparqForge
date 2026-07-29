@@ -230,6 +230,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               Feedback
             </Link>
             <Link
+              href="/studio-v2"
+              onClick={handleNavClick}
+              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+            >
+              Studio v2
+            </Link>
+            <Link
               href="/design"
               onClick={handleNavClick}
               className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
