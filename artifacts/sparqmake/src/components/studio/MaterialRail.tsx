@@ -118,42 +118,51 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
   const renderedTakes = rendered.length;
 
   /**
-   * References actually sent, read off a real take rather than assumed.
+   * The whole material record off the newest current take that has one.
+   *
+   * One read rather than one loop per field, because three separate scans could
+   * each land on a DIFFERENT take and the rail would then describe a run that
+   * never happened.
    *
    * Null means nothing has been generated yet, which is different from zero:
    * zero is a run that used no imagery, null is a stage that has not run.
    */
-  const sentReferences = (() => {
+  const material = (() => {
     for (const t of rendered) {
-      const p = t.payload as { material?: { referenceCount?: unknown } } | undefined;
-      const n = p?.material?.referenceCount;
-      if (typeof n === "number") return n;
+      const p = t.payload as {
+        material?: {
+          referenceCount?: unknown;
+          subjectCount?: unknown;
+          directorSelections?: unknown;
+          catalogSize?: unknown;
+          directorFallback?: unknown;
+          directed?: unknown;
+        };
+      } | undefined;
+      if (p?.material && typeof p.material.referenceCount === "number") return p.material;
     }
     return null;
   })();
+
+  const sentReferences = typeof material?.referenceCount === "number" ? material.referenceCount : null;
+  const subjectRefs = typeof material?.subjectCount === "number" ? material.subjectCount : null;
+  const catalogSize = typeof material?.catalogSize === "number" ? material.catalogSize : null;
 
   /**
-   * How many library assets the brief MATCHED, which is a different number from
-   * how many were sent. The gap between them is exactly where character fidelity
-   * is lost, so the rail shows both rather than one.
+   * What the Creative Director chose, which replaced what the brief token
+   * scanner matched.
+   *
+   * The rail used to report "Matched the brief" off a `matchedCount`, and that
+   * number is gone along with the scanner that produced it. Keeping the line and
+   * letting it silently never render would have quietly shrunk the disclosure on
+   * the one panel that exists to be able to say what really happened, so it is
+   * replaced rather than dropped.
    */
-  const matchedAssets = (() => {
-    for (const t of rendered) {
-      const p = t.payload as { material?: { matchedCount?: unknown } } | undefined;
-      const n = p?.material?.matchedCount;
-      if (typeof n === "number") return n;
-    }
-    return null;
-  })();
-
-  const subjectRefs = (() => {
-    for (const t of rendered) {
-      const p = t.payload as { material?: { subjectCount?: unknown } } | undefined;
-      const n = p?.material?.subjectCount;
-      if (typeof n === "number") return n;
-    }
-    return null;
-  })();
+  const chosen = Array.isArray(material?.directorSelections)
+    ? (material.directorSelections as Array<{ role?: unknown }>)
+    : null;
+  const chosenSubjects = chosen?.filter((s) => s.role === "subject").length ?? null;
+  const directorFallback = material?.directorFallback === true;
 
   return (
     <div className="px-3 py-2.5">
@@ -203,25 +212,42 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
                 </>
               )}
             </Line>
-            {matchedAssets !== null && (
-              <Line label="Matched the brief">
-                {matchedAssets === 0 ? (
+            {chosen !== null && (
+              <Line label="Director chose">
+                {chosen.length === 0 ? (
                   <span className="text-rebel-pink">
-                    No library asset matched this brief, so nothing could be sent
+                    Nothing from the library
+                    {catalogSize !== null ? `, out of ${catalogSize} assets it could see` : ""}
                   </span>
                 ) : (
                   <>
-                    {matchedAssets} asset{matchedAssets === 1 ? "" : "s"}
-                    {subjectRefs !== null && (
+                    {chosen.length} asset{chosen.length === 1 ? "" : "s"}
+                    {chosenSubjects !== null && (
                       <>
                         {" · "}
-                        <span className={subjectRefs === 0 ? "text-rebel-pink" : undefined}>
-                          {subjectRefs} as subject
+                        <span className={chosenSubjects === 0 ? "text-rebel-pink" : undefined}>
+                          {chosenSubjects} as subject
                         </span>
                       </>
                     )}
+                    {catalogSize !== null ? ` · saw ${catalogSize}` : ""}
                   </>
                 )}
+              </Line>
+            )}
+            {/*
+              The one degraded path a finished spread can be in. It looks exactly
+              like a normal spread, so the only way a user can tell is if we say
+              so (§1.14: say what it affects). A director OUTAGE never reaches
+              here, because the run aborts before spending rather than shipping
+              eight undirected images.
+            */}
+            {directorFallback && (
+              <Line label="Direction">
+                <span className="text-victory-gold">
+                  The director wrote prose but chose no assets, so no library imagery was selected for
+                  these takes
+                </span>
               </Line>
             )}
             <Line label="Prose steering">

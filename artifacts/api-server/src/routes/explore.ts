@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, templatesTable, type DesignerPersona } from "@workspace/db";
-import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
+import { db, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
@@ -8,19 +8,31 @@ import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
 import { z } from "zod";
-import { assembleContext } from "../services/context-assembly.js";
-import { generateImage } from "../services/imagen.js";
-import { buildGenerationPacket } from "../services/packet-assembly.js";
-import { matchAssetsToBrief } from "../services/asset-matching.js";
+import { resolveStyleProfile } from "../services/context-assembly.js";
+import { generateImageFromPrompt, type ReferenceImage } from "../services/imagen.js";
+import { MAX_IMAGE_REFERENCES } from "../services/packet-assembly.js";
 import {
-  buildReferenceImages,
   loadPersonaReferenceImages,
-  mergePersonaReferences,
   personaNoteFor,
   readFileByUrl,
 } from "../services/reference-images.js";
 import { writeBuffer } from "../services/storage.js";
-import { buildSessionStyleContract, wrapEditInstruction } from "../services/creative-direction.js";
+import {
+  buildAssetCatalog,
+  buildCreativeDirection,
+  buildOverflowDescriptors,
+  buildSessionStyleContract,
+  loadBrand,
+  mergeReferenceSlots,
+  wrapEditInstruction,
+} from "../services/creative-direction.js";
+import {
+  buildDirectedPrompt,
+  loadAssetIdReferences,
+  loadDirectedReferences,
+  orderReferences,
+  type DirectedPromptInput,
+} from "../services/explore-direction.js";
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction } from "../services/interactions-client.js";
@@ -28,7 +40,6 @@ import { buildExplorePlan } from "../services/explore-plan.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import {
   RUN_CONCURRENCY,
-  briefForTake,
   mapWithConcurrency,
   reservationUsd,
   settledCostUsd,
@@ -81,13 +92,15 @@ async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | n
   const raw = payload && typeof payload === "object" ? payload.intentId : null;
   /*
    * The typed line, and the derived rows the user saw and could edit. This is
-   * what the person actually said, and it was being read for its intentId and
-   * then thrown away: explore-run never passed briefText to assembleContext, so
-   * combinedBrief was assembled from the creative's OLD stored brief and the
-   * template. "female tennis player" never reached the model, and
-   * matchAssetsToBrief scored the library against the wrong text, which is why
-   * it matched 0 with "Crown U" sitting in the brief. This one omission was the
-   * v1/v2 difference: v1's generate route has always passed the brief through.
+   * what the person actually said, and it was once read for its intentId and then
+   * thrown away, so the model composed from the creative's OLD stored brief and
+   * "female tennis player" never reached it at all.
+   *
+   * It now feeds two things that both depend on it being the REAL brief: the
+   * Creative Director's direction, and the ranking of the asset catalog it
+   * chooses from. A live probe measured the difference: with the brief passed
+   * through, the Crown U tennis character scores 20.35 and ranks first among
+   * scored assets, where the old wrong text matched nothing at all.
    */
   let briefText: string | null = null;
   if (payload && typeof payload === "object" && typeof payload.line === "string" && payload.line.trim()) {
@@ -198,62 +211,29 @@ async function directorFor(creativeId: string, brandId: string): Promise<Designe
 }
 
 /**
- * The brand's own subject references, ranked, ignoring the brief entirely.
+ * Load specific assets by id, brand-scoped.
  *
- * This is the floor under character fidelity, and it exists because
- * matchAssetsToBrief alone is not one. That scanner scores assets against the
- * BRIEF'S TOKENS, so it found zero of Crown U's 410 assets for a brief that never
- * happened to name a character. v1 survives that because a human confirms assets
- * on a screen before generating; v2 has no such screen, so a token miss meant the
- * character simply never reached the model.
- *
- * A brand's character is not a function of whether the brief mentioned it. It is
- * who the brand IS. So when brief matching yields no subject, fall back to the
- * brand's highest-identity subject references and send those. Ranked by
- * subjectIdentityScore, which is the field that already means "how strongly does
- * this asset establish who the character is".
+ * Brand-scoped in the QUERY rather than checked afterwards, so an id from a
+ * stale deep link or another brand's style profile cannot pull a foreign asset
+ * into a Crown U post. Screen 6's containment rule is a scoping rule first.
  */
-async function brandSubjectFloor(brandId: string, limit: number): Promise<string[]> {
+async function loadBrandAssetsByIds(brandId: string, ids: string[]) {
+  if (ids.length === 0) return [];
   const rows = await db
-    .select({ id: assetsTable.id })
+    .select()
     .from(assetsTable)
     .where(
       and(
         eq(assetsTable.brandId, brandId),
         ne(assetsTable.status, "archived"),
-        eq(assetsTable.assetClass, "subject_reference"),
-        eq(assetsTable.generationAllowed, true),
-        isNotNull(assetsTable.fileUrl),
+        inArray(assetsTable.id, ids),
       ),
-    )
-    .orderBy(desc(assetsTable.subjectIdentityScore), desc(assetsTable.referencePriorityDefault))
-    .limit(limit);
-  return rows.map(r => r.id);
-}
-
-/**
- * A template id for the prompt assembler.
- *
- * Explore does not composite anything, so it has no use for a template's
- * layoutSpec. It needs one only because assembleContext and buildGenerationPacket
- * both require a template row and throw without one. `creatives.templateId` is
- * nullable and the v2 Brief never sets it, so requiring the creative's own
- * template made EVERY v2 creative fail with "no template" before it could
- * generate anything: not an edge case, the default path.
- *
- * So: use the creative's template when it has one, otherwise borrow any active
- * one purely to satisfy the assembler. Ordered by name so the borrow is
- * deterministic rather than whatever the planner happened to return.
- */
-async function templateForContext(creativeTemplateId: string | null): Promise<string | null> {
-  if (creativeTemplateId) return creativeTemplateId;
-  const [fallback] = await db
-    .select({ id: templatesTable.id })
-    .from(templatesTable)
-    .where(eq(templatesTable.isActive, true))
-    .orderBy(templatesTable.name)
-    .limit(1);
-  return fallback?.id ?? null;
+    );
+  // Preserve the caller's order: a style profile's reference list is ordered by
+  // a human, and re-ordering it by whatever the planner returned would quietly
+  // change which reference survives the slot cap.
+  const byId = new Map(rows.map(r => [r.id, r]));
+  return ids.map(id => byId.get(id)).filter((a): a is NonNullable<typeof a> => Boolean(a));
 }
 
 router.post(
@@ -264,6 +244,9 @@ router.post(
     const creativeId = String(req.params.creativeId);
     const perImageUsd = COST_ESTIMATES.IMAGEN_PER_IMAGE_USD;
     let reservationId: string | null = null;
+    // Declared out here because the error handler needs it: it decides whether
+    // "nothing was charged" is a true statement or a lie (§1.14).
+    let generationStarted = false;
 
     try {
       const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
@@ -290,18 +273,6 @@ router.post(
         return;
       }
 
-      // Resolved before reserving budget, so a missing template cannot strand a
-      // reservation. Only a system with NO active templates at all is a dead end,
-      // and that is a setup problem rather than something about this creative.
-      const templateId = await templateForContext(creative.templateId);
-      if (!templateId) {
-        res.status(400).json({
-          error:
-            "There are no active templates on this account, and the prompt assembler needs one. Nothing was charged.",
-        });
-        return;
-      }
-
       const { intent, briefStageId, briefText } = await intentFromBrief(creativeId);
       const plan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
 
@@ -312,104 +283,181 @@ router.post(
       }
       reservationId = budget.reservationId;
 
-      const ctx = await assembleContext({
-        brandId: creative.brandId,
-        templateId,
-        selectedAssets: [],
-        intent: intent ?? null,
-        // The stage 01 line, verbatim. Without this the model composed from the
-        // creative's old stored brief and the user's words went nowhere.
-        briefText: briefText ?? undefined,
-      });
-
       /*
-       * Reference imagery. Assembled ONCE for the whole spread, not per take:
-       * every take shares the same brand assets and the same director's work
-       * samples, so loading them eight times would be eight times the I/O for
-       * identical buffers. What varies per take is the axis directive, which is
-       * text.
+       * THE CREATIVE DIRECTOR, which this path used to skip entirely.
        *
-       * This closes a real gap. Until now Explore sent the brand's prose steering
-       * and no imagery at all, so the asset library was known about and never
-       * used. Failing to load references must not fail the spread, so this
-       * degrades to prose-only rather than throwing.
+       * What was here before was a copy of the LEGACY stack: assembleContext ->
+       * matchAssetsToBrief -> brandSubjectFloor -> buildGenerationPacket ->
+       * buildReferenceImages -> buildImagePrompt. That made v2 the THIRD
+       * generation stack in this repo and reintroduced the exact failure v2 was
+       * created to fix, because `buildCreativeDirection` was written in July
+       * specifically to stop the model ignoring the asset library and nothing on
+       * this path ever called it (25_GENERATION_ARCHITECTURE §1).
+       *
+       * The difference is not prompt strength, it is WHO CHOOSES. The token
+       * scanner scored asset text against brief text and, on a brief that did not
+       * happen to name a character, matched zero of the brand's assets; the floor
+       * that patched that ranked on `subjectIdentityScore`, which a live probe
+       * confirmed is 0 on every eligible subject reference, so it was sorting a
+       * dead field. The Director instead reads a policy-filtered catalog of the
+       * real library, with each asset's entities, tags, colors and identity note,
+       * and returns the ids it chose with a role for each. Ineligible assets never
+       * receive a catalog id, so it cannot pick one.
+       *
+       * ONE Director call for the whole spread, not one per take. Eight calls
+       * would be eight different subjects, which is the opposite of a spread:
+       * one direction, eight variations of it. References are likewise loaded
+       * once, because all eight takes share them and only the axis directive
+       * varies.
+       *
+       * Failing to assemble must not fail a spread the user consented to pay for,
+       * so this degrades: no director, no references, prose only.
        */
       const persona = await directorFor(creativeId, creative.brandId);
-      let referenceImages: Awaited<ReturnType<typeof buildReferenceImages>> = [];
+      let references: ReferenceImage[] = [];
       let referenceNote: string | null = null;
-      let matchedAssetIds: string[] = [];
-      let usedSubjectFloor = false;
+      /*
+       * The prompt INPUTS, not a finished prompt string.
+       *
+       * The axis directive is not appendable: buildDirectedPrompt places it
+       * between the reference roll-call and the brand constraints, deliberately,
+       * so that a per-take directive can never read as though it outranks the
+       * brand contract. So the shared parts are assembled once and each take
+       * calls the assembler with its own directive.
+       */
+      let promptInputs: DirectedPromptInput | null = null;
+      let directorSelections: Array<{ assetId: string; role: string }> = [];
+      let directorFallback = false;
+      let catalogSize = 0;
+      let hasMarkReference = false;
+      let styleContract = "";
+      let directorAspectRatio: string | null = null;
+
+      /*
+       * The direction step is DELIBERATELY NOT wrapped in a catch.
+       *
+       * An earlier draft of this degraded to "brand rules plus the brief" when the
+       * Director was unreachable, and that was wrong about money: the user
+       * consented to $0.48 for a DIRECTED spread, so quietly spending it on eight
+       * undirected images buys them something they did not ask for. Letting it
+       * throw reaches the outer handler, which releases the reservation before a
+       * single image is generated, so the honest outcome is no spread and no
+       * charge rather than a weak spread and a full charge.
+       *
+       * buildCreativeDirection already absorbs the failures worth absorbing: it
+       * retries once at temperature 0 and falls back to prose-only when the JSON
+       * will not parse. Reaching here means a genuine outage, not a bad roll.
+       */
+      const brand = await loadBrand(creative.brandId);
+      const styleProfile = await resolveStyleProfile(creative.brandId, creative.styleProfileId);
+      styleContract = buildSessionStyleContract({ brand, styleProfile, persona });
+
+      // The brief the person actually typed, plus the derived rows they saw and
+      // could edit. This is what the Director reads and what the catalog is
+      // ranked against.
+      const effectiveBrief = briefText ?? creative.briefText ?? "";
+
+      const catalog = await buildAssetCatalog({
+        brandId: creative.brandId,
+        briefText: effectiveBrief,
+        template: creative.templateId ?? null,
+      });
+      catalogSize = catalog.lines.length;
+
+      const direction = await buildCreativeDirection({
+        brand,
+        styleContract,
+        briefText: effectiveBrief,
+        intent: intent ?? null,
+        catalog,
+      });
+      directorSelections = direction.assetSelections;
+      directorFallback = direction.usedFallback;
+      directorAspectRatio = direction.aspectRatio;
+
+      /*
+       * Reference LOADING, by contrast, does degrade.
+       *
+       * A storage read that fails costs the spread some imagery, not its
+       * direction, and the direction is the part that was paid for. Zero
+       * references is reported rather than hidden, and the rail states it in the
+       * warning hue.
+       */
       try {
-        /*
-         * Find the brand's own assets for this brief. This is the step v2 was
-         * missing and v1 has always had.
-         *
-         * matchAssetsToBrief is the real library scanner: it scores every
-         * non-archived asset for the brand against the brief's tokens and applies
-         * the asset policy. StudioNext calls it behind its asset-confirm screen,
-         * which is why character fidelity works there. Explore was passing
-         * selectedAssetIds: [] and hoping buildGenerationPacket would find
-         * something on its own, and a packet with no selected assets reaches the
-         * library only through style-profile references. So the Crown U character
-         * never went to the model as an image, only as prose, and prose cannot hold
-         * a character's identity.
-         *
-         * Subject references first and explicitly: a spread explores COMPOSITION,
-         * and the thing that must not vary across it is who is in the picture.
-         */
-        const matched = await matchAssetsToBrief({
-          brandId: creative.brandId,
-          briefText: ctx.combinedBrief,
-        });
-        matchedAssetIds = [
-          ...matched.imageReferences.map(m => m.asset.id),
-          ...matched.compositing.map(m => m.asset.id),
-        ];
+        const directed = await loadDirectedReferences(direction.assetSelections, catalog.byId);
+        hasMarkReference = directed.hasMark;
 
         /*
-         * The floor. If the brief matched no subject reference, the character has
-         * to come from the brand rather than from the wording, or every brief that
-         * does not name a character produces a stranger.
+         * Explicit human choices still outrank the model's.
          *
-         * Prepended, not appended: subject slots are allocated first, so the
-         * identity references must be at the front of the list to survive the
-         * reference budget.
+         * A style profile's reference images and any assets a deep link put on the
+         * creative were chosen by a person, so they enter above the Director in
+         * the same priority order the Co-pilot uses. Loaded directly by id rather
+         * than through buildGenerationPacket, which is what let the borrowed
+         * template requirement, and its "no active templates" dead end, be
+         * deleted outright: Explore composites nothing and never needed a layout.
          */
-        const matchedSubjects = matched.imageReferences.filter(
-          m => m.asset.assetClass === "subject_reference",
-        ).length;
-        if (matchedSubjects === 0) {
-          const floor = await brandSubjectFloor(creative.brandId, 3);
-          matchedAssetIds = [...floor, ...matchedAssetIds.filter(id => !floor.includes(id))];
-          usedSubjectFloor = floor.length > 0;
-        }
+        const creativeSelected = ((creative.selectedAssets || []) as Array<{ assetId?: string }>)
+          .map(a => a.assetId)
+          .filter((id): id is string => typeof id === "string");
+        const attachedRefs = await loadAssetIdReferences(
+          await loadBrandAssetsByIds(creative.brandId, creativeSelected),
+          "subject_reference",
+        );
+        const styleProfileRefs = await loadAssetIdReferences(
+          await loadBrandAssetsByIds(creative.brandId, styleProfile?.referenceAssetIds ?? []),
+          "style_reference",
+        );
 
         const personaRefs = await loadPersonaReferenceImages(persona);
-        const packet = await buildGenerationPacket({
-          creativeId,
-          brandId: creative.brandId,
-          templateId,
-          platform: "instagram_feed",
-          selectedAssetIds: matchedAssetIds,
-          briefText: ctx.combinedBrief,
-          // The spread is exploring composition, so neither subjects nor styles
-          // should dominate the slots before the axes have had their say.
-          balance: "balanced",
-          dryRun: true,
-        });
-        referenceImages = mergePersonaReferences(await buildReferenceImages(packet), personaRefs);
         referenceNote = personaNoteFor(persona, personaRefs);
+
+        // The same budgeting the Co-pilot uses, now generic over the reference
+        // shape: attachments > director > packet > guaranteed persona slots.
+        const merged = mergeReferenceSlots<ReferenceImage>({
+          attached: attachedRefs,
+          director: directed.references,
+          packet: styleProfileRefs,
+          persona: personaRefs,
+          cap: MAX_IMAGE_REFERENCES,
+        });
+        references = orderReferences(merged);
+
+        // Selections that lost their slot still steer as prose rather than
+        // vanishing, which is the batch path's behaviour and the Co-pilot's.
+        const usedIds = new Set(references.map(r => r.assetId).filter(Boolean));
+        const overflow = direction.assetSelections
+          .filter(sel => !usedIds.has(sel.assetId))
+          .map(sel => catalog.byId.get(sel.assetId))
+          .filter((a): a is NonNullable<typeof a> => Boolean(a));
+
+        promptInputs = {
+          directorPrompt: direction.prompt,
+          styleContract,
+          overflowBlock: buildOverflowDescriptors(overflow),
+          references,
+          hasMarkReference,
+        };
       } catch (err) {
-        console.error("Explore could not assemble references, falling back to prose steering", err);
+        console.error("Explore could not load reference imagery; the direction still stands", err);
       }
 
+      // The direction exists either way by this point; only its imagery is
+      // optional, so this keeps the director's prose rather than inventing prose.
+      const effectivePromptInputs: DirectedPromptInput = promptInputs ?? {
+        directorPrompt: direction.prompt,
+        styleContract,
+        references: [],
+        hasMarkReference: false,
+      };
+
+      generationStarted = true;
       const results = await mapWithConcurrency(plan.takes, RUN_CONCURRENCY, async (take) => {
-        const takeCtx = {
-          ...ctx,
-          combinedBrief: briefForTake(ctx.combinedBrief, take.directive),
-          designerPersona: persona ?? ctx.designerPersona,
-        };
-        const image = await generateImage(takeCtx, "instagram_feed", referenceImages);
+        const image = await generateImageFromPrompt(
+          buildDirectedPrompt({ ...effectivePromptInputs, axisDirective: take.directive }),
+          "instagram_feed",
+          references,
+        );
         const filename = takeFilename(creativeId, take.id, crypto.randomUUID().slice(0, 8));
         await writeBuffer("generated", filename, image.imageBuffer);
         return `/api/files/generated/${filename}`;
@@ -502,11 +550,23 @@ router.post(
                 // can state what this image was actually made from long after the
                 // run response is gone (§1.17).
                 material: {
-                  referenceCount: referenceImages.length,
-                  matchedCount: matchedAssetIds.length,
-                  usedSubjectFloor,
-                  subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
+                  referenceCount: references.length,
+                  subjectCount: references.filter(r => r.role === "subject_reference").length,
+                  styleCount: references.filter(r => r.role === "style_reference").length,
                   director: persona?.name ?? null,
+                  /*
+                   * The Creative Director's actual decision, recorded per take.
+                   *
+                   * `matchedCount` and `usedSubjectFloor` used to live here and are
+                   * gone with the machinery that produced them: a match count off a
+                   * token scanner and a flag about a floor that ranked a field
+                   * containing only zeros were both reporting on a mechanism that
+                   * no longer decides anything. Reporting a dead number is worse
+                   * than reporting nothing, which the rail learned once already.
+                   */
+                  directorSelections,
+                  directorFallback,
+                  catalogSize,
                 },
               },
               isCurrent: true,
@@ -540,17 +600,27 @@ router.post(
         generated: true,
         // §1.17: what actually reached the model, reported rather than implied.
         material: {
-          referenceCount: referenceImages.length,
-          subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
-          styleCount: referenceImages.filter(r => r.role === "style_reference").length,
-          // Matched and sent are different numbers, and the gap between them is
-          // where character fidelity gets lost. Reported separately so a future
-          // failure is diagnosable without another round of guessing.
-          matchedCount: matchedAssetIds.length,
-          // Said out loud: the character came from the brand, not the brief.
-          usedSubjectFloor,
+          referenceCount: references.length,
+          subjectCount: references.filter(r => r.role === "subject_reference").length,
+          styleCount: references.filter(r => r.role === "style_reference").length,
           director: persona?.name ?? null,
           personaNote: referenceNote,
+          /*
+           * Chosen and sent are different numbers, and the gap is where character
+           * fidelity gets lost, so both are reported. `catalogSize` is how many
+           * library assets the Director could see at all, which is the number that
+           * makes a bad selection diagnosable without another paid round.
+           */
+          directorSelections,
+          catalogSize,
+          // The Director ran but could not produce parseable JSON, so its prose
+          // was used with no asset selections. Said plainly: this is the
+          // difference between a directed spread and a described one.
+          directorFallback,
+          // What the Director judged the format should be. NOT applied here: the
+          // spread is a grid and stage 05 owns reframing, so acting on this would
+          // change the grid's shape and pre-empt a stage that has not been built.
+          suggestedAspectRatio: directorAspectRatio,
         },
       });
     } catch (err) {
@@ -560,12 +630,22 @@ router.post(
         try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
       }
       console.error("Explore run failed", err);
-      // Never claim nothing was charged without knowing it. If images came back
-      // before the failure they were already billed upstream, and saying otherwise
-      // is the one thing worse than the failure itself (§1.14).
+      /*
+       * Two different failures, two different truths, and conflating them was a
+       * §1.14 violation waiting to happen.
+       *
+       * Before any image is requested, nothing has been billed and we can say so
+       * flatly. That is the common case now that a Director outage aborts here
+       * rather than degrading: the user gets their money back and a reason.
+       *
+       * Once generation has started, images that came back were already billed
+       * upstream, so claiming nothing was charged would be the one thing worse
+       * than the failure itself.
+       */
       res.status(500).json({
-        error:
-          "The spread could not be saved. Any images that had already been generated were still billed, and the cost has been recorded.",
+        error: generationStarted
+          ? "The spread could not be saved. Any images that had already been generated were still billed, and the cost has been recorded."
+          : "The creative direction for this spread could not be produced, so nothing was generated and nothing was charged. Try again in a moment.",
       });
     }
   },

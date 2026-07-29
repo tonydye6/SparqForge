@@ -186,7 +186,10 @@ async function main(): Promise<void> {
   });
 
   rule("2 · CATALOG · what the director can actually see");
-  console.log(`catalog lines  ${catalog.lines.length}${maxLines ? ` (cap ${maxLines})` : " (module cap 40)"}`);
+  const logoLines = catalog.lines.filter(l => l.split("|")[2]?.trim() === "logo/brand mark").length;
+  console.log(`catalog lines  ${catalog.lines.length}${maxLines ? ` (cap ${maxLines} from --max-lines)` : " (the module's own cap)"}`);
+  console.log(`  logo/mark     ${logoLines}`);
+  console.log(`  ranked assets ${catalog.lines.length - logoLines}  of ${eligibleCount} eligible`);
   console.log(`format         id | name | kind | entities | tags | colors | note\n`);
   catalog.lines.forEach((line, i) => console.log(`${String(i + 1).padStart(3)}. ${line}`));
 
@@ -281,23 +284,45 @@ async function main(): Promise<void> {
     return Boolean(a && (a.name.includes(expect) || a.fileUrl?.includes(expect)));
   });
 
-  if (hit && hit.role === "subject") {
-    console.log(`PASS · ${expect} was selected with role "subject".`);
-    console.log(`The director picks the right asset for this brief. Routing stage 03 Explore`);
-    console.log(`through this path is therefore the correct fix, and it is worth one paid run.`);
-  } else if (hit) {
-    console.log(`PARTIAL · ${expect} was selected, but with role "${hit.role}", not "subject".`);
-    console.log(`Role matters: "subject" loads it as a character reference that must stay`);
-    console.log(`recognisable, "style"/"object" do not. Look at DIRECTOR_SYSTEM's selection rules.`);
+  /*
+   * The criterion is a PROPERTY, not a filename, and that correction came from
+   * running this probe.
+   *
+   * It first asked whether one named file was selected, reported FAIL when the
+   * director chose a sibling, and the sibling was arguably the better pick: both
+   * were female tennis characters, and the chosen one matched the brand palette
+   * while the named one did not. A criterion naming a single asset id is a trap
+   * whenever several assets satisfy the brief, so the question it answers now is
+   * "did a subject get selected at all", with the named asset reported as an
+   * additional data point rather than as the pass condition.
+   */
+  const subjectPicks = direction.assetSelections.filter(s => s.role === "subject");
+  const names = (sels: typeof direction.assetSelections): string =>
+    sels.map(s => catalog.byId.get(s.assetId)?.name ?? s.assetId).join(", ") || "(nothing)";
+
+  if (subjectPicks.length > 0) {
+    console.log(`PASS · the director selected ${subjectPicks.length} asset(s) with role "subject":`);
+    console.log(`  ${names(subjectPicks)}`);
+    console.log(`Judge these by eye against the brief. A subject selected at all is the thing the`);
+    console.log(`legacy token scanner could not do, and it is what makes routing Explore through`);
+    console.log(`the director worth a paid run.`);
+    if (hit) {
+      console.log(`\nThe --expect asset was among the selections, with role "${hit.role}".`);
+    } else if (targetInCatalog) {
+      console.log(`\nNote: the --expect asset (${expect}) had a catalog line and was NOT chosen.`);
+      console.log(`That is not automatically wrong. Compare the two on brief fit and brand palette`);
+      console.log(`before treating it as a defect.`);
+    }
   } else if (!target) {
-    console.log(`FAIL at boundary 1 · the asset is not in the library. Fix the library first.`);
+    console.log(`FAIL at boundary 1 · the --expect asset is not in the library, and no subject was`);
+    console.log(`selected either. Fix the library first.`);
   } else if (!targetInCatalog) {
-    console.log(`FAIL at boundary 2 · the asset is eligible but never reached the catalog, so the`);
-    console.log(`model could not have chosen it. This is a catalog-budget bug, not a model bug.`);
+    console.log(`FAIL at boundary 2 · no subject was selected, and the --expect asset never reached`);
+    console.log(`the catalog, so the model could not have chosen it. This is a catalog-budget bug.`);
   } else {
-    console.log(`FAIL at boundary 3 · the asset HAD a catalog line and the director did not pick it.`);
-    console.log(`This is the only branch where prompt or scoring work is the right next step.`);
-    console.log(`Selected instead: ${direction.assetSelections.map(s => catalog.byId.get(s.assetId)?.name ?? s.assetId).join(", ") || "(nothing)"}`);
+    console.log(`FAIL at boundary 3 · no subject was selected at all, though eligible subjects had`);
+    console.log(`catalog lines. This is the only branch where prompt or scoring work is the right`);
+    console.log(`next step. Selected instead: ${names(direction.assetSelections)}`);
   }
 
   process.exit(0);

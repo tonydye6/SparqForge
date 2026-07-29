@@ -57,15 +57,22 @@ export function takeFilename(creativeId: string, takeId: string, token: string):
 }
 
 /**
- * The brief handed to one take.
+ * The axis directive as its own labelled block.
  *
- * The axis directive is appended as its own labelled block rather than folded
- * into the brief prose. §1.17 requires that nothing sent to the model is hidden
- * from the user, and a labelled block is what lets the prompt delta show which
- * words came from the spread rather than from the person.
+ * A labelled block rather than prose folded into the brief, because §1.17
+ * requires that nothing sent to the model is hidden from the user: this is how
+ * the prompt delta can show which words came from the spread rather than from
+ * the person.
+ *
+ * This replaced `briefForTake`, which appended the block to an AssembledContext's
+ * combinedBrief. That signature only made sense for the legacy prompt assembler
+ * stage 03 no longer uses; `buildDirectedPrompt` places the directive itself,
+ * between the reference roll-call and the brand constraints. Keeping the old
+ * function for its tests would have left dead code that passes, which this
+ * project has been bitten by before.
  */
-export function briefForTake(combinedBrief: string, directive: string): string {
-  return `${combinedBrief}\n\nFOR THIS TAKE IN THE SPREAD: ${directive}.`;
+export function axisDirectiveBlock(directive: string): string {
+  return `FOR THIS TAKE IN THE SPREAD: ${directive}.`;
 }
 
 /**
