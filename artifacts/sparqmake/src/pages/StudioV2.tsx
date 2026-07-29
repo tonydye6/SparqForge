@@ -312,7 +312,14 @@ export default function StudioV2() {
                     onSaved={() => void loadSpine(creativeId)}
                   />
                 ) : activeStage?.stageKind === "asset" ? (
-                  <ImageStage creativeId={creativeId} locked={activeStage.status === "locked"} />
+                  <ImageStage
+                    creativeId={creativeId}
+                    stageId={activeStage.id}
+                    mode={activeStage.mode}
+                    takes={spine.takes[activeStage.id] ?? []}
+                    locked={activeStage.status === "locked"}
+                    onChanged={() => void loadSpine(creativeId)}
+                  />
                 ) : (
                   <div className="p-8">
                     <p className="max-w-[70ch] text-[12.5px] leading-relaxed text-muted-foreground">

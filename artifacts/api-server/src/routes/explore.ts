@@ -6,6 +6,8 @@ import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
+import { validateRequest } from "../middleware/validate.js";
+import { z } from "zod";
 import { assembleContext } from "../services/context-assembly.js";
 import { generateImage } from "../services/imagen.js";
 import { writeBuffer } from "../services/storage.js";
@@ -254,6 +256,140 @@ router.post(
       }
       console.error("Explore run failed", err);
       res.status(500).json({ error: "The spread could not be run. Nothing was charged." });
+    }
+  },
+);
+
+/**
+ * Switch stage 03 between Explore and Refine, recording which take was chosen.
+ *
+ * §1.2: this is one stage in two modes, not two screens, which is why the mode
+ * lives on the stage row rather than becoming a sixth stage.
+ *
+ * The choice is written as a take in the "selected" slot rather than a column.
+ * A take is this system's record of a decision, so recording it that way gets
+ * the history for free: you can see what was picked before, and picking again
+ * supersedes rather than overwrites.
+ */
+const ModeBody = z.object({
+  mode: z.enum(["explore", "refine"]),
+  /** Required when entering refine: which Explore slot is being refined. */
+  slotKey: z.string().min(1).max(64).optional(),
+});
+
+router.post(
+  "/creatives/:creativeId/stages/:stageId/image-mode",
+  requireStandardWrite,
+  validateRequest({ body: ModeBody }),
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const { mode, slotKey } = req.body as z.infer<typeof ModeBody>;
+
+    if (mode === "refine" && !slotKey) {
+      res.status(400).json({ error: "Refine needs to know which take you are refining." });
+      return;
+    }
+
+    try {
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({ error: "This stage is locked, so it was not changed. Unlock it first." });
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stageStatesTable)
+          .set({ mode, updatedAt: new Date() })
+          .where(eq(stageStatesTable.id, stageId));
+
+        if (mode === "refine" && slotKey) {
+          await tx
+            .update(stageTakesTable)
+            .set({ isCurrent: false })
+            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
+          const prior = await tx
+            .select({ takeIndex: stageTakesTable.takeIndex })
+            .from(stageTakesTable)
+            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
+          await tx.insert(stageTakesTable).values({
+            stageStateId: stageId,
+            slotKey: "selected",
+            takeIndex: prior.length,
+            origin: "swapped_in",
+            payload: { slotKey },
+            isCurrent: true,
+          });
+        }
+      });
+
+      res.json({ mode, slotKey: slotKey ?? null });
+    } catch (err) {
+      console.error("Failed to switch image mode", err);
+      res.status(500).json({ error: "That could not be saved." });
+    }
+  },
+);
+
+/**
+ * Make an earlier take current again.
+ *
+ * Restoring is not undoing: the later takes stay on the record, because the
+ * history is the point of the deck. What changes is which one downstream stages
+ * read (§1.3, dependency is what a stage actually consumed).
+ */
+router.post(
+  "/creatives/:creativeId/stages/:stageId/takes/:takeId/current",
+  requireStandardWrite,
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const takeId = String(req.params.takeId);
+
+    try {
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({ error: "This stage is locked, so it was not changed. Unlock it first." });
+        return;
+      }
+
+      const [take] = await db
+        .select({ id: stageTakesTable.id, slotKey: stageTakesTable.slotKey })
+        .from(stageTakesTable)
+        .where(and(eq(stageTakesTable.id, takeId), eq(stageTakesTable.stageStateId, stageId)));
+      if (!take) {
+        res.status(404).json({ error: "That take is not on this stage." });
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        // Clear first: the partial unique index allows one current take per slot.
+        await tx
+          .update(stageTakesTable)
+          .set({ isCurrent: false })
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, take.slotKey)));
+        await tx.update(stageTakesTable).set({ isCurrent: true }).where(eq(stageTakesTable.id, takeId));
+      });
+
+      res.json({ takeId, slotKey: take.slotKey });
+    } catch (err) {
+      console.error("Failed to restore take", err);
+      res.status(500).json({ error: "That take could not be restored." });
     }
   },
 );
