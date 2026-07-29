@@ -59,12 +59,12 @@ import {
 const router: IRouter = Router();
 
 /** The goal recorded by stage 01, if there is one. */
-async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | null; briefStageId: string | null }> {
+async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | null; briefStageId: string | null; briefText: string | null }> {
   const [brief] = await db
     .select({ id: stageStatesTable.id })
     .from(stageStatesTable)
     .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "brief")));
-  if (!brief) return { intent: null, briefStageId: null };
+  if (!brief) return { intent: null, briefStageId: null, briefText: null };
 
   const [take] = await db
     .select({ payload: stageTakesTable.payload })
@@ -77,9 +77,32 @@ async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | n
       ),
     );
 
-  const payload = take?.payload as { intentId?: unknown } | null | undefined;
+  const payload = take?.payload as { intentId?: unknown; line?: unknown; derived?: unknown } | null | undefined;
   const raw = payload && typeof payload === "object" ? payload.intentId : null;
-  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id };
+  /*
+   * The typed line, and the derived rows the user saw and could edit. This is
+   * what the person actually said, and it was being read for its intentId and
+   * then thrown away: explore-run never passed briefText to assembleContext, so
+   * combinedBrief was assembled from the creative's OLD stored brief and the
+   * template. "female tennis player" never reached the model, and
+   * matchAssetsToBrief scored the library against the wrong text, which is why
+   * it matched 0 with "Crown U" sitting in the brief. This one omission was the
+   * v1/v2 difference: v1's generate route has always passed the brief through.
+   */
+  let briefText: string | null = null;
+  if (payload && typeof payload === "object" && typeof payload.line === "string" && payload.line.trim()) {
+    const parts = [payload.line.trim()];
+    if (Array.isArray(payload.derived)) {
+      for (const d of payload.derived) {
+        const row = d as { label?: unknown; value?: unknown };
+        if (typeof row?.label === "string" && typeof row?.value === "string") {
+          parts.push(`${row.label}: ${row.value}`);
+        }
+      }
+    }
+    briefText = parts.join("\n");
+  }
+  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id, briefText };
 }
 
 router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Response): Promise<void> => {
@@ -279,7 +302,7 @@ router.post(
         return;
       }
 
-      const { intent, briefStageId } = await intentFromBrief(creativeId);
+      const { intent, briefStageId, briefText } = await intentFromBrief(creativeId);
       const plan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
 
       const budget = await reserveBudget(creativeId, reservationUsd(plan.takes.length, perImageUsd));
@@ -294,6 +317,9 @@ router.post(
         templateId,
         selectedAssets: [],
         intent: intent ?? null,
+        // The stage 01 line, verbatim. Without this the model composed from the
+        // creative's old stored brief and the user's words went nowhere.
+        briefText: briefText ?? undefined,
       });
 
       /*
