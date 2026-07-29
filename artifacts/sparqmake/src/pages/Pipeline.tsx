@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearchParams } from "wouter";
 import { getCalendarEntries, useGetCreatives } from "@workspace/api-client-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -64,6 +64,32 @@ function weekStart(d: Date): Date {
   return out;
 }
 
+/**
+ * Parse the ?week= parameter, which is the Monday of the week being viewed as
+ * YYYY-MM-DD.
+ *
+ * Constructed from parts rather than `new Date(str)`, because the string form
+ * is parsed as UTC midnight and would shift the displayed week by a day for
+ * anyone west of Greenwich.
+ *
+ * Returns null for anything malformed, so a hand-edited or truncated URL falls
+ * back to the current week instead of rendering Invalid Date.
+ */
+function parseWeekParam(value: string | null): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** The ?week= value for a date: always the Monday, so URLs are canonical. */
+function weekParamFor(d: Date): string {
+  const w = weekStart(d);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${w.getFullYear()}-${pad(w.getMonth() + 1)}-${pad(w.getDate())}`;
+}
+
 function sameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -90,7 +116,16 @@ const STATE_RANK: Record<CreativeState, number> = {
 };
 
 export default function Pipeline() {
-  const [anchor, setAnchor] = useState(() => new Date());
+  /**
+   * The visible week lives in the URL rather than in component state, so a week
+   * can be linked, shared in Slack, bookmarked, and reached by a screenshot
+   * tool. Absent means the current week, which keeps the default URL clean.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const anchor = useMemo(
+    () => parseWeekParam(searchParams.get("week")) ?? new Date(),
+    [searchParams],
+  );
   const [entries, setEntries] = useState<CalEntry[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
@@ -211,10 +246,19 @@ export default function Pipeline() {
   const agingCount =
     cardsByDay.flat().filter((c) => c.aging !== null).length + undated.filter((u) => u.aging !== null).length;
 
+  const goToWeek = (d: Date | null) => {
+    const next = new URLSearchParams(searchParams);
+    // Drop the parameter entirely for the current week rather than pinning it,
+    // so a shared "this week" link keeps meaning this week tomorrow.
+    if (d === null || weekParamFor(d) === weekParamFor(new Date())) next.delete("week");
+    else next.set("week", weekParamFor(d));
+    setSearchParams(next);
+  };
+
   const shiftWeek = (weeks: number) => {
     const next = new Date(start);
     next.setDate(next.getDate() + weeks * 7);
-    setAnchor(next);
+    goToWeek(next);
   };
 
   const rangeLabel = `${DAY_NAMES[0]} ${days[0].getDate()} ${days[0].toLocaleString(undefined, { month: "short" })} – ${days[6].getDate()} ${days[6].toLocaleString(undefined, { month: "short" })}`;
@@ -237,7 +281,7 @@ export default function Pipeline() {
             <ChevronLeft size={14} />
           </button>
           <button
-            onClick={() => setAnchor(new Date())}
+            onClick={() => goToWeek(null)}
             className="rounded-sm border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
           >
             This week
