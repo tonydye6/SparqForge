@@ -9,7 +9,7 @@
 
 import {
   RUN_CONCURRENCY,
-  briefForTake,
+  axisDirectiveBlock,
   mapWithConcurrency,
   reservationUsd,
   settledCostUsd,
@@ -57,15 +57,23 @@ export async function collectExploreRunCases(): Promise<Case[]> {
     check("re-running a take yields a new filename, so no stale cache", a !== b, [a, b]);
   }
 
-  // ------------------------------------------------------------------ brief
+  // -------------------------------------------------------- axis directive
+  /*
+   * `briefForTake` was removed with the legacy prompt path it served: stage 03
+   * now assembles the prompt through buildDirectedPrompt, which places the
+   * directive itself. What survived is the WORDING, which is the part §1.17
+   * depends on, because it is how a user can tell which words in the prompt came
+   * from the spread rather than from them. Testing it here keeps that wording
+   * single-sourced for both assemblers.
+   */
   {
-    const b = briefForTake("Base brief.", "push to spectacle");
-    check("the directive is a labelled block, not folded into the prose",
-      b.startsWith("Base brief.") && b.includes("FOR THIS TAKE IN THE SPREAD: push to spectacle"), b);
+    const b = axisDirectiveBlock("push to spectacle");
+    check("the directive is a labelled block a reader can pick out of a prompt",
+      b === "FOR THIS TAKE IN THE SPREAD: push to spectacle.", b);
   }
   {
-    const b = briefForTake("Base.", "x");
-    check("the user's brief is never rewritten, only appended to", b.indexOf("Base.") === 0, b);
+    check("the directive block adds the sentence stop and nothing else",
+      axisDirectiveBlock("x") === "FOR THIS TAKE IN THE SPREAD: x.", axisDirectiveBlock("x"));
   }
 
   // ------------------------------------------------------------ concurrency

@@ -158,9 +158,32 @@ export function slotDescriptionForAsset(
   let description: string;
   if (slotType === "style") {
     description = `${base}. Match this asset's visual style, treatment, and mood.`;
+  } else if (slotType === "object") {
+    // A mark IS the thing being reproduced, so fidelity is unqualified here.
+    description = `${base}. Reproduce this exact asset faithfully as shown — do not redesign, restyle, recolor, or invent a different version of it.`;
   } else {
+    /*
+     * Character fidelity, scoped to identity rather than to every pixel.
+     *
+     * This used to say "reproduce this exact asset faithfully as shown" for
+     * characters too, which fought a constraint the same prompt carries a few
+     * paragraphs later. The live probe made it concrete: both of Crown U's
+     * female tennis characters have a NIKE SWOOSH in depicted_entities, and one
+     * also carries the red Sparq flaming skull, while the brand's own
+     * negativePrompt says "no non-Crown-U logos" and the coherence block says
+     * to replace other brands' marks. The model was being told to reproduce
+     * exactly and to remove, about the same pixels, with the reproduce order
+     * riding on the attached image and the prohibition sitting in text.
+     *
+     * Identity is the reason a subject reference is attached at all: face,
+     * hair, build, silhouette, outfit design. Sponsor and third-party marks
+     * are not identity, so they are named as the exception instead of leaving
+     * the model to reconcile two absolute instructions.
+     */
     const identity = asset.characterIdentityNote ? ` ${asset.characterIdentityNote}` : "";
-    description = `${base}.${identity} Reproduce this exact asset faithfully as shown — do not redesign, restyle, or invent a different version of it.`;
+    description =
+      `${base}.${identity} Reproduce this subject's IDENTITY faithfully as shown — face, hair, skin tone, build, silhouette, outfit design and colors — and do not redesign, restyle, or invent a different version of them. ` +
+      `The one exception is marks: omit any third-party, sponsor, or other-brand logo, wordmark, or swoosh visible on this reference, or replace it with this brand's own mark. Removing a foreign mark is not redesigning the subject.`;
   }
   return enrichSlotDescription(description, asset);
 }
@@ -174,18 +197,29 @@ export const PERSONA_GUARANTEED_SLOTS = 2;
  * slots > packet fill > leftovers (remaining persona, then packet, then
  * director overflow). Duplicate assetIds are dropped (first occurrence wins).
  */
-export function mergeReferenceSlots(params: {
-  attached: ImageSlot[];
-  director?: ImageSlot[];
-  packet: ImageSlot[];
-  persona: ImageSlot[];
+/*
+ * Generic over the slot shape, so the two image APIs can share the budgeting.
+ *
+ * The Co-pilot sends ImageSlot to the Interactions API; stage 03 Explore sends
+ * ReferenceImage to the Gemini image model. The request SHAPES genuinely differ,
+ * but the priority rules — attachments beat the director, the director beats the
+ * packet, the persona keeps PERSONA_GUARANTEED_SLOTS, duplicates by assetId are
+ * dropped — are the same decision either way, and that decision already had one
+ * real bug in it (an unconditional persona reserve starving the director). One
+ * implementation, one set of tests, two callers.
+ */
+export function mergeReferenceSlots<T extends { assetId?: string }>(params: {
+  attached: T[];
+  director?: T[];
+  packet: T[];
+  persona: T[];
   cap: number;
-}): ImageSlot[] {
+}): T[] {
   const { attached, director = [], packet, persona, cap } = params;
-  const out: ImageSlot[] = [];
+  const out: T[] = [];
   const seen = new Set<string>();
 
-  const push = (slot: ImageSlot): boolean => {
+  const push = (slot: T): boolean => {
     if (out.length >= cap) return false;
     if (slot.assetId) {
       if (seen.has(slot.assetId)) return true;
@@ -235,7 +269,23 @@ export interface AssetCatalog {
   byId: Map<string, Asset>;
 }
 
-const CATALOG_MAX_LINES = 40;
+/*
+ * Catalog size, tuned against a live measurement rather than a guess.
+ *
+ * The probe on Crown U (264 non-archived assets, 261 eligible) showed the old
+ * 40-line cap was binding hard and badly distributed: 18 lines went to logos
+ * unconditionally, leaving 22 for 241 scored assets, and only TWO of those 22
+ * were style references. The director was choosing composition from a catalog
+ * that had almost no style material in it.
+ *
+ * So: a bigger catalog, and a share cap on the logo block. Marks are few, near
+ * duplicates of each other (primary/secondary/screenshot-of-the-logo), and
+ * almost always relevant, which is exactly why they should be represented but
+ * not allowed to crowd out the library. The remaining lines go to
+ * brief-ranked assets, which is where subject and style fidelity comes from.
+ */
+const CATALOG_MAX_LINES = 60;
+const CATALOG_MAX_LOGO_LINES = 6;
 
 function catalogLine(asset: Asset, kindLabel: string): string {
   const bits = [
@@ -272,6 +322,8 @@ export async function buildAssetCatalog(params: {
   brandId: string;
   briefText: string;
   maxLines?: number;
+  /** Share of the catalog the logo/brand-mark block may take. */
+  maxLogoLines?: number;
   channel?: string | null;
   template?: string | null;
 }): Promise<AssetCatalog> {
@@ -315,11 +367,24 @@ export async function buildAssetCatalog(params: {
   const byId = new Map<string, Asset>();
   const lines: string[] = [];
 
-  // Logos/brand marks first — small in number and almost always relevant.
-  for (const a of compositing) {
+  /*
+   * Logos/brand marks first, but ranked and capped.
+   *
+   * Ranked because insertion order meant an arbitrary subset survived the cap:
+   * a screenshot that happens to contain the logo could outrank the actual
+   * primary mark. Capped because on a real brand these were taking 18 of 40
+   * lines, and a mark the director cannot see is a smaller loss than a subject
+   * reference it cannot see.
+   */
+  const logoLimit = Math.min(params.maxLogoLines ?? CATALOG_MAX_LOGO_LINES, maxLines);
+  const rankedCompositing = compositing
+    .map(a => ({ asset: a, ...scoreAssetAgainstBrief(a, briefTokens) }))
+    .sort((x, y) => y.score - x.score)
+    .slice(0, logoLimit);
+  for (const { asset } of rankedCompositing) {
     if (lines.length >= maxLines) break;
-    byId.set(a.id, a);
-    lines.push(catalogLine(a, catalogKindLabel(a)));
+    byId.set(asset.id, asset);
+    lines.push(catalogLine(asset, catalogKindLabel(asset)));
   }
   for (const { asset } of scored) {
     if (lines.length >= maxLines) break;

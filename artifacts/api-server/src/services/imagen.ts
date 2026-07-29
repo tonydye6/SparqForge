@@ -263,10 +263,37 @@ export async function generateImage(
   referenceImages?: ReferenceImage[],
   varyMode?: VaryMode,
 ): Promise<ImageGenerationResult> {
+  return generateImageFromPrompt(
+    buildImagePrompt(ctx, referenceImages, varyMode),
+    platformKey,
+    referenceImages,
+  );
+}
+
+/**
+ * Generate from a prompt that the caller has already assembled.
+ *
+ * Extracted from generateImage without changing a line of its behavior:
+ * generateImage is now this function plus buildImagePrompt. It exists because
+ * stage 03 Explore composes its prompt with the Creative Director instead
+ * (services/explore-direction.ts), and buildImagePrompt is the LEGACY
+ * assembler — it takes an AssembledContext and re-derives steering from it, so
+ * the director's prose could not reach the image model through it at all.
+ *
+ * Everything that makes generation reliable stays here and stays shared: the
+ * aspect-ratio instruction, subject-before-style reference ordering, the
+ * MAX_IMAGE_REFERENCES cap, and the 3-attempt retry on an empty TEXT-only
+ * response. Those were the real reasons not to let a second caller grow its own
+ * image call.
+ */
+export async function generateImageFromPrompt(
+  prompt: string,
+  platformKey: string,
+  referenceImages?: ReferenceImage[],
+): Promise<ImageGenerationResult> {
   const config = PLATFORM_CONFIGS[platformKey];
   if (!config) throw new Error(`Unknown platform: ${platformKey}`);
 
-  const prompt = buildImagePrompt(ctx, referenceImages, varyMode);
   const fullPrompt = `${prompt}\n\nGenerate this as a ${config.aspectRatio} aspect ratio image suitable for ${config.platform.replace(/_/g, " ")}.`;
 
   const contentParts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [];
