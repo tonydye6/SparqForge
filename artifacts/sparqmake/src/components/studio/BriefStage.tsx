@@ -98,6 +98,8 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
   const [derived, setDerived] = useState<DerivedRow[]>([]);
   const [questions, setQuestions] = useState<OpenQuestion[]>([]);
   const [degraded, setDegraded] = useState<string | null>(null);
+  // Kept so stage 03 can plan its axes without paying to infer the goal again.
+  const [intentId, setIntentId] = useState<string | null>(null);
   const [thinking, setThinking] = useState(false);
   /** The line the rows on screen were derived from, so we can say when they lag. */
   const [derivedFrom, setDerivedFrom] = useState("");
@@ -128,6 +130,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
         if (controller.signal.aborted) return;
         setDerived(data.derived ?? []);
         setQuestions(data.questions ?? []);
+        setIntentId(data.intent?.id ?? null);
         setDegraded(data.degraded ? (data.degradedReason ?? "Only the brand record is shown.") : null);
         setDerivedFrom(text);
       } catch (err) {
@@ -198,6 +201,10 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
           // from an inferred one instead of flattening both into prose.
           payload: {
             line: line.trim(),
+            // Recorded, not re-derived. Stage 03 plans its axes off the goal, and
+            // paying a second inference for a value we already have would also
+            // risk the two stages disagreeing about what this post is for.
+            intentId,
             derived: derived.map((d) => ({
               key: d.key,
               label: d.label,

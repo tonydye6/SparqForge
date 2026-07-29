@@ -30,4 +30,5 @@
 - [genai SDK real abort](genai-sdk-abort.md) — racing an abortPromise doesn't stop the HTTP call; pass `{ fetchOptions: { signal } }` as the 2nd arg to ai.interactions.create for true ~256ms cancellation.
 - [Co-pilot integration tests](copilot-integration-tests.md) — `*.integration.test.ts` use the real dev DB with mocked model boundaries; seed/cleanup pattern + ai-config mock drift trap.
 - [Copilot attached-asset slots](copilot-asset-slots.md) — edit turns send library assets as image slots (picker ids or name auto-match); brand-scoped, image-only, max 3.
+- [stage_takes index constraint](stage-takes-index-constraint.md) — CHECK take_index >= 1 vs 0-based inserts: explore run fails AFTER generating, spending real money with zero cost rows.
 - [Image mime sniffing](image-mime-sniffing.md) — Anthropic 400s on declared-vs-actual image type mismatch; always magic-byte sniff buffers sent to model APIs (saved .png files can hold JPEG bytes).
