@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
+import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, templatesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
@@ -172,6 +172,31 @@ async function directorFor(creativeId: string, brandId: string): Promise<Designe
   return persona ?? null;
 }
 
+/**
+ * A template id for the prompt assembler.
+ *
+ * Explore does not composite anything, so it has no use for a template's
+ * layoutSpec. It needs one only because assembleContext and buildGenerationPacket
+ * both require a template row and throw without one. `creatives.templateId` is
+ * nullable and the v2 Brief never sets it, so requiring the creative's own
+ * template made EVERY v2 creative fail with "no template" before it could
+ * generate anything: not an edge case, the default path.
+ *
+ * So: use the creative's template when it has one, otherwise borrow any active
+ * one purely to satisfy the assembler. Ordered by name so the borrow is
+ * deterministic rather than whatever the planner happened to return.
+ */
+async function templateForContext(creativeTemplateId: string | null): Promise<string | null> {
+  if (creativeTemplateId) return creativeTemplateId;
+  const [fallback] = await db
+    .select({ id: templatesTable.id })
+    .from(templatesTable)
+    .where(eq(templatesTable.isActive, true))
+    .orderBy(templatesTable.name)
+    .limit(1);
+  return fallback?.id ?? null;
+}
+
 router.post(
   "/creatives/:creativeId/explore-run",
   requireStandardWrite,
@@ -206,12 +231,14 @@ router.post(
         return;
       }
 
-      // A creative can lose its template (the FK is ON DELETE SET NULL), and the
-      // prompt assembler needs one. Refusing here costs nothing; discovering it
-      // after reserving budget would leave a reservation to clean up.
-      if (!creative.templateId) {
+      // Resolved before reserving budget, so a missing template cannot strand a
+      // reservation. Only a system with NO active templates at all is a dead end,
+      // and that is a setup problem rather than something about this creative.
+      const templateId = await templateForContext(creative.templateId);
+      if (!templateId) {
         res.status(400).json({
-          error: "This creative has no template, so the spread cannot be composed. Nothing was charged.",
+          error:
+            "There are no active templates on this account, and the prompt assembler needs one. Nothing was charged.",
         });
         return;
       }
@@ -228,7 +255,7 @@ router.post(
 
       const ctx = await assembleContext({
         brandId: creative.brandId,
-        templateId: creative.templateId,
+        templateId,
         selectedAssets: [],
         intent: intent ?? null,
       });
@@ -253,7 +280,7 @@ router.post(
         const packet = await buildGenerationPacket({
           creativeId,
           brandId: creative.brandId,
-          templateId: creative.templateId,
+          templateId,
           platform: "instagram_feed",
           selectedAssetIds: [],
           briefText: ctx.combinedBrief,
