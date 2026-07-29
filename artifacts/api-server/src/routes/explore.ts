@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, templatesTable, type DesignerPersona } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { db, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, templatesTable, type DesignerPersona } from "@workspace/db";
+import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
@@ -175,6 +175,40 @@ async function directorFor(creativeId: string, brandId: string): Promise<Designe
 }
 
 /**
+ * The brand's own subject references, ranked, ignoring the brief entirely.
+ *
+ * This is the floor under character fidelity, and it exists because
+ * matchAssetsToBrief alone is not one. That scanner scores assets against the
+ * BRIEF'S TOKENS, so it found zero of Crown U's 410 assets for a brief that never
+ * happened to name a character. v1 survives that because a human confirms assets
+ * on a screen before generating; v2 has no such screen, so a token miss meant the
+ * character simply never reached the model.
+ *
+ * A brand's character is not a function of whether the brief mentioned it. It is
+ * who the brand IS. So when brief matching yields no subject, fall back to the
+ * brand's highest-identity subject references and send those. Ranked by
+ * subjectIdentityScore, which is the field that already means "how strongly does
+ * this asset establish who the character is".
+ */
+async function brandSubjectFloor(brandId: string, limit: number): Promise<string[]> {
+  const rows = await db
+    .select({ id: assetsTable.id })
+    .from(assetsTable)
+    .where(
+      and(
+        eq(assetsTable.brandId, brandId),
+        ne(assetsTable.status, "archived"),
+        eq(assetsTable.assetClass, "subject_reference"),
+        eq(assetsTable.generationAllowed, true),
+        isNotNull(assetsTable.fileUrl),
+      ),
+    )
+    .orderBy(desc(assetsTable.subjectIdentityScore), desc(assetsTable.referencePriorityDefault))
+    .limit(limit);
+  return rows.map(r => r.id);
+}
+
+/**
  * A template id for the prompt assembler.
  *
  * Explore does not composite anything, so it has no use for a template's
@@ -278,6 +312,7 @@ router.post(
       let referenceImages: Awaited<ReturnType<typeof buildReferenceImages>> = [];
       let referenceNote: string | null = null;
       let matchedAssetIds: string[] = [];
+      let usedSubjectFloor = false;
       try {
         /*
          * Find the brand's own assets for this brief. This is the step v2 was
@@ -304,6 +339,24 @@ router.post(
           ...matched.imageReferences.map(m => m.asset.id),
           ...matched.compositing.map(m => m.asset.id),
         ];
+
+        /*
+         * The floor. If the brief matched no subject reference, the character has
+         * to come from the brand rather than from the wording, or every brief that
+         * does not name a character produces a stranger.
+         *
+         * Prepended, not appended: subject slots are allocated first, so the
+         * identity references must be at the front of the list to survive the
+         * reference budget.
+         */
+        const matchedSubjects = matched.imageReferences.filter(
+          m => m.asset.assetClass === "subject_reference",
+        ).length;
+        if (matchedSubjects === 0) {
+          const floor = await brandSubjectFloor(creative.brandId, 3);
+          matchedAssetIds = [...floor, ...matchedAssetIds.filter(id => !floor.includes(id))];
+          usedSubjectFloor = floor.length > 0;
+        }
 
         const personaRefs = await loadPersonaReferenceImages(persona);
         const packet = await buildGenerationPacket({
@@ -403,6 +456,7 @@ router.post(
                 material: {
                   referenceCount: referenceImages.length,
                   matchedCount: matchedAssetIds.length,
+                  usedSubjectFloor,
                   subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
                   director: persona?.name ?? null,
                 },
@@ -430,6 +484,8 @@ router.post(
           // where character fidelity gets lost. Reported separately so a future
           // failure is diagnosable without another round of guessing.
           matchedCount: matchedAssetIds.length,
+          // Said out loud: the character came from the brand, not the brief.
+          usedSubjectFloor,
           director: persona?.name ?? null,
           personaNote: referenceNote,
         },

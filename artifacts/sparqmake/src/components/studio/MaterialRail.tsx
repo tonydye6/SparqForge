@@ -105,9 +105,15 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
     return typeof p?.name === "string" ? p.name : null;
   })();
 
+  /*
+   * Only CURRENT takes, and that distinction is not pedantry: reading any rendered
+   * take meant the rail reported "3 sent" from a previous run while the newest run
+   * had actually sent zero. A disclosure panel showing a stale number is worse than
+   * showing none, because it is believed.
+   */
   const rendered = takes.filter((t) => {
     const p = t.payload as { imageUrl?: unknown } | undefined;
-    return typeof p?.imageUrl === "string";
+    return t.isCurrent && typeof p?.imageUrl === "string";
   });
   const renderedTakes = rendered.length;
 
