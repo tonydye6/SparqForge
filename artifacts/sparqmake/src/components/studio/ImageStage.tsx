@@ -33,6 +33,20 @@ interface ImageStageProps {
   locked: boolean;
 }
 
+interface TakeOutcome {
+  takeId: string;
+  ok: boolean;
+  imageUrl?: string;
+  error?: string;
+}
+
+interface RunResponse {
+  outcomes: TakeOutcome[];
+  succeeded: number;
+  failed: number;
+  costUsd: number;
+}
+
 interface OffBrief {
   axes: string[];
   reason: string;
@@ -72,6 +86,9 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [run, setRun] = useState<RunResponse | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +107,33 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Spend the money. The button is the consent (§1.5), so this is the only place
+   * a spread is ever generated: nothing here runs on mount or on navigation.
+   */
+  async function runSpread() {
+    if (!plan || locked || running) return;
+    setRunning(true);
+    setRunError(null);
+    try {
+      const res = await apiFetch(`/api/creatives/${creativeId}/explore-run`, { method: "POST" });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        // The server's copy already says what it affects and whether anything was
+        // charged, so show it rather than inventing a generic failure line.
+        setRunError((body as { error?: string; message?: string })?.error ?? (body as { message?: string })?.message ?? "The spread could not be run.");
+        return;
+      }
+      setRun(body as RunResponse);
+    } catch {
+      setRunError("The spread could not be reached. Nothing was charged.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const outcomeFor = (takeId: string) => run?.outcomes.find((o) => o.takeId === takeId) ?? null;
 
   if (loading) {
     return (
@@ -177,6 +221,7 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
               rowDeparture={rowPos.departure}
               takes={plan.takes.filter((t) => t.row === rowIndex)}
               firstDeparture={firstDeparture}
+              outcomeFor={outcomeFor}
               hovered={hovered}
               setHovered={setHovered}
             />
@@ -247,20 +292,38 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
         </div>
         <div className="ml-auto">
           <button
-            disabled
-            title="Generation arrives in the next increment"
-            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground disabled:opacity-40"
+            onClick={() => void runSpread()}
+            disabled={locked || running}
+            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
           >
-            {locked ? "Locked" : `Run these ${plan.takes.length}`}
+            {locked ? "Locked" : running ? "Running" : run ? "Run again" : `Run these ${plan.takes.length}`}
           </button>
         </div>
       </div>
 
-      {/* Never overstate what is built. */}
-      <p className="text-[11px] leading-relaxed text-dim">
-        Generation is not wired up yet, so the button above does nothing. The spread, the axes, the
-        off-brief flagging and the price are real and come from the server.
-      </p>
+      {runError && (
+        <p className="rounded-sm border border-rebel-pink/40 bg-card px-3 py-2 text-[11px] leading-relaxed text-rebel-pink">
+          {runError}
+        </p>
+      )}
+
+      {run && (
+        <p className="text-[11px] leading-relaxed text-dim">
+          {run.failed === 0 ? (
+            <>
+              All <span data-numeric>{run.succeeded}</span> takes rendered. Charged{" "}
+              <span data-numeric>{money(Math.round(run.costUsd * 100))}</span>.
+            </>
+          ) : (
+            <>
+              <span data-numeric>{run.succeeded}</span> of{" "}
+              <span data-numeric>{run.succeeded + run.failed}</span> takes rendered. You were charged{" "}
+              <span data-numeric>{money(Math.round(run.costUsd * 100))}</span>, for the ones that
+              arrived only. Run again to retry the rest.
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -271,6 +334,7 @@ function FragmentRow({
   rowDeparture,
   takes,
   firstDeparture,
+  outcomeFor,
   hovered,
   setHovered,
 }: {
@@ -278,6 +342,7 @@ function FragmentRow({
   rowDeparture: boolean;
   takes: ExploreTake[];
   firstDeparture: number;
+  outcomeFor: (takeId: string) => TakeOutcome | null;
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }) {
@@ -303,7 +368,7 @@ function FragmentRow({
             // Planned state per §1.8: dashed, no image, because nothing exists yet.
             // min-w-0 lets the cell shrink inside the grid track instead of
             // pushing its own contents over the neighbouring column.
-            "flex aspect-[4/3] min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-dashed p-2 text-left transition-colors",
+            "relative flex aspect-[4/3] min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-dashed p-2 text-left transition-colors",
             // Departures sit on the raised ground. Material rather than colour,
             // per §1.8, because off-brief is a property of the plan and not one
             // of the seven states, so it has no hue of its own to spend.
@@ -322,7 +387,7 @@ function FragmentRow({
             headers carry the position; the cell carries only what is true of this
             cell alone. Screen readers still get both, from aria-label.
           */}
-          <div className="flex min-w-0 justify-end">
+          <div className="relative z-10 flex min-w-0 justify-end">
             {t.offBrief && (
               <span
                 className="flex min-w-0 items-center gap-0.5 rounded-sm border border-muted-foreground/50 bg-surround px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-muted-foreground"
@@ -338,9 +403,32 @@ function FragmentRow({
               </span>
             )}
           </div>
-          <span className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
-            Not made yet
-          </span>
+          {(() => {
+            const o = outcomeFor(t.id);
+            if (o?.ok && o.imageUrl) {
+              return (
+                <img
+                  src={o.imageUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full rounded-sm object-cover"
+                />
+              );
+            }
+            if (o && !o.ok) {
+              // §1.14: say what it affects. The tile stays in place so the grid
+              // does not silently reshape around a missing take.
+              return (
+                <span className="line-clamp-3 font-mono text-[8px] uppercase leading-tight tracking-[0.06em] text-rebel-pink">
+                  Did not render
+                </span>
+              );
+            }
+            return (
+              <span className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                Not made yet
+              </span>
+            );
+          })()}
         </button>
       ))}
     </>

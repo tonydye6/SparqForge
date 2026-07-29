@@ -1,4 +1,4 @@
-import { db, assetsTable, brandsTable, creativesTable, creativeVariantsTable, studioSessionsTable } from "@workspace/db";
+import { db, assetsTable, brandsTable, creativesTable, creativeVariantsTable, studioSessionsTable, stageTakesTable } from "@workspace/db";
 import { resolveUrl, internal, type StorageNamespace } from "./storage.js";
 
 /**
@@ -93,6 +93,18 @@ export async function gatherFileReferences(): Promise<FileReference[]> {
     .from(studioSessionsTable);
   for (const s of sessions) {
     addScalar(s.thumbnailUrl, "studio_sessions", "thumbnailUrl", s.id);
+  }
+
+  // Stage 03 Explore writes each generated take's image URL into the take
+  // payload. Without this the orphan sweep would not see those files and would
+  // treat every Explore image as unreferenced, which is exactly the drift the
+  // sweep exists to prevent. Report-only, like every other json column: a take
+  // payload is a record of what happened and must not be silently rewritten.
+  const takes = await db
+    .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
+    .from(stageTakesTable);
+  for (const t of takes) {
+    addJson(t.payload, "stage_takes", "payload", t.id);
   }
 
   return refs;
