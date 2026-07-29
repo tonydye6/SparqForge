@@ -8,6 +8,7 @@
  */
 
 import {
+  containsPoint,
   DRIFT_TOLERANCE,
   MIN_LASSO_POINTS,
   computeDriftPercent,
@@ -152,6 +153,42 @@ export function collectRegionEditCases(): Case[] {
   }
   {
     check("a garbage subject box parses to null", parseSubjectBox({ x: "a" }) === null);
+  }
+
+  // ------------------------------------------------------------- containment
+  {
+    const box = normalizeRegion({ shape: "box", x: 0.2, y: 0.2, w: 0.4, h: 0.4 })!;
+    check("a point inside the box is inside", containsPoint(box, 0.3, 0.3));
+    check("a point outside the box is outside", !containsPoint(box, 0.9, 0.9));
+    check("the box edge counts as inside", containsPoint(box, 0.2, 0.2) && containsPoint(box, 0.6, 0.6));
+  }
+  {
+    const pt = normalizeRegion({ shape: "point", x: 0.5, y: 0.5, r: 0.2 })!;
+    check("the circle centre is inside", containsPoint(pt, 0.5, 0.5));
+    check("just inside the radius is inside", containsPoint(pt, 0.5, 0.69));
+    check("just outside the radius is outside", !containsPoint(pt, 0.5, 0.71));
+    check("a corner is outside a centred circle", !containsPoint(pt, 0, 0));
+  }
+  {
+    const tri = normalizeRegion({
+      shape: "lasso",
+      points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    })!;
+    check("a point inside the triangle is inside", containsPoint(tri, 0.2, 0.2));
+    check("a point beyond the hypotenuse is outside", !containsPoint(tri, 0.8, 0.8));
+  }
+  {
+    // A concave polygon is where a naive containment test gives the wrong answer.
+    const cShape = normalizeRegion({
+      shape: "lasso",
+      points: [
+        { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 0.3 }, { x: 0.3, y: 0.3 },
+        { x: 0.3, y: 0.7 }, { x: 1, y: 0.7 }, { x: 1, y: 1 }, { x: 0, y: 1 },
+      ],
+    })!;
+    check("a concave notch reads as outside", !containsPoint(cShape, 0.8, 0.5), "notch");
+    check("the arms of the concave shape read as inside",
+      containsPoint(cShape, 0.8, 0.15) && containsPoint(cShape, 0.8, 0.85));
   }
 
   // ------------------------------------------------------------------- drift

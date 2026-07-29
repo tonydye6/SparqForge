@@ -206,6 +206,38 @@ export function namedRegionsFrom(
   return out;
 }
 
+/**
+ * Is a normalised point inside the region?
+ *
+ * Ray casting for the lasso, analytic for the other two. Pure, so the mask itself
+ * is testable without rasterising an image.
+ */
+export function containsPoint(region: Region, x: number, y: number): boolean {
+  switch (region.shape) {
+    case "box":
+      return x >= region.x && x <= region.x + region.w && y >= region.y && y <= region.y + region.h;
+    case "point": {
+      const dx = x - region.x;
+      const dy = y - region.y;
+      return dx * dx + dy * dy <= region.r * region.r;
+    }
+    case "lasso": {
+      const pts = region.points;
+      let inside = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const a = pts[i];
+        const b = pts[j];
+        // Strict-then-inclusive comparison on y is what keeps a vertex lying
+        // exactly on the ray from being counted twice.
+        if (a.y > y !== b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) {
+          inside = !inside;
+        }
+      }
+      return inside;
+    }
+  }
+}
+
 // ---------------------------------------------------------------------- drift
 
 /**
