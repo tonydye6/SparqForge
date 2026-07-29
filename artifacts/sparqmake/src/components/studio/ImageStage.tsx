@@ -285,25 +285,33 @@ function FragmentRow({
           aria-label={`${t.axisA.label}, ${t.axisB.label}${t.offBrief ? ", off brief" : ""}`}
           className={cn(
             // Planned state per §1.8: dashed, no image, because nothing exists yet.
-            "flex aspect-[4/3] flex-col justify-between rounded-sm border border-dashed p-2 text-left transition-colors",
+            // min-w-0 lets the cell shrink inside the grid track instead of
+            // pushing its own contents over the neighbouring column.
+            "flex aspect-[4/3] min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-dashed p-2 text-left transition-colors",
             hovered === t.id ? "border-grit-teal bg-grit-teal/5" : "border-border",
           )}
         >
-          <div className="flex items-start justify-between gap-1">
-            <span className="font-mono text-[8.5px] uppercase leading-tight tracking-[0.06em] text-dim">
-              {t.axisA.label}
-            </span>
+          {/*
+            No axis label in here. It would repeat the column header above and the
+            row label beside, in every single cell, and at this column width the
+            repeat is what pushed the off-brief badge over the next tile. The
+            headers carry the position; the cell carries only what is true of this
+            cell alone. Screen readers still get both, from aria-label.
+          */}
+          <div className="flex min-w-0 justify-end">
             {t.offBrief && (
               <span
-                className="flex shrink-0 items-center gap-0.5 rounded-sm border border-victory-gold/40 px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-victory-gold"
+                className="flex min-w-0 items-center gap-0.5 rounded-sm border border-victory-gold/40 px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-victory-gold"
                 title={t.offBrief.reason}
               >
-                <AlertTriangle size={7} />
-                Off brief
+                <AlertTriangle size={7} className="shrink-0" />
+                <span className="truncate">Off brief</span>
               </span>
             )}
           </div>
-          <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">Not made yet</span>
+          <span className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+            Not made yet
+          </span>
         </button>
       ))}
     </>
