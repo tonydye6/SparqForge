@@ -31,4 +31,5 @@
 - [Co-pilot integration tests](copilot-integration-tests.md) — `*.integration.test.ts` use the real dev DB with mocked model boundaries; seed/cleanup pattern + ai-config mock drift trap.
 - [Copilot attached-asset slots](copilot-asset-slots.md) — edit turns send library assets as image slots (picker ids or name auto-match); brand-scoped, image-only, max 3.
 - [stage_takes index constraint](stage-takes-index-constraint.md) — CHECK take_index >= 1 vs 0-based inserts: explore run fails AFTER generating, spending real money with zero cost rows.
+- [Workflow orphan processes](workflow-orphan-processes.md) — restarts only signal top pnpm; grandchild tsx squats the port serving stale code; dev script needs lsof pre-kill + exec.
 - [Image mime sniffing](image-mime-sniffing.md) — Anthropic 400s on declared-vs-actual image type mismatch; always magic-byte sniff buffers sent to model APIs (saved .png files can hold JPEG bytes).
