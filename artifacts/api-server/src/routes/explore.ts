@@ -279,7 +279,7 @@ router.post(
         return;
       }
 
-      const { intent } = await intentFromBrief(creativeId);
+      const { intent, briefStageId } = await intentFromBrief(creativeId);
       const plan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
 
       const budget = await reserveBudget(creativeId, reservationUsd(plan.takes.length, perImageUsd));
@@ -424,6 +424,28 @@ router.post(
       // re-run of one take supersedes only itself.
       const succeeded = outcomes.filter(o => o.ok);
       if (succeeded.length > 0) {
+        /*
+         * What this run actually consumed. Recorded, never inferred (§1.3).
+         *
+         * This was missing entirely: explore-run inserted takes directly and never
+         * touched stage_states.consumedFrom, so the Image stage claimed to have
+         * consumed nothing. The visible symptom was the "Why this" strip saying
+         * "nothing upstream can invalidate it", and the invisible one was far worse:
+         * rewriting the brief would NOT have marked Image stale, because staleness
+         * is a walk over consumedFrom. The spine's central promise was quietly not
+         * being kept for the one stage that costs money to redo.
+         *
+         * The brief is in here because the goal came from it and chose the axes.
+         * Direction is in here when a director was applied.
+         */
+        const [dirStage] = await db
+          .select({ id: stageStatesTable.id })
+          .from(stageStatesTable)
+          .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "direction")));
+        const consumed = [briefStageId, persona ? dirStage?.id : null].filter(
+          (id): id is string => typeof id === "string",
+        );
+
         await db.transaction(async (tx) => {
           for (const o of succeeded) {
             const take = plan.takes.find(t => t.id === o.takeId)!;
@@ -464,6 +486,21 @@ router.post(
               isCurrent: true,
               costCents: Math.round(perImageUsd * 100),
             });
+          }
+
+          if (consumed.length > 0) {
+            const [current] = await tx
+              .select({ consumedFrom: stageStatesTable.consumedFrom })
+              .from(stageStatesTable)
+              .where(eq(stageStatesTable.id, stage.id));
+            // Merge rather than replace, matching the takes endpoint: a stage that
+            // consumed several inputs over several runs keeps all of its edges.
+            const merged = new Set([...(current?.consumedFrom ?? []), ...consumed]);
+            merged.delete(stage.id);
+            await tx
+              .update(stageStatesTable)
+              .set({ consumedFrom: [...merged], decidedAt: new Date(), updatedAt: new Date() })
+              .where(eq(stageStatesTable.id, stage.id));
           }
         });
       }
