@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { RefineDeck, type StageTake } from "@/components/studio/RefineDeck";
 
 /**
  * Stage 03 · Image · Explore.
@@ -30,7 +31,13 @@ import { apiFetch, cn } from "@/lib/utils";
 
 interface ImageStageProps {
   creativeId: string;
+  stageId: string;
+  /** §1.2: one stage, two modes. Explore and Refine are not separate stages. */
+  mode: "explore" | "refine";
+  /** Every take on this stage, so the deck can show a slot's history. */
+  takes: StageTake[];
   locked: boolean;
+  onChanged: () => void;
 }
 
 interface TakeOutcome {
@@ -81,12 +88,13 @@ interface PlanResponse {
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-export function ImageStage({ creativeId, locked }: ImageStageProps) {
+export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged }: ImageStageProps) {
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [run, setRun] = useState<RunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
@@ -107,6 +115,32 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  /**
+   * Which Explore slot Refine is working on. Recorded as a take in the
+   * "selected" slot, so the choice has its own history rather than being a
+   * field that the last write wins.
+   */
+  const selectedSlotKey = (() => {
+    const sel = takes.find((t) => t.slotKey === "selected" && t.isCurrent);
+    const p = sel?.payload as { slotKey?: unknown } | undefined;
+    return typeof p?.slotKey === "string" ? p.slotKey : null;
+  })();
+
+  async function enterRefine(slotKey: string) {
+    if (locked || switching) return;
+    setSwitching(true);
+    try {
+      const res = await apiFetch(`/api/creatives/${creativeId}/stages/${stageId}/image-mode`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "refine", slotKey }),
+      });
+      if (res.ok) onChanged();
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   /**
    * Spend the money. The button is the consent (§1.5), so this is the only place
@@ -134,6 +168,19 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
   }
 
   const outcomeFor = (takeId: string) => run?.outcomes.find((o) => o.takeId === takeId) ?? null;
+
+  if (mode === "refine" && selectedSlotKey) {
+    return (
+      <RefineDeck
+        creativeId={creativeId}
+        stageId={stageId}
+        slotKey={selectedSlotKey}
+        takes={takes}
+        locked={locked}
+        onChanged={onChanged}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -222,6 +269,8 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
               takes={plan.takes.filter((t) => t.row === rowIndex)}
               firstDeparture={firstDeparture}
               outcomeFor={outcomeFor}
+              onRefine={enterRefine}
+              canRefine={!locked && !switching}
               hovered={hovered}
               setHovered={setHovered}
             />
@@ -335,6 +384,8 @@ function FragmentRow({
   takes,
   firstDeparture,
   outcomeFor,
+  onRefine,
+  canRefine,
   hovered,
   setHovered,
 }: {
@@ -343,6 +394,8 @@ function FragmentRow({
   takes: ExploreTake[];
   firstDeparture: number;
   outcomeFor: (takeId: string) => TakeOutcome | null;
+  onRefine: (slotKey: string) => void;
+  canRefine: boolean;
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }) {
@@ -407,11 +460,22 @@ function FragmentRow({
             const o = outcomeFor(t.id);
             if (o?.ok && o.imageUrl) {
               return (
-                <img
-                  src={o.imageUrl}
-                  alt=""
-                  className="absolute inset-0 h-full w-full rounded-sm object-cover"
-                />
+                <>
+                  <img
+                    src={o.imageUrl}
+                    alt=""
+                    className="absolute inset-0 h-full w-full rounded-sm object-cover"
+                  />
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); if (canRefine) onRefine(t.id); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && canRefine) { e.stopPropagation(); onRefine(t.id); } }}
+                    className="relative z-10 self-start rounded-sm border border-border bg-surround px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                  >
+                    Refine
+                  </span>
+                </>
               );
             }
             if (o && !o.ok) {

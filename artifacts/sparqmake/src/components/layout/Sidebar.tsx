@@ -13,7 +13,8 @@ import {
   MessageSquareText,
   Sparkles,
   Palette,
-  TrendingUp
+  TrendingUp,
+  Layers
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -95,6 +96,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
    */
   const NAV_ITEMS = [
     { href: "/", label: "Studio", icon: MessageSquareText },
+    // Studio v2 is in the nav, not hidden in the footer.
+    //
+    // It was a footer link, which collapses out of view entirely at tablet and
+    // desktop-collapsed widths. The consequence was that five stages of work
+    // were unreachable in practice: Tony looked at the Studio, saw the Co-pilot
+    // unchanged (correctly, it is deliberately untouched), and concluded nothing
+    // had been built. Work nobody can find is work nobody can check.
+    //
+    // This takes the nav from 9 to 10, against the consolidation target of 7.
+    // That is the right trade for now and it is self-cancelling: when v2 reaches
+    // parity it becomes "Studio" and this row disappears (§5, nav reaches 7 at
+    // the end of Phase 6).
+    { href: "/studio-v2", label: "Studio v2", icon: Layers },
     { href: "/pipeline", label: "Pipeline", icon: CalendarIcon, badge: calendarCount || undefined },
     { href: "/studio", label: "Creative History", icon: Sparkles },
     { href: "/assets", label: "Asset Library", icon: Library, badge: pendingAssetCount || undefined },

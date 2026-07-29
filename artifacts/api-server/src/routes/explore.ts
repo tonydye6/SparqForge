@@ -1,13 +1,22 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, costLogsTable, creativesTable, stageStatesTable, stageTakesTable } from "@workspace/db";
+import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
+import { validateRequest } from "../middleware/validate.js";
+import { z } from "zod";
 import { assembleContext } from "../services/context-assembly.js";
 import { generateImage } from "../services/imagen.js";
+import { buildGenerationPacket } from "../services/packet-assembly.js";
+import {
+  buildReferenceImages,
+  loadPersonaReferenceImages,
+  mergePersonaReferences,
+  personaNoteFor,
+} from "../services/reference-images.js";
 import { writeBuffer } from "../services/storage.js";
 import { buildExplorePlan } from "../services/explore-plan.js";
 import {
@@ -113,6 +122,51 @@ router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Resp
  * spend; losing seven good takes to one bad upstream call would be the worst
  * possible way to spend it.
  */
+/**
+ * The director stage 02 chose, or the brand's locked default.
+ *
+ * Explore has to honour the choice made one stage earlier or stage 02 was
+ * theatre. Falling back to the brand default matches what the spread itself
+ * pre-selects, so the picture and the ranking agree about who is directing.
+ */
+async function directorFor(creativeId: string, brandId: string): Promise<DesignerPersona | null> {
+  const [dirStage] = await db
+    .select({ id: stageStatesTable.id })
+    .from(stageStatesTable)
+    .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "direction")));
+
+  let personaId: string | null = null;
+  if (dirStage) {
+    const [take] = await db
+      .select({ payload: stageTakesTable.payload })
+      .from(stageTakesTable)
+      .where(
+        and(
+          eq(stageTakesTable.stageStateId, dirStage.id),
+          eq(stageTakesTable.slotKey, "direction"),
+          eq(stageTakesTable.isCurrent, true),
+        ),
+      );
+    const p = take?.payload as { directorId?: unknown; kind?: unknown } | undefined;
+    // "house" is the absence of a director, not a persona id to look up.
+    if (p?.kind !== "house" && typeof p?.directorId === "string") personaId = p.directorId;
+  }
+  if (!personaId) {
+    const [brand] = await db
+      .select({ defaultPersonaId: brandsTable.defaultPersonaId })
+      .from(brandsTable)
+      .where(eq(brandsTable.id, brandId));
+    personaId = brand?.defaultPersonaId ?? null;
+  }
+  if (!personaId) return null;
+
+  const [persona] = await db
+    .select()
+    .from(designerPersonasTable)
+    .where(eq(designerPersonasTable.id, personaId));
+  return persona ?? null;
+}
+
 router.post(
   "/creatives/:creativeId/explore-run",
   requireStandardWrite,
@@ -174,9 +228,48 @@ router.post(
         intent: intent ?? null,
       });
 
+      /*
+       * Reference imagery. Assembled ONCE for the whole spread, not per take:
+       * every take shares the same brand assets and the same director's work
+       * samples, so loading them eight times would be eight times the I/O for
+       * identical buffers. What varies per take is the axis directive, which is
+       * text.
+       *
+       * This closes a real gap. Until now Explore sent the brand's prose steering
+       * and no imagery at all, so the asset library was known about and never
+       * used. Failing to load references must not fail the spread, so this
+       * degrades to prose-only rather than throwing.
+       */
+      const persona = await directorFor(creativeId, creative.brandId);
+      let referenceImages: Awaited<ReturnType<typeof buildReferenceImages>> = [];
+      let referenceNote: string | null = null;
+      try {
+        const personaRefs = await loadPersonaReferenceImages(persona);
+        const packet = await buildGenerationPacket({
+          creativeId,
+          brandId: creative.brandId,
+          templateId: creative.templateId,
+          platform: "instagram_feed",
+          selectedAssetIds: [],
+          briefText: ctx.combinedBrief,
+          // The spread is exploring composition, so neither subjects nor styles
+          // should dominate the slots before the axes have had their say.
+          balance: "balanced",
+          dryRun: true,
+        });
+        referenceImages = mergePersonaReferences(await buildReferenceImages(packet), personaRefs);
+        referenceNote = personaNoteFor(persona, personaRefs);
+      } catch (err) {
+        console.error("Explore could not assemble references, falling back to prose steering", err);
+      }
+
       const results = await mapWithConcurrency(plan.takes, RUN_CONCURRENCY, async (take) => {
-        const takeCtx = { ...ctx, combinedBrief: briefForTake(ctx.combinedBrief, take.directive) };
-        const image = await generateImage(takeCtx, "instagram_feed");
+        const takeCtx = {
+          ...ctx,
+          combinedBrief: briefForTake(ctx.combinedBrief, take.directive),
+          designerPersona: persona ?? ctx.designerPersona,
+        };
+        const image = await generateImage(takeCtx, "instagram_feed", referenceImages);
         const filename = takeFilename(creativeId, take.id, crypto.randomUUID().slice(0, 8));
         await writeBuffer("generated", filename, image.imageBuffer);
         return `/api/files/generated/${filename}`;
@@ -215,6 +308,13 @@ router.post(
                 axisB: take.axisB,
                 directive: take.directive,
                 offBrief: take.offBrief,
+                // Recorded on the take, not just returned, so the Material rail
+                // can state what this image was actually made from long after the
+                // run response is gone (§1.17).
+                material: {
+                  referenceCount: referenceImages.length,
+                  director: persona?.name ?? null,
+                },
               },
               isCurrent: true,
               costCents: Math.round(perImageUsd * 100),
@@ -245,6 +345,14 @@ router.post(
         failed: outcomes.length - succeeded.length,
         costUsd: settled,
         generated: true,
+        // §1.17: what actually reached the model, reported rather than implied.
+        material: {
+          referenceCount: referenceImages.length,
+          subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
+          styleCount: referenceImages.filter(r => r.role === "style_reference").length,
+          director: persona?.name ?? null,
+          personaNote: referenceNote,
+        },
       });
     } catch (err) {
       // Never leave a reservation behind: a phantom row would eat the daily
@@ -254,6 +362,140 @@ router.post(
       }
       console.error("Explore run failed", err);
       res.status(500).json({ error: "The spread could not be run. Nothing was charged." });
+    }
+  },
+);
+
+/**
+ * Switch stage 03 between Explore and Refine, recording which take was chosen.
+ *
+ * §1.2: this is one stage in two modes, not two screens, which is why the mode
+ * lives on the stage row rather than becoming a sixth stage.
+ *
+ * The choice is written as a take in the "selected" slot rather than a column.
+ * A take is this system's record of a decision, so recording it that way gets
+ * the history for free: you can see what was picked before, and picking again
+ * supersedes rather than overwrites.
+ */
+const ModeBody = z.object({
+  mode: z.enum(["explore", "refine"]),
+  /** Required when entering refine: which Explore slot is being refined. */
+  slotKey: z.string().min(1).max(64).optional(),
+});
+
+router.post(
+  "/creatives/:creativeId/stages/:stageId/image-mode",
+  requireStandardWrite,
+  validateRequest({ body: ModeBody }),
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const { mode, slotKey } = req.body as z.infer<typeof ModeBody>;
+
+    if (mode === "refine" && !slotKey) {
+      res.status(400).json({ error: "Refine needs to know which take you are refining." });
+      return;
+    }
+
+    try {
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({ error: "This stage is locked, so it was not changed. Unlock it first." });
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stageStatesTable)
+          .set({ mode, updatedAt: new Date() })
+          .where(eq(stageStatesTable.id, stageId));
+
+        if (mode === "refine" && slotKey) {
+          await tx
+            .update(stageTakesTable)
+            .set({ isCurrent: false })
+            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
+          const prior = await tx
+            .select({ takeIndex: stageTakesTable.takeIndex })
+            .from(stageTakesTable)
+            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
+          await tx.insert(stageTakesTable).values({
+            stageStateId: stageId,
+            slotKey: "selected",
+            takeIndex: prior.length,
+            origin: "swapped_in",
+            payload: { slotKey },
+            isCurrent: true,
+          });
+        }
+      });
+
+      res.json({ mode, slotKey: slotKey ?? null });
+    } catch (err) {
+      console.error("Failed to switch image mode", err);
+      res.status(500).json({ error: "That could not be saved." });
+    }
+  },
+);
+
+/**
+ * Make an earlier take current again.
+ *
+ * Restoring is not undoing: the later takes stay on the record, because the
+ * history is the point of the deck. What changes is which one downstream stages
+ * read (§1.3, dependency is what a stage actually consumed).
+ */
+router.post(
+  "/creatives/:creativeId/stages/:stageId/takes/:takeId/current",
+  requireStandardWrite,
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const takeId = String(req.params.takeId);
+
+    try {
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({ error: "This stage is locked, so it was not changed. Unlock it first." });
+        return;
+      }
+
+      const [take] = await db
+        .select({ id: stageTakesTable.id, slotKey: stageTakesTable.slotKey })
+        .from(stageTakesTable)
+        .where(and(eq(stageTakesTable.id, takeId), eq(stageTakesTable.stageStateId, stageId)));
+      if (!take) {
+        res.status(404).json({ error: "That take is not on this stage." });
+        return;
+      }
+
+      await db.transaction(async (tx) => {
+        // Clear first: the partial unique index allows one current take per slot.
+        await tx
+          .update(stageTakesTable)
+          .set({ isCurrent: false })
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, take.slotKey)));
+        await tx.update(stageTakesTable).set({ isCurrent: true }).where(eq(stageTakesTable.id, takeId));
+      });
+
+      res.json({ takeId, slotKey: take.slotKey });
+    } catch (err) {
+      console.error("Failed to restore take", err);
+      res.status(500).json({ error: "That take could not be restored." });
     }
   },
 );

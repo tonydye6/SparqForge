@@ -8,6 +8,8 @@ import { StageSpine, ReopenBar, type SpineStage, type SpineEdge, type SpineStatu
 import { BriefStage } from "@/components/studio/BriefStage";
 import { DirectionStage } from "@/components/studio/DirectionStage";
 import { ImageStage } from "@/components/studio/ImageStage";
+import { BrandContract } from "@/components/studio/BrandContract";
+import { MaterialRail } from "@/components/studio/MaterialRail";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -312,7 +314,14 @@ export default function StudioV2() {
                     onSaved={() => void loadSpine(creativeId)}
                   />
                 ) : activeStage?.stageKind === "asset" ? (
-                  <ImageStage creativeId={creativeId} locked={activeStage.status === "locked"} />
+                  <ImageStage
+                    creativeId={creativeId}
+                    stageId={activeStage.id}
+                    mode={activeStage.mode}
+                    takes={spine.takes[activeStage.id] ?? []}
+                    locked={activeStage.status === "locked"}
+                    onChanged={() => void loadSpine(creativeId)}
+                  />
                 ) : (
                   <div className="p-8">
                     <p className="max-w-[70ch] text-[12.5px] leading-relaxed text-muted-foreground">
@@ -343,29 +352,14 @@ export default function StudioV2() {
 
             {/* The brand contract, permanently locked, and the Material rail. */}
             <aside className="flex w-[196px] shrink-0 flex-col border-l border-border/60 bg-surround">
-              <div className="border-b border-border/60 bg-grit-teal/[0.05] px-3 py-2.5">
-                <div className="flex items-center gap-1.5">
-                  <Lock size={9} className="text-cyber-teal" />
-                  <span className="font-display text-[13px] uppercase tracking-[0.08em] text-foreground">
-                    Brand
-                  </span>
-                  <span className="ml-auto font-mono text-[8px] tracking-[0.07em] text-grit-teal">
-                    NON-NEGOTIABLE
-                  </span>
-                </div>
-                <p className="mt-1.5 font-mono text-[8px] leading-relaxed tracking-[0.07em] text-dim">
-                  READ FROM THE BRAND RECORD ·<br />CANNOT BE REMOVED HERE
-                </p>
-              </div>
-              <div className="px-3 py-2.5">
-                <p className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</p>
-                <p className="mt-0.5 text-[10px] leading-snug text-dim">
-                  What the director reached for at this stage.
-                </p>
-              </div>
-              <p className="mt-auto border-t border-border/60 px-3 py-2 font-mono text-[8.5px] leading-relaxed tracking-[0.06em] text-dim">
-                Populated from stage 02 onward
-              </p>
+              <BrandContract
+                brandId={(creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null}
+              />
+              <MaterialRail
+                stages={spine.stages}
+                activeStage={activeStage}
+                takesByStage={spine.takes}
+              />
             </aside>
           </div>
         </>

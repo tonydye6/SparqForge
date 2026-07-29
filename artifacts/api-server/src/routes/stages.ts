@@ -334,6 +334,7 @@ router.post("/creatives/:creativeId/stages/:stageId/takes", async (req, res): Pr
       return;
     }
 
+
     const created = await db.transaction(async (tx) => {
       const existing = await tx
         .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
