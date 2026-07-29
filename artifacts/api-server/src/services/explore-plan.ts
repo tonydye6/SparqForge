@@ -101,7 +101,7 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
       id: "a",
       name: "Loudness",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated energy", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, no amplification", departure: false },
         { key: "louder", label: "Louder", directive: "raise the contrast and the energy a step", departure: false },
         { key: "spectacle", label: "Spectacle", directive: "push to spectacle: bigger gesture, bolder staging", departure: true },
         { key: "stark", label: "Stark", directive: "strip it back to one stark idea, almost austere", departure: true },
@@ -121,7 +121,7 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
       id: "a",
       name: "Directness",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated framing", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, the offer as written", departure: false },
         { key: "plainer", label: "Plainer", directive: "make the offer unmistakable and uncluttered", departure: false },
         { key: "hard_sell", label: "Hard sell", directive: "lead with the offer, everything else subordinate", departure: true },
         { key: "oblique", label: "Oblique", directive: "imply the offer rather than state it, intrigue over clarity", departure: true },
@@ -141,7 +141,7 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
       id: "a",
       name: "Who is centred",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated subject", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, the subject as written", departure: false },
         { key: "the_crowd", label: "The crowd", directive: "centre the community rather than one figure", departure: false },
         { key: "one_face", label: "One face", directive: "centre a single recognisable face, everyone else implied", departure: true },
         { key: "no_one", label: "No one", directive: "no people at all, the object or place carries it", departure: true },
@@ -161,7 +161,7 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
       id: "a",
       name: "Ceremony",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated tone", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, the tone as written", departure: false },
         { key: "earned", label: "Earned", directive: "emphasise the effort behind the recognition", departure: false },
         { key: "trophy", label: "Trophy", directive: "full ceremony, unabashed celebration", departure: true },
         { key: "quiet", label: "Quiet", directive: "understated, a private moment of recognition", departure: true },
@@ -181,7 +181,7 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
       id: "a",
       name: "Reveal",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated reveal", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, reveal as written", departure: false },
         { key: "full", label: "Full reveal", directive: "show the thing plainly and completely", departure: false },
         { key: "teased", label: "Teased", directive: "partial reveal, withhold the payoff", departure: true },
         { key: "aftermath", label: "Aftermath", directive: "skip the reveal, show the world after it", departure: true },
@@ -199,9 +199,9 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
   education: {
     a: {
       id: "a",
-      name: "Explanation",
+      name: "How much is shown",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated approach", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, explain it as written", departure: false },
         { key: "annotated", label: "Annotated", directive: "make the mechanic visible, diagram-like clarity", departure: false },
         { key: "step_by_step", label: "Step by step", directive: "sequence the idea across the frame", departure: true },
         { key: "single_insight", label: "One insight", directive: "one arresting image that implies the whole lesson", departure: true },
@@ -221,7 +221,7 @@ export const FALLBACK_AXES: Record<Intent, { a: Axis; b: Axis }> = {
       id: "a",
       name: "Pull",
       positions: [
-        { key: "as_briefed", label: "As briefed", directive: "hold the brief's stated hook", departure: false },
+        { key: "as_briefed", label: "Straight", directive: "play the brief straight, the hook as written", departure: false },
         { key: "familiar", label: "Familiar", directive: "lean on what a lapsed player already recognises", departure: false },
         { key: "whats_new", label: "What's new", directive: "lead with what has changed since they left", departure: true },
         { key: "unfinished", label: "Unfinished", directive: "show what they left unfinished, absence as the hook", departure: true },

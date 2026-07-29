@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
 
@@ -150,7 +149,7 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
               key={p.key}
               className={cn(
                 "px-0.5 font-mono text-[9px] uppercase tracking-[0.06em]",
-                p.departure ? "text-victory-gold" : "text-muted-foreground",
+                p.departure ? "text-foreground" : "text-dim",
               )}
             >
               {p.label}
@@ -190,7 +189,7 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
                 </span>{" "}
                 {t.directive}.
                 {t.offBrief && (
-                  <span className="text-victory-gold"> {t.offBrief.reason}</span>
+                  <span className="text-foreground"> {t.offBrief.reason}</span>
                 )}
               </>
             );
@@ -211,7 +210,7 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
             to run.{" "}
             {plan.offBriefCount > 0 && (
               <>
-                <span className="text-victory-gold" data-numeric>
+                <span className="text-foreground" data-numeric>
                   {plan.offBriefCount}
                 </span>{" "}
                 go past the brief on purpose, and they are kept rather than hidden.
@@ -270,7 +269,7 @@ function FragmentRow({
       <p
         className={cn(
           "self-center pr-1 font-mono text-[9px] uppercase tracking-[0.06em]",
-          rowDeparture ? "text-victory-gold" : "text-muted-foreground",
+          rowDeparture ? "text-foreground" : "text-dim",
         )}
       >
         {rowLabel}
@@ -288,6 +287,10 @@ function FragmentRow({
             // min-w-0 lets the cell shrink inside the grid track instead of
             // pushing its own contents over the neighbouring column.
             "flex aspect-[4/3] min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-dashed p-2 text-left transition-colors",
+            // Departures sit on the raised ground. Material rather than colour,
+            // per §1.8, because off-brief is a property of the plan and not one
+            // of the seven states, so it has no hue of its own to spend.
+            t.offBrief ? "bg-raised" : "bg-transparent",
             hovered === t.id ? "border-grit-teal bg-grit-teal/5" : "border-border",
           )}
         >
@@ -301,10 +304,15 @@ function FragmentRow({
           <div className="flex min-w-0 justify-end">
             {t.offBrief && (
               <span
-                className="flex min-w-0 items-center gap-0.5 rounded-sm border border-victory-gold/40 px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-victory-gold"
+                className="flex min-w-0 items-center gap-0.5 rounded-sm border border-muted-foreground/50 px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-muted-foreground"
                 title={t.offBrief.reason}
               >
-                <AlertTriangle size={7} className="shrink-0" />
+                {/*
+                  No warning icon. A departure is a deliberate, valid choice and
+                  often the best take on the board; a caution triangle would tell
+                  the user it is a problem, which is the opposite of §1.17's point
+                  in flagging it at all.
+                */}
                 <span className="truncate">Off brief</span>
               </span>
             )}
