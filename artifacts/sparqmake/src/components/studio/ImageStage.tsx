@@ -114,6 +114,16 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
   }
 
   const cols = plan.axes.a.positions.length;
+  /**
+   * The column where the spread stops honouring the brief and starts departing.
+   *
+   * This is drawn as a rule down the grid, and it is the cue that has to last.
+   * The raised ground and the dashed border both stop working the moment tiles
+   * contain generated images: the fill is hidden and every border becomes solid.
+   * A rule between columns is independent of what is inside the tiles, so it
+   * still separates the two halves when the grid is full of pictures.
+   */
+  const firstDeparture = plan.axes.a.positions.findIndex((p) => p.departure);
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
@@ -144,12 +154,13 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
         <div className="grid gap-2" style={{ gridTemplateColumns: `88px repeat(${cols}, minmax(0, 1fr))` }}>
           {/* Corner spacer, then the column labels. */}
           <div />
-          {plan.axes.a.positions.map((p) => (
+          {plan.axes.a.positions.map((p, i) => (
             <p
               key={p.key}
               className={cn(
                 "px-0.5 font-mono text-[9px] uppercase tracking-[0.06em]",
                 p.departure ? "text-foreground" : "text-dim",
+                i === firstDeparture && i > 0 && "border-l border-border pl-2.5",
               )}
             >
               {p.label}
@@ -162,6 +173,7 @@ export function ImageStage({ creativeId, locked }: ImageStageProps) {
               rowLabel={rowPos.label}
               rowDeparture={rowPos.departure}
               takes={plan.takes.filter((t) => t.row === rowIndex)}
+              firstDeparture={firstDeparture}
               hovered={hovered}
               setHovered={setHovered}
             />
@@ -255,12 +267,14 @@ function FragmentRow({
   rowLabel,
   rowDeparture,
   takes,
+  firstDeparture,
   hovered,
   setHovered,
 }: {
   rowLabel: string;
   rowDeparture: boolean;
   takes: ExploreTake[];
+  firstDeparture: number;
   hovered: string | null;
   setHovered: (id: string | null) => void;
 }) {
@@ -293,6 +307,10 @@ function FragmentRow({
             t.offBrief ? "bg-raised" : "bg-transparent",
             hovered === t.id ? "border-grit-teal bg-grit-teal/5" : "border-border",
           )}
+          // A wider gutter at the crossing point. A gap is content-independent,
+          // so unlike the ground lift or the border style it still separates the
+          // two halves once these tiles contain generated images.
+          style={t.col === firstDeparture && t.col > 0 ? { marginLeft: 10 } : undefined}
         >
           {/*
             No axis label in here. It would repeat the column header above and the
