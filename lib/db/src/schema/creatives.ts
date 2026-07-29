@@ -134,6 +134,34 @@ export const creativeVariantsTable = pgTable("creative_variants", {
   // Designer-persona compare mode: which persona produced this take. Labels
   // side-by-side compare takes; NULL for normal generations.
   personaId: text("persona_id").references(() => designerPersonasTable.id, { onDelete: "set null" }),
+
+  // --- Migration M4 · region edits, the second text layer, and motion ---
+  // Spec: SparqMake Sandbox/21_SPEC_01_DATA_MODEL.md §2.2 and §4.4.
+  // All nullable, so M4 is additive and needs no backfill.
+
+  // Stage 03 is medium-polymorphic (§1.2): Image for a still, Motion for a
+  // video. NULL reads as "image" for every row that predates this.
+  mediumType: text("medium_type"),
+
+  // How image-to-video stays non-destructive: the still remains its own variant
+  // and the motion points back at it, so a channel can take either medium from
+  // one creative. Self-reference, so it is typed rather than inferred.
+  sourceImageVariantId: text("source_image_variant_id"),
+
+  // The second text layer, alongside headlineText. Mirrors the headline's render
+  // mode rather than inventing a second vocabulary for the same choice.
+  hookText: text("hook_text"),
+  hookRenderMode: text("hook_render_mode"),
+
+  // Generated subtitle track for motion.
+  captionsVtt: text("captions_vtt"),
+
+  // Region-edit drift: how much of the image changed OUTSIDE the mask the user
+  // drew. The number that matters, because an edit that quietly repaints the
+  // whole frame is the failure mode of every masked-edit feature, and §1.17 says
+  // it has to be inspectable rather than trusted.
+  driftPercent: real("drift_percent"),
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
+import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, templatesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { AI_MODELS, COST_ESTIMATES } from "../lib/ai-config.js";
+import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
@@ -16,8 +16,13 @@ import {
   loadPersonaReferenceImages,
   mergePersonaReferences,
   personaNoteFor,
+  readFileByUrl,
 } from "../services/reference-images.js";
 import { writeBuffer } from "../services/storage.js";
+import { buildSessionStyleContract, wrapEditInstruction } from "../services/creative-direction.js";
+import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
+import { measureDrift, describeRegion } from "../services/region-drift.js";
+import { runImageInteraction } from "../services/interactions-client.js";
 import { buildExplorePlan } from "../services/explore-plan.js";
 import {
   RUN_CONCURRENCY,
@@ -167,6 +172,31 @@ async function directorFor(creativeId: string, brandId: string): Promise<Designe
   return persona ?? null;
 }
 
+/**
+ * A template id for the prompt assembler.
+ *
+ * Explore does not composite anything, so it has no use for a template's
+ * layoutSpec. It needs one only because assembleContext and buildGenerationPacket
+ * both require a template row and throw without one. `creatives.templateId` is
+ * nullable and the v2 Brief never sets it, so requiring the creative's own
+ * template made EVERY v2 creative fail with "no template" before it could
+ * generate anything: not an edge case, the default path.
+ *
+ * So: use the creative's template when it has one, otherwise borrow any active
+ * one purely to satisfy the assembler. Ordered by name so the borrow is
+ * deterministic rather than whatever the planner happened to return.
+ */
+async function templateForContext(creativeTemplateId: string | null): Promise<string | null> {
+  if (creativeTemplateId) return creativeTemplateId;
+  const [fallback] = await db
+    .select({ id: templatesTable.id })
+    .from(templatesTable)
+    .where(eq(templatesTable.isActive, true))
+    .orderBy(templatesTable.name)
+    .limit(1);
+  return fallback?.id ?? null;
+}
+
 router.post(
   "/creatives/:creativeId/explore-run",
   requireStandardWrite,
@@ -201,12 +231,14 @@ router.post(
         return;
       }
 
-      // A creative can lose its template (the FK is ON DELETE SET NULL), and the
-      // prompt assembler needs one. Refusing here costs nothing; discovering it
-      // after reserving budget would leave a reservation to clean up.
-      if (!creative.templateId) {
+      // Resolved before reserving budget, so a missing template cannot strand a
+      // reservation. Only a system with NO active templates at all is a dead end,
+      // and that is a setup problem rather than something about this creative.
+      const templateId = await templateForContext(creative.templateId);
+      if (!templateId) {
         res.status(400).json({
-          error: "This creative has no template, so the spread cannot be composed. Nothing was charged.",
+          error:
+            "There are no active templates on this account, and the prompt assembler needs one. Nothing was charged.",
         });
         return;
       }
@@ -223,7 +255,7 @@ router.post(
 
       const ctx = await assembleContext({
         brandId: creative.brandId,
-        templateId: creative.templateId,
+        templateId,
         selectedAssets: [],
         intent: intent ?? null,
       });
@@ -248,7 +280,7 @@ router.post(
         const packet = await buildGenerationPacket({
           creativeId,
           brandId: creative.brandId,
-          templateId: creative.templateId,
+          templateId,
           platform: "instagram_feed",
           selectedAssetIds: [],
           briefText: ctx.combinedBrief,
@@ -496,6 +528,191 @@ router.post(
     } catch (err) {
       console.error("Failed to restore take", err);
       res.status(500).json({ error: "That take could not be restored." });
+    }
+  },
+);
+
+/**
+ * Edit one region of one take.
+ *
+ * Spec: plan item 4, `21_SPEC_01_DATA_MODEL.md` §4.4, and §1.13 / §1.17.
+ *
+ * Three things make this different from a re-roll.
+ *
+ * The brand contract wraps every edit via the existing wrapEditInstruction, so a
+ * region edit cannot quietly walk the image off brand. The instruction still wins
+ * on conflict, because §1.13 says the contract binds the model and advises the
+ * human, and only the human knows when a rule should bend.
+ *
+ * The model has no mask input: the Interactions API does semantic masking, so the
+ * geometry becomes words. That is a real limitation and it is exactly why the next
+ * point matters.
+ *
+ * Drift is MEASURED, not assumed. Because the mask is prose, the model can ignore
+ * it, so afterwards we compare before and after outside the region and report how
+ * much moved. §1.17: the invisible made visible. The result is kept either way and
+ * the verdict advises, per §1.13.
+ */
+const RegionEditBody = z.object({
+  slotKey: z.string().min(1).max(64),
+  region: z.unknown(),
+  instruction: z.string().min(1).max(1000),
+});
+
+router.post(
+  "/creatives/:creativeId/stages/:stageId/region-edit",
+  requireStandardWrite,
+  generationLimiter,
+  validateRequest({ body: RegionEditBody }),
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const { slotKey, region: rawRegion, instruction } = req.body as z.infer<typeof RegionEditBody>;
+    let reservationId: string | null = null;
+
+    try {
+      // Reject a bad region BEFORE reserving anything. A silently widened mask
+      // would edit pixels nobody selected, and the drift report cannot undo that.
+      const region = normalizeRegion(rawRegion);
+      if (!region) {
+        res.status(400).json({
+          error: "That selection could not be read as an area, so nothing was changed or charged.",
+        });
+        return;
+      }
+
+      const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
+      if (!creative) {
+        res.status(404).json({ error: "Creative not found" });
+        return;
+      }
+
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({
+          error: "This stage is locked, so nothing was changed and nothing was charged. Unlock it first.",
+          stageStatus: "locked",
+        });
+        return;
+      }
+
+      const [current] = await db
+        .select({ payload: stageTakesTable.payload, takeIndex: stageTakesTable.takeIndex })
+        .from(stageTakesTable)
+        .where(
+          and(
+            eq(stageTakesTable.stageStateId, stageId),
+            eq(stageTakesTable.slotKey, slotKey),
+            eq(stageTakesTable.isCurrent, true),
+          ),
+        );
+      const beforeUrl = (current?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
+      if (typeof beforeUrl !== "string") {
+        res.status(400).json({ error: "That take has no image to edit, so nothing was charged." });
+        return;
+      }
+      const beforeBuffer = await readFileByUrl(beforeUrl);
+      if (!beforeBuffer) {
+        res.status(400).json({ error: "The image for that take could not be read, so nothing was charged." });
+        return;
+      }
+
+      const budget = await reserveBudget(creativeId, estimateImagenCost(1));
+      if (!budget.ok) {
+        res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
+        return;
+      }
+      reservationId = budget.reservationId;
+
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, creative.brandId));
+      const persona = await directorFor(creativeId, creative.brandId);
+      const contract = brand ? buildSessionStyleContract({ brand, persona }) : "";
+
+      const scoped = `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
+      const prompt = wrapEditInstruction(contract, scoped);
+
+      const result = await runImageInteraction({
+        prompt,
+        slots: [{ imageBuffer: beforeBuffer, mimeType: "image/png", slot: "object", description: "The image being edited." }],
+      });
+
+      const filename = takeFilename(creativeId, `${slotKey}_edit`, crypto.randomUUID().slice(0, 8));
+      await writeBuffer("generated", filename, result.imageBuffer);
+      const afterUrl = `/api/files/generated/${filename}`;
+
+      // Measured after storing, so a drift-measurement failure cannot lose an
+      // image the user has already paid for.
+      let drift: { driftPercent: number; sampledOutside: number; changedOutside: number } | null = null;
+      try {
+        drift = await measureDrift(beforeBuffer, result.imageBuffer, region);
+      } catch (err) {
+        console.error("Drift could not be measured for a region edit", err);
+      }
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stageTakesTable)
+          .set({ isCurrent: false })
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
+        const prior = await tx
+          .select({ takeIndex: stageTakesTable.takeIndex })
+          .from(stageTakesTable)
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
+        await tx.insert(stageTakesTable).values({
+          stageStateId: stageId,
+          slotKey,
+          takeIndex: prior.length,
+          origin: "region_edit",
+          payload: {
+            imageUrl: afterUrl,
+            sourceImageUrl: beforeUrl,
+            instruction: instruction.trim(),
+            region,
+            drift,
+            material: { referenceCount: 1, director: persona?.name ?? null },
+          },
+          isCurrent: true,
+          costCents: Math.round(estimateImagenCost(1) * 100),
+        });
+
+        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
+        await tx.insert(costLogsTable).values({
+          creativeId,
+          service: "gemini",
+          operation: "region_edit",
+          model: AI_MODELS.GEMINI_FLASH_IMAGE,
+          costUsd: estimateImagenCost(1),
+        });
+      });
+      reservationId = null;
+
+      res.json({
+        imageUrl: afterUrl,
+        drift: drift
+          ? {
+              ...drift,
+              verdict: driftVerdict(drift.driftPercent),
+              message: driftMessage(drift.driftPercent),
+            }
+          : null,
+        // Said plainly rather than left as a silent null, per §1.14.
+        driftUnavailable: drift === null
+          ? "The edit worked, but how far it strayed outside your selection could not be measured."
+          : null,
+      });
+    } catch (err) {
+      if (reservationId) {
+        try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
+      }
+      console.error("Region edit failed", err);
+      res.status(500).json({ error: "That edit could not be made. Nothing was charged." });
     }
   },
 );

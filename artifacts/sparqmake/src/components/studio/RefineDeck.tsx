@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { RegionEditor } from "@/components/studio/RegionEditor";
 
 /**
  * Stage 03 · Image · Refine.
@@ -134,17 +135,28 @@ export function RefineDeck({
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
           <div className="space-y-2">
-            <div className="overflow-hidden rounded-sm border border-border bg-card">
-              {currentPayload.imageUrl ? (
-                <img src={currentPayload.imageUrl} alt="" className="block w-full" />
-              ) : (
-                <div className="flex aspect-[4/3] items-center justify-center">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
-                    This take has no image
-                  </span>
-                </div>
-              )}
-            </div>
+            {currentPayload.imageUrl ? (
+              /*
+               * The image is the editing surface, not a preview. §1.12: instruction
+               * is the only path for an image, and WHERE is the one part of that
+               * instruction a person can state precisely, so it is expressed by
+               * dragging rather than described in prose.
+               */
+              <RegionEditor
+                creativeId={creativeId}
+                stageId={stageId}
+                slotKey={slotKey}
+                imageUrl={currentPayload.imageUrl}
+                locked={locked}
+                onEdited={onChanged}
+              />
+            ) : (
+              <div className="flex aspect-[4/3] items-center justify-center rounded-sm border border-border bg-card">
+                <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+                  This take has no image
+                </span>
+              </div>
+            )}
             {currentPayload.directive && (
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">
                 {currentPayload.directive}.
