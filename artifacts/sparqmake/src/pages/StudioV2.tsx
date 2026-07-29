@@ -7,6 +7,7 @@ import { apiFetch, cn } from "@/lib/utils";
 import { StageSpine, ReopenBar, type SpineStage, type SpineEdge, type SpineStatus } from "@/components/studio/StageSpine";
 import { BriefStage } from "@/components/studio/BriefStage";
 import { DirectionStage } from "@/components/studio/DirectionStage";
+import { ImageStage } from "@/components/studio/ImageStage";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -310,6 +311,8 @@ export default function StudioV2() {
                     locked={activeStage.status === "locked"}
                     onSaved={() => void loadSpine(creativeId)}
                   />
+                ) : activeStage?.stageKind === "asset" ? (
+                  <ImageStage creativeId={creativeId} locked={activeStage.status === "locked"} />
                 ) : (
                   <div className="p-8">
                     <p className="max-w-[70ch] text-[12.5px] leading-relaxed text-muted-foreground">
