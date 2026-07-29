@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, costLogsTable, creativesTable, stageStatesTable, stageTakesTable } from "@workspace/db";
+import { db, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
@@ -10,6 +10,13 @@ import { validateRequest } from "../middleware/validate.js";
 import { z } from "zod";
 import { assembleContext } from "../services/context-assembly.js";
 import { generateImage } from "../services/imagen.js";
+import { buildGenerationPacket } from "../services/packet-assembly.js";
+import {
+  buildReferenceImages,
+  loadPersonaReferenceImages,
+  mergePersonaReferences,
+  personaNoteFor,
+} from "../services/reference-images.js";
 import { writeBuffer } from "../services/storage.js";
 import { buildExplorePlan } from "../services/explore-plan.js";
 import {
@@ -115,6 +122,51 @@ router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Resp
  * spend; losing seven good takes to one bad upstream call would be the worst
  * possible way to spend it.
  */
+/**
+ * The director stage 02 chose, or the brand's locked default.
+ *
+ * Explore has to honour the choice made one stage earlier or stage 02 was
+ * theatre. Falling back to the brand default matches what the spread itself
+ * pre-selects, so the picture and the ranking agree about who is directing.
+ */
+async function directorFor(creativeId: string, brandId: string): Promise<DesignerPersona | null> {
+  const [dirStage] = await db
+    .select({ id: stageStatesTable.id })
+    .from(stageStatesTable)
+    .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "direction")));
+
+  let personaId: string | null = null;
+  if (dirStage) {
+    const [take] = await db
+      .select({ payload: stageTakesTable.payload })
+      .from(stageTakesTable)
+      .where(
+        and(
+          eq(stageTakesTable.stageStateId, dirStage.id),
+          eq(stageTakesTable.slotKey, "direction"),
+          eq(stageTakesTable.isCurrent, true),
+        ),
+      );
+    const p = take?.payload as { directorId?: unknown; kind?: unknown } | undefined;
+    // "house" is the absence of a director, not a persona id to look up.
+    if (p?.kind !== "house" && typeof p?.directorId === "string") personaId = p.directorId;
+  }
+  if (!personaId) {
+    const [brand] = await db
+      .select({ defaultPersonaId: brandsTable.defaultPersonaId })
+      .from(brandsTable)
+      .where(eq(brandsTable.id, brandId));
+    personaId = brand?.defaultPersonaId ?? null;
+  }
+  if (!personaId) return null;
+
+  const [persona] = await db
+    .select()
+    .from(designerPersonasTable)
+    .where(eq(designerPersonasTable.id, personaId));
+  return persona ?? null;
+}
+
 router.post(
   "/creatives/:creativeId/explore-run",
   requireStandardWrite,
@@ -176,9 +228,48 @@ router.post(
         intent: intent ?? null,
       });
 
+      /*
+       * Reference imagery. Assembled ONCE for the whole spread, not per take:
+       * every take shares the same brand assets and the same director's work
+       * samples, so loading them eight times would be eight times the I/O for
+       * identical buffers. What varies per take is the axis directive, which is
+       * text.
+       *
+       * This closes a real gap. Until now Explore sent the brand's prose steering
+       * and no imagery at all, so the asset library was known about and never
+       * used. Failing to load references must not fail the spread, so this
+       * degrades to prose-only rather than throwing.
+       */
+      const persona = await directorFor(creativeId, creative.brandId);
+      let referenceImages: Awaited<ReturnType<typeof buildReferenceImages>> = [];
+      let referenceNote: string | null = null;
+      try {
+        const personaRefs = await loadPersonaReferenceImages(persona);
+        const packet = await buildGenerationPacket({
+          creativeId,
+          brandId: creative.brandId,
+          templateId: creative.templateId,
+          platform: "instagram_feed",
+          selectedAssetIds: [],
+          briefText: ctx.combinedBrief,
+          // The spread is exploring composition, so neither subjects nor styles
+          // should dominate the slots before the axes have had their say.
+          balance: "balanced",
+          dryRun: true,
+        });
+        referenceImages = mergePersonaReferences(await buildReferenceImages(packet), personaRefs);
+        referenceNote = personaNoteFor(persona, personaRefs);
+      } catch (err) {
+        console.error("Explore could not assemble references, falling back to prose steering", err);
+      }
+
       const results = await mapWithConcurrency(plan.takes, RUN_CONCURRENCY, async (take) => {
-        const takeCtx = { ...ctx, combinedBrief: briefForTake(ctx.combinedBrief, take.directive) };
-        const image = await generateImage(takeCtx, "instagram_feed");
+        const takeCtx = {
+          ...ctx,
+          combinedBrief: briefForTake(ctx.combinedBrief, take.directive),
+          designerPersona: persona ?? ctx.designerPersona,
+        };
+        const image = await generateImage(takeCtx, "instagram_feed", referenceImages);
         const filename = takeFilename(creativeId, take.id, crypto.randomUUID().slice(0, 8));
         await writeBuffer("generated", filename, image.imageBuffer);
         return `/api/files/generated/${filename}`;
@@ -217,6 +308,13 @@ router.post(
                 axisB: take.axisB,
                 directive: take.directive,
                 offBrief: take.offBrief,
+                // Recorded on the take, not just returned, so the Material rail
+                // can state what this image was actually made from long after the
+                // run response is gone (§1.17).
+                material: {
+                  referenceCount: referenceImages.length,
+                  director: persona?.name ?? null,
+                },
               },
               isCurrent: true,
               costCents: Math.round(perImageUsd * 100),
@@ -247,6 +345,14 @@ router.post(
         failed: outcomes.length - succeeded.length,
         costUsd: settled,
         generated: true,
+        // §1.17: what actually reached the model, reported rather than implied.
+        material: {
+          referenceCount: referenceImages.length,
+          subjectCount: referenceImages.filter(r => r.role === "subject_reference").length,
+          styleCount: referenceImages.filter(r => r.role === "style_reference").length,
+          director: persona?.name ?? null,
+          personaNote: referenceNote,
+        },
       });
     } catch (err) {
       // Never leave a reservation behind: a phantom row would eat the daily

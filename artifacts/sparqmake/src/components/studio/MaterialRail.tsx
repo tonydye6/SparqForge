@@ -105,10 +105,26 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
     return typeof p?.name === "string" ? p.name : null;
   })();
 
-  const renderedTakes = takes.filter((t) => {
+  const rendered = takes.filter((t) => {
     const p = t.payload as { imageUrl?: unknown } | undefined;
     return typeof p?.imageUrl === "string";
-  }).length;
+  });
+  const renderedTakes = rendered.length;
+
+  /**
+   * References actually sent, read off a real take rather than assumed.
+   *
+   * Null means nothing has been generated yet, which is different from zero:
+   * zero is a run that used no imagery, null is a stage that has not run.
+   */
+  const sentReferences = (() => {
+    for (const t of rendered) {
+      const p = t.payload as { material?: { referenceCount?: unknown } } | undefined;
+      const n = p?.material?.referenceCount;
+      if (typeof n === "number") return n;
+    }
+    return null;
+  })();
 
   return (
     <div className="px-3 py-2.5">
@@ -136,19 +152,31 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
           <>
             <Line label="Reference imagery">
               {/*
-                The honest answer, and it is currently "none". Explore sends the
-                brand's prose steering through the prompt but passes no reference
-                images at all. Saying "0 of N" rather than staying quiet is what
-                stops someone blaming the model for a miss that is ours.
+                Read off a real take, never assumed. Zero sent is stated in the
+                warning hue, because a user who thinks their library fed a
+                generation that it did not will blame the model for a miss that is
+                ours (§1.14).
               */}
-              <span className="text-rebel-pink">
-                None sent
-                {assetCount !== null && assetCount > 0 ? ` · ${assetCount} in the library` : ""}
-              </span>
+              {sentReferences === null ? (
+                <span className="text-dim">
+                  Nothing generated yet
+                  {assetCount !== null && assetCount > 0 ? ` · ${assetCount} in the library` : ""}
+                </span>
+              ) : sentReferences === 0 ? (
+                <span className="text-rebel-pink">
+                  None sent
+                  {assetCount !== null && assetCount > 0 ? ` · ${assetCount} in the library` : ""}
+                </span>
+              ) : (
+                <>
+                  {sentReferences} sent
+                  {assetCount !== null && assetCount > 0 ? ` · of ${assetCount} in the library` : ""}
+                </>
+              )}
             </Line>
-            <Line label="Steering that did reach the model">
-              Brand rules, palette and negative prompt, plus the goal and any style profile, all as
-              prose in the prompt
+            <Line label="Prose steering">
+              Brand rules, palette and negative prompt, plus the goal, the director's fingerprint and
+              any style profile
             </Line>
             <Line label="Takes rendered">
               {renderedTakes === 0 ? <span className="text-dim">None yet</span> : renderedTakes}

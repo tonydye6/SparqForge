@@ -7,6 +7,16 @@ import { assembleContext, resolveStyleProfile, resolveDesignerPersona, type Sele
 import { designerPersonasTable, type DesignerPersona, type PersonaReferenceImage } from "@workspace/db";
 import { generateCaptions } from "../services/claude.js";
 import { generateAllImages, generateImage, outpaintImage, PLATFORM_CONFIGS, type ReferenceImage, type VaryMode } from "../services/imagen.js";
+// One implementation of reference loading, shared with stage 03 Explore. See
+// services/reference-images.ts for why this must not be duplicated.
+import {
+  MAX_PERSONA_REFERENCES,
+  buildReferenceImages,
+  loadPersonaReferenceImages,
+  mergePersonaReferences,
+  personaNoteFor,
+  readFileByUrl,
+} from "../services/reference-images.js";
 import { AI_MODELS, estimateClaudeCost, estimateGeminiTextCost, estimateImagenCost } from "../lib/ai-config.js";
 import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { compositeImage, reframeImage, imageDimensions, type LayoutSpec, type BrandColorGuidance } from "../services/compositing.js";
@@ -70,68 +80,9 @@ function ensureDir(dir: string) {
 }
 
 /** Read a stored file's bytes by its public "/api/files/..." URL (any backend). */
-async function readFileByUrl(fileUrl: string | null | undefined): Promise<Buffer | null> {
-  const loc = resolveUrl(fileUrl);
-  return loc ? readBuffer(loc) : null;
-}
-
 /** Soft-delete a generated artifact by filename (used to clean up after failures). */
 async function deleteGenerated(filename: string): Promise<void> {
   await deleteObject({ namespace: "generated", filename });
-}
-
-// Designer Persona reference images: stored as plain file URLs on the persona
-// (account-scoped, not brand assets), loaded into buffers at generation time.
-// Unreadable/missing files degrade gracefully (skipped).
-const MAX_PERSONA_REFERENCES = 3;
-
-async function loadPersonaReferenceImages(persona: DesignerPersona | null): Promise<ReferenceImage[]> {
-  if (!persona) return [];
-  const refs = (persona.referenceImages || []) as PersonaReferenceImage[];
-  const out: ReferenceImage[] = [];
-  for (const ref of refs) {
-    if (out.length >= MAX_PERSONA_REFERENCES) break;
-    const loc = resolveUrl(ref.url);
-    if (!loc) continue;
-    const buf = await readBuffer(loc);
-    if (!buf) continue;
-    out.push({
-      imageBuffer: buf,
-      mimeType: contentTypeFor(loc.filename),
-      role: "style_reference",
-      source: "persona",
-      description: `Work sample by "${persona.name}"${ref.label ? ` (${ref.label})` : ""}.`,
-    });
-  }
-  return out;
-}
-
-// Persona reference images get GUARANTEED slots: when a persona is selected,
-// its refs (up to MAX_PERSONA_REFERENCES) are always attached, and the
-// remaining budget (MAX_IMAGE_REFERENCES total) goes to packet subjects first,
-// then packet style refs. Final order stays subjects → persona → styles so
-// the prompt's numbered descriptions match the attach order.
-function mergePersonaReferences(base: ReferenceImage[], personaRefs: ReferenceImage[]): ReferenceImage[] {
-  if (personaRefs.length === 0) return base.slice(0, MAX_IMAGE_REFERENCES);
-  const guaranteed = personaRefs.slice(0, MAX_PERSONA_REFERENCES);
-  const remaining = Math.max(0, MAX_IMAGE_REFERENCES - guaranteed.length);
-  const subjects = base.filter(r => r.role === "subject_reference");
-  const styles = base.filter(r => r.role === "style_reference");
-  const keptBase = [...subjects, ...styles].slice(0, remaining);
-  return [
-    ...keptBase.filter(r => r.role === "subject_reference"),
-    ...guaranteed,
-    ...keptBase.filter(r => r.role === "style_reference"),
-  ];
-}
-
-// One-line summary of the persona refs actually attached, appended to the
-// packet reasoning log so the Influences trail shows the designer was used.
-function personaNoteFor(persona: DesignerPersona | null, personaRefs: ReferenceImage[]): string | null {
-  if (!persona) return null;
-  return personaRefs.length > 0
-    ? `Designer persona "${persona.name}": ${personaRefs.length} work-sample reference(s) attached with guaranteed slots`
-    : `Designer persona "${persona.name}" applied via style fingerprint (no reference images available)`;
 }
 
 interface ResolvedLogo {
@@ -268,33 +219,6 @@ async function fetchBrandFontFamily(brandId: string): Promise<string | undefined
     logger.error({ err, brandId }, "Failed to fetch brand font");
   }
   return undefined;
-}
-
-async function buildReferenceImages(packet: Awaited<ReturnType<typeof buildGenerationPacket>>): Promise<ReferenceImage[]> {
-  const refs: ReferenceImage[] = [];
-
-  for (const entry of packet.generationAssets.slice(0, MAX_IMAGE_REFERENCES)) {
-    if (!entry.asset.fileUrl) continue;
-
-    try {
-      const buffer: Buffer | null = await readFileByUrl(entry.asset.fileUrl);
-
-      if (buffer) {
-        refs.push({
-          imageBuffer: buffer,
-          mimeType: entry.asset.mimeType || "image/png",
-          role: entry.role === "style_reference" ? "style_reference" : "subject_reference",
-          source: "packet",
-          assetId: entry.asset.id,
-          description: (entry.role !== "style_reference" && entry.asset.characterIdentityNote) ? entry.asset.characterIdentityNote : (entry.asset.description || entry.asset.name),
-        });
-      }
-    } catch (err) {
-      console.error(`Failed to load reference image for asset ${entry.asset.id}:`, err instanceof Error ? err.message : err);
-    }
-  }
-
-  return refs;
 }
 
 router.post("/creatives/:id/generate", generationLimiter, async (req: Request, res: Response): Promise<void> => {
