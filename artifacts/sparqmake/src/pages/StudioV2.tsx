@@ -8,6 +8,7 @@ import { StageSpine, ReopenBar, type SpineStage, type SpineEdge, type SpineStatu
 import { BriefStage } from "@/components/studio/BriefStage";
 import { DirectionStage } from "@/components/studio/DirectionStage";
 import { ImageStage } from "@/components/studio/ImageStage";
+import { CopyStage } from "@/components/studio/CopyStage";
 import { BrandContract } from "@/components/studio/BrandContract";
 import { MaterialRail } from "@/components/studio/MaterialRail";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -323,6 +324,24 @@ export default function StudioV2() {
                     takes={spine.takes[activeStage.id] ?? []}
                     locked={activeStage.status === "locked"}
                     onChanged={() => void loadSpine(creativeId)}
+                  />
+                ) : activeStage?.stageKind === "copy" ? (
+                  <CopyStage
+                    creativeId={creativeId}
+                    stageId={activeStage.id}
+                    locked={activeStage.status === "locked"}
+                    // The picture Copy is written against, read off the Image
+                    // stage's own "selected" take rather than passed around.
+                    selectedImageUrl={(() => {
+                      const img = spine.stages.find((s) => s.stageKind === "asset");
+                      if (!img) return null;
+                      const sel = (spine.takes[img.id] ?? []).find(
+                        (t) => t.slotKey === "selected" && t.isCurrent,
+                      );
+                      const p = sel?.payload as { imageUrl?: unknown } | undefined;
+                      return typeof p?.imageUrl === "string" ? p.imageUrl : null;
+                    })()}
+                    onSaved={() => void loadSpine(creativeId)}
                   />
                 ) : (
                   <div className="p-8">

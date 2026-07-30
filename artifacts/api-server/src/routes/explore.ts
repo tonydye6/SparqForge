@@ -26,7 +26,7 @@ import {
   mergeReferenceSlots,
   wrapEditInstruction,
 } from "../services/creative-direction.js";
-import { mentionsDirectiveBlock, normalizeMentions, type BriefMention } from "../services/brief-mentions.js";
+import { mentionsDirectiveBlock, normalizeMentions, pinnedSubjectFrom, type BriefMention } from "../services/brief-mentions.js";
 import {
   buildDirectedPrompt,
   leadingSubjectRun,
@@ -76,16 +76,17 @@ async function intentFromBrief(creativeId: string): Promise<{
   intent: Intent | null;
   briefStageId: string | null;
   briefText: string | null;
+  briefTakeId: string | null;
   mentions: BriefMention[];
 }> {
   const [brief] = await db
     .select({ id: stageStatesTable.id })
     .from(stageStatesTable)
     .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "brief")));
-  if (!brief) return { intent: null, briefStageId: null, briefText: null, mentions: [] };
+  if (!brief) return { intent: null, briefStageId: null, briefText: null, briefTakeId: null, mentions: [] };
 
   const [take] = await db
-    .select({ payload: stageTakesTable.payload })
+    .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
     .from(stageTakesTable)
     .where(
       and(
@@ -129,7 +130,7 @@ async function intentFromBrief(creativeId: string): Promise<{
    * whatever ids it is handed.
    */
   const mentions = normalizeMentions(payload && typeof payload === "object" ? payload.mentions : null);
-  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id, briefText, mentions };
+  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id, briefText, briefTakeId: take?.id ?? null, mentions };
 }
 
 router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Response): Promise<void> => {
@@ -287,7 +288,7 @@ router.post(
         return;
       }
 
-      const { intent, briefStageId, briefText, mentions } = await intentFromBrief(creativeId);
+      const { intent, briefStageId, briefText, briefTakeId, mentions } = await intentFromBrief(creativeId);
       const fullPlan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
 
       /*
@@ -392,6 +393,39 @@ router.post(
        * retries once at temperature 0 and falls back to prose-only when the JSON
        * will not parse. Reaching here means a genuine outage, not a bad roll.
        */
+        /*
+       * The subject this brief already settled on, if the user did not name one.
+       *
+       * Selection is a model call at temperature 0.7, so re-running the same
+       * brief could put a different character in the picture: the probe chose
+       * one Crown U football character and a paid run minutes later chose
+       * another. A spread explores COMPOSITION, so the one thing that must not
+       * vary across it, or across a re-run of it, is who is in the picture.
+       *
+       * Inherited only while the brief behind it is unchanged, and always
+       * beaten by an `@` mention: a pin is a memory of a guess, a mention is a
+       * statement of fact. It is expressed AS a mention so it travels through
+       * exactly the same machinery rather than growing a second path.
+       */
+      let subjectPinnedFrom: "mention" | "previous run" | null =
+        mentions.some(m => m.role === "subject") ? "mention" : null;
+      const effectiveMentions: BriefMention[] = [...mentions];
+
+      if (!subjectPinnedFrom) {
+        const priorTakes = await db
+          .select({ payload: stageTakesTable.payload })
+          .from(stageTakesTable)
+          .where(and(eq(stageTakesTable.stageStateId, stage.id), eq(stageTakesTable.isCurrent, true)));
+        const pinnedId = pinnedSubjectFrom(priorTakes, briefTakeId);
+        if (pinnedId) {
+          const [pinnedAsset] = await loadBrandAssetsByIds(creative.brandId, [pinnedId]);
+          if (pinnedAsset) {
+            effectiveMentions.push({ assetId: pinnedAsset.id, name: pinnedAsset.name, role: "subject" });
+            subjectPinnedFrom = "previous run";
+          }
+        }
+      }
+
       const brand = await loadBrand(creative.brandId);
       const styleProfile = await resolveStyleProfile(creative.brandId, creative.styleProfileId);
       styleContract = buildSessionStyleContract({ brand, styleProfile, persona });
@@ -417,9 +451,19 @@ router.post(
         // What the user attached with `@`. The director has to know, or it picks
         // a SECOND subject and the renderer is handed two people and asked to
         // invent how they relate.
-        extraContext: mentionsDirectiveBlock(mentions),
+        extraContext: mentionsDirectiveBlock(effectiveMentions),
       });
       directorSelections = direction.assetSelections;
+      /*
+       * Whoever ended up being the subject: the user's mention, the pin
+       * inherited from the previous run, or, failing both, the director's own
+       * pick this run. Recorded on every take so the NEXT run inherits it and
+       * the spread stops changing its mind about who is in the picture.
+       */
+      const pinnedSubjectId =
+        effectiveMentions.find(m => m.role === "subject")?.assetId ??
+        direction.assetSelections.find(sel => sel.role === "subject")?.assetId ??
+        null;
       directorFallback = direction.usedFallback;
       directorAspectRatio = direction.aspectRatio;
 
@@ -462,10 +506,10 @@ router.post(
          */
         const mentionAssets = await loadBrandAssetsByIds(
           creative.brandId,
-          mentions.map(m => m.assetId),
+          effectiveMentions.map(m => m.assetId),
         );
         const mentionById = new Map(mentionAssets.map(a => [a.id, a]));
-        const mentioned = await loadDirectedReferences(mentions, mentionById);
+        const mentioned = await loadDirectedReferences(effectiveMentions, mentionById);
 
         // A mark counts whether the user attached it or the director chose it.
         hasMarkReference = directed.hasMark || mentioned.hasMark;
@@ -514,7 +558,7 @@ router.post(
          * counts only the unbroken run of locked subjects at the front.
          */
         const subjectAssetIds = new Set([
-          ...mentions.filter(m => m.role === "subject").map(m => m.assetId),
+          ...effectiveMentions.filter(m => m.role === "subject").map(m => m.assetId),
           ...direction.assetSelections.filter(s => s.role === "subject").map(s => s.assetId),
         ]);
 
@@ -664,6 +708,14 @@ router.post(
                   directorSelections,
                   directorFallback,
                   catalogSize,
+                  /*
+                   * Who was in this picture, and which brief decided it. The next
+                   * run reads this back so a spread does not change its subject
+                   * between runs of the same brief. Scoped to briefTakeId so a
+                   * rewritten brief is free to choose again.
+                   */
+                  subjectPin: pinnedSubjectId ? { assetId: pinnedSubjectId, briefTakeId } : null,
+                  subjectPinnedFrom,
                 },
               },
               isCurrent: true,
@@ -714,6 +766,9 @@ router.post(
           // was used with no asset selections. Said plainly: this is the
           // difference between a directed spread and a described one.
           directorFallback,
+          // Where the subject came from: named by the user, inherited from the
+          // previous run of this brief, or chosen fresh by the director.
+          subjectPinnedFrom,
           // What the Director judged the format should be. NOT applied here: the
           // spread is a grid and stage 05 owns reframing, so acting on this would
           // change the grid's shape and pre-empt a stage that has not been built.

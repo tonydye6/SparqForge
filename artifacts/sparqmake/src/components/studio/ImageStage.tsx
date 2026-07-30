@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
 import { RefineDeck, type StageTake } from "@/components/studio/RefineDeck";
@@ -167,7 +167,56 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
     }
   }
 
-  const outcomeFor = (takeId: string) => run?.outcomes.find((o) => o.takeId === takeId) ?? null;
+  /*
+   * The spread as it was SAVED, not just as it was returned.
+   *
+   * `run` is the response of a run performed in this browser session, and it was
+   * the only source a tile consulted. So a spread that cost real money rendered
+   * as eight "Not made yet" tiles the moment the page was reloaded or reopened
+   * from the spine, while eight current takes with image URLs sat in the
+   * database. Paying for work and then being told it does not exist is the
+   * worst version of this product's central failure mode: the screen has to be
+   * able to say what actually happened (§1.17).
+   *
+   * Keyed by slotKey, which is the take id, and restricted to isCurrent so a
+   * re-run of one take shows the new image rather than an older sibling.
+   */
+  const persisted = useMemo(() => {
+    const bySlot = new Map<string, TakeOutcome>();
+    for (const t of takes) {
+      if (!t.isCurrent) continue;
+      const p = t.payload as { imageUrl?: unknown } | undefined;
+      if (typeof p?.imageUrl !== "string") continue;
+      bySlot.set(t.slotKey, { takeId: t.slotKey, ok: true, imageUrl: p.imageUrl });
+    }
+    return bySlot;
+  }, [takes]);
+
+  /*
+   * The in-session run wins where it has an opinion, because after re-running a
+   * single take it holds the newest image for that slot while `takes` may not
+   * have been refetched yet. Everything else falls back to what was saved, which
+   * is what makes a partial re-run show one fresh take beside seven stored ones
+   * instead of blanking the other seven.
+   */
+  /** The take stage 03 has handed to Copy, if any. */
+  const usedSlotKey = (() => {
+    const sel = takes.find((t) => t.slotKey === "selected" && t.isCurrent);
+    const p = sel?.payload as { slotKey?: unknown } | undefined;
+    return typeof p?.slotKey === "string" ? p.slotKey : null;
+  })();
+
+  const useTake = useCallback(async (slotKey: string) => {
+    const res = await apiFetch(`/api/creatives/${creativeId}/use-take`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slotKey }),
+    });
+    if (res.ok) onChanged();
+  }, [creativeId, onChanged]);
+
+  const outcomeFor = (takeId: string): TakeOutcome | null =>
+    run?.outcomes.find((o) => o.takeId === takeId) ?? persisted.get(takeId) ?? null;
 
   if (mode === "refine" && selectedSlotKey) {
     return (
@@ -269,6 +318,8 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
               takes={plan.takes.filter((t) => t.row === rowIndex)}
               firstDeparture={firstDeparture}
               outcomeFor={outcomeFor}
+              onUse={(k) => void useTake(k)}
+              usedSlotKey={usedSlotKey}
               onRefine={enterRefine}
               canRefine={!locked && !switching}
               hovered={hovered}
@@ -345,7 +396,16 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
             disabled={locked || running}
             className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
           >
-            {locked ? "Locked" : running ? "Running" : run ? "Run again" : `Run these ${plan.takes.length}`}
+            {locked
+              ? "Locked"
+              : running
+                ? "Running"
+                // A saved spread counts as a run, not just one made in this tab.
+                // Offering "Run these 8" over eight visible takes invites a
+                // second $0.48 for work already paid for.
+                : run || persisted.size > 0
+                  ? "Run again"
+                  : `Run these ${plan.takes.length}`}
           </button>
         </div>
       </div>
@@ -384,6 +444,8 @@ function FragmentRow({
   takes,
   firstDeparture,
   outcomeFor,
+  onUse,
+  usedSlotKey,
   onRefine,
   canRefine,
   hovered,
@@ -394,6 +456,8 @@ function FragmentRow({
   takes: ExploreTake[];
   firstDeparture: number;
   outcomeFor: (takeId: string) => TakeOutcome | null;
+  onUse: (slotKey: string) => void;
+  usedSlotKey: string | null;
   onRefine: (slotKey: string) => void;
   canRefine: boolean;
   hovered: string | null;
@@ -466,15 +530,36 @@ function FragmentRow({
                     alt=""
                     className="absolute inset-0 h-full w-full rounded-sm object-cover"
                   />
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); if (canRefine) onRefine(t.id); }}
-                    onKeyDown={(e) => { if (e.key === "Enter" && canRefine) { e.stopPropagation(); onRefine(t.id); } }}
-                    className="relative z-10 self-start rounded-sm border border-border bg-surround px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
-                  >
-                    Refine
-                  </span>
+                  <div className="relative z-10 flex self-start gap-1">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); if (canRefine) onRefine(t.id); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && canRefine) { e.stopPropagation(); onRefine(t.id); } }}
+                      className="rounded-sm border border-border bg-surround px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                    >
+                      Refine
+                    </span>
+                    {/*
+                      The way forward. Until this existed there was none: stage 03
+                      could produce eight takes and the spine still called it
+                      empty, with nothing downstream told which one won.
+                    */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); onUse(t.id); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onUse(t.id); } }}
+                      className={cn(
+                        "rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] hover-elevate",
+                        usedSlotKey === t.id
+                          ? "border-grit-teal/60 bg-surround text-grit-teal"
+                          : "border-border bg-surround text-muted-foreground",
+                      )}
+                    >
+                      {usedSlotKey === t.id ? "In use" : "Use this"}
+                    </span>
+                  </div>
                 </>
               );
             }

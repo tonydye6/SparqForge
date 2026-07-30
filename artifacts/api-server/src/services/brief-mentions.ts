@@ -158,6 +158,40 @@ export function normalizeMentions(raw: unknown): BriefMention[] {
  * handed two people and asked to invent how they relate. Naming them also stops
  * it re-describing them, which is the failure the identity lock exists to catch.
  */
+/**
+ * The subject a previous run of this same brief already settled on.
+ *
+ * Selection is a model call at temperature 0.7, so it varies: the probe chose
+ * one Crown U football character and a paid run minutes later chose another. For
+ * a SPREAD that is wrong by construction. A spread explores COMPOSITION, and the
+ * one thing that must not vary across it, or across a re-run of it, is who is in
+ * the picture.
+ *
+ * The fix is stickiness rather than determinism. Dropping the director to
+ * temperature 0 would also freeze the prose, so re-running a spread would return
+ * the same direction every time and "run again" would stop meaning anything.
+ * Pinning only the subject keeps the direction free to explore.
+ *
+ * Scoped to the brief take that produced it. A rewritten brief is a different
+ * question and must be allowed a different answer, so the pin is inherited only
+ * while the brief behind it is unchanged. An `@` mention always outranks this:
+ * the pin is a memory of a guess, and a mention is a statement of fact.
+ */
+export function pinnedSubjectFrom(
+  currentTakes: Array<{ payload?: unknown }>,
+  briefTakeId: string | null,
+): string | null {
+  if (!briefTakeId) return null;
+  for (const take of currentTakes) {
+    const p = take.payload as { material?: { subjectPin?: unknown } } | null | undefined;
+    const pin = p?.material?.subjectPin as { assetId?: unknown; briefTakeId?: unknown } | undefined;
+    if (!pin || typeof pin.assetId !== "string" || !pin.assetId) continue;
+    if (pin.briefTakeId !== briefTakeId) continue;
+    return pin.assetId;
+  }
+  return null;
+}
+
 export function mentionsDirectiveBlock(mentions: BriefMention[]): string {
   if (mentions.length === 0) return "";
   const lines = mentions.map(m => `- ${m.name} (role: ${m.role}) — chosen by the user`);
