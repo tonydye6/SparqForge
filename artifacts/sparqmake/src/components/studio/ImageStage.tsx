@@ -278,8 +278,16 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
           Eight takes, on two axes you can name
         </h2>
         <p className="max-w-[80ch] text-[12.5px] leading-relaxed text-muted-foreground">
-          Nothing has been generated yet. This is what would be made. Every take sits at a stated
-          position on <span className="text-foreground">{plan.axes.a.name}</span> and{" "}
+          {/*
+            The sentence has to know whether the spread exists. It read "Nothing
+            has been generated yet" over eight rendered takes, which is the same
+            class of untruth as the tiles that said "Not made yet" while holding
+            images: the screen describing a state the screen itself contradicts.
+          */}
+          {persisted.size > 0 || run
+            ? "This spread is made. Every take sits at a stated position on "
+            : "Nothing has been generated yet. This is what would be made. Every take sits at a stated position on "}
+          <span className="text-foreground">{plan.axes.a.name}</span> and{" "}
           <span className="text-foreground">{plan.axes.b.name}</span>, so picking one tells you which
           direction to push rather than only which picture you liked.
         </p>

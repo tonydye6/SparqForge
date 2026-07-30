@@ -8,7 +8,7 @@ import { generationLimiter } from "../lib/rate-limit.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import { readFileByUrl } from "../services/reference-images.js";
 import { buildImageAwareCaption } from "../services/session-service.js";
-import { normalizeHashtags } from "../services/copy-stage.js";
+import { splitTrailingHashtags } from "../services/copy-stage.js";
 
 /**
  * Stage 03 → 04 · the handoff, and stage 04 Copy's model call.
@@ -218,9 +218,8 @@ router.post(
       const drafted = Object.fromEntries(
         Object.entries(captions).map(([platform, v]) => {
           const raw = (v as { caption: string; headline: string }).caption ?? "";
-          const tags = normalizeHashtags(raw.match(/#[\w]+/g) ?? []);
-          const body = raw.replace(/#[\w]+/g, "").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
-          return [platform, { caption: body, hashtags: tags, headline: (v as { headline: string }).headline ?? "" }];
+          const { body, hashtags } = splitTrailingHashtags(raw);
+          return [platform, { caption: body, hashtags, headline: (v as { headline: string }).headline ?? "" }];
         }),
       );
 
