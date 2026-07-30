@@ -9,6 +9,7 @@ import { BriefStage } from "@/components/studio/BriefStage";
 import { DirectionStage } from "@/components/studio/DirectionStage";
 import { ImageStage } from "@/components/studio/ImageStage";
 import { CopyStage } from "@/components/studio/CopyStage";
+import { CropStage } from "@/components/studio/CropStage";
 import { BrandContract } from "@/components/studio/BrandContract";
 import { MaterialRail } from "@/components/studio/MaterialRail";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -340,6 +341,34 @@ export default function StudioV2() {
                       );
                       const p = sel?.payload as { imageUrl?: unknown } | undefined;
                       return typeof p?.imageUrl === "string" ? p.imageUrl : null;
+                    })()}
+                    onSaved={() => void loadSpine(creativeId)}
+                  />
+                ) : activeStage?.stageKind === "crops" ? (
+                  <CropStage
+                    creativeId={creativeId}
+                    stageId={activeStage.id}
+                    locked={activeStage.status === "locked"}
+                    selectedImageUrl={(() => {
+                      const img = spine.stages.find((s) => s.stageKind === "asset");
+                      if (!img) return null;
+                      const sel = (spine.takes[img.id] ?? []).find(
+                        (t) => t.slotKey === "selected" && t.isCurrent,
+                      );
+                      const p = sel?.payload as { imageUrl?: unknown } | undefined;
+                      return typeof p?.imageUrl === "string" ? p.imageUrl : null;
+                    })()}
+                    // The hook is drawn into every frame, because whether it
+                    // survives a channel's furniture is half of what this stage
+                    // is checking.
+                    hook={(() => {
+                      const cp = spine.stages.find((s) => s.stageKind === "copy");
+                      if (!cp) return null;
+                      const cur = (spine.takes[cp.id] ?? []).find(
+                        (t) => t.slotKey === "copy" && t.isCurrent,
+                      );
+                      const p = cur?.payload as { hook?: unknown } | undefined;
+                      return typeof p?.hook === "string" ? p.hook : null;
                     })()}
                     onSaved={() => void loadSpine(creativeId)}
                   />
