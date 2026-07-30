@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
 
@@ -82,6 +82,64 @@ interface IntakeResponse {
   degradedReason?: string;
 }
 
+/**
+ * An asset the user attached by typing `@` in their own sentence.
+ *
+ * The line is the artifact and this list is an index onto it: every keystroke
+ * reconciles the two, so deleting the text deletes the attachment. A mention
+ * that outlived its text would attach a picture to generation that the user
+ * believes they removed, in a product whose whole argument is that you can see
+ * what the model is using.
+ */
+interface Mention {
+  assetId: string;
+  name: string;
+  role: "subject" | "style" | "object";
+}
+
+interface AssetOption {
+  id: string;
+  name: string;
+  assetClass: string | null;
+  compositingOnly: boolean | null;
+  thumbnailUrl: string | null;
+  fileUrl: string | null;
+}
+
+/** Mirrors roleForAssetClass on the server, so both ends agree what a pick is. */
+function roleFor(assetClass: string | null, compositingOnly: boolean | null): Mention["role"] {
+  if (compositingOnly || assetClass === "compositing") return "object";
+  if (assetClass === "style_reference") return "style";
+  if (assetClass === "subject_reference") return "subject";
+  return "object";
+}
+
+const ROLE_LABEL: Record<Mention["role"], string> = {
+  subject: "subject",
+  style: "style",
+  object: "mark",
+};
+
+/** How far back from the caret an unterminated `@` can still be live. */
+const MAX_QUERY_CHARS = 48;
+
+/**
+ * The mention being typed at the caret, if any. Mirrors activeMentionQuery on
+ * the server; spaces are allowed because real asset names have them.
+ */
+function activeQuery(line: string, caret: number): { start: number; query: string } | null {
+  if (caret < 1 || caret > line.length) return null;
+  for (let i = caret - 1; i >= 0 && caret - i <= MAX_QUERY_CHARS; i--) {
+    const ch = line[i];
+    if (ch === "\n") return null;
+    if (ch !== "@") continue;
+    const prev = i > 0 ? line[i - 1] : null;
+    if (prev !== null && !/\s/.test(prev)) return null;
+    return { start: i, query: line.slice(i + 1, caret) };
+  }
+  return null;
+}
+
 /** Below this there is not enough to infer anything worth showing. */
 const MIN_WORDS_TO_DERIVE = 3;
 /** Long enough that we are not billing a model call on every keystroke. */
@@ -105,6 +163,13 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
   const [derivedFrom, setDerivedFrom] = useState("");
 
   const [editingKey, setEditingKey] = useState<string | null>(null);
+
+  // ---- @ mentions -------------------------------------------------------
+  const [mentions, setMentions] = useState<Mention[]>([]);
+  const [assets, setAssets] = useState<AssetOption[]>([]);
+  const [picker, setPicker] = useState<{ start: number; query: string } | null>(null);
+  const [highlight, setHighlight] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // One in-flight derivation at a time. An abandoned request is cancelled rather
   // than left to land late and overwrite newer rows (and, on a metered model, to
@@ -164,6 +229,68 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
   // Cancel anything in flight when the stage unmounts.
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  /*
+   * Restore the saved brief when the stage is reopened.
+   *
+   * This was missing entirely: the textarea started empty every time, so
+   * reopening stage 01 showed a blank box even though a brief was saved and
+   * stage 03 was generating from it. That was survivable while the brief was
+   * only prose, because the DB still had it. It stops being survivable with `@`
+   * mentions, since a user who reopens, retypes and saves would silently drop
+   * attachments they can no longer see. The spine's whole promise is that you
+   * can click back into a stage and find what it decided.
+   *
+   * Runs once per stage. A failure leaves the form empty rather than blocking,
+   * which is the same call the derivation path makes.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/creatives/${creativeId}/stages`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const brief = (body?.stages ?? []).find(
+          (st: { id: string; stageKind: string }) => st.stageKind === "brief",
+        );
+        if (!brief) return;
+        const takes = body?.takes?.[brief.id] ?? [];
+        const current = takes.find(
+          (t: { slotKey: string; isCurrent: boolean }) => t.slotKey === "brief" && t.isCurrent,
+        );
+        const payload = current?.payload;
+        if (!payload || typeof payload !== "object" || cancelled) return;
+
+        if (typeof payload.line === "string" && payload.line.trim()) {
+          setLine(payload.line);
+          // Marked as already-derived-from, so restoring a brief does not
+          // immediately accuse its own rows of being out of date.
+          setDerivedFrom(payload.line.trim());
+        }
+        if (typeof payload.intentId === "string") setIntentId(payload.intentId);
+        if (Array.isArray(payload.derived)) setDerived(payload.derived as DerivedRow[]);
+        if (Array.isArray(payload.mentions)) {
+          setMentions(
+            (payload.mentions as Mention[]).filter(
+              (mn) => mn && typeof mn.assetId === "string" && typeof mn.name === "string",
+            ),
+          );
+        }
+        if (Array.isArray(payload.answers)) {
+          const restored: Record<string, string> = {};
+          for (const a of payload.answers as Array<{ id?: unknown; answer?: unknown }>) {
+            if (typeof a?.id === "string" && typeof a?.answer === "string") restored[a.id] = a.answer;
+          }
+          setAnswers(restored);
+        }
+        setSaved(true);
+      } catch {
+        // Leave the form empty rather than blocking on a read.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [creativeId, stageId]);
+
   /** Editing a row makes it yours. That is the whole contract of the badge. */
   function editRow(key: string, value: string) {
     setDerived((rows) =>
@@ -184,6 +311,96 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
 
   const stale = derivedFrom !== "" && derivedFrom !== line.trim();
 
+  /*
+   * The brand's assets, loaded once when the picker is first needed.
+   *
+   * Scoped to the brand in the QUERY, not filtered afterwards, which is the same
+   * containment rule generation uses: another brand's character cannot be
+   * attached to this post by accident.
+   */
+  useEffect(() => {
+    if (!brandId || picker === null || assets.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/assets?brandId=${encodeURIComponent(brandId)}&type=visual`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const rows = Array.isArray(body) ? body : (body?.assets ?? body?.data ?? []);
+        if (cancelled) return;
+        setAssets(
+          rows
+            .filter((a: AssetOption) => Boolean(a.fileUrl))
+            .map((a: AssetOption) => ({
+              id: a.id,
+              name: a.name,
+              assetClass: a.assetClass ?? null,
+              compositingOnly: a.compositingOnly ?? null,
+              thumbnailUrl: a.thumbnailUrl ?? null,
+              fileUrl: a.fileUrl ?? null,
+            })),
+        );
+      } catch {
+        // A picker that cannot load is a picker that shows nothing, which is
+        // visibly empty rather than silently wrong. Typing still works.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [brandId, picker, assets.length]);
+
+  /** Matches on the query, capped so the list stays scannable. */
+  const matches = useMemo(() => {
+    if (!picker) return [];
+    const q = picker.query.trim().toLowerCase();
+    const pool = q
+      ? assets.filter((a) => a.name.toLowerCase().includes(q))
+      : assets;
+    return pool.slice(0, 8);
+  }, [picker, assets]);
+
+  /**
+   * Reconcile on every change: a mention whose text is gone is gone.
+   * Mirrors reconcileMentions on the server.
+   */
+  function updateLine(next: string, caret: number) {
+    setLine(next);
+    setSaved(false);
+    setMentions((prev) => {
+      const seen = new Set<string>();
+      return prev.filter((mn) => {
+        if (seen.has(mn.assetId)) return false;
+        if (!next.includes(`@${mn.name}`)) return false;
+        seen.add(mn.assetId);
+        return true;
+      });
+    });
+    const q = activeQuery(next, caret);
+    setPicker(q);
+    setHighlight(0);
+  }
+
+  function choose(asset: AssetOption) {
+    const el = textareaRef.current;
+    const caret = el ? el.selectionStart : line.length;
+    const active = picker ?? activeQuery(line, caret);
+    if (!active) return;
+    const token = `@${asset.name} `;
+    const next = line.slice(0, active.start) + token + line.slice(caret);
+    const nextCaret = active.start + token.length;
+    setLine(next);
+    setSaved(false);
+    setMentions((prev) =>
+      prev.some((mn) => mn.assetId === asset.id)
+        ? prev
+        : [...prev, { assetId: asset.id, name: asset.name, role: roleFor(asset.assetClass, asset.compositingOnly) }],
+    );
+    setPicker(null);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(nextCaret, nextCaret);
+    });
+  }
+
   async function save() {
     if (!line.trim() || locked) return;
     setSaving(true);
@@ -201,6 +418,14 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
           // from an inferred one instead of flattening both into prose.
           payload: {
             line: line.trim(),
+            /*
+             * The explicit ids behind the `@` tokens in the line above.
+             * Stage 03 consumes these as attachments, which outrank the
+             * Creative Director's own selection: the director can choose a
+             * subject well but cannot know which character a name refers to
+             * when no asset carries that name.
+             */
+            mentions,
             // Recorded, not re-derived. Stage 03 plans its axes off the goal, and
             // paying a second inference for a value we already have would also
             // risk the two stages disagreeing about what this post is for.
@@ -234,22 +459,114 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
       {/* Your words, verbatim and never rewritten. */}
       <div className="rounded-sm border border-l-2 border-border/60 border-l-grit-teal bg-card px-3.5 py-3">
         <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">What you typed</p>
-        <textarea
-          value={line}
-          onChange={(e) => {
-            setLine(e.target.value);
-            setSaved(false);
-          }}
-          disabled={locked}
-          rows={2}
-          placeholder="new map release for Crown U"
-          aria-label="Your brief, in one line"
-          className="mt-1.5 w-full resize-none border-0 bg-transparent p-0 text-[17px] leading-snug text-foreground outline-none placeholder:text-dim disabled:opacity-70"
-        />
+        <div className="relative">
+          <textarea
+            ref={textareaRef}
+            value={line}
+            onChange={(e) => updateLine(e.target.value, e.target.selectionStart)}
+            onClick={(e) => setPicker(activeQuery(line, e.currentTarget.selectionStart))}
+            onBlur={() => {
+              // Delayed so a click on a picker row lands before the list unmounts.
+              window.setTimeout(() => setPicker(null), 120);
+            }}
+            onKeyDown={(e) => {
+              if (!picker || matches.length === 0) return;
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setHighlight((h) => (h + 1) % matches.length);
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setHighlight((h) => (h - 1 + matches.length) % matches.length);
+              } else if (e.key === "Enter" || e.key === "Tab") {
+                // Only while the picker is open, so Enter still writes a newline
+                // in ordinary typing.
+                e.preventDefault();
+                const pick = matches[highlight];
+                if (pick) choose(pick);
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setPicker(null);
+              }
+            }}
+            disabled={locked}
+            rows={2}
+            placeholder="new map release for Crown U"
+            aria-label="Your brief, in one line. Type @ to attach an asset."
+            aria-expanded={picker !== null}
+            aria-controls={picker ? "brief-mention-picker" : undefined}
+            className="mt-1.5 w-full resize-none border-0 bg-transparent p-0 text-[17px] leading-snug text-foreground outline-none placeholder:text-dim disabled:opacity-70"
+          />
+
+          {picker && !locked && (
+            <div
+              id="brief-mention-picker"
+              role="listbox"
+              className="absolute left-0 top-full z-20 mt-1 w-full max-w-md overflow-hidden rounded-sm border border-border bg-raised shadow-lg"
+            >
+              {matches.length === 0 ? (
+                <p className="px-3 py-2 text-[11px] text-dim">
+                  {assets.length === 0
+                    ? "Loading this brand's assets..."
+                    : `Nothing in this brand's library matches "${picker.query}".`}
+                </p>
+              ) : (
+                matches.map((a, i) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="option"
+                    aria-selected={i === highlight}
+                    onMouseEnter={() => setHighlight(i)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => choose(a)}
+                    className={`flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left ${
+                      i === highlight ? "bg-grit-teal/15" : ""
+                    }`}
+                  >
+                    {a.thumbnailUrl || a.fileUrl ? (
+                      <img
+                        src={a.thumbnailUrl || a.fileUrl || ""}
+                        alt=""
+                        className="h-8 w-8 shrink-0 rounded-sm object-cover"
+                      />
+                    ) : (
+                      <span className="h-8 w-8 shrink-0 rounded-sm border border-border" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">{a.name}</span>
+                    <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+                      {ROLE_LABEL[roleFor(a.assetClass, a.compositingOnly)]}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        {/*
+          What is attached, stated rather than implied. The picker is transient;
+          this is the standing record, and it is the §1.17 disclosure for the one
+          decision the user makes by hand at this stage.
+        */}
+        {mentions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {mentions.map((mn) => (
+              <span
+                key={mn.assetId}
+                className="inline-flex items-center gap-1.5 rounded-sm border border-grit-teal/40 px-1.5 py-0.5 text-[10.5px] text-foreground"
+              >
+                <span className="truncate max-w-[220px]">{mn.name}</span>
+                <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-grit-teal">
+                  {ROLE_LABEL[mn.role]}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
         <p className="mt-1.5 text-[10.5px] leading-relaxed text-dim">
           {yourWords > 0
             ? `${yourWords} ${yourWords === 1 ? "word" : "words"}. This is the only part that is yours by default, and it is never rewritten.`
-            : "One line is enough. Everything below is derived from it and labelled with who decided it."}
+            : "One line is enough. Type @ to attach a character or logo from this brand\u2019s library. Everything below is derived and labelled with who decided it."}
         </p>
       </div>
 

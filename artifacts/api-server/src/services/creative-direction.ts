@@ -534,13 +534,23 @@ export async function buildCreativeDirection(params: {
   briefText: string;
   intent?: string | null;
   catalog: AssetCatalog;
+  /**
+   * Extra instruction placed directly after the brief, above the catalog.
+   *
+   * Used to tell the director what the user attached by hand with `@`. It has to
+   * sit ABOVE the catalog, because its job is to change how the catalog is read:
+   * a director that learns the subject is already decided AFTER browsing 60
+   * assets has usually already chosen one.
+   */
+  extraContext?: string | null;
 }): Promise<CreativeDirection> {
-  const { brand, styleContract, briefText, intent, catalog } = params;
+  const { brand, styleContract, briefText, intent, catalog, extraContext } = params;
 
   const intentBlock = intent && isIntent(intent) ? INTENT_IMAGE_DIRECTIVES[intent] : null;
 
   const context = [
     `Brief: ${briefText}`,
+    extraContext && extraContext.trim() ? extraContext.trim() : null,
     intentBlock,
     `BRAND CONSTRAINTS (non-negotiable; your direction must fit inside them):\n${styleContract}`,
     catalog.lines.length > 0
