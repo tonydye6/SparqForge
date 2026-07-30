@@ -25,6 +25,7 @@ import CalendarNext from "@/pages/CalendarNext";
 import CopilotStudio from "@/pages/CopilotStudio";
 import Pipeline from "@/pages/Pipeline";
 import DesignSystem from "@/pages/DesignSystem";
+import BrandRecord from "@/pages/BrandRecord";
 import StudioV2 from "@/pages/StudioV2";
 
 const queryClient = new QueryClient({
@@ -179,6 +180,14 @@ function Router() {
             it is merely newer. */}
         <Route path="/studio-v2">
           <AppLayout><StudioV2 /></AppLayout>
+        </Route>
+        {/*
+          Phase 5. Beside the existing /brand rather than replacing it, the same
+          way Studio v2 sits beside Studio: the old screen keeps working until
+          this one is genuinely better.
+        */}
+        <Route path="/brand-record">
+          <AppLayout><BrandRecord /></AppLayout>
         </Route>
         {/* Internal design system reference. Linked from the sidebar footer. */}
         <Route path="/design">

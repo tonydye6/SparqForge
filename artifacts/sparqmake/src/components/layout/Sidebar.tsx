@@ -260,6 +260,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               Studio v2
             </Link>
             <Link
+              href="/brand-record"
+              onClick={handleNavClick}
+              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+            >
+              Record
+            </Link>
+            <Link
               href="/design"
               onClick={handleNavClick}
               className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
