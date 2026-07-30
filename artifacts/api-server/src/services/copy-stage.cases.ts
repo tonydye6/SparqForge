@@ -17,6 +17,7 @@ import {
   hashtagNote,
   hookFit,
   normalizeHashtags,
+  splitTrailingHashtags,
   stagesStaledByCopy,
   voiceCheck,
   type ChannelCopy,
@@ -105,6 +106,38 @@ export async function collectCopyStageCases(): Promise<Case[]> {
   check("duplicates collapse case-insensitively", normalizeHashtags(["#CrownU", "#crownu"]).length === 1);
   check("empties and non-strings are dropped", normalizeHashtags(["", "  ", 5, null, "#ok"]).length === 1);
   check("a non-array yields nothing", normalizeHashtags("nope").length === 0);
+
+  // ------------------------------------------- splitting the trailing block
+  /*
+   * The regression this exists to prevent, found by using the thing: a real
+   * draft came back reading "...entered the arena. is here." because the first
+   * version stripped every hashtag anywhere, and "#CrownU is here." lost its
+   * subject. Mangling copy while moving it is worse than leaving a tag put.
+   */
+  {
+    const inline = splitTrailingHashtags("Crown U's newest character. #CrownU is here.");
+    check("an INLINE hashtag stays in the body, so the sentence survives",
+      inline.body === "Crown U's newest character. #CrownU is here." && inline.hashtags.length === 0,
+      inline);
+
+    const trailing = splitTrailingHashtags("Number 5 has arrived. #CrownU #CharacterReveal");
+    check("a trailing block is split off", trailing.body === "Number 5 has arrived." && trailing.hashtags.length === 2, trailing);
+    check("split hashtags are normalised", trailing.hashtags[0] === "#CrownU");
+
+    check("no hashtags at all leaves the text alone",
+      splitTrailingHashtags("Just a caption.").body === "Just a caption.");
+    check("trailing whitespace does not defeat the split",
+      splitTrailingHashtags("Text. #a #b   \n").hashtags.length === 2);
+    check("a caption that is ONLY hashtags keeps them, rather than emptying the post",
+      splitTrailingHashtags("#a #b").body === "#a #b");
+    check("one trailing tag splits", splitTrailingHashtags("Text. #only").hashtags.length === 1);
+    check("an inline tag followed by a trailing block keeps the inline one in place", (() => {
+      const r = splitTrailingHashtags("Meet #CrownU today. #Reveal #Esports");
+      return r.body === "Meet #CrownU today." && r.hashtags.length === 2;
+    })());
+    check("the body never keeps a dangling space where the block was",
+      !/\s$/.test(splitTrailingHashtags("Text.   #a #b").body));
+  }
 
   return cases;
 }

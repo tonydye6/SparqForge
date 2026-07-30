@@ -199,6 +199,39 @@ export function normalizeHashtag(raw: string): string | null {
   return cleaned ? `#${cleaned}` : null;
 }
 
+/**
+ * Split a caption into its body and its TRAILING hashtag block.
+ *
+ * Only the trailing run, and that restriction is the whole point. The first
+ * version of this stripped every `#tag` anywhere in the text, which broke
+ * sentences that used one as a word: a real draft came back reading
+ * "...has officially entered the arena. is here." because "#CrownU is here."
+ * lost its subject. Mangling someone's copy while moving it is worse than
+ * leaving a hashtag where they put it.
+ *
+ * An inline hashtag therefore stays in the body, where the voice check notes it
+ * and the user decides. Convention puts hashtags at the end, so the trailing
+ * block is the part that can be moved safely.
+ */
+export function splitTrailingHashtags(text: string): { body: string; hashtags: string[] } {
+  const trimmed = text.trimEnd();
+  // Walk back over a run of hashtags and the whitespace between them.
+  const trailing = trimmed.match(/(?:(?:^|\s)#[^\s#]+)+\s*$/);
+  if (!trailing) return { body: trimmed, hashtags: [] };
+
+  const block = trailing[0];
+  const body = trimmed.slice(0, trimmed.length - block.length).trimEnd();
+
+  /*
+   * A caption that is ONLY hashtags keeps them as its body. Returning an empty
+   * caption and a pile of tags would silently delete the post's text, and the
+   * user can move them down themselves if that is what they meant.
+   */
+  if (!body) return { body: trimmed, hashtags: [] };
+
+  return { body, hashtags: normalizeHashtags(block.split(/\s+/)) };
+}
+
 export function normalizeHashtags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
