@@ -199,6 +199,22 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
    * is what makes a partial re-run show one fresh take beside seven stored ones
    * instead of blanking the other seven.
    */
+  /** The take stage 03 has handed to Copy, if any. */
+  const usedSlotKey = (() => {
+    const sel = takes.find((t) => t.slotKey === "selected" && t.isCurrent);
+    const p = sel?.payload as { slotKey?: unknown } | undefined;
+    return typeof p?.slotKey === "string" ? p.slotKey : null;
+  })();
+
+  const useTake = useCallback(async (slotKey: string) => {
+    const res = await apiFetch(`/api/creatives/${creativeId}/use-take`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slotKey }),
+    });
+    if (res.ok) onChanged();
+  }, [creativeId, onChanged]);
+
   const outcomeFor = (takeId: string): TakeOutcome | null =>
     run?.outcomes.find((o) => o.takeId === takeId) ?? persisted.get(takeId) ?? null;
 
@@ -302,6 +318,8 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
               takes={plan.takes.filter((t) => t.row === rowIndex)}
               firstDeparture={firstDeparture}
               outcomeFor={outcomeFor}
+              onUse={(k) => void useTake(k)}
+              usedSlotKey={usedSlotKey}
               onRefine={enterRefine}
               canRefine={!locked && !switching}
               hovered={hovered}
@@ -426,6 +444,8 @@ function FragmentRow({
   takes,
   firstDeparture,
   outcomeFor,
+  onUse,
+  usedSlotKey,
   onRefine,
   canRefine,
   hovered,
@@ -436,6 +456,8 @@ function FragmentRow({
   takes: ExploreTake[];
   firstDeparture: number;
   outcomeFor: (takeId: string) => TakeOutcome | null;
+  onUse: (slotKey: string) => void;
+  usedSlotKey: string | null;
   onRefine: (slotKey: string) => void;
   canRefine: boolean;
   hovered: string | null;
@@ -508,15 +530,36 @@ function FragmentRow({
                     alt=""
                     className="absolute inset-0 h-full w-full rounded-sm object-cover"
                   />
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => { e.stopPropagation(); if (canRefine) onRefine(t.id); }}
-                    onKeyDown={(e) => { if (e.key === "Enter" && canRefine) { e.stopPropagation(); onRefine(t.id); } }}
-                    className="relative z-10 self-start rounded-sm border border-border bg-surround px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
-                  >
-                    Refine
-                  </span>
+                  <div className="relative z-10 flex self-start gap-1">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); if (canRefine) onRefine(t.id); }}
+                      onKeyDown={(e) => { if (e.key === "Enter" && canRefine) { e.stopPropagation(); onRefine(t.id); } }}
+                      className="rounded-sm border border-border bg-surround px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                    >
+                      Refine
+                    </span>
+                    {/*
+                      The way forward. Until this existed there was none: stage 03
+                      could produce eight takes and the spine still called it
+                      empty, with nothing downstream told which one won.
+                    */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => { e.stopPropagation(); onUse(t.id); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onUse(t.id); } }}
+                      className={cn(
+                        "rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] hover-elevate",
+                        usedSlotKey === t.id
+                          ? "border-grit-teal/60 bg-surround text-grit-teal"
+                          : "border-border bg-surround text-muted-foreground",
+                      )}
+                    >
+                      {usedSlotKey === t.id ? "In use" : "Use this"}
+                    </span>
+                  </div>
                 </>
               );
             }

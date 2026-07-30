@@ -350,7 +350,13 @@ async function assembleGenerationPlan(params: {
   };
 }
 
-async function buildImageAwareCaption(params: {
+/**
+ * Exported so stage 04 Copy can reuse it instead of growing a second
+ * caption engine. This one is already image-aware and already carries voice
+ * examples, taste guidance, intent directives and hashtag strategy; a parallel
+ * implementation is the mistake that produced the stage-03 fidelity bug.
+ */
+export async function buildImageAwareCaption(params: {
   brandId: string;
   briefText: string;
   imageBuffer: Buffer;
