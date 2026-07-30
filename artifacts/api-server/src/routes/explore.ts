@@ -551,6 +551,15 @@ router.post(
                 // run response is gone (§1.17).
                 material: {
                   referenceCount: references.length,
+                  /*
+                   * REFERENCE LANES, not director roles, and the two do not
+                   * agree. imagen has exactly two lanes, so a brand mark rides
+                   * the subject lane: the first live spread recorded
+                   * subjectCount 2 for a director that chose one character and
+                   * one logo. Anything user-facing must read roles off
+                   * directorSelections below; these two are for diagnosing what
+                   * was actually attached.
+                   */
                   subjectCount: references.filter(r => r.role === "subject_reference").length,
                   styleCount: references.filter(r => r.role === "style_reference").length,
                   director: persona?.name ?? null,
