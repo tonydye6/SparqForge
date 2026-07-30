@@ -510,9 +510,15 @@ Respond with ONLY a single JSON object — no preamble, no commentary, no markdo
   "aspectRatio": "1:1" | "4:5" | "9:16" | "16:9"
 }
 
+CRITICAL — DO NOT DESCRIBE THE APPEARANCE OF ANY ASSET YOU SELECT AS role "subject".
+The actual image of that asset is attached to the render request, so the renderer can see it and you cannot improve on it. Writing "a dark-skinned athlete with curly hair in a white kit" competes with the attached picture: the renderer follows your words, which are a lossy description of a person, instead of the photograph of that exact person, and the character comes out looking like a different individual. This is the single most common way this system fails.
+Refer to the subject only as "the character in <asset name>" or "the subject in attached image". Say nothing about their face, hair, skin, build, age, gender or uniform.
+Spend your words on what the renderer CANNOT see: composition, framing, camera angle, pose and action, lighting, background, environment, mood, colour treatment.
+
 Selection rules:
 - Select ONLY asset ids that appear in the catalog. Up to 6 selections; fewer is fine; none is valid when nothing fits.
 - role "subject": people, characters, mascots, products that must stay recognizable.
+- Selecting MORE than one subject means the renderer must invent how they relate. For a brief about one named character, select exactly one subject.
 - role "object": logos and brand marks that must be reproduced exactly.
 - role "style": images whose treatment and mood the result should match.
 - Prefer assets whose entities/tags match the brief. Include the brand's logo (role "object") when the brief or brand rules imply branding should appear.

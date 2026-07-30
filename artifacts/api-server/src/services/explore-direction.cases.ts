@@ -13,6 +13,8 @@ import {
   buildDirectedPrompt,
   constraintTrailer,
   describeReferences,
+  identityLock,
+  leadingSubjectRun,
   orderReferences,
   referenceRoleForDirectorRole,
   slotTypeForDirectorRole,
@@ -163,6 +165,72 @@ export async function collectExploreDirectionCases(): Promise<Case[]> {
     });
     return /only brand mark permitted/.test(inferred);
   })());
+
+  // ------------------------------------------------------- the identity lock
+  /*
+   * The fix for "a serious loss of identity in each of the images. I want the
+   * EXACT character." These assert the two things that made it fail: the lock
+   * must LEAD (position beat wording), and it must never claim a picture that
+   * is not actually the character.
+   */
+  check("no subject reference means no lock at all", identityLock(0, false) === "");
+  check("one subject locks attached image 1 specifically",
+    identityLock(1, false).includes("Attached image 1 is the EXACT character"), identityLock(1, false));
+  check("several subjects lock a range",
+    identityLock(3, false).includes("Attached images 1 to 3 are the EXACT character"));
+  check("the lock claims precedence over everything below it",
+    /overrides every description below/i.test(identityLock(1, false)) &&
+    /the attached image wins/i.test(identityLock(1, false)));
+  check("the lock permits only pose, angle, lighting, background to change",
+    /Change only pose, camera angle, lighting, background/.test(identityLock(1, false)));
+  check("with a mark present the lock protects the character's own kit from redesign",
+    /never by redesigning the character's kit/.test(identityLock(1, true)));
+  check("without a mark the lock says nothing about kit redesign",
+    !/redesigning the character's kit/.test(identityLock(1, false)));
+
+  {
+    const locked = buildDirectedPrompt({
+      directorPrompt: "A heroic key art piece.",
+      styleContract: CONTRACT,
+      references: ordered,
+      subjectReferenceCount: 1,
+    });
+    check("the identity lock is the FIRST thing in the prompt",
+      locked.startsWith("IDENTITY LOCK."), locked.slice(0, 60));
+    check("the lock precedes the director's prose, which is what failed before",
+      locked.indexOf("IDENTITY LOCK") < locked.indexOf("A heroic key art piece"));
+    check("the lock precedes the brand constraints that used to carry this job alone",
+      locked.indexOf("IDENTITY LOCK") < locked.indexOf("NON-NEGOTIABLE"));
+  }
+  check("omitting the count emits NO lock, because guessing could point it at a logo", (() => {
+    const unlocked = buildDirectedPrompt({
+      directorPrompt: "A heroic key art piece.",
+      styleContract: CONTRACT,
+      references: ordered,
+    });
+    return !unlocked.includes("IDENTITY LOCK");
+  })());
+
+  // ------------------------------------------------- leadingSubjectRun
+  {
+    const subj = new Set(["char"]);
+    const run = (ids: Array<string | undefined>): number =>
+      leadingSubjectRun(ids.map(id => ref("subject_reference", id ?? "anon", id ? { assetId: id } : {})), subj);
+    check("a lone leading subject counts 1", run(["char"]) === 1);
+    check("a subject followed by a mark still counts only the subject",
+      run(["char", "logo"]) === 1, run(["char", "logo"]));
+    check("a mark FIRST yields zero, so the lock never points at a logo",
+      run(["logo", "char"]) === 0, run(["logo", "char"]));
+    check("an unattributed reference first yields zero", run([undefined, "char"]) === 0);
+    check("no references at all yields zero", leadingSubjectRun([], subj) === 0);
+    check("only the LEADING run counts, never the total",
+      leadingSubjectRun(
+        [ref("subject_reference", "a", { assetId: "char" }),
+         ref("subject_reference", "b", { assetId: "logo" }),
+         ref("subject_reference", "c", { assetId: "char" })],
+        subj,
+      ) === 1);
+  }
 
   // ------------------------------ the shared budgeting, now over ReferenceImage
   /*

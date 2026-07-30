@@ -145,8 +145,18 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
   })();
 
   const sentReferences = typeof material?.referenceCount === "number" ? material.referenceCount : null;
-  const subjectRefs = typeof material?.subjectCount === "number" ? material.subjectCount : null;
   const catalogSize = typeof material?.catalogSize === "number" ? material.catalogSize : null;
+  /*
+   * `material.subjectCount` is deliberately NOT read here.
+   *
+   * It counts imagen REFERENCE LANES, and imagen has only two of them, so a
+   * brand mark rides the subject lane and the number reads one higher than the
+   * count of actual subjects. The first live spread showed exactly that:
+   * subjectCount 2 for a director that chose one character and one logo.
+   * Rendering it as "2 as subject" would be a true number under a false label,
+   * which is the failure mode this panel exists to avoid, so the rail reports
+   * the DIRECTOR'S roles below instead.
+   */
 
   /**
    * What the Creative Director chose, which replaced what the brief token
