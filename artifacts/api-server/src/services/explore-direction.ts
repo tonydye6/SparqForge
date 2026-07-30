@@ -113,6 +113,72 @@ export function constraintTrailer(hasMarkReference: boolean): string {
     : `${base} Do not render any logo, brand mark, wordmark or watermark.`;
 }
 
+/**
+ * The identity lock, and why it comes FIRST.
+ *
+ * Tony's verdict on the first real spread was "a serious loss of identity in
+ * each of the images. I want the EXACT character." The mechanism was visible in
+ * the director's own output: it wrote "the subject is a dark-skinned athlete
+ * with voluminous curly hair, wearing her signature white kit", roughly 200
+ * words of prose describing a person whose actual picture was attached. A
+ * renderer given a long description first and a photograph second generates the
+ * description and treats the photograph as mood. The description is a lossy
+ * re-encoding of a face, and a lossy re-encoding IS the identity loss.
+ *
+ * Crown U's brand record already carries the correct instruction — "using the
+ * uploaded reference image as the EXACT character, do not alter the character's
+ * appearance, outfit, proportions, or design in any way" — but it sat fourth of
+ * six blocks, behind all that prose. Position was doing more work than wording.
+ *
+ * So the lock leads, and it says explicitly that it beats anything below it,
+ * because something below it WILL eventually contradict it. DIRECTOR_SYSTEM was
+ * changed in the same pass to stop describing subjects at all; this block is the
+ * belt to that braces, since the director is a model and will sometimes do it
+ * anyway.
+ *
+ * It is emitted only when a subject reference is actually attached. Claiming an
+ * exact character when no picture of one is present would be a lie to the
+ * renderer, and it would suppress the invention we DO want in that case.
+ */
+export function identityLock(subjectCount: number, markPresent: boolean): string {
+  if (subjectCount < 1) return "";
+  const which = subjectCount === 1 ? "Attached image 1 is" : `Attached images 1 to ${subjectCount} are`;
+  return (
+    `IDENTITY LOCK. This overrides every description below it.\n` +
+    `${which} the EXACT character to render, not a reference for a similar one. ` +
+    `Reproduce the face and facial structure, skin tone, hairstyle and hair colour, body proportions, and the uniform's design, colours and markings exactly as they appear in the attached image. ` +
+    `It is the same individual, re-posed and re-lit for this scene. ` +
+    `Change only pose, camera angle, lighting, background and environment. ` +
+    `If any wording below describes this character's appearance differently, the attached image wins and the wording is to be ignored.` +
+    (markPresent
+      ? `\nThe character's own uniform markings are part of that identity and are reproduced as shown. A separately attached brand mark may be placed in the scene, but never by redesigning the character's kit.`
+      : "")
+  );
+}
+
+/**
+ * How many of the attached references, counting from the front, are the
+ * identity-critical subject.
+ *
+ * A COUNT alone is not enough for the lock to be truthful, because the lock says
+ * "attached image 1 is the exact character" and slot merging can put a manual
+ * attachment or a style-profile reference ahead of the director's picks. So this
+ * counts the LEADING RUN only: if anything that is not a locked subject appears
+ * first, the run is zero and no lock is emitted. Under-claiming costs fidelity;
+ * over-claiming tells the renderer to grow a face out of a logo.
+ */
+export function leadingSubjectRun(
+  references: ReferenceImage[],
+  subjectAssetIds: Set<string>,
+): number {
+  let n = 0;
+  for (const ref of references) {
+    if (ref.assetId && subjectAssetIds.has(ref.assetId)) n++;
+    else break;
+  }
+  return n;
+}
+
 export interface DirectedPromptInput {
   /** The Creative Director's prose. Leads, because it is the direction. */
   directorPrompt: string;
@@ -126,18 +192,25 @@ export interface DirectedPromptInput {
   axisDirective?: string;
   /** True when any attached reference is a brand mark. */
   hasMarkReference?: boolean;
+  /**
+   * How many attached references are the subject whose identity must hold.
+   * Drives the identity lock; 0 means invent the subject freely.
+   */
+  subjectReferenceCount?: number;
 }
 
 /**
  * The final prompt for one take.
  *
  * Order is load-bearing:
- *   1. the director's prose, because it is the direction
- *   2. the reference roll-call, so "attached image 2" resolves
- *   3. the axis directive, this take's only difference from its siblings
- *   4. the VERBATIM brand constraints, unparaphrased
- *   5. overflow descriptors for selections that missed the slot cap
- *   6. the non-negotiable trailer
+ *   1. the IDENTITY LOCK, when a subject reference is attached, because
+ *      position beat wording on the first real spread
+ *   2. the director's prose, which is the direction
+ *   3. the reference roll-call, so "attached image 2" resolves
+ *   4. the axis directive, this take's only difference from its siblings
+ *   5. the VERBATIM brand constraints, unparaphrased
+ *   6. overflow descriptors for selections that missed the slot cap
+ *   7. the non-negotiable trailer
  *
  * The constraint block is appended verbatim rather than folded into the
  * director's prose for the reason the Co-pilot does the same: a model asked to
@@ -153,7 +226,14 @@ export function buildDirectedPrompt(input: DirectedPromptInput): string {
     input.hasMarkReference ??
     references.some(r => /\bmark\b|\blogo\b|wordmark/i.test(r.description || ""));
 
+  // Defaults to 0, i.e. NO lock, when the caller does not say. A caller that
+  // forgets loses fidelity; a caller that guesses could point the lock at a
+  // logo, and only one of those two failures produces a face grown from a
+  // wordmark. Callers compute this with leadingSubjectRun.
+  const subjectCount = input.subjectReferenceCount ?? 0;
+
   const parts = [
+    identityLock(subjectCount, hasMarkReference),
     directorPrompt.trim(),
     describeReferences(references),
     axisDirective && axisDirective.trim() ? axisDirectiveBlock(axisDirective.trim()) : "",
@@ -176,12 +256,25 @@ export function buildDirectedPrompt(input: DirectedPromptInput): string {
 export async function loadDirectedReferences(
   selections: DirectorAssetSelection[],
   byId: Map<string, Asset>,
-): Promise<{ references: ReferenceImage[]; hasMark: boolean; loadedAssetIds: string[] }> {
+): Promise<{ references: ReferenceImage[]; hasMark: boolean; subjectCount: number; loadedAssetIds: string[] }> {
   const references: ReferenceImage[] = [];
   const loadedAssetIds: string[] = [];
   let hasMark = false;
+  let subjectCount = 0;
 
-  for (const sel of selections) {
+  /*
+   * Subjects first, then marks, then styles.
+   *
+   * imagen has two reference lanes, so a mark rides the subject lane and would
+   * otherwise be numbered among the characters. The identity lock says
+   * "attached image 1 is the EXACT character", so if a logo landed at position 1
+   * the lock would point at the wrong picture and instruct the renderer to grow
+   * a face from a wordmark. Ordering here is what makes that sentence true.
+   */
+  const rank = { subject: 0, object: 1, style: 2 } as const;
+  const ordered = [...selections].sort((a, b) => rank[a.role] - rank[b.role]);
+
+  for (const sel of ordered) {
     const asset = byId.get(sel.assetId);
     if (!asset?.fileUrl) continue;
     const loc = resolveUrl(asset.fileUrl);
@@ -195,6 +288,7 @@ export async function loadDirectedReferences(
     }
     const slotType = slotTypeForDirectorRole(sel.role);
     if (slotType === "object") hasMark = true;
+    if (sel.role === "subject") subjectCount++;
     references.push({
       imageBuffer: buffer,
       mimeType: mime,
@@ -206,7 +300,7 @@ export async function loadDirectedReferences(
     loadedAssetIds.push(asset.id);
   }
 
-  return { references, hasMark, loadedAssetIds };
+  return { references, hasMark, subjectCount, loadedAssetIds };
 }
 
 /**

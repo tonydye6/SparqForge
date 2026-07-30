@@ -38,8 +38,15 @@ import { and, eq, ne } from "drizzle-orm";
 import {
   buildAssetCatalog,
   buildCreativeDirection,
+  buildOverflowDescriptors,
   buildSessionStyleContract,
 } from "../src/services/creative-direction.js";
+import {
+  buildDirectedPrompt,
+  leadingSubjectRun,
+  loadDirectedReferences,
+  orderReferences,
+} from "../src/services/explore-direction.js";
 import { buildBriefTokenSet, scoreAssetAgainstBrief } from "../src/services/asset-matching.js";
 import { checkGenerationEligibility, derivePolicyRole } from "../src/services/asset-policy.js";
 
@@ -276,6 +283,48 @@ async function main(): Promise<void> {
     console.log(`               ${sel.assetId}`);
   }
   console.log(`\nprompt:\n${direction.prompt}`);
+
+  /*
+   * The prompt that ACTUALLY reaches the image model.
+   *
+   * The director's prose above is only the first block of it. Printing just that
+   * is how a whole spread was bought while the real problem (the prose leading,
+   * and re-describing a character whose picture was attached) sat in a part of
+   * the prompt nobody had ever looked at. This reads the reference files, so it
+   * costs nothing beyond disk.
+   *
+   * Faithful to the route for a brand with no default style profile and no
+   * locked persona, which is Crown U today: there, the director's selections ARE
+   * the whole reference set. A brand with either would also get those tiers
+   * merged ahead of the director by mergeReferenceSlots.
+   */
+  rule("3c · THE FINAL PROMPT · what the image model actually receives");
+  const directed = await loadDirectedReferences(direction.assetSelections, catalog.byId);
+  const refs = orderReferences(directed.references);
+  const subjectAssetIds = new Set(
+    direction.assetSelections.filter(s => s.role === "subject").map(s => s.assetId),
+  );
+  const subjectRun = leadingSubjectRun(refs, subjectAssetIds);
+  const usedIds = new Set(refs.map(r => r.assetId).filter(Boolean));
+  const overflow = direction.assetSelections
+    .filter(sel => !usedIds.has(sel.assetId))
+    .map(sel => catalog.byId.get(sel.assetId))
+    .filter((a): a is NonNullable<typeof a> => Boolean(a));
+
+  console.log(`references loaded  ${refs.length}  (subject run at the front: ${subjectRun})`);
+  console.log(`identity lock      ${subjectRun > 0 ? "ON" : "OFF — no locked subject leads the references"}`);
+  refs.forEach((r, i) => console.log(`  image ${i + 1}  ${r.role.padEnd(18)} ${catalog.byId.get(r.assetId ?? "")?.name ?? "(unknown)"}`));
+  console.log(
+    `\n${buildDirectedPrompt({
+      directorPrompt: direction.prompt,
+      styleContract,
+      overflowBlock: buildOverflowDescriptors(overflow),
+      references: refs,
+      hasMarkReference: directed.hasMark,
+      subjectReferenceCount: subjectRun,
+      axisDirective: arg("axis") ?? undefined,
+    })}`,
+  );
 
   // ── VERDICT ───────────────────────────────────────────────────────────────
   rule("VERDICT");

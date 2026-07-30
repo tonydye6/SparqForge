@@ -28,6 +28,7 @@ import {
 } from "../services/creative-direction.js";
 import {
   buildDirectedPrompt,
+  leadingSubjectRun,
   loadAssetIdReferences,
   loadDirectedReferences,
   orderReferences,
@@ -274,8 +275,38 @@ router.post(
       }
 
       const { intent, briefStageId, briefText } = await intentFromBrief(creativeId);
-      const plan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
+      const fullPlan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
 
+      /*
+       * Debug override: run a subset of the spread.
+       *
+       * A spread is a PRODUCT feature; it is a terrible debugging tool. Nine of
+       * them were bought at $0.48 chasing a character-fidelity bug whose fix is
+       * visible in a single take, and 25_GENERATION_ARCHITECTURE §6 asked for
+       * this after the fifth. One take is $0.06, so a prompt change can be
+       * judged for an eighth of the price.
+       *
+       * Deliberately not exposed in the Studio UI. The spread's whole argument
+       * is that seeing alternatives together is what makes choosing possible
+       * (24_DESIGN_INTENT §2), so a "just do one" button in the product would
+       * quietly rebuild the slot machine. This is an API-level tool.
+       */
+      const debugTakeIds = Array.isArray(req.body?.takeIds)
+        ? (req.body.takeIds as unknown[]).filter((t): t is string => typeof t === "string")
+        : null;
+      const plan = debugTakeIds && debugTakeIds.length > 0
+        ? { ...fullPlan, takes: fullPlan.takes.filter(t => debugTakeIds.includes(t.id)) }
+        : fullPlan;
+
+      if (plan.takes.length === 0) {
+        res.status(400).json({
+          error: `None of the requested takeIds exist in this spread. Valid ids: ${fullPlan.takes.map(t => t.id).join(", ")}. Nothing was charged.`,
+        });
+        return;
+      }
+
+      // Reserve for what will ACTUALLY run, not for the full spread, or a
+      // one-take debug run would hold $0.48 of headroom it never spends.
       const budget = await reserveBudget(creativeId, reservationUsd(plan.takes.length, perImageUsd));
       if (!budget.ok) {
         res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
@@ -431,12 +462,23 @@ router.post(
           .map(sel => catalog.byId.get(sel.assetId))
           .filter((a): a is NonNullable<typeof a> => Boolean(a));
 
+        /*
+         * The identity lock's claim has to be true of the FINAL merged list, not
+         * of what the director picked, because attachments and style-profile
+         * references can land ahead of the director's subject. leadingSubjectRun
+         * counts only the unbroken run of locked subjects at the front.
+         */
+        const subjectAssetIds = new Set(
+          direction.assetSelections.filter(s => s.role === "subject").map(s => s.assetId),
+        );
+
         promptInputs = {
           directorPrompt: direction.prompt,
           styleContract,
           overflowBlock: buildOverflowDescriptors(overflow),
           references,
           hasMarkReference,
+          subjectReferenceCount: leadingSubjectRun(references, subjectAssetIds),
         };
       } catch (err) {
         console.error("Explore could not load reference imagery; the direction still stands", err);
