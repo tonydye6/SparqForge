@@ -26,6 +26,7 @@ import {
   mergeReferenceSlots,
   wrapEditInstruction,
 } from "../services/creative-direction.js";
+import { mentionsDirectiveBlock, normalizeMentions, type BriefMention } from "../services/brief-mentions.js";
 import {
   buildDirectedPrompt,
   leadingSubjectRun,
@@ -71,12 +72,17 @@ import {
 const router: IRouter = Router();
 
 /** The goal recorded by stage 01, if there is one. */
-async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | null; briefStageId: string | null; briefText: string | null }> {
+async function intentFromBrief(creativeId: string): Promise<{
+  intent: Intent | null;
+  briefStageId: string | null;
+  briefText: string | null;
+  mentions: BriefMention[];
+}> {
   const [brief] = await db
     .select({ id: stageStatesTable.id })
     .from(stageStatesTable)
     .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "brief")));
-  if (!brief) return { intent: null, briefStageId: null, briefText: null };
+  if (!brief) return { intent: null, briefStageId: null, briefText: null, mentions: [] };
 
   const [take] = await db
     .select({ payload: stageTakesTable.payload })
@@ -89,7 +95,7 @@ async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | n
       ),
     );
 
-  const payload = take?.payload as { intentId?: unknown; line?: unknown; derived?: unknown } | null | undefined;
+  const payload = take?.payload as { intentId?: unknown; line?: unknown; derived?: unknown; mentions?: unknown } | null | undefined;
   const raw = payload && typeof payload === "object" ? payload.intentId : null;
   /*
    * The typed line, and the derived rows the user saw and could edit. This is
@@ -116,7 +122,14 @@ async function intentFromBrief(creativeId: string): Promise<{ intent: Intent | n
     }
     briefText = parts.join("\n");
   }
-  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id, briefText };
+  /*
+   * The assets the user attached with `@` in their own sentence. Validated here
+   * rather than trusted: the takes route stores payload as z.unknown(), so this
+   * is the boundary between a hand-written body and code that will try to load
+   * whatever ids it is handed.
+   */
+  const mentions = normalizeMentions(payload && typeof payload === "object" ? payload.mentions : null);
+  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id, briefText, mentions };
 }
 
 router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Response): Promise<void> => {
@@ -274,7 +287,7 @@ router.post(
         return;
       }
 
-      const { intent, briefStageId, briefText } = await intentFromBrief(creativeId);
+      const { intent, briefStageId, briefText, mentions } = await intentFromBrief(creativeId);
       const fullPlan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
 
       /*
@@ -401,6 +414,10 @@ router.post(
         briefText: effectiveBrief,
         intent: intent ?? null,
         catalog,
+        // What the user attached with `@`. The director has to know, or it picks
+        // a SECOND subject and the renderer is handed two people and asked to
+        // invent how they relate.
+        extraContext: mentionsDirectiveBlock(mentions),
       });
       directorSelections = direction.assetSelections;
       directorFallback = direction.usedFallback;
@@ -416,7 +433,6 @@ router.post(
        */
       try {
         const directed = await loadDirectedReferences(direction.assetSelections, catalog.byId);
-        hasMarkReference = directed.hasMark;
 
         /*
          * Explicit human choices still outrank the model's.
@@ -428,13 +444,42 @@ router.post(
          * template requirement, and its "no active templates" dead end, be
          * deleted outright: Explore composites nothing and never needed a layout.
          */
+        /*
+         * `@` mentions first, because they are the most explicit statement of
+         * intent the product has.
+         *
+         * Stage 03 can select a subject well, but it cannot know which character
+         * "Travis Dye" is when no asset carries that name: it was guessing
+         * between football characters, and guessing differently each run. A
+         * mention removes the guess. It enters as an ATTACHMENT, which is the top
+         * of the priority order, so it outranks the director's own pick and lands
+         * at the front of the reference list where the identity lock points.
+         *
+         * loadDirectedReferences is reused verbatim rather than copied: a mention
+         * is {assetId, role} and so is a director selection, and it already
+         * orders subject before mark before style, which is what makes the lock's
+         * "attached image 1" true.
+         */
+        const mentionAssets = await loadBrandAssetsByIds(
+          creative.brandId,
+          mentions.map(m => m.assetId),
+        );
+        const mentionById = new Map(mentionAssets.map(a => [a.id, a]));
+        const mentioned = await loadDirectedReferences(mentions, mentionById);
+
+        // A mark counts whether the user attached it or the director chose it.
+        hasMarkReference = directed.hasMark || mentioned.hasMark;
+
         const creativeSelected = ((creative.selectedAssets || []) as Array<{ assetId?: string }>)
           .map(a => a.assetId)
           .filter((id): id is string => typeof id === "string");
-        const attachedRefs = await loadAssetIdReferences(
-          await loadBrandAssetsByIds(creative.brandId, creativeSelected),
-          "subject_reference",
-        );
+        const attachedRefs = [
+          ...mentioned.references,
+          ...(await loadAssetIdReferences(
+            await loadBrandAssetsByIds(creative.brandId, creativeSelected),
+            "subject_reference",
+          )),
+        ];
         const styleProfileRefs = await loadAssetIdReferences(
           await loadBrandAssetsByIds(creative.brandId, styleProfile?.referenceAssetIds ?? []),
           "style_reference",
@@ -468,9 +513,10 @@ router.post(
          * references can land ahead of the director's subject. leadingSubjectRun
          * counts only the unbroken run of locked subjects at the front.
          */
-        const subjectAssetIds = new Set(
-          direction.assetSelections.filter(s => s.role === "subject").map(s => s.assetId),
-        );
+        const subjectAssetIds = new Set([
+          ...mentions.filter(m => m.role === "subject").map(m => m.assetId),
+          ...direction.assetSelections.filter(s => s.role === "subject").map(s => s.assetId),
+        ]);
 
         promptInputs = {
           directorPrompt: direction.prompt,
