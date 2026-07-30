@@ -12,6 +12,7 @@ import {
   applyMention,
   mentionsDirectiveBlock,
   normalizeMentions,
+  pinnedSubjectFrom,
   reconcileMentions,
   roleForAssetClass,
   type BriefMention,
@@ -108,6 +109,36 @@ export async function collectBriefMentionCases(): Promise<Case[]> {
     normalizeMentions([{ assetId: "a", name: "n" }, { assetId: "a", name: "n" }]).length === 1);
   check("junk inside the array does not poison the good entries",
     normalizeMentions([null, 5, { assetId: "a", name: "n", role: "style" }]).length === 1);
+
+  // ------------------------------------------------------ the subject pin
+  /*
+   * Selection varies at temperature 0.7, so without a pin the same brief can
+   * put a different character in the picture on every run. These assert the two
+   * halves of the contract: it sticks within a brief, and it lets go when the
+   * brief changes.
+   */
+  {
+    const pinTake = (assetId: string, briefTakeId: string) =>
+      ({ payload: { material: { subjectPin: { assetId, briefTakeId } } } });
+
+    check("a pin from the same brief is inherited",
+      pinnedSubjectFrom([pinTake("char-a", "brief-1")], "brief-1") === "char-a");
+    check("a pin from a DIFFERENT brief is not inherited, because a rewritten brief may want a different answer",
+      pinnedSubjectFrom([pinTake("char-a", "brief-1")], "brief-2") === null);
+    check("no brief take means no pin, rather than a pin from nowhere",
+      pinnedSubjectFrom([pinTake("char-a", "brief-1")], null) === null);
+    check("takes with no pin are skipped rather than ending the search",
+      pinnedSubjectFrom(
+        [{ payload: { material: {} } }, { payload: {} }, pinTake("char-b", "brief-1")],
+        "brief-1",
+      ) === "char-b");
+    check("the first matching pin wins, so the newest take decides",
+      pinnedSubjectFrom([pinTake("newest", "b1"), pinTake("older", "b1")], "b1") === "newest");
+    check("an empty assetId is not a pin", pinnedSubjectFrom([pinTake("", "b1")], "b1") === null);
+    check("no takes at all means no pin", pinnedSubjectFrom([], "b1") === null);
+    check("a malformed payload cannot throw",
+      pinnedSubjectFrom([{ payload: null }, { payload: "junk" }, { payload: { material: { subjectPin: 5 } } }], "b1") === null);
+  }
 
   // ---------------------------------------------------- the director's brief
   check("no mentions means no directive block at all", mentionsDirectiveBlock([]) === "");
