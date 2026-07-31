@@ -112,8 +112,16 @@ function Section({
 }
 
 export default function DesignSystem() {
+  /*
+   * The scroller is load-bearing. AppLayout's content slot is overflow-hidden,
+   * so a page without its own is clipped rather than scrolled: this one was
+   * losing 2799px of 3752px, meaning roughly three quarters of the design
+   * system has been unreachable since it shipped. `w-full` matters too, because
+   * mx-auto alone cancels flex stretch and the box shrinks to its content.
+   */
   return (
-    <div className="mx-auto max-w-6xl space-y-10 p-8">
+    <div className="h-full overflow-y-auto">
+    <div className="mx-auto w-full max-w-6xl space-y-10 p-8">
       <header className="space-y-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
           Internal reference · not in the nav
@@ -368,6 +376,7 @@ export default function DesignSystem() {
           </button>
         </div>
       </Section>
+    </div>
     </div>
   );
 }

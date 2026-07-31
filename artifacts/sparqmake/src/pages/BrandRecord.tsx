@@ -98,8 +98,22 @@ export default function BrandRecord() {
 
   const c = data?.completeness;
 
+  /*
+   * The outer scroller is not optional, and the inner `w-full` is not padding.
+   *
+   * AppLayout's content slot is `overflow-hidden`, so a page that does not
+   * bring its own scroller is CLIPPED rather than scrolled: this screen shipped
+   * with 1639px of record inside a 953px box, and every unset field, which is
+   * the entire point of it, was unreachable. Nothing said so; it just ended.
+   *
+   * And `mx-auto` alone was making it narrow. In a flex column an auto cross-axis
+   * margin cancels the default stretch, so the box shrank to its content at
+   * 721px instead of filling to the 896px cap. `w-full` restores the stretch and
+   * lets max-w do the capping.
+   */
   return (
-    <div className="mx-auto max-w-4xl space-y-4 p-6">
+    <div className="h-full overflow-y-auto">
+    <div className="mx-auto w-full max-w-4xl space-y-4 p-6">
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <h1 className="font-display text-[19px] uppercase tracking-[0.02em] text-foreground">Brand record</h1>
@@ -234,6 +248,7 @@ export default function BrandRecord() {
         Importing a brand guide and learning fields from performance both write here too, and both
         stamp their own origin, so an automated suggestion never quietly becomes brand law.
       </p>
+    </div>
     </div>
   );
 }
