@@ -13,7 +13,9 @@ import {
   SOURCE_LABEL,
   TOTAL_WEIGHT,
   completenessSummary,
+  formatFieldValue,
   harvestColors,
+  parseFieldValue,
   isFilled,
   scoreBrand,
 } from "./brand-completeness.js";
@@ -120,6 +122,69 @@ export async function collectBrandCompletenessCases(): Promise<Case[]> {
     const b = harvestColors([["#eb0028"], ["#00a19c"]]).map(x => x.color).join();
     return a === b;
   })());
+
+  // ------------------------------------------------- typed fields, not strings
+  /*
+   * Found by walking the screen: hashtagStrategy rendered as "[object Object]",
+   * and worse, every field was SAVED as a plain string. bannedTerms is a text[]
+   * and hashtagStrategy is jsonb, so the first edit of either would have pushed
+   * a string into a column that cannot hold one. These refuse rather than coerce,
+   * because "it saved" is the worst possible feedback for a write that destroyed
+   * the value.
+   */
+  {
+    const list = spec("bannedTerms");
+    const json = spec("hashtagStrategy");
+    const color = spec("colorPrimary");
+    const text = spec("voiceDescription");
+
+    check("a list is shown comma separated", formatFieldValue(list, ["epic", "insane"]) === "epic, insane");
+    check("JSON is shown as JSON, not as [object Object]",
+      formatFieldValue(json, { always_include: ["#CrownU"] }) === '{"always_include":["#CrownU"]}');
+    check("null shows as empty rather than the word null", formatFieldValue(text, null) === "");
+
+    check("a typed list parses to an ARRAY, which is what the column holds", (() => {
+      const r = parseFieldValue(list, "epic, insane ,  ");
+      return r.ok && Array.isArray(r.value) && (r.value as string[]).length === 2;
+    })());
+    check("an empty list parses to an empty array, not to a blank string", (() => {
+      const r = parseFieldValue(list, "");
+      return r.ok && Array.isArray(r.value) && (r.value as string[]).length === 0;
+    })());
+
+    check("valid JSON parses to an object", (() => {
+      const r = parseFieldValue(json, '{"always_include":["#CrownU"]}');
+      return r.ok && typeof r.value === "object";
+    })());
+    check("invalid JSON is REFUSED rather than saved as a string",
+      !parseFieldValue(json, "{not json").ok);
+    check("a JSON array is refused, because this column holds an object",
+      !parseFieldValue(json, '["#CrownU"]').ok);
+    check("a bare JSON string is refused", !parseFieldValue(json, '"hello"').ok);
+    check("empty JSON parses to an empty object", (() => {
+      const r = parseFieldValue(json, "");
+      return r.ok && JSON.stringify(r.value) === "{}";
+    })());
+    check("the JSON error shows the shape it wants rather than just saying invalid", (() => {
+      const r = parseFieldValue(json, '["x"]');
+      return !r.ok && r.error.includes("always_include");
+    })());
+
+    check("a six-digit hex colour parses", parseFieldValue(color, "#EB0028").ok);
+    check("a bad colour is refused with the shape it wants", (() => {
+      const r = parseFieldValue(color, "red");
+      return !r.ok && r.error.includes("#EB0028");
+    })());
+    check("shorthand hex is refused rather than guessed at", !parseFieldValue(color, "#fff").ok);
+    check("clearing a colour is allowed", parseFieldValue(color, "").ok);
+
+    check("text is trimmed on the way in", (() => {
+      const r = parseFieldValue(text, "  punchy  ");
+      return r.ok && r.value === "punchy";
+    })());
+    check("every field declares a kind, so nothing is edited as a string by accident",
+      BRAND_FIELDS.every(f => ["text", "color", "list", "json"].includes(f.kind)));
+  }
 
   return cases;
 }
