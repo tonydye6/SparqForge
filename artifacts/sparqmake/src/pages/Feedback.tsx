@@ -60,8 +60,11 @@ export default function Feedback() {
     );
   }
 
+  // Same contract as every page here: AppLayout's slot is overflow-hidden, so a
+  // page brings its own scroller or it is silently clipped.
   return (
-    <div className="max-w-2xl mx-auto py-10 px-6">
+    <div className="h-full overflow-y-auto">
+    <div className="max-w-2xl w-full mx-auto py-10 px-6">
       <div className="flex items-center gap-3 mb-8">
         <MessageSquareText className="w-7 h-7 text-primary" />
         <h1 className="text-2xl font-bold text-foreground">Feedback</h1>
@@ -117,6 +120,7 @@ export default function Feedback() {
           {submitting ? "Sending..." : "Send Feedback"}
         </button>
       </form>
+    </div>
     </div>
   );
 }
