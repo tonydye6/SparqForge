@@ -1,4 +1,15 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import multer from "multer";
+import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
+import { COPILOT_MODELS } from "../lib/ai-config.js";
+import { extractJSON } from "../lib/extract-json.js";
+import { writeBuffer } from "../services/storage.js";
+import { generationLimiter } from "../lib/rate-limit.js";
+import {
+  GUIDE_RESPONSE_SCHEMA,
+  buildGuideSystemPrompt,
+  parseGuideCandidates,
+} from "../services/guide-extraction.js";
 import { db, assetsTable, brandsTable } from "@workspace/db";
 import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
@@ -173,6 +184,103 @@ router.patch(
     } catch (err) {
       console.error("Failed to write the brand record", err);
       res.status(500).json({ error: "The brand record could not be saved." });
+    }
+  },
+);
+
+/**
+ * Read a brand guide and PROPOSE what it says.
+ *
+ * Nothing is written to the record here. The response is candidates, each
+ * carrying the sentence it came from, and accepting one is a separate PATCH that
+ * stamps `source: "guide"`. That separation is the whole safeguard: an
+ * extraction that wrote directly would be an automated suggestion becoming brand
+ * law, which is the failure this record was built to prevent (§1.17).
+ *
+ * The PDF itself is stored and recorded on `brandGuideFileUrl`, so a field's
+ * stated provenance can be traced back to a real document later.
+ */
+const guideUpload = multer({
+  storage: multer.memoryStorage(),
+  // The buffer goes to the model inline, so this is bounded by the request
+  // limit rather than by disk. A guide over this is a conversation, not a crash.
+  limits: { fileSize: 15 * 1024 * 1024 },
+});
+
+router.post(
+  "/brands/:brandId/guide",
+  requireStandardWrite,
+  generationLimiter,
+  guideUpload.single("file"),
+  async (req: Request, res: Response): Promise<void> => {
+    const brandId = String(req.params.brandId);
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+
+    try {
+      if (!file) {
+        res.status(400).json({ error: "No file arrived, so nothing was read." });
+        return;
+      }
+      if (file.mimetype !== "application/pdf") {
+        res.status(400).json({ error: "This reads PDFs. That file is not one, so nothing was read." });
+        return;
+      }
+
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, brandId));
+      if (!brand) {
+        res.status(404).json({ error: "Brand not found" });
+        return;
+      }
+
+      // Keep the document before reading it, so a field claiming to come from
+      // the guide can be traced to the guide even if extraction later fails.
+      const filename = `brand-guide-${brandId}-${Date.now()}.pdf`;
+      const stored = await writeBuffer("brand-assets", filename, file.buffer);
+      const fileUrl = `/api/files/brand-assets/${stored.filename}`;
+      await db
+        .update(brandsTable)
+        .set({ brandGuideFileUrl: fileUrl, updatedAt: new Date() })
+        .where(eq(brandsTable.id, brandId));
+
+      const response = await geminiAi.models.generateContent({
+        model: COPILOT_MODELS.ART_DIRECTION_MODEL,
+        contents: [{
+          role: "user",
+          parts: [
+            { inlineData: { data: file.buffer.toString("base64"), mimeType: "application/pdf" } },
+            { text: `Read this brand guide for "${brand.name}" and propose only what it actually states.` },
+          ],
+        }],
+        config: {
+          systemInstruction: buildGuideSystemPrompt(),
+          // gemini-3.5-flash is a thinking model and reasoning tokens count
+          // against this budget. The Director learned that the expensive way.
+          maxOutputTokens: 8192,
+          temperature: 0,
+          responseMimeType: "application/json",
+          responseSchema: GUIDE_RESPONSE_SCHEMA,
+        },
+      });
+
+      const provenance = (brand.fieldProvenance ?? {}) as Record<string, FieldSource>;
+      const parsed = parseGuideCandidates(
+        extractJSON<unknown>(response.text ?? ""),
+        brand as unknown as Record<string, unknown>,
+        provenance,
+      );
+
+      res.json({
+        guideFileUrl: fileUrl,
+        candidates: parsed.candidates,
+        // Said out loud rather than hidden. A guide that yields three usable
+        // lines out of nine is useful information about the guide.
+        rejected: parsed.rejected,
+      });
+    } catch (err) {
+      console.error("Failed to read the brand guide", err);
+      res.status(500).json({
+        error: "The guide could not be read. Nothing was written to the record.",
+      });
     }
   },
 );

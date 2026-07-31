@@ -31,6 +31,17 @@ interface FieldState {
   source: "user" | "guide" | "learned" | "default";
 }
 
+interface GuideCandidate {
+  key: string;
+  label: string;
+  kind: FieldKind;
+  value: unknown;
+  formatted: string;
+  quote: string;
+  current: string;
+  replacesAuthored: boolean;
+}
+
 interface RecordResponse {
   brand: Record<string, unknown> & { id: string; name: string };
   completeness: { score: number; filledCount: number; total: number; cold: boolean; fields: FieldState[] };
@@ -91,6 +102,9 @@ export default function BrandRecord() {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+  const [candidates, setCandidates] = useState<GuideCandidate[] | null>(null);
+  const [rejected, setRejected] = useState<Array<{ key: string; reason: string }>>([]);
 
   useEffect(() => {
     (async () => {
@@ -136,6 +150,46 @@ export default function BrandRecord() {
       });
       const body = await res.json();
       if (!res.ok) { setError(body?.error ?? "That could not be saved."); return; }
+      await load(brandId);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function readGuide(file: File) {
+    if (!brandId || reading) return;
+    setReading(true);
+    setError(null);
+    setCandidates(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await apiFetch(`/api/brands/${brandId}/guide`, { method: "POST", body: form });
+      const body = await res.json();
+      if (!res.ok) { setError(body?.error ?? "The guide could not be read."); return; }
+      setCandidates(body.candidates ?? []);
+      setRejected(body.rejected ?? []);
+    } catch {
+      setError("The guide could not be read.");
+    } finally {
+      setReading(false);
+    }
+  }
+
+  /** Accepting a candidate is a separate write, and it stamps the guide as its source. */
+  async function accept(cand: GuideCandidate) {
+    if (!brandId || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/brands/${brandId}/record`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { [cand.key]: cand.value }, source: "guide" }),
+      });
+      const body = await res.json();
+      if (!res.ok) { setError(body?.error ?? "That could not be applied."); return; }
+      setCandidates((prev) => (prev ?? []).filter((x) => x.key !== cand.key));
       await load(brandId);
     } finally {
       setSaving(false);
@@ -228,6 +282,76 @@ export default function BrandRecord() {
       {error && (
         <p className="rounded-sm border border-rebel-pink/40 bg-card px-3 py-2 text-[11px] text-rebel-pink">{error}</p>
       )}
+
+      {/*
+        Reading a guide PROPOSES; it never writes. Each candidate carries the
+        sentence it came from, and accepting one is a separate act that stamps
+        the guide as its source. That separation is what stops an extraction
+        becoming brand law.
+      */}
+      <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">
+            Read a brand guide
+          </p>
+          {data?.guideFileUrl && (
+            <a href={data.guideFileUrl} target="_blank" rel="noreferrer" className="font-mono text-[9px] uppercase tracking-[0.09em] text-grit-teal">
+              Current guide
+            </a>
+          )}
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-dim">
+          A PDF the brand team already wrote is the fastest way to fill this in. Nothing is applied
+          until you apply it, and every line comes with the sentence it was read from.
+        </p>
+        <label className="mt-2 inline-flex cursor-pointer items-center rounded-sm border border-border px-2.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate">
+          {reading ? "Reading" : "Choose a PDF"}
+          <input
+            type="file" accept="application/pdf" className="hidden" disabled={reading}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void readGuide(f); e.target.value = ""; }}
+          />
+        </label>
+
+        {candidates && candidates.length === 0 && (
+          <p className="mt-2 text-[11px] leading-relaxed text-victory-gold">
+            Nothing in that document could be traced to a specific line, so nothing is being
+            proposed. That is a fact about the guide rather than a failure.
+          </p>
+        )}
+
+        {candidates && candidates.length > 0 && (
+          <div className="mt-2.5 space-y-2">
+            {candidates.map((cand) => (
+              <div key={cand.key} className="rounded-sm border border-victory-gold/40 bg-raised px-2.5 py-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[12px] text-foreground">{cand.label}</p>
+                  <button
+                    type="button" onClick={() => void accept(cand)} disabled={saving}
+                    className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                </div>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-foreground">{cand.formatted}</p>
+                <p className="mt-1 text-[10.5px] leading-relaxed text-dim">
+                  Read from: <span className="text-muted-foreground">&ldquo;{cand.quote}&rdquo;</span>
+                </p>
+                {cand.replacesAuthored && (
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-rebel-pink">
+                    This would replace what you wrote: &ldquo;{cand.current}&rdquo;
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {rejected.length > 0 && (
+          <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
+            Not proposed: {rejected.map((r) => `${r.key} (${r.reason})`).join(" · ")}
+          </p>
+        )}
+      </div>
 
       <div className="space-y-2">
         {c?.fields.map((f) => {
