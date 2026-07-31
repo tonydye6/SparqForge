@@ -79,6 +79,10 @@ router.get("/brands/:brandId/record", async (req: Request, res: Response): Promi
         fields: completeness.fields.map(f => ({
           key: f.spec.key,
           label: f.spec.label,
+          // The client formats and parses by kind. Omitting it would silently
+          // make every field behave as text, which is the bug this whole pass
+          // exists to fix.
+          kind: f.spec.kind,
           consumedBy: f.spec.consumedBy,
           weight: f.spec.weight,
           costWhenMissing: f.spec.costWhenMissing,
@@ -123,6 +127,27 @@ router.patch(
       if (Object.keys(fields).length === 0) {
         res.status(400).json({ error: "No fields were sent, so nothing was saved." });
         return;
+      }
+
+      /*
+       * The value has to match the SHAPE of its column, not merely belong to a
+       * field that exists. `bannedTerms` is a text[] and `hashtagStrategy` is
+       * jsonb, so a client sending a plain string would corrupt them. The screen
+       * converts before sending; this refuses anything that did not.
+       */
+      const specByKey = new Map(BRAND_FIELDS.map(f => [f.key, f]));
+      for (const [key, value] of Object.entries(fields)) {
+        const kind = specByKey.get(key)!.kind;
+        const okShape =
+          kind === "list" ? Array.isArray(value)
+          : kind === "json" ? typeof value === "object" && value !== null && !Array.isArray(value)
+          : typeof value === "string";
+        if (!okShape) {
+          res.status(400).json({
+            error: `"${key}" is stored as ${kind === "list" ? "a list" : kind === "json" ? "a JSON object" : "text"}, and what arrived was not. Nothing was saved.`,
+          });
+          return;
+        }
       }
 
       const merged = { ...(brand as unknown as Record<string, unknown>), ...fields };

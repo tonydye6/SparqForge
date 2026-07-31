@@ -29,9 +29,20 @@ export const SOURCE_LABEL: Record<FieldSource, string> = {
   default: "Never set",
 };
 
+/**
+ * How a field is stored, which decides how it is shown and how a typed edit is
+ * turned back into a value.
+ *
+ * Not cosmetic. `bannedTerms` is a text[] and `hashtagStrategy` is jsonb, so a
+ * screen that edits everything as a string will push a string into an array
+ * column the first time someone changes one.
+ */
+export type FieldKind = "text" | "color" | "list" | "json";
+
 export interface FieldSpec {
   key: string;
   label: string;
+  kind: FieldKind;
   /** Which stage reads it, so the cost is traceable rather than abstract. */
   consumedBy: string;
   /** Its share of the score. Not all fields are worth the same. */
@@ -53,77 +64,77 @@ export interface FieldSpec {
  */
 export const BRAND_FIELDS: FieldSpec[] = [
   {
-    key: "characterStyleRules", label: "Character and style rules", consumedBy: "Image",
+    key: "characterStyleRules", kind: "text", label: "Character and style rules", consumedBy: "Image",
     weight: 12,
     costWhenMissing: "Nothing tells the model to hold a character's exact appearance, so it invents a lookalike instead of using yours.",
   },
   {
-    key: "colorPrimary", label: "Primary colour", consumedBy: "Image, Copy",
+    key: "colorPrimary", kind: "color", label: "Primary colour", consumedBy: "Image, Copy",
     weight: 8, scaffoldDefault: "#3B82F6",
     costWhenMissing: "The palette sent to the model is the scaffold blue, which appears nowhere in your brand.",
   },
   {
-    key: "colorSecondary", label: "Secondary colour", consumedBy: "Image",
+    key: "colorSecondary", kind: "color", label: "Secondary colour", consumedBy: "Image",
     weight: 5, scaffoldDefault: "#1E3A5F",
     costWhenMissing: "Only one brand colour reaches the model, so it picks its own supporting tones.",
   },
   {
-    key: "colorAccent", label: "Accent colour", consumedBy: "Image",
+    key: "colorAccent", kind: "color", label: "Accent colour", consumedBy: "Image",
     weight: 5, scaffoldDefault: "#60A5FA",
     costWhenMissing: "There is no accent to place, so highlights land wherever the model decides.",
   },
   {
-    key: "colorBackground", label: "Background colour", consumedBy: "Image",
+    key: "colorBackground", kind: "color", label: "Background colour", consumedBy: "Image",
     weight: 4, scaffoldDefault: "#0A0A0F",
     costWhenMissing: "Grounds and environments are chosen by the model rather than by you.",
   },
   {
-    key: "imagenPrefix", label: "Visual language", consumedBy: "Image",
+    key: "imagenPrefix", kind: "text", label: "Visual language", consumedBy: "Image",
     weight: 10,
     costWhenMissing: "The director gets colours but no sense of how this brand looks, so every post starts from a generic house style.",
   },
   {
-    key: "negativePrompt", label: "Never include", consumedBy: "Image",
+    key: "negativePrompt", kind: "text", label: "Never include", consumedBy: "Image",
     weight: 8,
     costWhenMissing: "Nothing is ruled out, so the things you keep rejecting keep coming back.",
   },
   {
-    key: "voiceDescription", label: "Voice", consumedBy: "Copy",
+    key: "voiceDescription", kind: "text", label: "Voice", consumedBy: "Copy",
     weight: 10,
     costWhenMissing: "Captions are written in a general social voice rather than yours.",
   },
   {
-    key: "bannedTerms", label: "Banned terms", consumedBy: "Copy",
+    key: "bannedTerms", kind: "list", label: "Banned terms", consumedBy: "Copy",
     weight: 6,
     costWhenMissing: "The voice check has nothing to check against, so it can only catch shouting and stray hashtags.",
   },
   {
-    key: "trademarkRules", label: "Trademark rules", consumedBy: "Copy",
+    key: "trademarkRules", kind: "text", label: "Trademark rules", consumedBy: "Copy",
     weight: 5,
     costWhenMissing: "Marks and naming conventions are not enforced in copy.",
   },
   {
-    key: "logoFileUrl", label: "Logo", consumedBy: "Image",
+    key: "logoFileUrl", kind: "text", label: "Logo", consumedBy: "Image",
     weight: 7,
     costWhenMissing: "There is no canonical mark to composite or reference, so the director has to find one in the library.",
   },
   {
-    key: "defaultPersonaId", label: "Default director", consumedBy: "Direction",
+    key: "defaultPersonaId", kind: "text", label: "Default director", consumedBy: "Direction",
     weight: 6,
     costWhenMissing: "Every post starts with no director chosen, so stage 02 ranks personas from scratch each time.",
   },
   {
-    key: "hashtagStrategy", label: "Hashtag strategy", consumedBy: "Copy",
+    key: "hashtagStrategy", kind: "json", label: "Hashtag strategy", consumedBy: "Copy",
     weight: 5,
     costWhenMissing: "Hashtags are invented per post rather than drawn from a set you maintain.",
   },
   {
-    key: "soundDirection", label: "Sound direction", consumedBy: "Motion",
+    key: "soundDirection", kind: "text", label: "Sound direction", consumedBy: "Motion",
     weight: 4,
     costWhenMissing: "Music and effects have no brand steer. Only matters once you make video.",
   },
   {
-    key: "narratorVoiceId", label: "Narrator", consumedBy: "Motion",
+    key: "narratorVoiceId", kind: "text", label: "Narrator", consumedBy: "Motion",
     weight: 5,
     costWhenMissing: "There is no voice for narration. Only matters once you make video.",
   },
@@ -224,6 +235,63 @@ export function completenessSummary(c: BrandCompleteness): string {
  * into the record would be the automation-becomes-brand-law failure §1.17 exists
  * to prevent.
  */
+/** How a stored value is shown in an editable field. */
+export function formatFieldValue(spec: FieldSpec, value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (spec.kind === "list") return Array.isArray(value) ? value.join(", ") : String(value);
+  /*
+   * JSON is shown as JSON rather than as "[object Object]", which is what the
+   * first version rendered. A field the user cannot read is a field they cannot
+   * correct.
+   */
+  if (spec.kind === "json") return typeof value === "object" ? JSON.stringify(value) : String(value);
+  return String(value);
+}
+
+export type ParseResult = { ok: true; value: unknown } | { ok: false; error: string };
+
+/**
+ * Turn what someone typed back into the shape the column expects.
+ *
+ * Refuses rather than coerces. Sending a string to a text[] column or a bare
+ * string to jsonb is how a record gets quietly corrupted, and "it saved" is the
+ * worst possible feedback for a write that destroyed the value.
+ */
+export function parseFieldValue(spec: FieldSpec, text: string): ParseResult {
+  const trimmed = text.trim();
+
+  if (spec.kind === "list") {
+    const items = trimmed
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+    return { ok: true, value: items };
+  }
+
+  if (spec.kind === "json") {
+    if (!trimmed) return { ok: true, value: {} };
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return { ok: false, error: "This field holds a JSON object, so it needs braces: {\"always_include\": [\"#CrownU\"]}" };
+      }
+      return { ok: true, value: parsed };
+    } catch {
+      return { ok: false, error: "That is not valid JSON, so nothing was saved." };
+    }
+  }
+
+  if (spec.kind === "color") {
+    if (!trimmed) return { ok: true, value: "" };
+    if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+      return { ok: false, error: "A colour needs to be a six-digit hex value like #EB0028." };
+    }
+    return { ok: true, value: trimmed };
+  }
+
+  return { ok: true, value: trimmed };
+}
+
 export function harvestColors(assetColors: string[][], limit = 6): Array<{ color: string; count: number }> {
   const counts = new Map<string, number>();
   for (const list of assetColors) {

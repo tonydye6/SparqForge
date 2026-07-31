@@ -18,9 +18,12 @@ import { apiFetch, cn } from "@/lib/utils";
  * extracted from a guide can never be mistaken for one a person chose.
  */
 
+type FieldKind = "text" | "color" | "list" | "json";
+
 interface FieldState {
   key: string;
   label: string;
+  kind: FieldKind;
   consumedBy: string;
   weight: number;
   costWhenMissing: string;
@@ -42,7 +45,44 @@ const SOURCE_STYLE: Record<FieldState["source"], { label: string; cls: string }>
   default: { label: "Never set", cls: "text-dim border-border/50" },
 };
 
-const COLOR_KEYS = new Set(["colorPrimary", "colorSecondary", "colorAccent", "colorBackground"]);
+/*
+ * Display and parse have to respect the column's shape. `bannedTerms` is a
+ * text[] and `hashtagStrategy` is jsonb: the first version showed the latter as
+ * "[object Object]" and, worse, saved every field as a plain string, which
+ * would have pushed a string into an array column on the first edit. Mirrors
+ * formatFieldValue / parseFieldValue on the server.
+ */
+function formatValue(kind: FieldKind, value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (kind === "list") return Array.isArray(value) ? value.join(", ") : String(value);
+  if (kind === "json") return typeof value === "object" ? JSON.stringify(value) : String(value);
+  return String(value);
+}
+
+function parseValue(kind: FieldKind, text: string): { ok: true; value: unknown } | { ok: false; error: string } {
+  const trimmed = text.trim();
+  if (kind === "list") return { ok: true, value: trimmed.split(",").map(s => s.trim()).filter(Boolean) };
+  if (kind === "json") {
+    if (!trimmed) return { ok: true, value: {} };
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return { ok: false, error: 'This field holds a JSON object, so it needs braces: {"always_include": ["#CrownU"]}' };
+      }
+      return { ok: true, value: parsed };
+    } catch {
+      return { ok: false, error: "That is not valid JSON, so nothing was saved." };
+    }
+  }
+  if (kind === "color") {
+    if (!trimmed) return { ok: true, value: "" };
+    if (!/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+      return { ok: false, error: "A colour needs to be a six-digit hex value like #EB0028." };
+    }
+    return { ok: true, value: trimmed };
+  }
+  return { ok: true, value: trimmed };
+}
 
 export default function BrandRecord() {
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
@@ -76,17 +116,23 @@ export default function BrandRecord() {
 
   useEffect(() => { if (brandId) void load(brandId); }, [brandId, load]);
 
-  async function save(key: string) {
+  async function save(key: string, kind: FieldKind) {
     if (!brandId || saving) return;
-    const value = draft[key];
-    if (value === undefined) return;
+    const text = draft[key];
+    if (text === undefined) return;
+
+    // Convert before sending. A refusal here is the whole point: saving a string
+    // into a list or a JSON column would report success and destroy the value.
+    const parsed = parseValue(kind, text);
+    if (!parsed.ok) { setError(parsed.error); return; }
+
     setSaving(true);
     setError(null);
     try {
       const res = await apiFetch(`/api/brands/${brandId}/record`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: { [key]: value }, source: "user" }),
+        body: JSON.stringify({ fields: { [key]: parsed.value }, source: "user" }),
       });
       const body = await res.json();
       if (!res.ok) { setError(body?.error ?? "That could not be saved."); return; }
@@ -185,8 +231,7 @@ export default function BrandRecord() {
 
       <div className="space-y-2">
         {c?.fields.map((f) => {
-          const raw = data!.brand[f.key];
-          const current = Array.isArray(raw) ? raw.join(", ") : raw == null ? "" : String(raw);
+          const current = formatValue(f.kind, data!.brand[f.key]);
           const value = draft[f.key] ?? current;
           const dirty = draft[f.key] !== undefined && draft[f.key] !== current;
           const style = SOURCE_STYLE[f.source];
@@ -209,7 +254,7 @@ export default function BrandRecord() {
               </div>
 
               <div className="mt-1.5 flex items-start gap-2">
-                {COLOR_KEYS.has(f.key) && /^#[0-9a-fA-F]{6}$/.test(value) && (
+                {f.kind === "color" && /^#[0-9a-fA-F]{6}$/.test(value) && (
                   <span className="mt-0.5 h-5 w-5 shrink-0 rounded-sm border border-border/60" style={{ background: value }} />
                 )}
                 <input
@@ -222,7 +267,7 @@ export default function BrandRecord() {
                 {dirty && (
                   <button
                     type="button"
-                    onClick={() => void save(f.key)}
+                    onClick={() => void save(f.key, f.kind)}
                     disabled={saving}
                     className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
                   >
