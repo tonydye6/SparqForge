@@ -187,10 +187,21 @@ export function assessAsset(findings: readonly TrademarkFinding[]): ScanAssessme
   const blocking = findings.filter(f => BLOCKING_KINDS.has(f.kind));
   if (blocking.length > 0) {
     const names = blocking.map(f => `${f.mark} (${f.where})`).join(", ");
+    /*
+     * Name the institutional marks too. An earlier version listed only the
+     * blocking ones, so an asset carrying both a swoosh and a B1G shield
+     * reported the swoosh and silently dropped the shield — and anyone reading
+     * the summary rather than the per-asset line would never learn the second
+     * one was there. For a compliance report, an omission reads as an all-clear.
+     */
+    const others = findings.filter(f => !BLOCKING_KINDS.has(f.kind));
+    const also = others.length > 0
+      ? ` Also present, and a separate question for whoever holds the licence: ${others.map(f => `${f.mark} (${f.where})`).join(", ")}.`
+      : "";
     return {
       severity: "blocked",
       findings: [...findings],
-      reason: `Carries third-party commercial marks this brand cannot licence: ${names}. Anything generated from this asset inherits them.`,
+      reason: `Carries third-party commercial marks this brand cannot licence: ${names}. Anything generated from this asset inherits them.${also}`,
       recommendBlock: true,
     };
   }
