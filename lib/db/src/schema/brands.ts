@@ -12,14 +12,49 @@ import { designerPersonasTable } from "./designer-personas";
  */
 export interface CompositionRule {
   rule: string;
-  source: "user" | "guide" | "performance";
+  source: FieldSource;
   n: number;
   confidence: number;
   appliedAt: string;
+  /**
+   * The rule's stable key, and for a learned rule it is the id of the
+   * conclusion it came from.
+   *
+   * That linkage is the load-bearing part. Without it the only dedupe key is
+   * the rule's own prose, and a derivation job that rewords the same finding
+   * next week would offer it again as if it were new. A hand-written rule gets
+   * a generated key instead, so that every rule can be referred to — retired,
+   * in particular — without depending on its position in the array.
+   */
+  conclusionId?: string;
+  /**
+   * Set when a human retired the rule.
+   *
+   * Retiring KEEPS the row rather than deleting it, for two reasons. The record
+   * should be able to say a rule was once applied and then rejected (§1.17),
+   * and the retired entry is what stops the same conclusion being re-offered
+   * every time the job runs. A retired rule is excluded from the contract.
+   */
+  retiredAt?: string;
 }
 
-/** Where a brand field's current value came from. Principle 1.17. */
-export type FieldSource = "user" | "guide" | "performance";
+/**
+ * Where a brand field's current value came from. Principle 1.17.
+ *
+ * **This is the one definition.** It briefly had two: the spec and this file
+ * said `"performance"` while `brand-completeness.ts`, the PATCH route and the
+ * BrandRecord screen all said `"learned"`, and the route's cast to
+ * `Record<string, FieldSource>` laundered the difference so tsc never saw it.
+ * Nothing had been written under either word yet, so `"learned"` wins on the
+ * count and because the label a person reads is already "Learned". Doc 21
+ * §2.1's `"performance"` is superseded.
+ *
+ * `"default"` is deliberately NOT here. A field nobody has set is not a field
+ * with a provenance; the screen derives that state from the value being empty
+ * (see `FieldDisplaySource`). Persisting it would let a cleared field keep
+ * claiming a source.
+ */
+export type FieldSource = "user" | "guide" | "learned";
 
 export const brandsTable = pgTable("brands", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),

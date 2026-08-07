@@ -19,10 +19,25 @@
  * No DB, no clock, no randomness.
  */
 
-/** Who decided a field. Mirrors `brands.fieldProvenance`. */
-export type FieldSource = "user" | "guide" | "learned" | "default";
+/*
+ * Who decided a field. Re-exported from the schema rather than redeclared,
+ * because it WAS redeclared and the two definitions disagreed: this file said
+ * "learned" and the column said "performance", and the route's cast hid it from
+ * tsc. Type-only, so nothing at runtime imports the database.
+ */
+export type { FieldSource } from "@workspace/db";
+import type { FieldSource } from "@workspace/db";
 
-export const SOURCE_LABEL: Record<FieldSource, string> = {
+/**
+ * What a screen shows, which is the persisted set plus one computed state.
+ *
+ * `"default"` is not a provenance and is never stored. It means "no value", and
+ * it is derived from the value being empty, so a field that is cleared cannot
+ * go on claiming that a person chose it.
+ */
+export type FieldDisplaySource = FieldSource | "default";
+
+export const SOURCE_LABEL: Record<FieldDisplaySource, string> = {
   user: "You",
   guide: "From the guide",
   learned: "Learned",
@@ -164,7 +179,7 @@ export function isFilled(spec: FieldSpec, value: unknown): boolean {
 export interface FieldState {
   spec: FieldSpec;
   filled: boolean;
-  source: FieldSource;
+  source: FieldDisplaySource;
 }
 
 export interface BrandCompleteness {
@@ -190,7 +205,7 @@ export function scoreBrand(
      * Stale provenance from a value that was later cleared would otherwise claim
      * a human decided something that is no longer there.
      */
-    const source: FieldSource = filled ? (provenance[spec.key] ?? "user") : "default";
+    const source: FieldDisplaySource = filled ? (provenance[spec.key] ?? "user") : "default";
     return { spec, filled, source };
   });
 

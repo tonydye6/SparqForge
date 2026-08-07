@@ -21,6 +21,17 @@ import {
   scoreBrand,
   type FieldSource,
 } from "../services/brand-completeness.js";
+import {
+  buildLearnedCandidates,
+  applyCandidate,
+  retireRule,
+  activeRules,
+  conclusionsFromIntentInsights,
+  formatEvidence,
+  type LearnedCandidate,
+} from "../services/performance-learning.js";
+import { getInsightsByIntent } from "../services/performance-insights.js";
+import type { CompositionRule } from "@workspace/db";
 
 /**
  * Phase 5 · the brand record, surfaced.
@@ -281,6 +292,194 @@ router.post(
       res.status(500).json({
         error: "The guide could not be read. Nothing was written to the record.",
       });
+    }
+  },
+);
+
+/* ------------------------------------------------------------------------- *
+ * Phase 5 · the third source: what performance taught this brand.
+ *
+ * Harvesting reads the asset library, extraction reads the guide PDF, and this
+ * reads how the brand's published work actually did. All three follow the same
+ * shape on purpose — propose, carry the evidence, let a human accept, stamp the
+ * source — because that shape is what stops an automated suggestion becoming
+ * brand law nobody chose (§1.17).
+ *
+ * Deriving conclusions is Phase 8's job. What lives here is the write-back: the
+ * guards that decide whether a conclusion may be offered, and what accepting
+ * one does to the record.
+ * ------------------------------------------------------------------------- */
+
+/** Rules as the screen shows them, newest decision first. */
+function presentRules(rules: readonly CompositionRule[]) {
+  return [...rules]
+    .map((r, index) => ({
+      index,
+      rule: r.rule,
+      source: r.source,
+      n: r.n,
+      confidence: r.confidence,
+      appliedAt: r.appliedAt,
+      retiredAt: r.retiredAt ?? null,
+      conclusionId: r.conclusionId ?? null,
+      evidenceLine: r.source === "learned"
+        ? formatEvidence({ n: r.n, confidence: r.confidence, window: "tracked posts", effect: "applied to every generation" })
+        : null,
+    }))
+    .sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
+}
+
+router.get("/brands/:brandId/learned", async (req: Request, res: Response): Promise<void> => {
+  const brandId = String(req.params.brandId);
+  try {
+    const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, brandId));
+    if (!brand) {
+      res.status(404).json({ error: "Brand not found" });
+      return;
+    }
+
+    const rules = (brand.compositionRules ?? []) as CompositionRule[];
+
+    /*
+     * A database aggregate over post_metrics. No model call, so this costs
+     * nothing and can be read on every visit.
+     */
+    const insights = await getInsightsByIntent(brandId);
+    const conclusions = conclusionsFromIntentInsights(insights);
+    const { candidates, withheld } = buildLearnedCandidates(conclusions, rules);
+
+    res.json({
+      candidates,
+      // Said out loud. "We found nothing" and "we found four things and none of
+      // them had enough behind them" are different facts about the brand, and
+      // only one of them means the derivation is working.
+      withheld,
+      rules: presentRules(rules),
+      activeCount: activeRules(rules).length,
+      // What the derivation had to work with, so an empty screen explains
+      // itself rather than looking broken.
+      trackedPosts: insights.reduce((n, i) => n + i.sampleSize, 0),
+    });
+  } catch (err) {
+    console.error("Failed to read what performance taught this brand", err);
+    res.status(500).json({ error: "The learned rules could not be read." });
+  }
+});
+
+const RuleBody = z
+  .object({
+    /** Accept a derived candidate by id. */
+    conclusionId: z.string().min(1).optional(),
+    /** Or write one by hand, which is how this is usable before any data. */
+    rule: z.string().min(1).max(400).optional(),
+  })
+  .refine(b => Boolean(b.conclusionId) !== Boolean(b.rule), {
+    message: "Send either a conclusionId to accept, or a rule to write. Not both.",
+  });
+
+router.post(
+  "/brands/:brandId/composition-rules",
+  requireStandardWrite,
+  validateRequest({ body: RuleBody }),
+  async (req: Request, res: Response): Promise<void> => {
+    const brandId = String(req.params.brandId);
+    const { conclusionId, rule } = req.body as z.infer<typeof RuleBody>;
+
+    try {
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, brandId));
+      if (!brand) {
+        res.status(404).json({ error: "Brand not found" });
+        return;
+      }
+      const rules = (brand.compositionRules ?? []) as CompositionRule[];
+      const now = new Date();
+
+      let candidate: LearnedCandidate;
+      if (conclusionId) {
+        /*
+         * Re-derived server-side rather than taken from the request. A client
+         * that could post arbitrary rule text alongside a conclusion id would
+         * be able to attach any sentence it liked to a real sample size, which
+         * is precisely the authority the evidence is supposed to confer.
+         */
+        const insights = await getInsightsByIntent(brandId);
+        const { candidates } = buildLearnedCandidates(conclusionsFromIntentInsights(insights), rules);
+        const found = candidates.find(c => c.conclusionId === conclusionId);
+        if (!found) {
+          res.status(409).json({
+            error: "That conclusion is no longer being offered, so nothing was applied. The evidence may have moved, or it may already be on the record.",
+          });
+          return;
+        }
+        candidate = found;
+      } else {
+        // A hand-written rule. It gets a generated key so it can be retired
+        // later without depending on its position in the array, and n = 0
+        // because nobody should read a sample size into a human's decision.
+        candidate = {
+          conclusionId: `manual:${crypto.randomUUID()}`,
+          kind: "composition",
+          rule: rule!.trim(),
+          because: "",
+          evidence: { n: 0, confidence: 1, window: "", effect: "" },
+          evidenceLine: "",
+          overlapsApplied: null,
+        };
+      }
+
+      const next = applyCandidate(rules, candidate, now);
+      // A hand-written rule is the team's, not something learned. Only the
+      // derived path may stamp `learned`, or the label stops meaning anything.
+      if (!conclusionId) next[next.length - 1]!.source = "user";
+
+      await db
+        .update(brandsTable)
+        .set({ compositionRules: next, updatedAt: now })
+        .where(eq(brandsTable.id, brandId));
+
+      res.json({ ok: true, rules: presentRules(next), activeCount: activeRules(next).length });
+    } catch (err) {
+      console.error("Failed to apply a composition rule", err);
+      res.status(500).json({ error: "The rule could not be applied, so nothing was saved." });
+    }
+  },
+);
+
+/**
+ * Retire an applied rule.
+ *
+ * Marks rather than deletes, so the record can say a rule was tried and
+ * rejected, and so the same conclusion is not offered again on the next run.
+ */
+router.post(
+  "/brands/:brandId/composition-rules/:conclusionId/retire",
+  requireStandardWrite,
+  async (req: Request, res: Response): Promise<void> => {
+    const brandId = String(req.params.brandId);
+    const conclusionId = String(req.params.conclusionId);
+
+    try {
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, brandId));
+      if (!brand) {
+        res.status(404).json({ error: "Brand not found" });
+        return;
+      }
+      const rules = (brand.compositionRules ?? []) as CompositionRule[];
+      const next = retireRule(rules, conclusionId, new Date());
+      if (!next) {
+        res.status(404).json({ error: "No rule with that id is on this record, so nothing changed." });
+        return;
+      }
+
+      await db
+        .update(brandsTable)
+        .set({ compositionRules: next, updatedAt: new Date() })
+        .where(eq(brandsTable.id, brandId));
+
+      res.json({ ok: true, rules: presentRules(next), activeCount: activeRules(next).length });
+    } catch (err) {
+      console.error("Failed to retire a composition rule", err);
+      res.status(500).json({ error: "The rule could not be retired, so nothing changed." });
     }
   },
 );

@@ -49,6 +49,33 @@ interface RecordResponse {
   guideFileUrl: string | null;
 }
 
+interface LearnedCandidate {
+  conclusionId: string;
+  kind: string;
+  rule: string;
+  because: string;
+  evidenceLine: string;
+  overlapsApplied: string | null;
+}
+
+interface AppliedRule {
+  index: number;
+  rule: string;
+  source: "user" | "guide" | "learned";
+  n: number;
+  appliedAt: string;
+  retiredAt: string | null;
+  conclusionId: string | null;
+}
+
+interface LearnedResponse {
+  candidates: LearnedCandidate[];
+  withheld: Array<{ conclusionId: string; rule: string; reason: string }>;
+  rules: AppliedRule[];
+  activeCount: number;
+  trackedPosts: number;
+}
+
 const SOURCE_STYLE: Record<FieldState["source"], { label: string; cls: string }> = {
   user: { label: "You", cls: "text-foreground border-border" },
   guide: { label: "From the guide", cls: "text-victory-gold border-victory-gold/40" },
@@ -105,6 +132,8 @@ export default function BrandRecord() {
   const [reading, setReading] = useState(false);
   const [candidates, setCandidates] = useState<GuideCandidate[] | null>(null);
   const [rejected, setRejected] = useState<Array<{ key: string; reason: string }>>([]);
+  const [learned, setLearned] = useState<LearnedResponse | null>(null);
+  const [newRule, setNewRule] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -126,6 +155,12 @@ export default function BrandRecord() {
       setData(await res.json());
       setDraft({});
     } catch { /* leave the last good view rather than blanking it */ }
+    try {
+      // Separate request on purpose: it reads post_metrics, and a slow or empty
+      // performance query must not hold up the record itself.
+      const res = await apiFetch(`/api/brands/${id}/learned`);
+      if (res.ok) setLearned(await res.json());
+    } catch { /* the panel says nothing rather than showing something wrong */ }
   }, []);
 
   useEffect(() => { if (brandId) void load(brandId); }, [brandId, load]);
@@ -196,7 +231,45 @@ export default function BrandRecord() {
     }
   }
 
+  /** Applying a learned candidate, or writing a rule by hand. */
+  async function applyRule(body: { conclusionId?: string; rule?: string }) {
+    if (!brandId || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/brands/${brandId}/composition-rules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const out = await res.json();
+      if (!res.ok) { setError(out?.error ?? "That rule could not be applied."); return; }
+      setNewRule("");
+      await load(brandId);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function retire(conclusionId: string) {
+    if (!brandId || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/brands/${brandId}/composition-rules/${encodeURIComponent(conclusionId)}/retire`, {
+        method: "POST",
+      });
+      const out = await res.json();
+      if (!res.ok) { setError(out?.error ?? "That rule could not be retired."); return; }
+      await load(brandId);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const c = data?.completeness;
+  const liveRules = (learned?.rules ?? []).filter(r => !r.retiredAt);
+  const retiredRules = (learned?.rules ?? []).filter(r => r.retiredAt);
 
   /*
    * The outer scroller is not optional, and the inner `w-full` is not padding.
@@ -349,6 +422,137 @@ export default function BrandRecord() {
         {rejected.length > 0 && (
           <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
             Not proposed: {rejected.map((r) => `${r.key} (${r.reason})`).join(" · ")}
+          </p>
+        )}
+      </div>
+
+      {/*
+        The third source. Harvesting reads the library, the guide reads a PDF,
+        and this reads how the brand's published work actually did. Same shape
+        deliberately: propose, show the evidence, let a person accept, stamp
+        where it came from.
+
+        The empty state is the one that matters most here, because it is the
+        state this brand is actually in. A panel that renders nothing would read
+        as broken; this one says what it had to work with and what would change
+        it.
+      */}
+      <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">
+            Composition rules
+          </p>
+          <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+            {liveRules.length} in the contract
+          </span>
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-dim">
+          These are sent with every image this brand generates, just after its visual language and
+          ahead of everything it forbids. A rule learned from performance carries the number of posts
+          behind it, so a thin finding never reads like brand law.
+        </p>
+
+        {liveRules.length > 0 && (
+          <div className="mt-2.5 space-y-1.5">
+            {liveRules.map((r) => (
+              <div key={r.conclusionId ?? r.index} className="rounded-sm border border-border/60 bg-raised px-2.5 py-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[11.5px] leading-relaxed text-foreground">{r.rule}</p>
+                  {r.conclusionId && (
+                    <button
+                      type="button" onClick={() => void retire(r.conclusionId!)} disabled={saving}
+                      className="shrink-0 rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate disabled:opacity-50"
+                    >
+                      Retire
+                    </button>
+                  )}
+                </div>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+                  {r.source === "learned" ? `Learned · ${r.n} post${r.n === 1 ? "" : "s"}`
+                    : r.source === "guide" ? "From the guide" : "Set by the team"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {learned && learned.candidates.length > 0 && (
+          <div className="mt-2.5 space-y-2">
+            {learned.candidates.map((cand) => (
+              <div key={cand.conclusionId} className="rounded-sm border border-grit-teal/40 bg-raised px-2.5 py-2">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[11.5px] leading-relaxed text-foreground">{cand.rule}</p>
+                  <button
+                    type="button" onClick={() => void applyRule({ conclusionId: cand.conclusionId })} disabled={saving}
+                    className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
+                </div>
+                <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">{cand.because}</p>
+                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.09em] text-grit-teal">{cand.evidenceLine}</p>
+                {cand.overlapsApplied && (
+                  <p className="mt-1 text-[10.5px] leading-relaxed text-victory-gold">
+                    A rule already says something similar: &ldquo;{cand.overlapsApplied}&rdquo;
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/*
+          Said out loud. "Nothing was found" and "four things were found and
+          none had enough behind them" are different facts about the brand, and
+          only one of them means the derivation is working.
+        */}
+        {learned && learned.candidates.length === 0 && (
+          <p className="mt-2 text-[11px] leading-relaxed text-victory-gold">
+            {learned.trackedPosts === 0
+              ? "Nothing has been learned yet, because no post from this brand has been published and tracked. Conclusions appear here once they have been."
+              : learned.withheld.length === 0
+                ? `${learned.trackedPosts} tracked post${learned.trackedPosts === 1 ? "" : "s"} so far, and nothing in them yet points one way strongly enough to propose.`
+                : `${learned.trackedPosts} tracked post${learned.trackedPosts === 1 ? "" : "s"}, but nothing survived the checks.`}
+          </p>
+        )}
+        {/*
+          The refusal names the FINDING, not its id. An earlier pass rendered
+          "channel:hype:instagram (a channel finding does not belong...)", which
+          discloses a string rather than something a person can judge.
+        */}
+        {learned && learned.withheld.length > 0 && (
+          <ul className="mt-1 space-y-0.5">
+            {learned.withheld.map((w) => (
+              <li key={w.conclusionId} className="text-[10.5px] leading-relaxed text-dim">
+                Not proposed: {w.rule ? <span className="text-muted-foreground">{w.rule}</span> : "an unnamed finding"}{" "}
+                &mdash; {w.reason}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-2.5 flex items-start gap-2">
+          <input
+            value={newRule}
+            onChange={(e) => setNewRule(e.target.value)}
+            placeholder="Or write a rule yourself"
+            aria-label="Write a composition rule"
+            className="min-w-0 flex-1 border-0 border-b border-border/40 bg-transparent px-0 pb-1 text-[12px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal"
+          />
+          {newRule.trim() && (
+            <button
+              type="button" onClick={() => void applyRule({ rule: newRule.trim() })} disabled={saving}
+              className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+            >
+              Add
+            </button>
+          )}
+        </div>
+
+        {retiredRules.length > 0 && (
+          <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
+            Retired, and kept so they are not proposed again:{" "}
+            {retiredRules.map((r) => r.rule).join(" · ")}
           </p>
         )}
       </div>

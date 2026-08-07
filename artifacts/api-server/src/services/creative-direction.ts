@@ -23,7 +23,7 @@
  */
 
 import { db, brandsTable, assetsTable } from "@workspace/db";
-import type { Brand, StyleProfile, DesignerPersona, Asset } from "@workspace/db";
+import type { Brand, StyleProfile, DesignerPersona, Asset, CompositionRule } from "@workspace/db";
 import { eq, and, ne } from "drizzle-orm";
 import { z } from "zod";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
@@ -35,6 +35,7 @@ import {
   enrichSlotDescription,
   buildConflictTagSet,
 } from "./asset-policy.js";
+import { formatCompositionRules } from "./performance-learning.js";
 import { extractJSON } from "../lib/extract-json.js";
 import { logger } from "../lib/logger.js";
 import type { ImageSlot } from "./interactions-client.js";
@@ -72,6 +73,27 @@ export function buildSessionStyleContract(params: {
    */
   if (brand.imagenPrefix) {
     parts.push(`Brand visual language: ${brand.imagenPrefix}`);
+  }
+
+  /*
+   * Composition rules sit SECOND, and the position is the point.
+   *
+   * They are constructive instruction, so by the ec563dc lesson they belong
+   * with the visual language and ahead of the prohibitions rather than after
+   * them. But they sit BEHIND `imagenPrefix`, not in front of it: a rule the
+   * audience taught us must not outrank the visual language a person authored.
+   *
+   * Each line carries where it came from and, for a learned rule, how many
+   * posts are behind it. That is §1.17 disclosure — this string is what the
+   * Brand contract panel shows the user — and it also does real work on the
+   * model, where "learned from 47 posts" is a firmer instruction than "from 6".
+   * Retired rules are excluded by `formatCompositionRules`.
+   */
+  const compositionRules = formatCompositionRules(
+    (brand.compositionRules ?? []) as CompositionRule[],
+  );
+  if (compositionRules) {
+    parts.push(compositionRules);
   }
 
   if (brand.characterStyleRules) {
