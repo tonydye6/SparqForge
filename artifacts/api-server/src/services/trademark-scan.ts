@@ -178,24 +178,66 @@ export function parseTrademarkFindings(
   return { findings, rejected };
 }
 
+export interface AssessOptions {
+  /**
+   * Mark kinds this brand demonstrably has a licence for. They are still
+   * REPORTED — never hide a mark — but they stop driving severity, so a
+   * library of legitimately licensed collegiate art does not bury the one
+   * asset with a swoosh on it.
+   *
+   * Set for Crown U on 2026-08-07: Tony confirmed the university and
+   * conference marks across the character library are licensed and fine.
+   */
+  licensedKinds?: readonly MarkKind[];
+}
+
 /** Turn findings into a decision and a sentence a human can act on. */
-export function assessAsset(findings: readonly TrademarkFinding[]): ScanAssessment {
+export function assessAsset(
+  findings: readonly TrademarkFinding[],
+  opts: AssessOptions = {},
+): ScanAssessment {
   if (findings.length === 0) {
     return { severity: "clear", findings: [], reason: "No third-party marks found.", recommendBlock: false };
   }
 
-  const blocking = findings.filter(f => BLOCKING_KINDS.has(f.kind));
+  const licensed = new Set<MarkKind>(opts.licensedKinds ?? []);
+  const unlicensed = findings.filter(f => !licensed.has(f.kind));
+
+  if (unlicensed.length === 0) {
+    // Everything found is covered. Say what was seen anyway: "clear" must not
+    // mean "nothing there", or the next person cannot audit the decision.
+    const seen = findings.map(f => `${f.mark} (${f.where})`).join(", ");
+    return {
+      severity: "clear",
+      findings: [...findings],
+      reason: `Only licensed marks found: ${seen}.`,
+      recommendBlock: false,
+    };
+  }
+
+  const blocking = unlicensed.filter(f => BLOCKING_KINDS.has(f.kind));
   if (blocking.length > 0) {
     const names = blocking.map(f => `${f.mark} (${f.where})`).join(", ");
+    /*
+     * Name the institutional marks too. An earlier version listed only the
+     * blocking ones, so an asset carrying both a swoosh and a B1G shield
+     * reported the swoosh and silently dropped the shield — and anyone reading
+     * the summary rather than the per-asset line would never learn the second
+     * one was there. For a compliance report, an omission reads as an all-clear.
+     */
+    const others = findings.filter(f => !BLOCKING_KINDS.has(f.kind) || licensed.has(f.kind));
+    const also = others.length > 0
+      ? ` Also present, and a separate question for whoever holds the licence: ${others.map(f => `${f.mark} (${f.where})`).join(", ")}.`
+      : "";
     return {
       severity: "blocked",
       findings: [...findings],
-      reason: `Carries third-party commercial marks this brand cannot licence: ${names}. Anything generated from this asset inherits them.`,
+      reason: `Carries third-party commercial marks this brand cannot licence: ${names}. Anything generated from this asset inherits them.${also}`,
       recommendBlock: true,
     };
   }
 
-  const names = findings.map(f => `${f.mark} (${f.where})`).join(", ");
+  const names = unlicensed.map(f => `${f.mark} (${f.where})`).join(", ");
   return {
     severity: "review",
     findings: [...findings],

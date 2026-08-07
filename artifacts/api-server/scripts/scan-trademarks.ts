@@ -22,6 +22,11 @@
  * exploring. --dry-run skips the model entirely and still lists what would be
  * scanned, which costs nothing.
  *
+ * Files are fetched THROUGH the running api-server rather than read off disk.
+ * A first version read disk directly and skipped 41 of 52 Crown U assets as
+ * "not readable", because most media is bucket-backed. The server already knows
+ * how to resolve either, so ask it.
+ *
  * Flags:
  *   --brand <name|id>   default "Crown U" (name match is case-insensitive)
  *   --name <substr>     only assets whose name contains this (case-insensitive)
@@ -29,6 +34,11 @@
  *   --flag              WRITE generationAllowed=false on blocked assets
  *   --dry-run           list the assets and exit without calling the model
  *   --all               include assets already blocked from generation
+ *   --server <url>      api-server base, default http://localhost:$PORT (or 5000)
+ *   --licensed <kinds>  comma-separated mark kinds this brand has a licence
+ *                       for, e.g. --licensed conference,university. They are
+ *                       still reported, but stop driving severity. Confirmed
+ *                       for Crown U on 2026-08-07.
  */
 
 import { db, assetsTable, brandsTable } from "@workspace/db";
@@ -46,6 +56,7 @@ import {
   assessAsset,
   formatScanRow,
   type ScanAssessment,
+  type MarkKind,
 } from "../src/services/trademark-scan.js";
 
 function arg(name: string): string | null {
@@ -85,7 +96,7 @@ function ownMarksFor(brand: Brand, assets: readonly Asset[]): string[] {
   return [...marks].filter(m => m.length > 1).slice(0, 24);
 }
 
-/** Local disk path for an asset's file, mirroring how the server serves them. */
+/** Local disk path, tried first because it costs nothing when it works. */
 function localPathFor(fileUrl: string): string | null {
   const m = /\/api\/files\/(?:([\w-]+)\/)?(.+)$/.exec(fileUrl);
   if (!m) return null;
@@ -95,16 +106,36 @@ function localPathFor(fileUrl: string): string | null {
   return bucket ? path.join(root, bucket, name) : path.join(root, name);
 }
 
-async function scanOne(asset: Asset, ownMarks: readonly string[], brandName: string): Promise<ScanAssessment | null> {
-  const fileUrl = String(asset.fileUrl ?? "");
+const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, "");
+
+/**
+ * Disk first, then the running server. Most media is bucket-backed, and the
+ * server is the only thing that knows how to resolve both.
+ */
+async function loadAssetBytes(fileUrl: string): Promise<Buffer | null> {
   const p = localPathFor(fileUrl);
-  if (!p) return null;
-  let buf: Buffer;
+  if (p) {
+    try { return await readFile(p); } catch { /* fall through to HTTP */ }
+  }
+  if (!fileUrl.startsWith("/")) return null;
   try {
-    buf = await readFile(p);
+    const res = await fetch(`${SERVER}${fileUrl}`);
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
   } catch {
     return null;
   }
+}
+
+async function scanOne(
+  asset: Asset,
+  ownMarks: readonly string[],
+  brandName: string,
+  licensedKinds: readonly MarkKind[],
+): Promise<ScanAssessment | null> {
+  const fileUrl = String(asset.fileUrl ?? "");
+  const buf = await loadAssetBytes(fileUrl);
+  if (!buf) return null;
 
   const response = await geminiAi.models.generateContent({
     model: COPILOT_MODELS.ART_DIRECTION_MODEL,
@@ -129,7 +160,7 @@ async function scanOne(asset: Asset, ownMarks: readonly string[], brandName: str
   if (rejected.length > 0 && process.env.VERBOSE) {
     console.log(`        (dropped: ${rejected.map(r => `${r.mark} — ${r.reason}`).join("; ")})`);
   }
-  return assessAsset(findings);
+  return assessAsset(findings, { licensedKinds });
 }
 
 async function main(): Promise<void> {
@@ -164,6 +195,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  const licensedKinds = (arg("licensed") ?? "")
+    .split(",").map(k => k.trim()).filter(Boolean) as MarkKind[];
+  if (licensedKinds.length > 0) {
+    console.log(`  Licensed for this brand (reported, but not treated as problems): ${licensedKinds.join(", ")}`);
+  }
   const ownMarks = ownMarksFor(brand, assets);
   console.log(`  Own marks excluded from reporting: ${ownMarks.slice(0, 8).join(", ")}${ownMarks.length > 8 ? ` … +${ownMarks.length - 8}` : ""}`);
 
@@ -175,12 +211,12 @@ async function main(): Promise<void> {
   for (const asset of assets) {
     let a: ScanAssessment | null = null;
     try {
-      a = await scanOne(asset, ownMarks, brand.name);
+      a = await scanOne(asset, ownMarks, brand.name, licensedKinds);
     } catch (err) {
       console.log(`  ERROR    ${String(asset.name).slice(0, 52)}  ${err instanceof Error ? err.message : String(err)}`);
       continue;
     }
-    if (!a) { unreadable++; console.log(`  skipped  ${String(asset.name).slice(0, 52)}  (file not readable from this host)`); continue; }
+    if (!a) { unreadable++; console.log(`  skipped  ${String(asset.name).slice(0, 52)}  (file not readable from disk or the server)`); continue; }
     console.log(formatScanRow(String(asset.name), a));
     if (a.severity === "blocked") blocked.push({ asset, a });
     else if (a.severity === "review") review.push({ asset, a });
@@ -191,7 +227,7 @@ async function main(): Promise<void> {
   console.log(`  clear      ${clear}`);
   console.log(`  review     ${review.length}`);
   console.log(`  BLOCKED    ${blocked.length}`);
-  if (unreadable > 0) console.log(`  unreadable ${unreadable}  (run this on the host that holds the files)`);
+  if (unreadable > 0) console.log(`  unreadable ${unreadable}  (is the api-server running? try --server <url>)`);
 
   for (const { asset, a } of blocked) {
     console.log(`\n  ${asset.name}\n    ${a.reason}`);

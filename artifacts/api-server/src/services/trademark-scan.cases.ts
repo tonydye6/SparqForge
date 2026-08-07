@@ -117,9 +117,37 @@ export async function collectTrademarkScanCases(): Promise<CaseResult[]> {
     }
 
     // One blocking mark among institutional ones still blocks.
-    const mixed = assessAsset([f({ mark: "B1G", kind: "conference" }), f()]);
+    const mixed = assessAsset([f({ mark: "B1G", kind: "conference", where: "collar" }), f()]);
     check("any blocking mark wins", mixed.severity === "blocked");
     check("blocked list still carries every finding", mixed.findings.length === 2);
+    // The reason must not omit the non-blocking marks. A compliance report that
+    // mentions the swoosh and not the shield reads as an all-clear on the shield.
+    check("blocked reason names the blocking mark", /Nike swoosh \(jersey chest\)/.test(mixed.reason));
+    check("blocked reason ALSO names the institutional mark", /B1G \(collar\)/.test(mixed.reason), mixed.reason);
+    check("blocked reason separates the two questions", /separate question/.test(mixed.reason));
+    // With nothing else present, no dangling "also" clause.
+    check("no also-clause when there is nothing else", !/Also present/.test(assessAsset([f()]).reason));
+  }
+
+  // ---- licensed kinds stop driving severity but are still reported ----
+  {
+    const opts = { licensedKinds: ["conference", "university"] as const };
+    const onlyLicensed = assessAsset([f({ mark: "B1G", kind: "conference", where: "collar" })], opts);
+    check("licensed-only is clear", onlyLicensed.severity === "clear" && !onlyLicensed.recommendBlock);
+    check("clear STILL lists what was seen", /B1G \(collar\)/.test(onlyLicensed.reason), onlyLicensed.reason);
+    check("clear says they were licensed", /licensed/.test(onlyLicensed.reason));
+    check("findings are not discarded", onlyLicensed.findings.length === 1);
+
+    // A swoosh alongside licensed collegiate marks still blocks, and the
+    // licensed ones are still named.
+    const mixed2 = assessAsset([f({ mark: "B1G", kind: "conference", where: "collar" }), f()], opts);
+    check("a swoosh among licensed marks still blocks", mixed2.severity === "blocked");
+    check("blocked names the swoosh", /Nike swoosh/.test(mixed2.reason));
+    check("blocked still names the licensed mark", /B1G \(collar\)/.test(mixed2.reason), mixed2.reason);
+
+    // Without the option, the same input is review — the default is unchanged.
+    check("default still treats conference as review",
+      assessAsset([f({ mark: "B1G", kind: "conference" })]).severity === "review");
   }
 
   // ---- the report row ----
