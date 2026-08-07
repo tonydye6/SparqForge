@@ -126,22 +126,34 @@
 :root {
   /* ---------------- DARK MODE ONLY APP ---------------- */
 
-  /* Ground ramp, fully desaturated. Hex in comments because the spec and the
-     design artifacts are both written in hex. */
-  --surround:   0 0% 4%;    /* #0A0A0A · around the work only */
-  --background: 0 0% 6%;    /* #101010 · app ground */
-  --foreground: 0 0% 92%;   /* #EAEAEA */
+  /* Ground ramp, tinted onto the brand's dark anchors. Hex in comments because
+     the spec and the design artifacts are both written in hex.
 
-  --card: 0 0% 9%;          /* #181818 · panels, rails */
+     The brand system anchors darks on STEEL #1E1E24 and CARBON #2B2B42, and
+     lists "pure black defaults" as anti-pattern #9. Both anchors sit on hue
+     240, so the whole chrome ramp carries that hue at rising saturation.
+
+     THE ONE EXCEPTION IS --surround, AND IT IS DELIBERATE. It stays fully
+     desaturated because it is the surface generated imagery is judged against,
+     and a tinted surround shifts colour perception through chromatic
+     adaptation: you would be grading a teal against a violet ground and
+     correcting for a cast that is not in the image. Adobe Spectrum documents
+     the same reasoning. Tony decided this split on 2026-08-07: tint the
+     chrome, keep the judging surface neutral. */
+  --surround:   0 0% 4%;      /* #0A0A0A · NEUTRAL ON PURPOSE · around work being judged */
+  --background: 240 9% 13%;   /* #1E1E24 STEEL · app ground */
+  --foreground: 0 0% 92%;     /* #EAEAEA */
+
+  --card: 240 12% 17%;        /* #262631 · panels, rails */
   --card-foreground: 0 0% 92%;
-  --card-border: 0 0% 16%;  /* #2A2A2A */
+  --card-border: 240 12% 26%; /* #3A3A4A */
 
-  --raised: 0 0% 12%;       /* #1F1F1F · raised objects */
-  --raised-2: 0 0% 15%;     /* #262626 */
+  --raised: 240 21% 21.3%;    /* #2B2B42 CARBON · raised objects */
+  --raised-2: 240 19% 26%;    /* #36364F */
 
-  --popover: 0 0% 9%;
+  --popover: 240 12% 17%;
   --popover-foreground: 0 0% 92%;
-  --popover-border: 0 0% 16%;
+  --popover-border: 240 12% 26%;
 
   /* ---- Brand state colours, from the Sparq brand guide ---- */
   --grit-teal:    178 100% 32%;  /* #00A19C · selection, scheduled, focus */
@@ -167,7 +179,7 @@
   --secondary: 0 0% 12%;
   --secondary-foreground: 0 0% 92%;
 
-  --muted: 0 0% 12%;
+  --muted: 240 10% 18%;
   --muted-foreground: 0 0% 65%;  /* #A6A6A6 · 7.3:1 on panels */
   --dim: 0 0% 54%;               /* #8A8A8A · 5.1:1 on panels. Was #666 at 3.1:1 */
 
@@ -182,9 +194,9 @@
   --status-success: 178 100% 32%;
   --status-warning: 347 100% 61%;
 
-  --border: 0 0% 16%;       /* #2A2A2A */
+  --border: 240 12% 26%;    /* #3A3A4A */
   --border-soft: 0 0% 13%;  /* #202020 · divisions inside a panel */
-  --input: 0 0% 12%;
+  --input: 240 12% 18%;
   --ring: 178 100% 32%;
 
   /* Per-variant borders. These were referenced by @theme inline but never
@@ -204,7 +216,7 @@
   --badge-outline: hsl(0 0% 16%);
   --button-outline: hsl(0 0% 16%);
 
-  --sidebar: 0 0% 4%;
+  --sidebar: 240 11% 10%;
   --sidebar-foreground: 0 0% 92%;
   --sidebar-border: 0 0% 13%;
   --sidebar-primary: 178 100% 32%;

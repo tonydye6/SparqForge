@@ -210,7 +210,7 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
             {/* The frame, with the platform's furniture drawn over it. */}
             <div
               className={cn(
-                "relative w-full overflow-hidden rounded-sm border",
+                "relative w-full overflow-hidden rounded-sm border bg-surround",
                 warnings.length > 0 ? "border-victory-gold/50" : "border-border/60",
               )}
               style={{ aspectRatio: String(target.aspect) }}
