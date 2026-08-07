@@ -52,16 +52,18 @@ check(
 
 console.log("\nevery offered face actually loads and draws");
 for (const font of DESIGN_FONTS) {
-  let cmds = -1;
+  let outline = -1;
   let err = "";
   try {
     const parsed = loadDesignFont(font);
     // Digits matter as much as letters: Oxanium exists to set scores and times.
-    cmds = parsed.getPath("SPARQ 00:42.7", 0, 0, 72).commands.length;
+    // toPathData() rather than .commands: both describe the same outline, but
+    // only toPathData is in opentype's public typings.
+    outline = parsed.getPath("SPARQ 00:42.7", 0, 0, 72).toPathData(2).length;
   } catch (e) {
     err = e instanceof Error ? e.message : String(e);
   }
-  check(`${font} renders glyph outlines`, cmds > 20, err || `only ${cmds} path commands`);
+  check(`${font} renders glyph outlines`, outline > 200, err || `path data only ${outline} chars`);
 }
 
 console.log("\nlegacy specs still render, by stated migration");
