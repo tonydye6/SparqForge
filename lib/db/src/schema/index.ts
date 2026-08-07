@@ -20,3 +20,4 @@ export * from "./signals";
 export * from "./taste";
 export * from "./studio-sessions";
 export * from "./stages";
+export * from "./team";
