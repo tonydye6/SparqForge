@@ -24,6 +24,7 @@
  *
  * Flags:
  *   --brand <name|id>   default "Crown U" (name match is case-insensitive)
+ *   --name <substr>     only assets whose name contains this (case-insensitive)
  *   --limit <n>         scan at most n assets, newest first
  *   --flag              WRITE generationAllowed=false on blocked assets
  *   --dry-run           list the assets and exit without calling the model
@@ -143,10 +144,19 @@ async function main(): Promise<void> {
 
   let assets = await db.select().from(assetsTable).where(where);
   assets = assets.filter(a => String(a.mimeType ?? "").startsWith("image/"));
+  // Narrow to one asset, or one family, when you already suspect something.
+  // A library of 268 images is a long scan to sit through to answer a question
+  // about exactly one of them.
+  const needle = (arg("name") ?? "").trim().toLowerCase();
+  if (needle) assets = assets.filter(a => String(a.name ?? "").toLowerCase().includes(needle));
   assets.sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
   if (limit > 0) assets = assets.slice(0, limit);
 
-  rule(`TRADEMARK SCAN · ${brand.name} · ${assets.length} image asset${assets.length === 1 ? "" : "s"}`);
+  rule(`TRADEMARK SCAN · ${brand.name} · ${assets.length} image asset${assets.length === 1 ? "" : "s"}${needle ? ` matching "${needle}"` : ""}`);
+  if (assets.length === 0) {
+    console.log(`  Nothing matched. Widen --name, or drop it to scan the whole library.\n`);
+    return;
+  }
   console.log(willWrite ? "  MODE: report AND flag blocked assets (generationAllowed=false)" : "  MODE: report only, nothing is written");
   if (dryRun) {
     for (const a of assets) console.log(`  would scan  ${a.name}`);
