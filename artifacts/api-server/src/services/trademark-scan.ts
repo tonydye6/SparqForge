@@ -257,3 +257,150 @@ export function formatScanRow(name: string, a: ScanAssessment): string {
     : "";
   return `  ${tag}  ${name.slice(0, 52).padEnd(52)}${marks}`;
 }
+
+/* ------------------------------------------------------------------------- *
+ * The ledger: one outcome per record, and a summary that has to add up.
+ *
+ * The first full run of this scan produced 268 targets and 267 verdict lines.
+ * The missing one was an asset whose model call threw: the script printed an
+ * ERROR line and moved on without counting it anywhere. On a compliance report
+ * a row that leaves without a verdict, silently, is the worst possible failure
+ * mode — it reads as an all-clear. So outcomes are now exhaustive and the
+ * summary refuses to look tidy when it does not reconcile.
+ * ------------------------------------------------------------------------- */
+
+export type ScanOutcome =
+  | "clear"
+  | "review"
+  | "blocked"
+  | "duplicate"    // same bytes as an earlier record; inherits its verdict
+  | "unreadable"   // file could not be fetched from disk or the server
+  | "error";       // the model call threw
+
+export interface ScanRecord {
+  assetId: string;
+  name: string;
+  /** Hash of the file bytes. Null when the file could not be read. */
+  contentKey: string | null;
+  outcome: ScanOutcome;
+  /** Present for clear/review/blocked, and for a duplicate inheriting one. */
+  assessment: ScanAssessment | null;
+  /** For a duplicate: the name of the record that was actually scanned. */
+  duplicateOf?: string;
+  /** For an error: what went wrong, so it can be retried deliberately. */
+  errorMessage?: string;
+}
+
+export interface ScanSummary {
+  /** How many records the scan set out to cover. */
+  expected: number;
+  counts: Record<ScanOutcome, number>;
+  /** Distinct images actually sent to the model. */
+  uniqueImagesScanned: number;
+  /** Records that share bytes with an earlier one. */
+  redundantRecords: number;
+  /** expected minus the sum of every outcome. Must be 0. */
+  unaccounted: number;
+  reconciled: boolean;
+  /**
+   * Records needing a decision, deduplicated to one entry per image, with
+   * every record that shares those bytes listed. This is the shortlist.
+   */
+  blockedGroups: BlockedGroup[];
+}
+
+export interface BlockedGroup {
+  contentKey: string;
+  /** The record that was scanned. */
+  name: string;
+  assessment: ScanAssessment;
+  /** Every asset id carrying these bytes, INCLUDING the scanned one. */
+  assetIds: string[];
+  /** Every name these bytes are filed under. Often more than one. */
+  names: string[];
+}
+
+const EMPTY_COUNTS = (): Record<ScanOutcome, number> => ({
+  clear: 0, review: 0, blocked: 0, duplicate: 0, unreadable: 0, error: 0,
+});
+
+/**
+ * Collapse a run of records into counts and the blocked shortlist.
+ *
+ * Grouping is by CONTENT KEY, deliberately, and neither by name nor by file
+ * url. Crown U's library contains the same photograph filed under two names
+ * (`..._sparq_track_default` and `..._unknown_track_unknown`) and the same
+ * name pointing at two separate storage objects. Name-grouping misses the
+ * first case, url-grouping misses the second, and a hash misses neither.
+ *
+ * A duplicate still gets its own row in `assetIds`. It inherits the verdict
+ * but it is an independent gate: `generationAllowed` lives on the record, so
+ * blocking one row and not its twin leaves the twin usable.
+ */
+export function summarizeScan(records: readonly ScanRecord[], expected: number): ScanSummary {
+  const counts = EMPTY_COUNTS();
+  for (const r of records) counts[r.outcome] += 1;
+
+  const groups = new Map<string, BlockedGroup>();
+  for (const r of records) {
+    if (!r.contentKey || !r.assessment?.recommendBlock) continue;
+    const existing = groups.get(r.contentKey);
+    if (existing) {
+      existing.assetIds.push(r.assetId);
+      if (!existing.names.includes(r.name)) existing.names.push(r.name);
+      continue;
+    }
+    groups.set(r.contentKey, {
+      contentKey: r.contentKey,
+      name: r.name,
+      assessment: r.assessment,
+      assetIds: [r.assetId],
+      names: [r.name],
+    });
+  }
+
+  const accounted = Object.values(counts).reduce((a, b) => a + b, 0);
+  return {
+    expected,
+    counts,
+    uniqueImagesScanned: counts.clear + counts.review + counts.blocked,
+    redundantRecords: counts.duplicate,
+    unaccounted: expected - accounted,
+    reconciled: expected === accounted,
+    blockedGroups: [...groups.values()],
+  };
+}
+
+/** Every asset id that should be written when --flag is passed. */
+export function assetIdsToFlag(summary: ScanSummary): string[] {
+  return summary.blockedGroups.flatMap(g => g.assetIds);
+}
+
+/**
+ * The summary block. Reconciliation is stated either way: a scan that silently
+ * covers fewer records than it claimed is the defect this exists to prevent,
+ * so "every record accounted for" has to be an assertion the report makes out
+ * loud, not an absence of complaint.
+ */
+export function formatScanSummary(s: ScanSummary): string {
+  const lines = [
+    `  clear       ${s.counts.clear}`,
+    `  review      ${s.counts.review}`,
+    `  BLOCKED     ${s.counts.blocked}`,
+  ];
+  if (s.counts.duplicate > 0) {
+    lines.push(`  duplicate   ${s.counts.duplicate}  (same bytes as another record; verdict inherited, no model call)`);
+  }
+  if (s.counts.unreadable > 0) {
+    lines.push(`  unreadable  ${s.counts.unreadable}  (is the api-server running? try --server <url>)`);
+  }
+  if (s.counts.error > 0) {
+    lines.push(`  ERRORED     ${s.counts.error}  (no verdict reached — rerun these before trusting this report)`);
+  }
+  lines.push("");
+  lines.push(`  ${s.expected} record${s.expected === 1 ? "" : "s"} · ${s.uniqueImagesScanned} unique image${s.uniqueImagesScanned === 1 ? "" : "s"} scanned · ${s.blockedGroups.length} distinct image${s.blockedGroups.length === 1 ? "" : "s"} to decide about`);
+  lines.push(s.reconciled
+    ? `  Every record accounted for.`
+    : `  ⚠ ${Math.abs(s.unaccounted)} record${Math.abs(s.unaccounted) === 1 ? "" : "s"} ${s.unaccounted > 0 ? "left this scan with NO verdict" : "were counted twice"}. This report is incomplete.`);
+  return lines.join("\n");
+}
