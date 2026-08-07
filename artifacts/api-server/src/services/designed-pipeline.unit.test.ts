@@ -30,7 +30,7 @@ describe("splitHeadline", () => {
 });
 
 describe("fitHeadlineBlock", () => {
-  const font = loadDesignFont("anton");
+  const font = loadDesignFont("barlow");
 
   it("uses max size when the line easily fits", () => {
     const { fontSize, lines } = fitHeadlineBlock(font, ["HI"], 5000, 120, 40);
