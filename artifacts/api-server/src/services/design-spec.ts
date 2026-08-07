@@ -10,8 +10,31 @@ import { extractJSON } from "../lib/extract-json.js";
 // panels, not AI-drawn text. Every numeric field is clamped after parsing so a
 // creative-but-sloppy model response can never break the render.
 
-export const DESIGN_FONTS = ["anton", "archivo", "barlow"] as const;
+/*
+ * The brand system fixes three faces and forbids substitutions, so the art
+ * director chooses a ROLE here, not a typeface it happens to like. Barlow
+ * Condensed carries display, its italic carries speed and the highest-intensity
+ * moments, and Oxanium carries anything numeric — scores, times, stats.
+ *
+ * Anton and Archivo Black were in this list before the brand system was
+ * finalized and appear nowhere in it. They are gone, and their files are gone
+ * with them, so re-adding either name cannot silently start working again.
+ */
+export const DESIGN_FONTS = ["barlow", "barlowItalic", "oxanium"] as const;
 export type DesignFont = (typeof DESIGN_FONTS)[number];
+
+/*
+ * Specs stored before the type stack was enforced name faces that no longer
+ * exist. Map them to the nearest brand equivalent rather than letting an old
+ * spec fail to render: both were heavy condensed display, which is Barlow's
+ * job. This is a stated migration, not a silent substitution.
+ */
+const LEGACY_FONTS: Record<string, DesignFont> = { anton: "barlow", archivo: "barlow" };
+
+const FontEnum = z.preprocess(
+  v => (typeof v === "string" && v in LEGACY_FONTS ? LEGACY_FONTS[v] : v),
+  z.enum(DESIGN_FONTS),
+);
 
 const hex = z
   .string()
@@ -33,7 +56,7 @@ const PanelSchema = z.object({
 const HeadlineSchema = z.object({
   lines: z.array(z.string().min(1).max(24)).min(1).max(3),
   color: hex,
-  font: z.enum(DESIGN_FONTS).default("anton"),
+  font: FontEnum.default("barlow"),
   align: z.enum(["left", "center", "right"]).default("left"),
   position: z.enum(["top", "middle", "bottom"]).default("bottom"),
   scale: clamp(0.5, 1).default(0.85),
@@ -133,7 +156,7 @@ Return ONLY a JSON object with exactly this shape (all colors 6-digit hex like "
   "headline": {
     "lines": ["LINE ONE", "LINE TWO"],   // 1-3 lines, each <= 14 chars
     "color": "...",
-    "font": "anton" | "archivo" | "barlow",   // anton = tall condensed, archivo = heavy block, barlow = condensed sans
+    "font": "barlow" | "barlowItalic" | "oxanium",   // barlow = display default; barlowItalic = speed and the highest-intensity moments; oxanium = scores, times, stats, any number
     "align": "left" | "center" | "right",
     "position": "top" | "middle" | "bottom",
     "scale": 0.5-1.0,              // 1.0 = maximum display size
@@ -186,7 +209,7 @@ export function fallbackDesignSpec(input: DesignSpecInput): DesignSpec {
     headline: {
       lines: lines.length > 0 ? lines.map(l => l.slice(0, 24)) : ["GAME DAY"],
       color: "#f5f5f0",
-      font: "anton",
+      font: "barlow",
       align: "left",
       position: "bottom",
       scale: 0.9,

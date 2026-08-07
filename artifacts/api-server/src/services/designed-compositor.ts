@@ -47,9 +47,9 @@ function getFontsDir(): string {
 }
 
 const FONT_FILES: Record<DesignFont, string> = {
-  anton: "Anton-Regular.ttf",
-  archivo: "ArchivoBlack-Regular.ttf",
   barlow: "BarlowCondensed-Bold.ttf",
+  barlowItalic: "BarlowCondensed-BoldItalic.ttf",
+  oxanium: "Oxanium-ExtraBold.ttf",
 };
 
 const fontCache = new Map<DesignFont, OTFont>();
