@@ -35,6 +35,10 @@
  *   --dry-run           list the assets and exit without calling the model
  *   --all               include assets already blocked from generation
  *   --server <url>      api-server base, default http://localhost:$PORT (or 5000)
+ *   --licensed <kinds>  comma-separated mark kinds this brand has a licence
+ *                       for, e.g. --licensed conference,university. They are
+ *                       still reported, but stop driving severity. Confirmed
+ *                       for Crown U on 2026-08-07.
  */
 
 import { db, assetsTable, brandsTable } from "@workspace/db";
@@ -52,6 +56,7 @@ import {
   assessAsset,
   formatScanRow,
   type ScanAssessment,
+  type MarkKind,
 } from "../src/services/trademark-scan.js";
 
 function arg(name: string): string | null {
@@ -122,7 +127,12 @@ async function loadAssetBytes(fileUrl: string): Promise<Buffer | null> {
   }
 }
 
-async function scanOne(asset: Asset, ownMarks: readonly string[], brandName: string): Promise<ScanAssessment | null> {
+async function scanOne(
+  asset: Asset,
+  ownMarks: readonly string[],
+  brandName: string,
+  licensedKinds: readonly MarkKind[],
+): Promise<ScanAssessment | null> {
   const fileUrl = String(asset.fileUrl ?? "");
   const buf = await loadAssetBytes(fileUrl);
   if (!buf) return null;
@@ -150,7 +160,7 @@ async function scanOne(asset: Asset, ownMarks: readonly string[], brandName: str
   if (rejected.length > 0 && process.env.VERBOSE) {
     console.log(`        (dropped: ${rejected.map(r => `${r.mark} — ${r.reason}`).join("; ")})`);
   }
-  return assessAsset(findings);
+  return assessAsset(findings, { licensedKinds });
 }
 
 async function main(): Promise<void> {
@@ -185,6 +195,11 @@ async function main(): Promise<void> {
     return;
   }
 
+  const licensedKinds = (arg("licensed") ?? "")
+    .split(",").map(k => k.trim()).filter(Boolean) as MarkKind[];
+  if (licensedKinds.length > 0) {
+    console.log(`  Licensed for this brand (reported, but not treated as problems): ${licensedKinds.join(", ")}`);
+  }
   const ownMarks = ownMarksFor(brand, assets);
   console.log(`  Own marks excluded from reporting: ${ownMarks.slice(0, 8).join(", ")}${ownMarks.length > 8 ? ` … +${ownMarks.length - 8}` : ""}`);
 
@@ -196,7 +211,7 @@ async function main(): Promise<void> {
   for (const asset of assets) {
     let a: ScanAssessment | null = null;
     try {
-      a = await scanOne(asset, ownMarks, brand.name);
+      a = await scanOne(asset, ownMarks, brand.name, licensedKinds);
     } catch (err) {
       console.log(`  ERROR    ${String(asset.name).slice(0, 52)}  ${err instanceof Error ? err.message : String(err)}`);
       continue;
