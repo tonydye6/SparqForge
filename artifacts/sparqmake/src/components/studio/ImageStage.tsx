@@ -302,7 +302,7 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
           <span className="h-px flex-1 bg-border" />
         </div>
 
-        <div className="grid gap-2" style={{ gridTemplateColumns: `88px repeat(${cols}, minmax(0, 1fr))` }}>
+        <div className="grid gap-2 rounded-sm bg-surround p-2" style={{ gridTemplateColumns: `88px repeat(${cols}, minmax(0, 1fr))` }}>
           {/* Corner spacer, then the column labels. */}
           <div />
           {plan.axes.a.positions.map((p, i) => (

@@ -123,7 +123,7 @@ export function StageSpine({
 
   return (
     <div
-      className={cn("flex items-stretch gap-0 border-b border-border/60 bg-surround px-4 py-2.5", className)}
+      className={cn("flex items-stretch gap-0 border-b border-border/60 bg-card px-4 py-2.5", className)}
       role="toolbar"
       aria-label="Post stages"
                  aria-orientation="horizontal"

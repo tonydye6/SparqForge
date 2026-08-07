@@ -19,11 +19,11 @@ import { CREATIVE_STATES, type CreativeState } from "@/lib/creative-state";
  */
 
 const GROUND = [
-  { name: "Surround", cls: "bg-surround", hex: "#0A0A0A", use: "Around the work only" },
-  { name: "App", cls: "bg-background", hex: "#101010", use: "The app ground" },
-  { name: "Panel", cls: "bg-card", hex: "#181818", use: "Panels and rails" },
-  { name: "Raised", cls: "bg-raised", hex: "#1F1F1F", use: "Raised objects" },
-  { name: "Raised 2", cls: "bg-raised-2", hex: "#262626", use: "Controls on a panel" },
+  { name: "Surround", cls: "bg-surround", hex: "#0A0A0A", use: "Neutral on purpose · around work being judged" },
+  { name: "App", cls: "bg-background", hex: "#1E1E24", use: "The app ground · brand STEEL" },
+  { name: "Panel", cls: "bg-card", hex: "#262631", use: "Panels and rails" },
+  { name: "Raised", cls: "bg-raised", hex: "#2B2B42", use: "Raised objects · brand CARBON" },
+  { name: "Raised 2", cls: "bg-raised-2", hex: "#36364F", use: "Controls on a panel" },
 ];
 
 const STATE_COLOURS = [

@@ -401,7 +401,7 @@ export default function StudioV2() {
             </div>
 
             {/* The brand contract, permanently locked, and the Material rail. */}
-            <aside className="flex w-[196px] shrink-0 flex-col border-l border-border/60 bg-surround">
+            <aside className="flex w-[196px] shrink-0 flex-col border-l border-border/60 bg-card">
               <BrandContract
                 brandId={(creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null}
               />

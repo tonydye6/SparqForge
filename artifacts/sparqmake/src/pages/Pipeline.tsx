@@ -302,7 +302,7 @@ export default function Pipeline() {
 
       <div className="flex min-h-0 flex-1 gap-0">
         {/* Undated work. A rail, so nothing falls off the bottom of a queue. */}
-        <aside className="flex w-[190px] shrink-0 flex-col border-r border-border/60 bg-surround">
+        <aside className="flex w-[190px] shrink-0 flex-col border-r border-border/60 bg-card">
           <div className="px-3 pb-2 pt-4">
             <h2 className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">
               Not scheduled
