@@ -130,8 +130,9 @@ export default function DesignSystem() {
           The v2 design system
         </h1>
         <p className="max-w-[86ch] text-[13px] leading-relaxed text-muted-foreground">
-          Two rules govern everything here. Grounds are fully desaturated, because a tinted chrome
-          shifts how you perceive the imagery you are judging inside it. And saturated colour means
+          Two rules govern everything here. Chrome carries the brand tint, anchored on Steel and
+          Carbon, but the one surface work is judged against stays fully desaturated, because a
+          tinted surround shifts how you perceive the imagery inside it. And saturated colour means
           state, never decoration, so every colour below has exactly one job. Client brand colours
           are content identity and never appear in chrome.
         </p>
@@ -139,7 +140,7 @@ export default function DesignSystem() {
 
       <Section
         title="Ground ramp"
-        note="Hue 0, saturation 0%. The previous ramp was hue 240 at 20% saturation, a blue-violet cast. Personality comes from type, density, the mark and material instead of from a tinted grey."
+        note="Hue 240, rising saturation, anchored exactly on brand STEEL #1E1E24 for the app ground and CARBON #2B2B42 for raised objects. Surround is the deliberate exception at saturation 0%: it is what generated imagery is judged against, and a tinted surround makes you correct for a colour cast that is not in the image."
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {GROUND.map((g) => (
