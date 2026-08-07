@@ -56,6 +56,24 @@ export function buildSessionStyleContract(params: {
   const { brand, styleProfile, persona } = params;
   const parts: string[] = [];
 
+  /*
+   * Visual language LEADS the contract.
+   *
+   * It used to sit fourth, after the character rules, the palette and the
+   * "never include" list, which meant the only part of the contract that says
+   * what to BUILD arrived after everything that says what to avoid. A $0.06
+   * probe on 2026-08-07 showed the cost: Crown U's composition rules produced
+   * the keyline frame and the flame field, and silently dropped the rule the
+   * brand guide calls the signature move (subject occludes the headline AND
+   * crosses the frame edge).
+   *
+   * This is the same lesson the identity lock taught: position was doing more
+   * work than wording. Constructive instruction first, prohibitions after.
+   */
+  if (brand.imagenPrefix) {
+    parts.push(`Brand visual language: ${brand.imagenPrefix}`);
+  }
+
   if (brand.characterStyleRules) {
     parts.push(`Character/style rules: ${brand.characterStyleRules}`);
   }
@@ -72,10 +90,6 @@ export function buildSessionStyleContract(params: {
 
   if (brand.negativePrompt) {
     parts.push(`Never include: ${brand.negativePrompt}`);
-  }
-
-  if (brand.imagenPrefix) {
-    parts.push(`Brand visual language: ${brand.imagenPrefix}`);
   }
 
   if (styleProfile) {
