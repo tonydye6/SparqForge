@@ -245,7 +245,21 @@ async function main(): Promise<void> {
     const verdict = retouchVerdict(change.subjectChangePercent);
 
     const stem = String(asset.name ?? "asset").replace(/\.[a-z0-9]+$/i, "").slice(0, 60);
-    const filename = `retouch-${stem}-${Date.now()}.png`;
+    /*
+     * The extension follows the BYTES, not an assumption.
+     *
+     * The first version always wrote `.png` and declared `image/png`, and the
+     * model returns JPEG, so every retouched asset was a JPEG wearing a PNG
+     * name. This project has already paid for that once in the other direction:
+     * a declared-vs-actual media-type mismatch 400'd every caption call until
+     * the format was detected from the buffer instead of assumed.
+     */
+    const isPng = result.imageBuffer.length > 8
+      && result.imageBuffer[0] === 0x89 && result.imageBuffer[1] === 0x50
+      && result.imageBuffer[2] === 0x4e && result.imageBuffer[3] === 0x47;
+    const ext = isPng ? "png" : "jpg";
+    const outMime = isPng ? "image/png" : "image/jpeg";
+    const filename = `retouch-${stem}-${Date.now()}.${ext}`;
     await writeBuffer("brand-assets", filename, result.imageBuffer);
     const afterUrl = `/api/files/brand-assets/${filename}`;
 
@@ -296,7 +310,7 @@ async function main(): Promise<void> {
         description: asset.description,
         tags: asset.tags ?? [],
         fileUrl: afterUrl,
-        mimeType: "image/png",
+        mimeType: outMime,
         fileSizeBytes: result.imageBuffer.byteLength,
         uploadedBy: asset.uploadedBy,
         // The analysis still describes this image: only a logo left it. Copying
