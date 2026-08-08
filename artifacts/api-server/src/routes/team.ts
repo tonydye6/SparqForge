@@ -172,6 +172,47 @@ router.get("/creatives/:creativeId/team", async (req: Request, res: Response): P
   }
 });
 
+/**
+ * Every creative currently waiting on a decision, in one query.
+ *
+ * The Pipeline shows a week of cards and needs to mark the ones waiting on the
+ * person looking. Asking per card would be one request per card on a page that
+ * already loads entries, creatives and thumbnails, so this answers for all of
+ * them at once.
+ *
+ * `needsYou` is computed here rather than left to the client, so the rule that
+ * you are not blocked by your own request lives in exactly one place.
+ */
+router.get("/approvals/awaiting", async (req: Request, res: Response): Promise<void> => {
+  const me = viewer(req);
+  try {
+    const rows = await db
+      .select({
+        creativeId: approvalsTable.creativeId,
+        requestedBy: approvalsTable.requestedBy,
+        requestedAt: approvalsTable.requestedAt,
+        requestedByName: usersTable.name,
+      })
+      .from(approvalsTable)
+      .leftJoin(usersTable, eq(approvalsTable.requestedBy, usersTable.id))
+      .where(isNull(approvalsTable.decidedAt));
+
+    res.json({
+      data: rows.map(r => ({
+        creativeId: r.creativeId,
+        requestedBy: r.requestedBy,
+        requestedByName: r.requestedByName,
+        requestedAt: r.requestedAt.toISOString(),
+        needsYou: canDecide(me.role) && r.requestedBy !== me.id,
+      })),
+      you: { id: me.id, role: me.role, canDecide: canDecide(me.role) },
+    });
+  } catch (err) {
+    console.error("Failed to read what is awaiting a decision", err);
+    res.status(500).json({ error: "Pending decisions could not be read." });
+  }
+});
+
 /** What stage a reason would be pointed at, before anyone commits to it. */
 router.get("/creatives/:creativeId/team/suggest", async (req: Request, res: Response): Promise<void> => {
   const creativeId = String(req.params.creativeId);
