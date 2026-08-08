@@ -192,6 +192,33 @@ export default function Pipeline() {
     };
   }, [entries, thumbs]);
 
+  /*
+   * Who is waiting on a decision, for the whole week in one request.
+   *
+   * Asking per card would be one request per card on a page that already loads
+   * entries, creatives and thumbnails. `needsYou` is computed server-side so
+   * the rule that you are not blocked by your own request lives in one place.
+   */
+  const [awaiting, setAwaiting] = useState<Record<string, { needsYou: boolean; requestedByName: string | null }>>({});
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch("/api/approvals/awaiting");
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const map: Record<string, { needsYou: boolean; requestedByName: string | null }> = {};
+        for (const row of body.data ?? []) {
+          map[row.creativeId] = { needsYou: Boolean(row.needsYou), requestedByName: row.requestedByName ?? null };
+        }
+        if (!cancelled) setAwaiting(map);
+      } catch {
+        /* the edge simply does not appear; the rest of the week still reads */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   /** Entries grouped into one card per creative per day. */
   const cardsByDay = useMemo(() => {
     const now = new Date();
@@ -242,7 +269,15 @@ export default function Pipeline() {
       }));
   }, [creatives, entries]);
 
-  const needsYou = cardsByDay.flat().filter((c) => c.state === "failed" || c.state === "needs_attention").length;
+  /*
+   * "Needs you" now means two different things and both are true: work that
+   * failed to publish, and work waiting on YOUR decision. Counted over a Set of
+   * creative ids so a creative that is both is one item, not two.
+   */
+  const needsYou = new Set([
+    ...cardsByDay.flat().filter((c) => c.state === "failed" || c.state === "needs_attention").map(c => c.creativeId),
+    ...Object.entries(awaiting).filter(([, a]) => a.needsYou).map(([id]) => id),
+  ]).size;
   const agingCount =
     cardsByDay.flat().filter((c) => c.aging !== null).length + undated.filter((u) => u.aging !== null).length;
 
@@ -322,6 +357,14 @@ export default function Pipeline() {
                 className="block cursor-grab rounded-sm border border-border/60 bg-card px-2.5 py-2 transition-colors hover:border-grit-teal/50"
               >
                 <p className="line-clamp-2 text-[11.5px] leading-tight text-muted-foreground">{u.name}</p>
+                {awaiting[u.id] && (
+                  <p className={cn(
+                    "mt-1 font-mono text-[8.5px] uppercase tracking-[0.07em]",
+                    awaiting[u.id].needsYou ? "text-victory-gold" : "text-dim",
+                  )}>
+                    {awaiting[u.id].needsYou ? "Waiting on you" : "Waiting on a decision"}
+                  </p>
+                )}
                 {u.aging !== null ? (
                   <StateChip state="needs_attention" label={`Waiting ${u.aging}d`} className="mt-1.5" />
                 ) : (
@@ -382,6 +425,24 @@ export default function Pipeline() {
 
                   {cards.map((c) => (
                     <Link key={c.creativeId} href="/" className="block">
+                      {/*
+                        The waiting-on-a-decision edge. A left stripe rather
+                        than another chip: the card already carries a state
+                        chip for where it is in the pipeline, and a decision is
+                        a different axis from a publish state.
+                      */}
+                      {awaiting[c.creativeId] && (
+                        <p className={cn(
+                          "mb-1 border-l-2 pl-1.5 font-mono text-[8.5px] uppercase tracking-[0.07em]",
+                          awaiting[c.creativeId].needsYou
+                            ? "border-l-victory-gold text-victory-gold"
+                            : "border-l-border text-dim",
+                        )}>
+                          {awaiting[c.creativeId].needsYou
+                            ? "Waiting on you"
+                            : `Waiting on a decision · ${awaiting[c.creativeId].requestedByName ?? "someone"} asked`}
+                        </p>
+                      )}
                       <MediaTile
                         state={c.state}
                         src={c.thumbnail}

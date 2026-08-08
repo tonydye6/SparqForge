@@ -7,8 +7,12 @@ import {
   parseTrademarkFindings,
   assessAsset,
   formatScanRow,
+  summarizeScan,
+  formatScanSummary,
+  assetIdsToFlag,
   CONFIDENCE_FLOOR,
   type TrademarkFinding,
+  type ScanRecord,
 } from "./trademark-scan.js";
 
 export interface CaseResult {
@@ -159,6 +163,96 @@ export async function collectTrademarkScanCases(): Promise<CaseResult[]> {
     check("clear row has no marks appended", clean.trimEnd().endsWith("logo.png"));
     const long = formatScanRow("x".repeat(90), assessAsset([]));
     check("long names are truncated, not wrapped", !long.includes("\n") && long.length < 120);
+  }
+
+  // ---- the ledger: every record leaves with exactly one outcome ----
+  {
+    const rec = (over: Partial<ScanRecord>): ScanRecord => ({
+      assetId: "a1", name: "one.jpeg", contentKey: "k1", outcome: "clear",
+      assessment: assessAsset([]), ...over,
+    });
+    const blocked = assessAsset([f()]);
+
+    // Reconciliation is the whole point: 268 targets once produced 267 lines.
+    {
+      const s = summarizeScan([rec({}), rec({ assetId: "a2" })], 2);
+      check("a complete scan reconciles", s.reconciled && s.unaccounted === 0);
+      check("complete scan says so", /Every record accounted for/.test(formatScanSummary(s)));
+    }
+    {
+      const s = summarizeScan([rec({})], 2);
+      check("a short scan does not reconcile", !s.reconciled && s.unaccounted === 1);
+      const out = formatScanSummary(s);
+      check("a short scan says it is incomplete", /incomplete/.test(out), out);
+      check("a short scan names the missing count", /1 record left this scan with NO verdict/.test(out), out);
+    }
+    {
+      // An errored record is counted, not dropped. That was the defect.
+      const s = summarizeScan(
+        [rec({}), rec({ assetId: "a2", outcome: "error", assessment: null, errorMessage: "503" })],
+        2,
+      );
+      check("an error still accounts for its record", s.reconciled, s.counts);
+      check("errors are counted separately", s.counts.error === 1);
+      const out = formatScanSummary(s);
+      check("the summary shouts about errors", /ERRORED\s+1/.test(out), out);
+      check("the summary says an errored report is not trustworthy", /rerun/i.test(out));
+    }
+    {
+      const s = summarizeScan([rec({ outcome: "unreadable", contentKey: null, assessment: null })], 1);
+      check("unreadable accounts for its record", s.reconciled && s.counts.unreadable === 1);
+      check("unreadable is not counted as scanned", s.uniqueImagesScanned === 0);
+    }
+
+    // ---- duplicates: one model call, every record still flagged ----
+    {
+      const s = summarizeScan([
+        rec({ assetId: "a1", name: "track_default.jpeg", contentKey: "kA", outcome: "blocked", assessment: blocked }),
+        rec({ assetId: "a2", name: "track_unknown.jpeg", contentKey: "kA", outcome: "duplicate", assessment: blocked, duplicateOf: "track_default.jpeg" }),
+        rec({ assetId: "a3", name: "clean.png", contentKey: "kB", outcome: "clear", assessment: assessAsset([]) }),
+      ], 3);
+
+      check("duplicates reconcile", s.reconciled);
+      check("a duplicate is not a second model call", s.uniqueImagesScanned === 2, s.uniqueImagesScanned);
+      check("redundant records are counted", s.redundantRecords === 1);
+      check("the shortlist has one entry per IMAGE", s.blockedGroups.length === 1, s.blockedGroups.length);
+      check("the group carries both records", s.blockedGroups[0]?.assetIds.length === 2, s.blockedGroups[0]?.assetIds);
+      check("the group names both filings", s.blockedGroups[0]?.names.join(",") === "track_default.jpeg,track_unknown.jpeg", s.blockedGroups[0]?.names);
+
+      // The write must reach the twin. generationAllowed lives on the record,
+      // so blocking one row and not the other leaves the image usable.
+      const ids = assetIdsToFlag(s);
+      check("flagging writes to every record in the group", ids.length === 2 && ids.includes("a1") && ids.includes("a2"), ids);
+      check("flagging leaves clear assets alone", !ids.includes("a3"));
+
+      const out = formatScanSummary(s);
+      check("the summary separates records from images", /3 records · 2 unique images scanned · 1 distinct image to decide about/.test(out), out);
+    }
+    {
+      // Same bytes filed under one name twice: still one image, still two gates.
+      const s = summarizeScan([
+        rec({ assetId: "a1", name: "same.jpeg", contentKey: "kA", outcome: "blocked", assessment: blocked }),
+        rec({ assetId: "a2", name: "same.jpeg", contentKey: "kA", outcome: "duplicate", assessment: blocked }),
+      ], 2);
+      check("one name filed twice is one group", s.blockedGroups.length === 1);
+      check("a repeated name is not listed twice", s.blockedGroups[0]?.names.length === 1, s.blockedGroups[0]?.names);
+      check("both records are still flagged", assetIdsToFlag(s).length === 2);
+    }
+    {
+      // Review and clear never reach the shortlist, however many findings.
+      const s = summarizeScan([
+        rec({ assetId: "a1", contentKey: "kA", outcome: "review", assessment: assessAsset([f({ kind: "conference" })]) }),
+        rec({ assetId: "a2", contentKey: "kB", outcome: "clear", assessment: assessAsset([f({ kind: "conference" })], { licensedKinds: ["conference"] }) }),
+      ], 2);
+      check("review is not on the block shortlist", s.blockedGroups.length === 0);
+      check("nothing is flagged from review or clear", assetIdsToFlag(s).length === 0);
+      check("review still reconciles", s.reconciled && s.counts.review === 1 && s.counts.clear === 1);
+    }
+    {
+      const s = summarizeScan([], 0);
+      check("an empty scan reconciles", s.reconciled && s.blockedGroups.length === 0);
+      check("an empty scan reads sensibly", /0 records · 0 unique images/.test(formatScanSummary(s)));
+    }
   }
 
   return results;

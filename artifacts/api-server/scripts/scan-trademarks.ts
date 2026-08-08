@@ -27,6 +27,13 @@
  * "not readable", because most media is bucket-backed. The server already knows
  * how to resolve either, so ask it.
  *
+ * The same image appears in this library more than once, both under two names
+ * and as two storage objects under one name. Each record is hashed as its bytes
+ * arrive and a repeat inherits the first verdict instead of paying for a second
+ * vision call. The WRITE still touches every record in the group, because
+ * `generationAllowed` lives on the record and a blocked asset with an unblocked
+ * twin is not blocked.
+ *
  * Flags:
  *   --brand <name|id>   default "Crown U" (name match is case-insensitive)
  *   --name <substr>     only assets whose name contains this (case-insensitive)
@@ -35,6 +42,9 @@
  *   --dry-run           list the assets and exit without calling the model
  *   --all               include assets already blocked from generation
  *   --server <url>      api-server base, default http://localhost:$PORT (or 5000)
+ *   --json <path>       also write the full result set as JSON. A whole-library
+ *                       scan takes the better part of an hour; losing it to a
+ *                       closed terminal means paying for it again.
  *   --licensed <kinds>  comma-separated mark kinds this brand has a licence
  *                       for, e.g. --licensed conference,university. They are
  *                       still reported, but stop driving severity. Confirmed
@@ -43,8 +53,9 @@
 
 import { db, assetsTable, brandsTable } from "@workspace/db";
 import type { Asset, Brand } from "@workspace/db";
-import { and, eq, ne } from "drizzle-orm";
-import { readFile } from "node:fs/promises";
+import { and, eq, inArray, ne } from "drizzle-orm";
+import { readFile, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { COPILOT_MODELS } from "../src/lib/ai-config.js";
@@ -55,7 +66,11 @@ import {
   parseTrademarkFindings,
   assessAsset,
   formatScanRow,
+  summarizeScan,
+  formatScanSummary,
+  assetIdsToFlag,
   type ScanAssessment,
+  type ScanRecord,
   type MarkKind,
 } from "../src/services/trademark-scan.js";
 
@@ -127,16 +142,13 @@ async function loadAssetBytes(fileUrl: string): Promise<Buffer | null> {
   }
 }
 
-async function scanOne(
+async function scanBytes(
+  buf: Buffer,
   asset: Asset,
   ownMarks: readonly string[],
   brandName: string,
   licensedKinds: readonly MarkKind[],
-): Promise<ScanAssessment | null> {
-  const fileUrl = String(asset.fileUrl ?? "");
-  const buf = await loadAssetBytes(fileUrl);
-  if (!buf) return null;
-
+): Promise<ScanAssessment> {
   const response = await geminiAi.models.generateContent({
     model: COPILOT_MODELS.ART_DIRECTION_MODEL,
     contents: [{
@@ -203,45 +215,85 @@ async function main(): Promise<void> {
   const ownMarks = ownMarksFor(brand, assets);
   console.log(`  Own marks excluded from reporting: ${ownMarks.slice(0, 8).join(", ")}${ownMarks.length > 8 ? ` … +${ownMarks.length - 8}` : ""}`);
 
-  const blocked: Array<{ asset: Asset; a: ScanAssessment }> = [];
-  const review: Array<{ asset: Asset; a: ScanAssessment }> = [];
-  let clear = 0, unreadable = 0;
+  const records: ScanRecord[] = [];
+  // contentKey -> the verdict already paid for, and the name it was paid on.
+  const seen = new Map<string, { assessment: ScanAssessment; name: string }>();
 
   rule("PER ASSET");
   for (const asset of assets) {
-    let a: ScanAssessment | null = null;
-    try {
-      a = await scanOne(asset, ownMarks, brand.name, licensedKinds);
-    } catch (err) {
-      console.log(`  ERROR    ${String(asset.name).slice(0, 52)}  ${err instanceof Error ? err.message : String(err)}`);
+    const name = String(asset.name ?? "");
+    const base: Pick<ScanRecord, "assetId" | "name"> = { assetId: asset.id, name };
+
+    const buf = await loadAssetBytes(String(asset.fileUrl ?? ""));
+    if (!buf) {
+      records.push({ ...base, contentKey: null, outcome: "unreadable", assessment: null });
+      console.log(`  skipped  ${name.slice(0, 52)}  (file not readable from disk or the server)`);
       continue;
     }
-    if (!a) { unreadable++; console.log(`  skipped  ${String(asset.name).slice(0, 52)}  (file not readable from disk or the server)`); continue; }
-    console.log(formatScanRow(String(asset.name), a));
-    if (a.severity === "blocked") blocked.push({ asset, a });
-    else if (a.severity === "review") review.push({ asset, a });
-    else clear++;
+
+    const contentKey = createHash("sha256").update(buf).digest("hex");
+    const already = seen.get(contentKey);
+    if (already) {
+      records.push({ ...base, contentKey, outcome: "duplicate", assessment: already.assessment, duplicateOf: already.name });
+      console.log(`  dup      ${name.slice(0, 52).padEnd(52)}  identical bytes to ${already.name} — verdict inherited, not re-scanned`);
+      continue;
+    }
+
+    let assessment: ScanAssessment;
+    try {
+      assessment = await scanBytes(buf, asset, ownMarks, brand.name, licensedKinds);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      records.push({ ...base, contentKey, outcome: "error", assessment: null, errorMessage });
+      console.log(`  ERROR    ${name.slice(0, 52)}  ${errorMessage}`);
+      continue;
+    }
+
+    seen.set(contentKey, { assessment, name });
+    records.push({ ...base, contentKey, outcome: assessment.severity, assessment });
+    console.log(formatScanRow(name, assessment));
   }
+
+  const summary = summarizeScan(records, assets.length);
 
   rule("SUMMARY");
-  console.log(`  clear      ${clear}`);
-  console.log(`  review     ${review.length}`);
-  console.log(`  BLOCKED    ${blocked.length}`);
-  if (unreadable > 0) console.log(`  unreadable ${unreadable}  (is the api-server running? try --server <url>)`);
+  console.log(formatScanSummary(summary));
 
-  for (const { asset, a } of blocked) {
-    console.log(`\n  ${asset.name}\n    ${a.reason}`);
+  if (summary.counts.error > 0) {
+    console.log(`\n  No verdict was reached for:`);
+    for (const r of records.filter(r => r.outcome === "error")) {
+      console.log(`    ${r.name}  —  ${r.errorMessage}`);
+      console.log(`      rerun: --name "${r.name}"`);
+    }
   }
 
-  if (blocked.length > 0 && willWrite) {
-    for (const { asset } of blocked) {
-      await db.update(assetsTable)
-        .set({ generationAllowed: false, updatedAt: new Date() })
-        .where(eq(assetsTable.id, asset.id));
-    }
-    console.log(`\n  Wrote generationAllowed=false on ${blocked.length} asset${blocked.length === 1 ? "" : "s"}.`);
+  for (const g of summary.blockedGroups) {
+    const alsoFiledAs = g.names.length > 1 ? `\n    also filed as: ${g.names.slice(1).join(", ")}` : "";
+    const copies = g.assetIds.length > 1 ? ` (${g.assetIds.length} records)` : "";
+    console.log(`\n  ${g.name}${copies}${alsoFiledAs}\n    ${g.assessment.reason}`);
+  }
+
+  const jsonPath = arg("json");
+  if (jsonPath) {
+    await writeFile(jsonPath, JSON.stringify({ brand: { id: brand.id, name: brand.name }, licensedKinds, summary, records }, null, 2));
+    console.log(`\n  Full result set written to ${jsonPath}.`);
+  }
+
+  const toFlag = assetIdsToFlag(summary);
+  if (toFlag.length > 0 && willWrite) {
+    // Every record in a group, not one per group: generationAllowed lives on
+    // the record, so an unblocked twin is still reachable by the director.
+    await db.update(assetsTable)
+      .set({ generationAllowed: false, updatedAt: new Date() })
+      .where(inArray(assetsTable.id, toFlag));
+    console.log(`\n  Wrote generationAllowed=false on ${toFlag.length} record${toFlag.length === 1 ? "" : "s"} across ${summary.blockedGroups.length} image${summary.blockedGroups.length === 1 ? "" : "s"}.`);
     console.log(`  They can no longer be used as generation references. Re-enable in Asset Details after retouching.`);
-  } else if (blocked.length > 0) {
+    if (!summary.reconciled || summary.counts.error > 0 || summary.counts.unreadable > 0) {
+      // Blocking is the safe direction, so an incomplete scan is allowed to
+      // write. It must not be allowed to look complete afterwards.
+      console.log(`  ⚠ This scan did not cover every record, so treat the write as partial. Rerun the missed ones.`);
+    }
+  } else if (toFlag.length > 0) {
     console.log(`\n  Nothing was written. Re-run with --flag to block these, or clean the artwork and rescan.`);
   }
   console.log("");

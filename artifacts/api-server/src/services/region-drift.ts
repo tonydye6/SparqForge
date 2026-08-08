@@ -93,6 +93,116 @@ export async function measureDrift(
 }
 
 /**
+ * How much of the WHOLE frame changed, with no mask involved.
+ *
+ * A region edit asks "did it stray outside what I selected". An asset retouch
+ * asks a different question — "did it repaint the picture" — because there is
+ * no selection: the scope is prose, and the only honest measure of restraint is
+ * the total changed fraction. A swoosh coming off a thigh is a fraction of a
+ * percent; a character who came back as a different person is tens of percent.
+ *
+ * Shares `measureDrift`'s resize and tolerance discipline deliberately. Both are
+ * load-bearing rather than incidental: without the forced common geometry a
+ * returned image at another resolution misaligns every pixel and reports total
+ * change on a perfect edit, and without the tolerance lossy recompression alone
+ * does the same.
+ */
+export interface ChangeMeasurement {
+  /** Changed fraction of the whole frame. Diluted by empty space — see below. */
+  changePercent: number;
+  /**
+   * Changed fraction of the pixels that carry SUBJECT, which is the number to
+   * judge a retouch by.
+   */
+  subjectChangePercent: number;
+  sampled: number;
+  changed: number;
+  subjectSampled: number;
+  subjectChanged: number;
+}
+
+/**
+ * Structure threshold that separates subject from empty ground.
+ *
+ * Applied to a Laplacian of the before image. A studio backdrop or a flat
+ * gradient has almost none; a character's edges, folds and trim have plenty.
+ */
+const CONTENT_EDGE_THRESHOLD = 12;
+
+export async function measureChange(before: Buffer, after: Buffer): Promise<ChangeMeasurement> {
+  const meta = await sharp(before).metadata();
+  const srcW = meta.width ?? DRIFT_SAMPLE_EDGE;
+  const srcH = meta.height ?? DRIFT_SAMPLE_EDGE;
+  const scale = Math.min(1, DRIFT_SAMPLE_EDGE / Math.max(srcW, srcH));
+  const w = Math.max(1, Math.round(srcW * scale));
+  const h = Math.max(1, Math.round(srcH * scale));
+
+  const toRaw = (buf: Buffer) =>
+    sharp(buf).resize(w, h, { fit: "fill" }).removeAlpha().raw().toBuffer();
+
+  /*
+   * WHY A CONTENT MASK, and it was learned the expensive way.
+   *
+   * A live spot removal on 2026-08-07 reported 3.1% of the frame changed and
+   * the guard called that "within recompression noise". Measured properly the
+   * subject's face had moved 16%, the boots 25% and the keyline 34-50%, while
+   * the large empty background was untouched at 0% — and because the background
+   * is most of the picture, it averaged the whole thing down to nearly nothing.
+   *
+   * **An area-based percentage answers "how much of the picture changed" when
+   * the question is "did the character survive".** On a character turnaround,
+   * which is most of what needs retouching here, the subject is a minority of
+   * the pixels and a global figure will always flatter the result. So the
+   * verdict is taken over the pixels that carry subject.
+   */
+  const [a, b, edges] = await Promise.all([
+    toRaw(before),
+    toRaw(after),
+    sharp(before)
+      .resize(w, h, { fit: "fill" })
+      .greyscale()
+      .convolve({ width: 3, height: 3, kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1] })
+      .raw()
+      .toBuffer(),
+  ]);
+
+  let changed = 0;
+  let subjectSampled = 0;
+  let subjectChanged = 0;
+  const sampled = w * h;
+
+  for (let i = 0; i < sampled; i++) {
+    const p = i * 3;
+    const differs =
+      Math.abs(a[p] - b[p]) > CHANNEL_TOLERANCE ||
+      Math.abs(a[p + 1] - b[p + 1]) > CHANNEL_TOLERANCE ||
+      Math.abs(a[p + 2] - b[p + 2]) > CHANNEL_TOLERANCE;
+    if (differs) changed++;
+
+    if (edges[i] > CONTENT_EDGE_THRESHOLD) {
+      subjectSampled++;
+      if (differs) subjectChanged++;
+    }
+  }
+
+  return {
+    changePercent: computeDriftPercent(changed, sampled),
+    /*
+     * Falls back to the global figure when the image has no structure at all,
+     * rather than reporting a confident 0% on a frame it could not read. A
+     * measurement that cannot be made must not look like a good result.
+     */
+    subjectChangePercent: subjectSampled > 0
+      ? computeDriftPercent(subjectChanged, subjectSampled)
+      : computeDriftPercent(changed, sampled),
+    sampled,
+    changed,
+    subjectSampled,
+    subjectChanged,
+  };
+}
+
+/**
  * How the region is described to a model that has no mask input.
  *
  * The Interactions API does semantic masking rather than accepting a bitmap, so

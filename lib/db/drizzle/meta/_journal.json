@@ -204,6 +204,13 @@
       "when": 1785317880284,
       "tag": "0028_fresh_spencer_smythe",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786131281779,
+      "tag": "0029_faithful_shard",
+      "breakpoints": true
     }
   ]
 }

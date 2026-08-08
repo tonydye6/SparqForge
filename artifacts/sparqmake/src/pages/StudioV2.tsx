@@ -12,6 +12,7 @@ import { CopyStage } from "@/components/studio/CopyStage";
 import { CropStage } from "@/components/studio/CropStage";
 import { BrandContract } from "@/components/studio/BrandContract";
 import { MaterialRail } from "@/components/studio/MaterialRail";
+import { ReviewBar } from "@/components/studio/ReviewBar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -382,6 +383,17 @@ export default function StudioV2() {
                   </div>
                 )}
               </div>
+
+              {/*
+                The decision, directly under the thing being judged. The old
+                Review Queue was a separate page whose Approve button 400'd by
+                design; dissolving it meant the decision had to land here.
+              */}
+              <ReviewBar
+                creativeId={creativeId}
+                activeStageId={activeStage?.id ?? null}
+                onDecided={() => void loadSpine(creativeId)}
+              />
 
               {/* Why this. Always says something, per the Ableton Info View idea. */}
               <div className="flex shrink-0 items-start gap-3 border-t border-border/60 bg-card px-4 py-2.5">
