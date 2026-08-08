@@ -44,7 +44,7 @@
  *   --apply             WRITE the new image onto the asset record
  *   --dry-run           build and print the instruction, call no model, spend nothing
  *   --licensed <kinds>  mark kinds to LEAVE in place, e.g. conference,university
- *   --server <url>      api-server base, for reading bucket-backed files
+ *   --server <url>      api-server base, default http://localhost:$PORT (or 8080)
  */
 
 import { db, assetsTable, brandsTable } from "@workspace/db";
@@ -83,7 +83,13 @@ function rule(title: string): void {
   console.log(`\n${"─".repeat(78)}\n${title}\n${"─".repeat(78)}`);
 }
 
-const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, "");
+/*
+ * 8080, not 5000, and the number is not arbitrary: it is what the package's
+ * own `dev` script binds (`${PORT:-8080}`). The first default was 5000, which
+ * silently pointed a live run at nothing and cost a wasted vision call before
+ * anyone noticed the fetch was failing rather than the file being unreadable.
+ */
+const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 8080}`).replace(/\/$/, "");
 
 async function resolveBrand(needle: string): Promise<Brand> {
   const [byId] = await db.select().from(brandsTable).where(eq(brandsTable.id, needle));
