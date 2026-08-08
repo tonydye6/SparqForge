@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   checkGenerationEligibility,
   checkAttachmentEligibility,
+  trademarkGate,
   derivePolicyRole,
   computeRankingAdjustment,
   buildConflictTagSet,
@@ -448,5 +449,85 @@ describe("checkAttachmentEligibility", () => {
     );
     expect(result.eligible).toBe(false);
     expect(result.reason).toContain("twitter");
+  });
+});
+
+// ── M3 · trademark remediation gate ───────────────────────────────────────────
+
+describe("trademarkGate", () => {
+  it("allows an asset that was never scanned — absence of evidence is not a finding", () => {
+    // Most of the library is in this state. Failing closed here would take the
+    // whole library offline, which is why null is deliberately permissive.
+    expect(trademarkGate(makeAsset({ trademarkScanState: null })).eligible).toBe(true);
+  });
+
+  it("allows an asset the scanner cleared", () => {
+    expect(trademarkGate(makeAsset({ trademarkScanState: "clean" })).eligible).toBe(true);
+  });
+
+  it("blocks an asset carrying a mark", () => {
+    const r = trademarkGate(makeAsset({ trademarkScanState: "blocked" }));
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain("third-party trademark");
+  });
+
+  it("blocks an asset whose retouch was refused", () => {
+    const r = trademarkGate(makeAsset({ trademarkScanState: "refused" }));
+    expect(r.eligible).toBe(false);
+  });
+
+  it("blocks the contaminated ORIGINAL of a successful retouch", () => {
+    // A clean replacement exists and is what should be used instead.
+    const r = trademarkGate(makeAsset({ trademarkScanState: "retouched" }));
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain("Superseded");
+  });
+
+  it("BLOCKS an unreviewed replacement — the live defect this gate exists for", () => {
+    // All 28 August replacements sat generationAllowed=true and unreviewed, and
+    // at least one still carried a Big Ten mark.
+    const r = trademarkGate(makeAsset({
+      trademarkScanState: "replacement",
+      trademarkReviewedAt: null,
+    }));
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain("awaiting trademark review");
+  });
+
+  it("allows a replacement once a human has reviewed it", () => {
+    const r = trademarkGate(makeAsset({
+      trademarkScanState: "replacement",
+      trademarkReviewedAt: new Date(),
+    }));
+    expect(r.eligible).toBe(true);
+  });
+});
+
+describe("checkGenerationEligibility — trademark state outranks everything", () => {
+  it("blocks a blocked asset even when every other constraint passes", () => {
+    const r = checkGenerationEligibility(makeAsset({ trademarkScanState: "blocked" }));
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain("third-party trademark");
+  });
+
+  it("blocks an unreviewed replacement on the COMPOSITING role too", () => {
+    // A mark is not a use-intent question, so the logo path is gated as well.
+    const r = checkGenerationEligibility(
+      makeAsset({
+        assetClass: "compositing",
+        approvedForCompositing: true,
+        trademarkScanState: "replacement",
+        trademarkReviewedAt: null,
+      }),
+      {},
+      "compositing",
+    );
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain("awaiting trademark review");
+  });
+
+  it("still allows a normal asset once the gate passes", () => {
+    const r = checkGenerationEligibility(makeAsset({ trademarkScanState: "clean" }));
+    expect(r.eligible).toBe(true);
   });
 });

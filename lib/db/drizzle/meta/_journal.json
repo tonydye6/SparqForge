@@ -218,6 +218,13 @@
       "when": 1786181518772,
       "tag": "0030_huge_exiles",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786189955305,
+      "tag": "0031_steep_naoko",
+      "breakpoints": true
     }
   ]
 }
