@@ -37,6 +37,7 @@
  */
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
+import sharp from "sharp";
 import {
   assessAsset,
   buildTrademarkSystemPrompt,
@@ -143,46 +144,89 @@ async function main(): Promise<void> {
   }> = [];
   let inTok = 0, outTok = 0, errors = 0;
 
+  /** One model call. Separated out so a failure can be retried on a re-encode. */
+  async function callModel(buf: Buffer, mime: string): Promise<{ text: string; inTok: number; outTok: number }> {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "x-goog-api-key": KEY!, "content-type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [
+          { inlineData: { mimeType: mime, data: buf.toString("base64") } },
+          { text: "Check this image for third-party trademarks." },
+        ] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: TRADEMARK_RESPONSE_SCHEMA,
+          // Big budget on purpose: 3.5-flash is a THINKING model and reasoning
+          // tokens count against maxOutputTokens. A small budget truncates the
+          // JSON mid-object and silently degrades to a parse failure — the
+          // exact trap documented for this project's structured-output calls.
+          maxOutputTokens: 8192,
+        },
+      }),
+    });
+    const j = await res.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+      error?: { message?: string };
+    };
+    const used = {
+      inTok: j.usageMetadata?.promptTokenCount ?? 0,
+      outTok: j.usageMetadata?.candidatesTokenCount ?? 0,
+    };
+    if (j.error) throw Object.assign(new Error(j.error.message ?? "model error"), used);
+    return { text: j.candidates?.[0]?.content?.parts?.map(p => p.text ?? "").join("") ?? "", ...used };
+  }
+
   for (const [hash, g] of todo) {
     const label = g.rows[0]!.name.slice(0, 56);
+    let attempt: { text: string; inTok: number; outTok: number } | null = null;
+    let note = "";
     try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "x-goog-api-key": KEY!, "content-type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: "user", parts: [
-            { inlineData: { mimeType: g.mime, data: g.buf.toString("base64") } },
-            { text: "Check this image for third-party trademarks." },
-          ] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: TRADEMARK_RESPONSE_SCHEMA,
-            // Big budget on purpose: 3.5-flash is a THINKING model and reasoning
-            // tokens count against maxOutputTokens. A small budget truncates the
-            // JSON mid-object and silently degrades to a parse failure — the
-            // exact trap documented for this project's structured-output calls.
-            maxOutputTokens: 8192,
-          },
-        }),
-      });
-      const j = await res.json() as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-        error?: { message?: string };
-      };
-      inTok += j.usageMetadata?.promptTokenCount ?? 0;
-      outTok += j.usageMetadata?.candidatesTokenCount ?? 0;
-      if (j.error) throw new Error(j.error.message ?? "model error");
-      const text = j.candidates?.[0]?.content?.parts?.map(p => p.text ?? "").join("") ?? "";
-      const { findings, rejected } = parseTrademarkFindings(JSON.parse(text), ownMarks);
+      attempt = await callModel(g.buf, g.mime);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      inTok += (e as { inTok?: number }).inTok ?? 0;
+      outTok += (e as { outTok?: number }).outTok ?? 0;
+      /*
+       * "Unable to process input image" is the API declining the FILE, not the
+       * content — large or awkwardly-encoded PNGs. Re-encoding to a bounded JPEG
+       * fixes it. Retrying matters more than it looks: 22 of 272 images failed on
+       * the first full run, including three retouched replacements, and an
+       * unscanned image that is silently dropped reads exactly like a clean one.
+       * 1568px is the pre-high-res tier — small marks stay legible at it.
+       */
+      if (/unable to process input image|invalid image|image.*too large/i.test(msg)) {
+        try {
+          const shrunk = await sharp(g.buf)
+            .resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality: 90 })
+            .toBuffer();
+          attempt = await callModel(shrunk, "image/jpeg");
+          note = "  (retried re-encoded)";
+        } catch (e2) {
+          errors++;
+          console.log(`  ERROR    ${label}  ${(e2 instanceof Error ? e2.message : String(e2)).slice(0, 70)}`);
+          continue;
+        }
+      } else {
+        errors++;
+        console.log(`  ERROR    ${label}  ${msg.slice(0, 80)}`);
+        continue;
+      }
+    }
+
+    try {
+      inTok += attempt.inTok; outTok += attempt.outTok;
+      const { findings, rejected } = parseTrademarkFindings(JSON.parse(attempt.text), ownMarks);
       const assessment = assessAsset(findings, { licensedKinds: LICENSED });
       records.push({ hash, assetIds: g.rows.map(r => r.id), names: g.rows.map(r => r.name), assessment, rejected });
       const mark = assessment.severity === "blocked" ? "BLOCKED " : assessment.severity === "review" ? "review  " : "clear   ";
-      console.log(`  ${mark} ${label}${assessment.findings.length ? "  ← " + assessment.findings.map(f => f.mark).join(", ") : ""}`);
+      console.log(`  ${mark} ${label}${assessment.findings.length ? "  ← " + assessment.findings.map(f => f.mark).join(", ") : ""}${note}`);
     } catch (e) {
       errors++;
-      console.log(`  ERROR    ${label}  ${e instanceof Error ? e.message.slice(0, 80) : e}`);
+      console.log(`  ERROR    ${label}  parse: ${(e instanceof Error ? e.message : String(e)).slice(0, 60)}`);
     }
   }
 
