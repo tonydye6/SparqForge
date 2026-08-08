@@ -77,6 +77,13 @@ import {
   type TrademarkFinding,
 } from "../src/services/trademark-scan.js";
 import {
+  IDENTITY_RESPONSE_SCHEMA,
+  buildIdentitySystemPrompt,
+  buildIdentityUserPrompt,
+  parseIdentityVerdict,
+  formatIdentityRow,
+} from "../src/services/identity-check.js";
+import {
   buildRetouchPlan,
   formatRetouchPlan,
   retouchMessage,
@@ -228,7 +235,202 @@ async function rejudge(manifestPath: string, willApply: boolean): Promise<void> 
   console.log(`  ${rows.length} manifest rows, ${nowClean + stillBad + unreadable} accounted for.\n`);
 }
 
+/**
+ * Ask a vision model the question the arithmetic could not answer.
+ *
+ * Two pixel metrics failed here, in different ways and for the same reason: a
+ * background swap, a silhouette and a re-framing all move enormous numbers of
+ * pixels while saying nothing about whether the person is still the same
+ * person. So this stops measuring and asks, showing the model BOTH images at
+ * once so it compares them directly rather than describing each.
+ *
+ * One flash call per image. Nothing is written without --apply.
+ */
+async function verify(manifestPath: string, willApply: boolean, scanPath: string | null): Promise<void> {
+  const rows = JSON.parse(await readFile(manifestPath, "utf8")) as Array<{
+    assetId: string; name: string; beforeUrl: string; afterUrl: string;
+    applied?: boolean; siblings?: string[];
+  }>;
+
+  // The marks each retouch was asked to remove, so the model is told what to
+  // look for rather than hunting blind.
+  const marksById = new Map<string, TrademarkFinding[]>();
+  if (scanPath) {
+    const report = JSON.parse(await readFile(scanPath, "utf8")) as {
+      summary?: { blockedGroups?: Array<{ assetIds: string[]; assessment: { findings: TrademarkFinding[] } }> };
+    };
+    for (const g of report.summary?.blockedGroups ?? []) {
+      for (const id of g.assetIds) marksById.set(id, g.assessment?.findings ?? []);
+    }
+  }
+
+  rule(`VERIFY · ${rows.length} image${rows.length === 1 ? "" : "s"} · one vision call each`);
+  console.log(willApply
+    ? "  MODE: verify AND apply everything that passes both questions"
+    : "  MODE: verify and report. Nothing in the database changes.");
+
+  const accepted: typeof rows = [];
+  let refused = 0, unreadable = 0;
+
+  for (const row of rows) {
+    if (row.applied) { continue; }
+    const [before, after] = await Promise.all([loadAssetBytes(row.beforeUrl), loadAssetBytes(row.afterUrl)]);
+    if (!before || !after) {
+      unreadable++;
+      console.log(`  skipped ${row.name.slice(0, 46)}  (${!before ? "original" : "retouched image"} could not be read)`);
+      continue;
+    }
+
+    const response = await geminiAi.models.generateContent({
+      model: COPILOT_MODELS.ART_DIRECTION_MODEL,
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { data: before.toString("base64"), mimeType: "image/png" } },
+          { inlineData: { data: after.toString("base64"), mimeType: "image/png" } },
+          { text: buildIdentityUserPrompt(row.name, marksById.get(row.assetId) ?? []) },
+        ],
+      }],
+      config: {
+        systemInstruction: buildIdentitySystemPrompt(),
+        // A thinking model spends reasoning tokens against this budget.
+        maxOutputTokens: 4096,
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: IDENTITY_RESPONSE_SCHEMA,
+      },
+    });
+
+    const verdict = parseIdentityVerdict(extractJSON<unknown>(response.text ?? ""), row.name);
+    console.log(formatIdentityRow(row.name, verdict));
+    if (!verdict.accept) { refused++; console.log(`          ${verdict.reason}`); continue; }
+    accepted.push(row);
+  }
+
+  rule("VERIFY SUMMARY");
+  console.log(`  accepted   ${accepted.length}`);
+  console.log(`  refused    ${refused}`);
+  if (unreadable > 0) console.log(`  unreadable ${unreadable}`);
+  console.log(`  ${rows.length} manifest rows, ${accepted.length + refused + unreadable + rows.filter(r => r.applied).length} accounted for.`);
+
+  if (!willApply) {
+    console.log(`\n  Nothing was written. Re-run with --apply to take the accepted ones into the library.\n`);
+    return;
+  }
+  /*
+   * Re-read each asset before applying. The manifest carries ids and urls, not
+   * the row itself, and the clean asset is built by copying the original's
+   * analysis across — so it has to be the CURRENT row, not a snapshot from
+   * whenever the wave ran.
+   */
+  for (const row of accepted) {
+    const [asset] = await db.select().from(assetsTable).where(eq(assetsTable.id, row.assetId));
+    if (!asset) {
+      console.log(`  skipped ${row.name}: that asset is no longer in the library.`);
+      continue;
+    }
+    const isPng = /\.png$/i.test(row.afterUrl);
+    const stem = String(asset.name ?? "asset").replace(/\.[a-z0-9]+$/i, "").slice(0, 60);
+    await applyRetouched(
+      asset, row.afterUrl,
+      isPng ? "image/png" : "image/jpeg",
+      null,
+      `${stem}_retouched.${isPng ? "png" : "jpg"}`,
+      row.siblings ?? [row.assetId],
+    );
+  }
+  console.log(`\n  Applied ${accepted.length} retouched image${accepted.length === 1 ? "" : "s"}.\n`);
+}
+
+
+/**
+ * Take a retouched image into the library.
+ *
+ * ONE implementation, called by the retouch pass and by --verify, because two
+ * copies of "create the clean row and block the originals" is two places for
+ * the sibling rule to be got wrong — and it already was, once.
+ *
+ * A NEW asset row, and the original blocked rather than overwritten. Repointing
+ * the original's `fileUrl` was the first design and it is wrong: somebody
+ * approved that asset, and what they approved was the image with the mark in
+ * it. Silently swapping the pixels underneath an approval makes the approval
+ * mean nothing.
+ *
+ * It also needs no migration. `assets` has no jsonb column to record a retouch
+ * in, and inventing one to hold an audit trail is a bigger decision than this
+ * pass should make on its own. The two `aiSuggestedFields` markers carry the
+ * link in both directions in a `text[]`, which is what that column actually is.
+ */
+async function applyRetouched(
+  asset: Asset,
+  afterUrl: string,
+  outMime: string,
+  bytes: number | null,
+  newName: string,
+  group: string[],
+): Promise<string> {
+  const [created] = await db
+    .insert(assetsTable)
+    .values({
+      brandId: asset.brandId,
+      type: asset.type,
+      subType: asset.subType,
+      // NOT copied as approved. A retouched image is unreviewed until someone
+      // reviews it, however good the numbers looked.
+      status: "uploaded",
+      name: newName,
+      description: asset.description,
+      tags: asset.tags ?? [],
+      fileUrl: afterUrl,
+      mimeType: outMime,
+      fileSizeBytes: bytes,
+      uploadedBy: asset.uploadedBy,
+      // The analysis still describes this image: only a logo left it. Copying it
+      // means the clean asset is immediately as usable as the one it replaces,
+      // instead of ranking last until someone re-analyses it.
+      assetClass: asset.assetClass,
+      generationRole: asset.generationRole,
+      brandLayer: asset.brandLayer,
+      franchise: asset.franchise,
+      approvedChannels: asset.approvedChannels ?? [],
+      approvedTemplates: asset.approvedTemplates ?? [],
+      subjectIdentityScore: asset.subjectIdentityScore,
+      styleStrengthScore: asset.styleStrengthScore,
+      compositingOnly: asset.compositingOnly,
+      generationAllowed: true,
+      approvedForCompositing: asset.approvedForCompositing,
+      referencePriorityDefault: asset.referencePriorityDefault,
+      conflictTags: asset.conflictTags ?? [],
+      characterIdentityNote: asset.characterIdentityNote,
+      depictedEntities: asset.depictedEntities ?? [],
+      colors: asset.colors ?? [],
+      styleNotes: asset.styleNotes,
+      aiSuggestedFields: [...(asset.aiSuggestedFields ?? []), `retouched_from:${asset.id}`],
+    })
+    .returning({ id: assetsTable.id });
+
+  // Every record sharing these bytes. generationAllowed lives on the RECORD, so
+  // blocking one and leaving its twins reachable is not blocking.
+  await db
+    .update(assetsTable)
+    .set({
+      generationAllowed: false,
+      aiSuggestedFields: [...(asset.aiSuggestedFields ?? []), `retouched_to:${created!.id}`],
+      updatedAt: new Date(),
+    })
+    .where(inArray(assetsTable.id, group));
+
+  console.log(`  APPLIED. New asset ${created!.id} (${newName}), status "uploaded" so it still needs review.`);
+  console.log(`  Blocked ${group.length} original record${group.length === 1 ? "" : "s"} sharing these bytes; the files are untouched on disk and linked both ways in aiSuggestedFields.`);
+  return created!.id;
+}
+
 async function main(): Promise<void> {
+  const verifyPath = arg("verify");
+  if (verifyPath) {
+    await verify(verifyPath, flag("apply"), arg("from-scan"));
+    return;
+  }
   const rejudgePath = arg("rejudge");
   if (rejudgePath) {
     await rejudge(rejudgePath, flag("apply"));
@@ -433,75 +635,7 @@ async function main(): Promise<void> {
       continue;
     }
 
-    /*
-     * A NEW asset row, and the original blocked rather than overwritten.
-     *
-     * Repointing the original's `fileUrl` was the first design and it is wrong.
-     * Somebody approved that asset, and what they approved was the image with
-     * the swoosh in it; silently swapping the pixels underneath an approval
-     * makes the approval mean nothing. A new row is the honest shape: the old
-     * thing is retired through the gate the scanner already uses, and the new
-     * thing is a new thing that a human can approve on its own terms.
-     *
-     * It also needs no migration. `assets` has no jsonb column to record a
-     * retouch in, and inventing one to hold an audit trail is a bigger decision
-     * than this pass should make on its own. The two `aiSuggestedFields`
-     * markers below carry the link in both directions in a `text[]`, which is
-     * what that column actually is. If retouching becomes routine, a proper
-     * `retouch` jsonb column is the right follow-up.
-     */
-    const [created] = await db
-      .insert(assetsTable)
-      .values({
-        brandId: asset.brandId,
-        type: asset.type,
-        subType: asset.subType,
-        // NOT copied as approved. A retouched image is unreviewed until someone
-        // reviews it, however good the change percentage looks.
-        status: "uploaded",
-        name: `${stem}_retouched.${ext}`,
-        description: asset.description,
-        tags: asset.tags ?? [],
-        fileUrl: afterUrl,
-        mimeType: outMime,
-        fileSizeBytes: result.imageBuffer.byteLength,
-        uploadedBy: asset.uploadedBy,
-        // The analysis still describes this image: only a logo left it. Copying
-        // it means the clean asset is immediately as usable as the one it
-        // replaces, instead of ranking last until someone re-analyses it.
-        assetClass: asset.assetClass,
-        generationRole: asset.generationRole,
-        brandLayer: asset.brandLayer,
-        franchise: asset.franchise,
-        approvedChannels: asset.approvedChannels ?? [],
-        approvedTemplates: asset.approvedTemplates ?? [],
-        subjectIdentityScore: asset.subjectIdentityScore,
-        styleStrengthScore: asset.styleStrengthScore,
-        compositingOnly: asset.compositingOnly,
-        generationAllowed: true,
-        approvedForCompositing: asset.approvedForCompositing,
-        referencePriorityDefault: asset.referencePriorityDefault,
-        conflictTags: asset.conflictTags ?? [],
-        characterIdentityNote: asset.characterIdentityNote,
-        depictedEntities: asset.depictedEntities ?? [],
-        colors: asset.colors ?? [],
-        styleNotes: asset.styleNotes,
-        aiSuggestedFields: [...(asset.aiSuggestedFields ?? []), `retouched_from:${asset.id}`],
-      })
-      .returning({ id: assetsTable.id });
-
-    const group = siblings.get(asset.id) ?? [asset.id];
-    await db
-      .update(assetsTable)
-      .set({
-        generationAllowed: false,
-        aiSuggestedFields: [...(asset.aiSuggestedFields ?? []), `retouched_to:${created!.id}`],
-        updatedAt: new Date(),
-      })
-      .where(inArray(assetsTable.id, group));
-
-    console.log(`  APPLIED. New asset ${created!.id} (${stem}_retouched.${ext}), status "uploaded" so it still needs review.`);
-    console.log(`  Blocked ${group.length} original record${group.length === 1 ? "" : "s"} sharing these bytes; the files are untouched on disk and linked both ways in aiSuggestedFields.`);
+    await applyRetouched(asset, afterUrl, outMime, result.imageBuffer.byteLength, `${stem}_retouched.${ext}`, siblings.get(asset.id) ?? [asset.id]);
     manifest[manifest.length - 1]!.applied = true;
   }
   const manifestPath = arg("json");
