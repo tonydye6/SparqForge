@@ -1,8 +1,31 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, gte, lte, and, sql } from "drizzle-orm";
+import { eq, desc, gte, lte, and, ne, or, isNull, sql } from "drizzle-orm";
 import { db, costLogsTable, costLogMonthlySummaryTable } from "@workspace/db";
 
 const router: IRouter = Router();
+
+/**
+ * Budget reservations are HOLDS, not spend.
+ *
+ * A reservation row is inserted before a vendor call and deleted when the turn
+ * settles, purely so the daily cap stays correct under concurrency. Every
+ * aggregate on this route summed them anyway, so the dashboard overstated spend
+ * by the value of each in-flight hold and counted it as an "API call" under a
+ * service literally named "system". Caught by walking the surface with data in
+ * it — the empty dashboard looked perfectly fine.
+ *
+ * Filtered on BOTH columns deliberately. `pricing_basis` is the M2 answer and
+ * covers backfilled history, but `operation` is the ground truth that predates
+ * the column, so a row written by some path that bypasses `buildCostRow` still
+ * cannot sneak a hold into the totals.
+ *
+ * The daily budget check in `lib/budget.ts` does the opposite and must: holds
+ * are exactly what it needs to count. Same rows, two honest readings.
+ */
+const EXCLUDE_HOLDS = and(
+  or(isNull(costLogsTable.pricingBasis), ne(costLogsTable.pricingBasis, "reservation")),
+  ne(costLogsTable.operation, "budget_reservation"),
+);
 
 function parseValidDate(value: unknown): Date | null {
   if (!value || typeof value !== "string") return null;
@@ -22,7 +45,7 @@ router.get("/cost-logs", async (req, res): Promise<void> => {
     return;
   }
 
-  const conditions = [];
+  const conditions = [EXCLUDE_HOLDS];
   const parsedStart = parseValidDate(startDate);
   const parsedEnd = parseValidDate(endDate);
   if (parsedStart) {
@@ -62,7 +85,7 @@ router.get("/cost-logs/summary", async (req, res): Promise<void> => {
     return;
   }
 
-  const conditions = [];
+  const conditions = [EXCLUDE_HOLDS];
   const parsedStart = parseValidDate(startDate);
   const parsedEnd = parseValidDate(endDate);
   if (parsedStart) {
@@ -72,7 +95,7 @@ router.get("/cost-logs/summary", async (req, res): Promise<void> => {
     conditions.push(lte(costLogsTable.createdAt, parsedEnd));
   }
 
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const whereClause = and(...conditions);
 
   // Rows older than the retention window are rolled up into
   // cost_log_monthly_summary (see scripts/src/archive-cost-logs.ts) and removed

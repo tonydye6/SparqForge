@@ -245,20 +245,85 @@ export const refinementLogsTable = pgTable("refinement_logs", {
   index("refinement_logs_template_idx").on(table.templateId, table.editType),
 ]);
 
+/**
+ * How a row's `costUsd` was arrived at. Recorded because the number is stored
+ * at spend time but is usually an ESTIMATE, and a column that cannot say so
+ * reads as a measurement (Principle 1.17 / 2.9 — visible cost).
+ *
+ *  - `measured_tokens`     real token usage came back from the vendor
+ *  - `estimate_flat`       a flat per-call constant from COST_ESTIMATES
+ *  - `estimate_from_bytes` video, whose duration is guessed from buffer size
+ *  - `reservation`         a budget hold, deleted on settle; never real spend
+ *  - `pre_m2_estimate`     written before M2, basis unknown and unrecoverable
+ *
+ * Deliberately NOT a pg enum: adding a basis would then need a migration, and
+ * this describes how we measured rather than what the spine's shape is.
+ */
+export type CostPricingBasis =
+  | "measured_tokens"
+  | "estimate_flat"
+  | "estimate_from_bytes"
+  | "reservation"
+  | "pre_m2_estimate";
+
+export const COST_PRICING_BASES = [
+  "measured_tokens",
+  "estimate_flat",
+  "estimate_from_bytes",
+  "reservation",
+  "pre_m2_estimate",
+] as const satisfies readonly CostPricingBasis[];
+
+/** Two-pass accounting: a cheap preview spread, full resolution only on keeps. */
+export type CostPassType = "preview" | "full";
+
 export const costLogsTable = pgTable("cost_logs", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   creativeId: text("creative_id").references(() => creativesTable.id, { onDelete: "set null" }),
+  /**
+   * M2. Direct brand attribution, and NOT merely a convenience join.
+   * `creativeId` is `on delete set null`, so deleting a creative silently
+   * orphaned every cost row it caused — the spend stayed in the totals with
+   * nothing to attribute it to. `set null` here too, so deleting a brand keeps
+   * the money visible in lifetime totals rather than vanishing it.
+   */
+  brandId: text("brand_id").references(() => brandsTable.id, { onDelete: "set null" }),
   service: text("service").notNull(),
   operation: text("operation").notNull(),
   model: text("model"),
   costUsd: numeric("cost_usd", { precision: 12, scale: 4, mode: "number" }).notNull(),
+  /**
+   * M2. Deliberately no `amountCents` (doc 21 §2.3 specified one). `costUsd`
+   * already stores the amount at spend time to four decimals, so cents would be
+   * a second source of truth that also LOSES precision: the $0.002 Gemini text
+   * rows round to 0. Doc 21 assumed no dollar column existed; it does.
+   */
+  pricingBasis: text("pricing_basis").$type<CostPricingBasis>(),
+  passType: text("pass_type").$type<CostPassType>(),
+  /**
+   * M2. FALSE once a take is culled and never published — this is what makes
+   * wasted spend its own colour on the Cost surface. NULL means "not part of a
+   * two-pass flow", which is not the same as unused.
+   */
+  wasUsed: boolean("was_used"),
   inputTokens: integer("input_tokens"),
   outputTokens: integer("output_tokens"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("cost_logs_created_at_idx").on(table.createdAt.desc()),
   index("cost_logs_service_created_at_idx").on(table.service, table.createdAt.desc()),
+  index("cost_logs_brand_created_at_idx").on(table.brandId, table.createdAt.desc()),
+  check(
+    "cost_logs_pricing_basis_check",
+    sql`${table.pricingBasis} IS NULL OR ${table.pricingBasis} IN ('measured_tokens', 'estimate_flat', 'estimate_from_bytes', 'reservation', 'pre_m2_estimate')`,
+  ),
+  check(
+    "cost_logs_pass_type_check",
+    sql`${table.passType} IS NULL OR ${table.passType} IN ('preview', 'full')`,
+  ),
 ]);
+
+export type CostLog = typeof costLogsTable.$inferSelect;
 
 // Monthly rollups of archived cost_logs rows. The archival job (see
 // scripts/src/archive-cost-logs.ts) rolls up whole calendar months that are

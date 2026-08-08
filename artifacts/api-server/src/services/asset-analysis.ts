@@ -1,5 +1,6 @@
 import { ai } from "@workspace/integrations-gemini-ai";
 import { AI_MODELS, estimateGeminiTextCost } from "../lib/ai-config.js";
+import { buildCostRow } from "./cost-recording.js";
 import { db, assetsTable, costLogsTable } from "@workspace/db";
 import type { Asset } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
@@ -284,12 +285,13 @@ export async function analyzeAndStoreAsset(assetId: string): Promise<Asset> {
     .returning();
 
   try {
-    await db.insert(costLogsTable).values({
+    await db.insert(costLogsTable).values(buildCostRow({
+      brandId: updated?.brandId ?? null,
       service: "gemini",
       operation: "asset_analysis",
       model: AI_MODELS.GEMINI_FLASH_TEXT,
       costUsd: estimateGeminiTextCost(),
-    });
+    }));
   } catch (err) {
     console.error("Failed to log asset analysis cost:", err instanceof Error ? err.message : err);
   }

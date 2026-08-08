@@ -8,6 +8,7 @@
 
 import { db, costLogsTable, appSettingsTable } from "@workspace/db";
 import { eq, sql, gte } from "drizzle-orm";
+import { buildCostRow } from "../services/cost-recording.js";
 
 const BUDGET_LOCK_KEY = 100001;
 
@@ -28,6 +29,13 @@ export type BudgetResult =
 export async function reserveBudget(
   creativeId: string,
   estimatedCost: number,
+  /**
+   * M2. Optional so no existing caller had to change. Worth carrying even
+   * though a reservation is transient: the known failure mode here is a hold
+   * that never settles, and a leaked row with no attribution is a charge
+   * against the daily cap that nobody can trace back to a brand.
+   */
+  brandId?: string | null,
 ): Promise<BudgetResult> {
   const [thresholdRow] = await db
     .select()
@@ -56,11 +64,14 @@ export async function reserveBudget(
     }
     await tx.insert(costLogsTable).values({
       id: reservationId,
-      creativeId,
-      service: "system",
-      operation: "budget_reservation",
-      model: null,
-      costUsd: estimatedCost,
+      ...buildCostRow({
+        creativeId,
+        brandId,
+        service: "system",
+        operation: "budget_reservation",
+        model: null,
+        costUsd: estimatedCost,
+      }),
     });
     return { exceeded: false as const, todaySpend: currentSpend };
   });
