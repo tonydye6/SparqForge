@@ -65,7 +65,7 @@ import path from "node:path";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { COPILOT_MODELS } from "../src/lib/ai-config.js";
 import { extractJSON } from "../src/lib/extract-json.js";
-import { writeBuffer } from "../src/services/storage.js";
+import { writeBuffer, readBuffer, resolveUrl } from "../src/services/storage.js";
 import { runImageInteraction } from "../src/services/interactions-client.js";
 import { measureChange } from "../src/services/region-drift.js";
 import {
@@ -112,8 +112,27 @@ async function resolveBrand(needle: string): Promise<Brand> {
   return hit;
 }
 
-/** Same two-step read as the scanner: most media is bucket-backed. */
+/**
+ * Read a stored file, going through STORAGE before HTTP.
+ *
+ * The first version asked the server over HTTP, and that route is
+ * reference-gated: it 404s for any file no database row points at. A retouch
+ * produced WITHOUT --apply is exactly that — a real image in the bucket that
+ * nothing references yet — so a re-judge could not read the 30 images it
+ * existed to re-score. This script runs server-side, so it reads storage
+ * directly and the gate, which is there to stop clients enumerating files, is
+ * not in the way.
+ *
+ * HTTP remains the last fallback for anything storage cannot resolve.
+ */
 async function loadAssetBytes(fileUrl: string): Promise<Buffer | null> {
+  const loc = resolveUrl(fileUrl);
+  if (loc) {
+    try {
+      const buf = await readBuffer(loc);
+      if (buf) return buf;
+    } catch { /* fall through */ }
+  }
   const m = /\/api\/files\/(?:([\w-]+)\/)?(.+)$/.exec(fileUrl);
   if (m) {
     const root = process.env.FILE_STORAGE_DIR ?? path.resolve(process.cwd(), "uploads");
