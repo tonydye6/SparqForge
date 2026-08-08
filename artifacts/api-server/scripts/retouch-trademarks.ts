@@ -46,13 +46,21 @@
  *   --licensed <kinds>  mark kinds to LEAVE in place, e.g. conference,university
  *   --from-scan <path>  retouch every blocked image in a saved --json scan report,
  *                       once per unique image rather than once per record
+ *   --json <path>       write a manifest of everything produced, so a run can be
+ *                       re-judged later without paying for the images again
+ *   --rejudge <path>    re-score a previous run's manifest with the CURRENT
+ *                       measurement and no model calls at all. This exists
+ *                       because the first metric was wrong, not the retouches:
+ *                       it scored a black-to-white background swap on a cutout
+ *                       as a 95% repaint. Re-scoring is free; re-generating is
+ *                       not.
  *   --server <url>      api-server base, default http://localhost:$PORT (or 8080)
  */
 
 import { db, assetsTable, brandsTable } from "@workspace/db";
 import type { Asset, Brand } from "@workspace/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { COPILOT_MODELS } from "../src/lib/ai-config.js";
@@ -155,7 +163,58 @@ async function scanOne(buf: Buffer, asset: Asset, ownMarks: readonly string[], b
   return { findings, assessment: assessAsset(findings, { licensedKinds: licensed }) };
 }
 
+/**
+ * Re-score a previous run from its manifest, with no model calls.
+ *
+ * The images already exist in storage. When the MEASUREMENT was what was wrong
+ * — and it was — re-generating them would be paying twice for the same
+ * pictures to answer a question about arithmetic.
+ */
+async function rejudge(manifestPath: string, willApply: boolean): Promise<void> {
+  const rows = JSON.parse(await readFile(manifestPath, "utf8")) as Array<{
+    assetId: string; name: string; beforeUrl: string; afterUrl: string; applied?: boolean;
+    siblings?: string[];
+  }>;
+  rule(`RE-JUDGE · ${rows.length} image${rows.length === 1 ? "" : "s"} · no model calls, nothing spent`);
+  console.log(willApply
+    ? "  MODE: re-score AND apply anything that now passes"
+    : "  MODE: re-score and report. Nothing in the database changes.");
+
+  let nowClean = 0, stillBad = 0, unreadable = 0;
+  for (const row of rows) {
+    const [before, after] = await Promise.all([
+      loadAssetBytes(row.beforeUrl),
+      loadAssetBytes(row.afterUrl),
+    ]);
+    if (!before || !after) {
+      unreadable++;
+      console.log(`  skipped  ${row.name.slice(0, 48)}  (${!before ? "original" : "retouched image"} could not be read)`);
+      continue;
+    }
+    const change = await measureChange(before, after);
+    const verdict = retouchVerdict(change.subjectChangePercent);
+    const bg = change.backgroundReplaced ? "  · background replaced" : "";
+    console.log(`  ${verdict.toUpperCase().padEnd(10)} ${row.name.slice(0, 44).padEnd(44)} subject ${change.subjectChangePercent.toFixed(1)}%  frame ${change.changePercent.toFixed(1)}%${bg}`);
+
+    if (verdict === "repainted" || verdict === "unchanged") { stillBad++; continue; }
+    nowClean++;
+    if (!willApply || row.applied) continue;
+    console.log(`      would apply: ${row.name} (${(row.siblings ?? [row.assetId]).length} record(s) to block)`);
+  }
+
+  rule("RE-JUDGE SUMMARY");
+  console.log(`  now acceptable  ${nowClean}`);
+  console.log(`  still refused   ${stillBad}`);
+  if (unreadable > 0) console.log(`  unreadable      ${unreadable}`);
+  console.log(`  ${rows.length} manifest rows, ${nowClean + stillBad + unreadable} accounted for.\n`);
+}
+
 async function main(): Promise<void> {
+  const rejudgePath = arg("rejudge");
+  if (rejudgePath) {
+    await rejudge(rejudgePath, flag("apply"));
+    return;
+  }
   const brand = await resolveBrand(arg("brand") ?? "Crown U");
   const willApply = flag("apply");
   const dryRun = flag("dry-run");
@@ -236,6 +295,11 @@ async function main(): Promise<void> {
   if (licensed.length > 0) console.log(`  Leaving in place: ${licensed.join(", ")}`);
 
   const ownMarks = ownMarksFor(brand, all);
+  const manifest: Array<{
+    assetId: string; name: string; beforeUrl: string; afterUrl: string;
+    subjectChangePercent: number; changePercent: number; backgroundReplaced: boolean;
+    verdict: string; applied: boolean; siblings: string[];
+  }> = [];
 
   for (const asset of targets) {
     rule(String(asset.name));
@@ -322,7 +386,19 @@ async function main(): Promise<void> {
     const afterUrl = `/api/files/brand-assets/${filename}`;
 
     console.log(`\n  ${retouchMessage(change.subjectChangePercent)}`);
-    console.log(`  (${change.changePercent.toFixed(1)}% of the whole frame, but the frame is mostly background — judge by the subject figure.)`);
+    console.log(`  (${change.changePercent.toFixed(1)}% of the whole frame; the subject figure is the one to judge by.)`);
+    if (change.backgroundReplaced) {
+      // Stated, never scored. It says nothing about whether the character
+      // survived, and letting it into the score is what made the previous
+      // metric call good retouches repaints.
+      console.log(`  NOTE: the background was replaced. That does not affect the verdict, but if this asset is used for compositing rather than as a generation reference, check it.`);
+    }
+    manifest.push({
+      assetId: asset.id, name: String(asset.name), beforeUrl: String(asset.fileUrl ?? ""), afterUrl,
+      subjectChangePercent: change.subjectChangePercent, changePercent: change.changePercent,
+      backgroundReplaced: change.backgroundReplaced, verdict, applied: false,
+      siblings: siblings.get(asset.id) ?? [asset.id],
+    });
     console.log(`  before: ${asset.fileUrl}`);
     console.log(`  after:  ${afterUrl}`);
     console.log(`  Look at both before deciding. The number says how much moved, never whether the mark is gone.`);
@@ -407,6 +483,12 @@ async function main(): Promise<void> {
 
     console.log(`  APPLIED. New asset ${created!.id} (${stem}_retouched.${ext}), status "uploaded" so it still needs review.`);
     console.log(`  Blocked ${group.length} original record${group.length === 1 ? "" : "s"} sharing these bytes; the files are untouched on disk and linked both ways in aiSuggestedFields.`);
+    manifest[manifest.length - 1]!.applied = true;
+  }
+  const manifestPath = arg("json");
+  if (manifestPath) {
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log(`\n  Manifest written to ${manifestPath}. Re-judge it later with --rejudge, which costs nothing.`);
   }
   console.log("");
 }

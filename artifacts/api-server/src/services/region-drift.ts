@@ -1,6 +1,13 @@
 import sharp from "sharp";
 
 import { computeDriftPercent, containsPoint, type Region } from "./region-edit.js";
+import {
+  estimateBackground,
+  subjectMask,
+  erodeMask,
+  intersectMasks,
+  backgroundChanged,
+} from "./asset-retouch.js";
 
 /**
  * Measuring how far a region edit strayed outside its mask.
@@ -111,23 +118,27 @@ export interface ChangeMeasurement {
   /** Changed fraction of the whole frame. Diluted by empty space — see below. */
   changePercent: number;
   /**
-   * Changed fraction of the pixels that carry SUBJECT, which is the number to
-   * judge a retouch by.
+   * Changed fraction of the subject's INTERIOR, which is the number to judge a
+   * retouch by.
    */
   subjectChangePercent: number;
   sampled: number;
   changed: number;
   subjectSampled: number;
   subjectChanged: number;
+  /**
+   * True when the ground itself was replaced, e.g. a cutout that came back on
+   * white instead of black. Reported rather than scored: it says nothing about
+   * whether the character survived, and letting it into the score is precisely
+   * what made the previous metric call good retouches "repainted".
+   */
+  backgroundReplaced: boolean;
+  /** True when both frames had a readable flat ground, so the mask is real. */
+  hadBackground: boolean;
 }
 
-/**
- * Structure threshold that separates subject from empty ground.
- *
- * Applied to a Laplacian of the before image. A studio backdrop or a flat
- * gradient has almost none; a character's edges, folds and trim have plenty.
- */
-const CONTENT_EDGE_THRESHOLD = 12;
+/** How far inward the silhouette is discarded, in sample pixels. */
+const SILHOUETTE_EROSION = 2;
 
 export async function measureChange(before: Buffer, after: Buffer): Promise<ChangeMeasurement> {
   const meta = await sharp(before).metadata();
@@ -138,33 +149,34 @@ export async function measureChange(before: Buffer, after: Buffer): Promise<Chan
   const h = Math.max(1, Math.round(srcH * scale));
 
   const toRaw = (buf: Buffer) =>
-    sharp(buf).resize(w, h, { fit: "fill" }).removeAlpha().raw().toBuffer();
+    sharp(buf)
+      // Flattened onto a mid grey rather than left with alpha, so a transparent
+      // cutout has a definite colour to compare instead of undefined RGB under
+      // its transparent pixels.
+      .flatten({ background: { r: 128, g: 128, b: 128 } })
+      .resize(w, h, { fit: "fill" })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+
+  const [a, b] = await Promise.all([toRaw(before), toRaw(after)]);
 
   /*
-   * WHY A CONTENT MASK, and it was learned the expensive way.
+   * Find the ground in each frame, take the subject, throw the silhouette away.
    *
-   * A live spot removal on 2026-08-07 reported 3.1% of the frame changed and
-   * the guard called that "within recompression noise". Measured properly the
-   * subject's face had moved 16%, the boots 25% and the keyline 34-50%, while
-   * the large empty background was untouched at 0% — and because the background
-   * is most of the picture, it averaged the whole thing down to nearly nothing.
-   *
-   * **An area-based percentage answers "how much of the picture changed" when
-   * the question is "did the character survive".** On a character turnaround,
-   * which is most of what needs retouching here, the subject is a minority of
-   * the pixels and a global figure will always flatter the result. So the
-   * verdict is taken over the pixels that carry subject.
+   * See the long note in asset-retouch.ts. The short version: an edge-weighted
+   * mask puts all its weight on the silhouette, which is exactly where a
+   * background change lands, so it scored good retouches as total repaints.
+   * Here the background is identified and excluded, and the subject is eroded
+   * inward so the boundary band contributes nothing either way.
    */
-  const [a, b, edges] = await Promise.all([
-    toRaw(before),
-    toRaw(after),
-    sharp(before)
-      .resize(w, h, { fit: "fill" })
-      .greyscale()
-      .convolve({ width: 3, height: 3, kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1] })
-      .raw()
-      .toBuffer(),
-  ]);
+  const bgA = estimateBackground(a, w, h);
+  const bgB = estimateBackground(b, w, h);
+  const hadBackground = bgA.uniform && bgB.uniform;
+
+  const maskA = subjectMask(a, w, h, bgA.uniform ? bgA.colour : null);
+  const maskB = subjectMask(b, w, h, bgB.uniform ? bgB.colour : null);
+  const core = erodeMask(intersectMasks(maskA, maskB), w, h, SILHOUETTE_EROSION);
 
   let changed = 0;
   let subjectSampled = 0;
@@ -174,12 +186,11 @@ export async function measureChange(before: Buffer, after: Buffer): Promise<Chan
   for (let i = 0; i < sampled; i++) {
     const p = i * 3;
     const differs =
-      Math.abs(a[p] - b[p]) > CHANNEL_TOLERANCE ||
-      Math.abs(a[p + 1] - b[p + 1]) > CHANNEL_TOLERANCE ||
-      Math.abs(a[p + 2] - b[p + 2]) > CHANNEL_TOLERANCE;
+      Math.abs(a[p]! - b[p]!) > CHANNEL_TOLERANCE ||
+      Math.abs(a[p + 1]! - b[p + 1]!) > CHANNEL_TOLERANCE ||
+      Math.abs(a[p + 2]! - b[p + 2]!) > CHANNEL_TOLERANCE;
     if (differs) changed++;
-
-    if (edges[i] > CONTENT_EDGE_THRESHOLD) {
+    if (core[i]) {
       subjectSampled++;
       if (differs) subjectChanged++;
     }
@@ -188,9 +199,9 @@ export async function measureChange(before: Buffer, after: Buffer): Promise<Chan
   return {
     changePercent: computeDriftPercent(changed, sampled),
     /*
-     * Falls back to the global figure when the image has no structure at all,
-     * rather than reporting a confident 0% on a frame it could not read. A
-     * measurement that cannot be made must not look like a good result.
+     * Falls back to the global figure when erosion left nothing to measure —
+     * a very small subject, or two frames that share no common subject at all.
+     * A measurement that could not be made must never look like a good result.
      */
     subjectChangePercent: subjectSampled > 0
       ? computeDriftPercent(subjectChanged, subjectSampled)
@@ -199,6 +210,8 @@ export async function measureChange(before: Buffer, after: Buffer): Promise<Chan
     changed,
     subjectSampled,
     subjectChanged,
+    backgroundReplaced: hadBackground && backgroundChanged(bgA.colour, bgB.colour),
+    hadBackground,
   };
 }
 

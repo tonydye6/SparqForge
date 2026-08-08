@@ -179,6 +179,126 @@ export function buildRetouchPlan(
   return { instruction, removing, skipped };
 }
 
+/* ------------------------------------------------------------------------- *
+ * Measuring restraint on a cutout, and the mistake this replaces.
+ *
+ * The first measurement was a flat percentage of the frame, and the untouched
+ * background averaged real damage away. The fix weighted it toward pixels with
+ * structure, using a Laplacian edge mask — and that fix was wrong in a way that
+ * only showed up on the assets it mattered most for.
+ *
+ * **On a character cut out against a flat ground, the edges ARE the
+ * silhouette.** So a mask built from edges is concentrated exactly where the
+ * background meets the subject, which is exactly where a background change
+ * shows up. A metric built to ignore the background turned out to be maximally
+ * sensitive to it: a black-to-white ground swap scored 91-95% "repainted" on
+ * retouches whose characters were plainly untouched and whose marks were
+ * plainly gone.
+ *
+ * So: find the background, take the subject, throw the silhouette away, and
+ * measure what is left. And when the background itself changed, SAY SO
+ * separately instead of letting it into the score.
+ * ------------------------------------------------------------------------- */
+
+export interface Rgb { r: number; g: number; b: number }
+
+/** How far a pixel may sit from the background colour and still be background. */
+export const BACKGROUND_TOLERANCE = 26;
+
+/**
+ * The background colour, read off the frame's border, and whether there is one.
+ *
+ * A studio cutout has a uniform border; a photograph or a composed scene does
+ * not. When the border is not uniform there is no background to exclude, and
+ * saying so is better than inventing one and masking off part of the picture.
+ */
+export function estimateBackground(
+  px: Uint8Array | Buffer,
+  w: number,
+  h: number,
+): { colour: Rgb; uniform: boolean } {
+  const samples: Rgb[] = [];
+  const at = (x: number, y: number): Rgb => {
+    const i = (y * w + x) * 3;
+    return { r: px[i]!, g: px[i + 1]!, b: px[i + 2]! };
+  };
+  const step = Math.max(1, Math.floor(Math.min(w, h) / 32));
+  for (let x = 0; x < w; x += step) { samples.push(at(x, 0)); samples.push(at(x, h - 1)); }
+  for (let y = 0; y < h; y += step) { samples.push(at(0, y)); samples.push(at(w - 1, y)); }
+
+  const mean = samples.reduce(
+    (a, c) => ({ r: a.r + c.r / samples.length, g: a.g + c.g / samples.length, b: a.b + c.b / samples.length }),
+    { r: 0, g: 0, b: 0 },
+  );
+  const colour = { r: Math.round(mean.r), g: Math.round(mean.g), b: Math.round(mean.b) };
+  // Uniform when almost every border sample sits near that mean. A few stray
+  // samples are allowed: a subject often touches one edge of the frame.
+  const near = samples.filter(s =>
+    Math.abs(s.r - colour.r) <= BACKGROUND_TOLERANCE &&
+    Math.abs(s.g - colour.g) <= BACKGROUND_TOLERANCE &&
+    Math.abs(s.b - colour.b) <= BACKGROUND_TOLERANCE).length;
+  return { colour, uniform: near / samples.length >= 0.9 };
+}
+
+/** 1 where the pixel is NOT the background. All ones when there is no background. */
+export function subjectMask(
+  px: Uint8Array | Buffer,
+  w: number,
+  h: number,
+  bg: Rgb | null,
+): Uint8Array {
+  const out = new Uint8Array(w * h);
+  if (!bg) { out.fill(1); return out; }
+  for (let i = 0; i < w * h; i++) {
+    const p = i * 3;
+    out[i] = (Math.abs(px[p]! - bg.r) > BACKGROUND_TOLERANCE ||
+              Math.abs(px[p + 1]! - bg.g) > BACKGROUND_TOLERANCE ||
+              Math.abs(px[p + 2]! - bg.b) > BACKGROUND_TOLERANCE) ? 1 : 0;
+  }
+  return out;
+}
+
+/**
+ * Shrink a mask inward, dropping everything within `radius` of its boundary.
+ *
+ * THE load-bearing step. The silhouette is where the background flip lands, and
+ * it is also where antialiasing puts a band of blended pixels that differ
+ * whenever anything behind them moves. Neither says whether the character
+ * survived, so neither is measured.
+ */
+export function erodeMask(mask: Uint8Array, w: number, h: number, radius: number): Uint8Array {
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (!mask[y * w + x]) continue;
+      let keep = 1;
+      for (let dy = -radius; dy <= radius && keep; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const nx = x + dx, ny = y + dy;
+          // Off-frame counts as not-subject, so a subject running off the edge
+          // is eroded there too rather than treated as interior.
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h || !mask[ny * w + nx]) { keep = 0; break; }
+        }
+      }
+      out[y * w + x] = keep;
+    }
+  }
+  return out;
+}
+
+export function intersectMasks(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] && b[i] ? 1 : 0;
+  return out;
+}
+
+/** Did the ground itself change? Reported, never scored. */
+export function backgroundChanged(before: Rgb, after: Rgb): boolean {
+  return Math.abs(before.r - after.r) > BACKGROUND_TOLERANCE ||
+         Math.abs(before.g - after.g) > BACKGROUND_TOLERANCE ||
+         Math.abs(before.b - after.b) > BACKGROUND_TOLERANCE;
+}
+
 /**
  * A one-line summary for the report.
  *

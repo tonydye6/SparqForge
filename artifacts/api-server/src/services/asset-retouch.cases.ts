@@ -3,6 +3,12 @@
  * reporter, so both run exactly the same checks.
  */
 import {
+  estimateBackground,
+  subjectMask,
+  erodeMask,
+  intersectMasks,
+  backgroundChanged,
+  BACKGROUND_TOLERANCE,
   buildRetouchPlan,
   formatRetouchPlan,
   retouchVerdict,
@@ -129,6 +135,93 @@ export async function collectAssetRetouchCases(): Promise<CaseResult[]> {
     check("it stays one line", !line.includes("\n"));
     const clean = formatRetouchPlan("x.png", buildRetouchPlan([f()])!);
     check("no leaving-clause when nothing was skipped", !/leaving/.test(clean));
+  }
+
+  // ---- the measurement, and the mistake it replaces ----
+  {
+    /** A w x h RGB buffer: flat `bg`, with a solid `fg` rectangle inset by `inset`. */
+    const frame = (w: number, h: number, bg: [number,number,number], fg: [number,number,number], inset: number) => {
+      const px = new Uint8Array(w * h * 3);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const inside = x >= inset && y >= inset && x < w - inset && y < h - inset;
+        const c = inside ? fg : bg;
+        const i = (y * w + x) * 3;
+        px[i] = c[0]; px[i+1] = c[1]; px[i+2] = c[2];
+      }
+      return px;
+    };
+    const W = 40, H = 40, INSET = 10;
+    const BLACK: [number,number,number] = [0,0,0];
+    const WHITE: [number,number,number] = [255,255,255];
+    const BODY:  [number,number,number] = [200,60,60];
+
+    const onBlack = frame(W,H,BLACK,BODY,INSET);
+    const onWhite = frame(W,H,WHITE,BODY,INSET);
+
+    const bgA = estimateBackground(onBlack, W, H);
+    const bgB = estimateBackground(onWhite, W, H);
+    check("a flat ground is found", bgA.uniform && bgB.uniform, [bgA, bgB]);
+    check("and read correctly", bgA.colour.r === 0 && bgB.colour.r === 255, [bgA.colour, bgB.colour]);
+    check("a ground swap is detected", backgroundChanged(bgA.colour, bgB.colour));
+    check("an unchanged ground is not", !backgroundChanged(bgA.colour, bgA.colour));
+
+    const mA = subjectMask(onBlack, W, H, bgA.colour);
+    const mB = subjectMask(onWhite, W, H, bgB.colour);
+    const subjectPixels = (W - 2*INSET) * (H - 2*INSET);
+    check("the subject is the non-background", mA.reduce((n,v)=>n+v,0) === subjectPixels, mA.reduce((n,v)=>n+v,0));
+    check("and is the same subject on either ground", mB.reduce((n,v)=>n+v,0) === subjectPixels);
+
+    const core = erodeMask(intersectMasks(mA, mB), W, H, 2);
+    const eroded = (W - 2*INSET - 4) * (H - 2*INSET - 4);
+    check("erosion drops the silhouette band", core.reduce((n,v)=>n+v,0) === eroded, core.reduce((n,v)=>n+v,0));
+    check("erosion keeps an interior to measure", core.reduce((n,v)=>n+v,0) > 0);
+
+    /*
+     * THE case this exists for. Same character, ground flipped black to white.
+     * Every pixel in the eroded core is identical, so the score must be zero —
+     * the previous edge-weighted metric scored this class of change at 91-95%.
+     */
+    let coreChanged = 0, coreSampled = 0;
+    for (let i = 0; i < W*H; i++) {
+      if (!core[i]) continue;
+      coreSampled++;
+      const p = i*3;
+      if (Math.abs(onBlack[p]-onWhite[p]) > 10) coreChanged++;
+    }
+    check("a pure background swap scores ZERO subject change", coreChanged === 0, {coreChanged, coreSampled});
+    check("and there is a real sample behind that zero", coreSampled === eroded);
+
+    // A real repaint still registers, so the guard is not simply disabled.
+    const repainted = frame(W,H,WHITE,[40,180,90],INSET);
+    const mR = subjectMask(repainted, W, H, estimateBackground(repainted,W,H).colour);
+    const coreR = erodeMask(intersectMasks(mA, mR), W, H, 2);
+    let rChanged = 0, rSampled = 0;
+    for (let i = 0; i < W*H; i++) {
+      if (!coreR[i]) continue;
+      rSampled++;
+      const p = i*3;
+      if (Math.abs(onBlack[p]-repainted[p]) > 10) rChanged++;
+    }
+    check("a genuinely different subject still scores high", rSampled > 0 && rChanged / rSampled > 0.9, {rChanged, rSampled});
+  }
+  {
+    // A photograph has no flat ground, so nothing is masked off and the whole
+    // frame is measured rather than an invented background being excluded.
+    const noisy = new Uint8Array(30*30*3);
+    for (let i = 0; i < noisy.length; i++) noisy[i] = (i * 37) % 256;
+    const bg = estimateBackground(noisy, 30, 30);
+    check("a busy frame reports no flat ground", !bg.uniform);
+    const m = subjectMask(noisy, 30, 30, null);
+    check("and then everything counts as subject", m.every(v => v === 1));
+  }
+  {
+    // Tolerance: near-background pixels are background, so JPEG noise on a flat
+    // ground does not become a subject speckled across the frame.
+    const px = new Uint8Array(20*20*3).fill(10);
+    const bg = estimateBackground(px, 20, 20);
+    const m = subjectMask(px, 20, 20, bg.colour);
+    check("noise within tolerance is still background", m.every(v => v === 0));
+    check("the tolerance is a real number", BACKGROUND_TOLERANCE > 0 && BACKGROUND_TOLERANCE < 128);
   }
 
   return results;
