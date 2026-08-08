@@ -44,12 +44,14 @@
  *   --apply             WRITE the new image onto the asset record
  *   --dry-run           build and print the instruction, call no model, spend nothing
  *   --licensed <kinds>  mark kinds to LEAVE in place, e.g. conference,university
- *   --server <url>      api-server base, for reading bucket-backed files
+ *   --from-scan <path>  retouch every blocked image in a saved --json scan report,
+ *                       once per unique image rather than once per record
+ *   --server <url>      api-server base, default http://localhost:$PORT (or 8080)
  */
 
 import { db, assetsTable, brandsTable } from "@workspace/db";
 import type { Asset, Brand } from "@workspace/db";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
@@ -64,6 +66,7 @@ import {
   parseTrademarkFindings,
   assessAsset,
   type MarkKind,
+  type TrademarkFinding,
 } from "../src/services/trademark-scan.js";
 import {
   buildRetouchPlan,
@@ -83,7 +86,13 @@ function rule(title: string): void {
   console.log(`\n${"─".repeat(78)}\n${title}\n${"─".repeat(78)}`);
 }
 
-const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, "");
+/*
+ * 8080, not 5000, and the number is not arbitrary: it is what the package's
+ * own `dev` script binds (`${PORT:-8080}`). The first default was 5000, which
+ * silently pointed a live run at nothing and cost a wasted vision call before
+ * anyone noticed the fetch was failing rather than the file being unreadable.
+ */
+const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 8080}`).replace(/\/$/, "");
 
 async function resolveBrand(needle: string): Promise<Brand> {
   const [byId] = await db.select().from(brandsTable).where(eq(brandsTable.id, needle));
@@ -160,11 +169,58 @@ async function main(): Promise<void> {
 
   const exactId = arg("asset");
   const needle = (arg("name") ?? "").trim().toLowerCase();
+  const scanPath = arg("from-scan");
   let targets = all.filter(a => String(a.mimeType ?? "").startsWith("image/"));
-  if (exactId) targets = targets.filter(a => a.id === exactId);
+
+  /*
+   * A wave, driven off a scan that has already been paid for.
+   *
+   * Doing a wave as N invocations of --name means N re-scans, and the scan is
+   * the expensive half: the full library run is 241 vision calls and the better
+   * part of an hour. A saved --json report already carries every blocked image
+   * AND the findings that scope each edit, so this reads them instead.
+   *
+   * It also carries the ONLY dedupe that matters here. The report groups by
+   * content hash, so a photograph filed under four names is retouched once
+   * rather than four times, and `--apply` still blocks all four records.
+   */
+  let fromScan: Map<string, TrademarkFinding[]> | null = null;
+  /*
+   * Retouched asset id -> every record that shares its bytes.
+   *
+   * `generationAllowed` lives on the RECORD, so blocking the one image we
+   * happened to retouch leaves its byte-identical twins reachable by the
+   * Director — which is exactly the defect the scanner's --flag already had to
+   * fix once. Same lesson, same shape, so the same rule applies here.
+   */
+  const siblings = new Map<string, string[]>();
+  if (scanPath) {
+    const report = JSON.parse(await readFile(scanPath, "utf8")) as {
+      summary?: { blockedGroups?: Array<{ assetIds: string[]; name: string; assessment: { findings: TrademarkFinding[] } }> };
+    };
+    const groups = report.summary?.blockedGroups ?? [];
+    if (groups.length === 0) {
+      console.log(`\n  ${scanPath} lists no blocked images, so there is nothing to retouch.\n`);
+      return;
+    }
+    // One target per GROUP — the first record — with its stored findings.
+    fromScan = new Map();
+    const wanted: string[] = [];
+    for (const g of groups) {
+      const first = g.assetIds[0];
+      if (!first) continue;
+      wanted.push(first);
+      fromScan.set(first, g.assessment?.findings ?? []);
+      // Every record sharing these bytes, so --apply blocks the twins too.
+      siblings.set(first, g.assetIds);
+    }
+    const byId = new Map(targets.map(a => [a.id, a]));
+    targets = wanted.map(id => byId.get(id)).filter((a): a is Asset => Boolean(a));
+    console.log(`\n  Reading ${scanPath}: ${groups.length} blocked images, ${targets.length} still present in the library.`);
+  } else if (exactId) targets = targets.filter(a => a.id === exactId);
   else if (needle) targets = targets.filter(a => String(a.name ?? "").toLowerCase().includes(needle));
   else {
-    console.log("\n  Name an asset with --name <substring> or --asset <id>. This is a paid edit, so it does not run over a whole library by default.\n");
+    console.log("\n  Name an asset with --name <substring> or --asset <id>, or drive a whole wave with --from-scan <report.json>. This is a paid edit, so it does not run over a whole library by default.\n");
     return;
   }
   targets = targets.slice(0, limit);
@@ -190,10 +246,18 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Rescan rather than trusting a stored verdict. The `where` field is what
-    // scopes the edit, and an edit scoped by a stale location is an edit aimed
-    // at the wrong part of the picture.
-    const { findings } = await scanOne(before, asset, ownMarks, brand.name, licensed);
+    /*
+     * Rescan, UNLESS the findings came from a report passed on this run.
+     *
+     * The rescan exists because `where` scopes the edit and a stale location
+     * aims it at the wrong part of the picture. A report handed over on the
+     * command line is not stale in that sense — it is the run we just paid for
+     * — and re-scanning it would double the cost of every wave for no new
+     * information.
+     */
+    const findings = fromScan
+      ? (fromScan.get(asset.id) ?? [])
+      : (await scanOne(before, asset, ownMarks, brand.name, licensed)).findings;
     if (findings.length === 0) {
       console.log("  No third-party marks found on this asset now. Nothing to remove.");
       continue;
@@ -239,7 +303,21 @@ async function main(): Promise<void> {
     const verdict = retouchVerdict(change.subjectChangePercent);
 
     const stem = String(asset.name ?? "asset").replace(/\.[a-z0-9]+$/i, "").slice(0, 60);
-    const filename = `retouch-${stem}-${Date.now()}.png`;
+    /*
+     * The extension follows the BYTES, not an assumption.
+     *
+     * The first version always wrote `.png` and declared `image/png`, and the
+     * model returns JPEG, so every retouched asset was a JPEG wearing a PNG
+     * name. This project has already paid for that once in the other direction:
+     * a declared-vs-actual media-type mismatch 400'd every caption call until
+     * the format was detected from the buffer instead of assumed.
+     */
+    const isPng = result.imageBuffer.length > 8
+      && result.imageBuffer[0] === 0x89 && result.imageBuffer[1] === 0x50
+      && result.imageBuffer[2] === 0x4e && result.imageBuffer[3] === 0x47;
+    const ext = isPng ? "png" : "jpg";
+    const outMime = isPng ? "image/png" : "image/jpeg";
+    const filename = `retouch-${stem}-${Date.now()}.${ext}`;
     await writeBuffer("brand-assets", filename, result.imageBuffer);
     const afterUrl = `/api/files/brand-assets/${filename}`;
 
@@ -286,11 +364,11 @@ async function main(): Promise<void> {
         // NOT copied as approved. A retouched image is unreviewed until someone
         // reviews it, however good the change percentage looks.
         status: "uploaded",
-        name: `${stem}_retouched.png`,
+        name: `${stem}_retouched.${ext}`,
         description: asset.description,
         tags: asset.tags ?? [],
         fileUrl: afterUrl,
-        mimeType: "image/png",
+        mimeType: outMime,
         fileSizeBytes: result.imageBuffer.byteLength,
         uploadedBy: asset.uploadedBy,
         // The analysis still describes this image: only a logo left it. Copying
@@ -317,6 +395,7 @@ async function main(): Promise<void> {
       })
       .returning({ id: assetsTable.id });
 
+    const group = siblings.get(asset.id) ?? [asset.id];
     await db
       .update(assetsTable)
       .set({
@@ -324,10 +403,10 @@ async function main(): Promise<void> {
         aiSuggestedFields: [...(asset.aiSuggestedFields ?? []), `retouched_to:${created!.id}`],
         updatedAt: new Date(),
       })
-      .where(eq(assetsTable.id, asset.id));
+      .where(inArray(assetsTable.id, group));
 
-    console.log(`  APPLIED. New asset ${created!.id} (${stem}_retouched.png), status "uploaded" so it still needs review.`);
-    console.log(`  The original is untouched on disk and now blocked from generation, linked both ways in aiSuggestedFields.`);
+    console.log(`  APPLIED. New asset ${created!.id} (${stem}_retouched.${ext}), status "uploaded" so it still needs review.`);
+    console.log(`  Blocked ${group.length} original record${group.length === 1 ? "" : "s"} sharing these bytes; the files are untouched on disk and linked both ways in aiSuggestedFields.`);
   }
   console.log("");
 }

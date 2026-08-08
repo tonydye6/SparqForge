@@ -41,7 +41,7 @@
  *   --flag              WRITE generationAllowed=false on blocked assets
  *   --dry-run           list the assets and exit without calling the model
  *   --all               include assets already blocked from generation
- *   --server <url>      api-server base, default http://localhost:$PORT (or 5000)
+ *   --server <url>      api-server base, default http://localhost:$PORT (or 8080)
  *   --json <path>       also write the full result set as JSON. A whole-library
  *                       scan takes the better part of an hour; losing it to a
  *                       closed terminal means paying for it again.
@@ -121,7 +121,13 @@ function localPathFor(fileUrl: string): string | null {
   return bucket ? path.join(root, bucket, name) : path.join(root, name);
 }
 
-const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 5000}`).replace(/\/$/, "");
+/*
+ * 8080, not 5000, and the number is not arbitrary: it is what the package's
+ * own `dev` script binds (`${PORT:-8080}`). The first default was 5000, which
+ * silently pointed a live run at nothing and cost a wasted vision call before
+ * anyone noticed the fetch was failing rather than the file being unreadable.
+ */
+const SERVER = (arg("server") ?? `http://localhost:${process.env.PORT ?? 8080}`).replace(/\/$/, "");
 
 /**
  * Disk first, then the running server. Most media is bucket-backed, and the
