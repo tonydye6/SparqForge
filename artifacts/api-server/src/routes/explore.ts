@@ -6,12 +6,23 @@ import { AI_MODELS, COST_ESTIMATES, estimateImagenCost, imagePass, type ImagePas
 /**
  * The pass a spread renders at when the caller does not say. Phase 7 item 2.
  *
- * Flip to "preview" only when `scripts/probe-image-pass.ts` has shown that a
- * flash-lite render off the same references is one you can pick a winner from.
- * The saving is real ($0.40 against $1.07 for a spread of eight plus one full
- * render) and it is worth nothing if the preview cannot be judged.
+ * **"preview" as of 2026-08-08, on evidence rather than on the price list.**
+ * Doc 30 §7 called two-pass "verified" when only the PRICE had been checked.
+ * Two probes settled the rest:
+ *
+ *  - flash-lite accepts the same multi-image reference payload and holds
+ *    subject identity — the character is recognisably the same person;
+ *  - it renders in ~3.3s against pro's ~17.6s, so a spread of eight appears in
+ *    a fifth of the time, which matters more day to day than the money;
+ *  - across three briefs the trademark scanner found ZERO third-party marks in
+ *    either tier. A single earlier flash-lite render had put legible Pepsi
+ *    boards in a stadium background; six images later that looks like noise,
+ *    and the exposure was always narrow because a preview is never the
+ *    artifact — the keeper is re-rendered before anything ships.
+ *
+ * A spread of 8 previews plus one full render is **$0.40 against $1.07**.
  */
-const DEFAULT_SPREAD_PASS: ImagePassType = "full";
+const DEFAULT_SPREAD_PASS: ImagePassType = "preview";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { buildCostRow } from "../services/cost-recording.js";
@@ -642,9 +653,22 @@ router.post(
       };
 
       generationStarted = true;
+      /*
+       * The resolved prompt per take, kept so promotion can render the keeper at
+       * full resolution FROM THE SAME INSTRUCTION. Without it, "render the keep"
+       * would have to rebuild the prompt by re-running the Creative Director —
+       * a second model call, and one that could legitimately decide something
+       * different, so the full render would not be the take the user chose.
+       */
+      const promptFor = new Map<string, string>();
       const results = await mapWithConcurrency(plan.takes, RUN_CONCURRENCY, async (take) => {
+        const renderPrompt = buildDirectedPrompt({
+          ...effectivePromptInputs,
+          axisDirective: take.directive,
+        });
+        promptFor.set(take.id, renderPrompt);
         const image = await generateImageFromPrompt(
-          buildDirectedPrompt({ ...effectivePromptInputs, axisDirective: take.directive }),
+          renderPrompt,
           "instagram_feed",
           references,
           passModel,
@@ -760,6 +784,14 @@ router.post(
                 axisB: take.axisB,
                 directive: take.directive,
                 offBrief: take.offBrief,
+                /*
+                 * What this take was rendered at, and what it would take to
+                 * render it again. Promotion reads both: `pass` to know whether
+                 * a full render is still owed, `renderPrompt` to ask for the
+                 * same picture rather than a new one.
+                 */
+                pass,
+                renderPrompt: promptFor.get(o.takeId) ?? null,
                 // Recorded on the take, not just returned, so the Material rail
                 // can state what this image was actually made from long after the
                 // run response is gone (§1.17).
