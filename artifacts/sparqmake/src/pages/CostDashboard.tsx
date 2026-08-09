@@ -78,6 +78,9 @@ export default function CostDashboard() {
   const [budgetStatus, setBudgetStatus] = useState<BudgetStatus | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [thresholdInput, setThresholdInput] = useState("");
+  const [monthlyInput, setMonthlyInput] = useState("");
+  const [hardCap, setHardCap] = useState(false);
+  const [spreadSize, setSpreadSize] = useState("8");
   const [savingThreshold, setSavingThreshold] = useState(false);
   const { toast } = useToast();
 
@@ -98,6 +101,18 @@ export default function CostDashboard() {
       startDate = d.toISOString();
     }
     return { startDate, endDate: now.toISOString() };
+  };
+
+  const loadSettings = async () => {
+    try {
+      const resp = await apiFetch(`${API_BASE}/api/settings`);
+      if (resp.ok) {
+        const s = await resp.json();
+        if (s.monthlyCostThreshold) setMonthlyInput(String(s.monthlyCostThreshold));
+        setHardCap(s.monthlyCostHardCap === "true");
+        if (s.spreadSize) setSpreadSize(String(s.spreadSize));
+      }
+    } catch {}
   };
 
   const loadBudgetStatus = async () => {
@@ -134,6 +149,7 @@ export default function CostDashboard() {
     };
     loadData();
     loadBudgetStatus();
+    loadSettings();
   }, [dateRange]);
 
   const handleSaveThreshold = async () => {
@@ -151,12 +167,36 @@ export default function CostDashboard() {
       const resp = await apiFetch(`${API_BASE}/api/settings`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dailyCostThreshold: value || "0" }),
+        body: JSON.stringify({
+          dailyCostThreshold: value || "0",
+          monthlyCostThreshold: monthlyInput.trim() || "0",
+          // Sent as a string because app_settings is a key/value text table;
+          // the server treats anything but "true" as off.
+          monthlyCostHardCap: hardCap ? "true" : "false",
+          spreadSize,
+        }),
       });
 
       if (resp.ok) {
-        toast({ title: value ? `Daily budget set to $${numVal.toFixed(2)}` : "Daily budget limit removed" });
+        toast({ title: "Budget settings saved" });
         await loadBudgetStatus();
+        await loadSettings();
+      } else {
+        /*
+         * Say when the save did NOT happen. This endpoint is admin-only, and
+         * until now a non-admin got a Save button that did nothing at all: no
+         * toast, no error, the old values quietly still in force. Walking it as
+         * the dev Editor user is what surfaced it — a 403 that the UI treated
+         * exactly like success.
+         */
+        toast({
+          variant: "destructive",
+          title: resp.status === 403 ? "Only an admin can change budget settings" : "Settings were not saved",
+          description: resp.status === 403
+            ? "Your changes were not applied. Ask an admin, or sign in with an admin account."
+            : `The server refused the change (${resp.status}).`,
+        });
+        await loadSettings();
       }
     } catch {
       toast({ variant: "destructive", title: "Failed to save threshold" });
@@ -284,8 +324,57 @@ export default function CostDashboard() {
                   className="bg-background border-border w-full sm:w-40"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Set to 0 or leave empty to disable budget alerts.</p>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Set to 0 or leave empty to disable. This one REFUSES spend.
+              </p>
             </div>
+
+            <div className="w-full sm:w-auto">
+              <label className="text-xs text-muted-foreground mb-1 block">Monthly Budget (USD)</label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 200.00"
+                  value={monthlyInput}
+                  onChange={e => setMonthlyInput(e.target.value)}
+                  className="bg-background border-border w-full sm:w-40"
+                />
+              </div>
+              <label className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={hardCap}
+                  onChange={e => setHardCap(e.target.checked)}
+                  className="accent-primary"
+                />
+                {/*
+                  Phase 7 item 5 asks for hard caps DEFAULT OFF, and the wording
+                  has to earn that: unchecked, this number only warns, and the
+                  daily threshold above is the only thing that can refuse a run.
+                */}
+                Refuse spreads that would exceed it
+              </label>
+            </div>
+
+            <div className="w-full sm:w-auto">
+              <label className="text-xs text-muted-foreground mb-1 block">Spread size</label>
+              <select
+                value={spreadSize}
+                onChange={e => setSpreadSize(e.target.value)}
+                className="h-9 w-full sm:w-40 rounded-md border border-border bg-background px-3 text-sm text-foreground"
+              >
+                <option value="8">8 takes · full grid</option>
+                <option value="6">6 takes</option>
+                <option value="4">4 takes · cheapest</option>
+              </select>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Every size keeps at least one take that goes past the brief.
+              </p>
+            </div>
+
             <Button
               size="sm"
               onClick={handleSaveThreshold}

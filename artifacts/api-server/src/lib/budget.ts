@@ -7,7 +7,7 @@
  */
 
 import { db, costLogsTable, appSettingsTable } from "@workspace/db";
-import { and, eq, gte, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { buildCostRow } from "../services/cost-recording.js";
 
 const BUDGET_LOCK_KEY = 100001;
@@ -114,10 +114,18 @@ export const MONTHLY_BUDGET_KEY = "monthlyCostThreshold";
 export interface MonthToDate {
   /** Spend so far this calendar month, holds excluded. */
   spentUsd: number;
-  /** The soft cap in dollars, or null when unset. */
+  /** The cap in dollars, or null when unset. */
   budgetUsd: number | null;
+  /**
+   * Whether the cap REFUSES spend rather than warning about it. Phase 7 item 5,
+   * default OFF. When false — the default — nothing in the product blocks on the
+   * monthly number; the daily threshold in `reserveBudget` is the only gate.
+   */
+  hard: boolean;
   monthStart: Date;
 }
+
+export const MONTHLY_HARD_CAP_KEY = "monthlyCostHardCap";
 
 /**
  * Month-to-date spend and the soft cap, for anything that wants to warn before
@@ -149,16 +157,23 @@ export async function monthToDateBudget(): Promise<MonthToDate> {
       ),
     );
 
-  const [setting] = await db
+  const settings = await db
     .select()
     .from(appSettingsTable)
-    .where(eq(appSettingsTable.key, MONTHLY_BUDGET_KEY));
-  const dollars = setting ? Number.parseFloat(setting.value) : NaN;
+    .where(inArray(appSettingsTable.key, [MONTHLY_BUDGET_KEY, MONTHLY_HARD_CAP_KEY]));
+  const byKey = new Map(settings.map(r => [r.key, r.value]));
+  const dollars = byKey.has(MONTHLY_BUDGET_KEY)
+    ? Number.parseFloat(byKey.get(MONTHLY_BUDGET_KEY)!)
+    : NaN;
+  // Anything but an explicit "true" is off. A hard cap should require somebody
+  // to have deliberately turned it on, not to have left a stray value behind.
+  const hard = byKey.get(MONTHLY_HARD_CAP_KEY) === "true";
 
   return {
     spentUsd: Number(row?.total ?? 0),
     // A zero cap means unset, not "ban all spending" — see `budgetStatus`.
     budgetUsd: Number.isFinite(dollars) && dollars > 0 ? dollars : null,
+    hard,
     monthStart,
   };
 }
