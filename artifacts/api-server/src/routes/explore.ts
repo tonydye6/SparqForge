@@ -15,7 +15,7 @@ const DEFAULT_SPREAD_PASS: ImagePassType = "full";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { buildCostRow } from "../services/cost-recording.js";
-import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
+import { monthToDateBudget, reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
 import { z } from "zod";
@@ -155,15 +155,49 @@ router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Resp
     // response says so rather than implying the axes were chosen for this post.
     const effective: Intent = intent ?? "awareness";
 
-    const plan = buildExplorePlan({
-      intent: effective,
-      perImageUsd: COST_ESTIMATES.IMAGEN_PER_IMAGE_USD,
-    });
+    /*
+     * Price the plan from the SAME source the run will charge from.
+     *
+     * This route quoted `COST_ESTIMATES.IMAGEN_PER_IMAGE_USD` directly while the
+     * run now prices through `imagePass(DEFAULT_SPREAD_PASS)`. They agree today
+     * only because the default is "full" — the day that default flips, the
+     * button would promise one price and the bill would be another. Quoting a
+     * price the code does not charge is the fossil problem again, one level up.
+     */
+    const { model: passModel, usdPerImage } = imagePass(DEFAULT_SPREAD_PASS);
+    const plan = buildExplorePlan({ intent: effective, perImageUsd: usdPerImage });
+
+    /*
+     * Phase 7 item 5 — the soft cap, answered BEFORE the turn.
+     *
+     * `wouldReachUsd` is month-to-date plus what this spread would add, so the
+     * composer can say "this takes you over" rather than only reporting the
+     * damage afterwards. A soft cap that you learn about after spending is a
+     * receipt, not a control.
+     *
+     * `hard` is false and there is no hard-cap path here on purpose: doc 22 item
+     * 5 asks for hard caps DEFAULT OFF, and the gate that actually refuses spend
+     * already exists in `reserveBudget` against the DAILY threshold. Adding a
+     * second refusing gate on the monthly number would be two things that can
+     * say no, which is how a build ends up with a limit nobody can find.
+     */
+    const mtd = await monthToDateBudget();
+    const spreadUsd = plan.costCents / 100;
 
     res.json({
       ...plan,
       goal: { id: effective, label: INTENT_LABELS[effective], fromBrief: intent !== null },
       briefStageId,
+      pass: DEFAULT_SPREAD_PASS,
+      model: passModel,
+      budget: {
+        monthSpentUsd: mtd.spentUsd,
+        monthBudgetUsd: mtd.budgetUsd,
+        wouldReachUsd: mtd.spentUsd + spreadUsd,
+        wouldExceed: mtd.budgetUsd !== null && mtd.spentUsd + spreadUsd > mtd.budgetUsd,
+        /** Soft: nothing here refuses the run. The daily gate is the hard one. */
+        hard: false,
+      },
       // Nothing has been generated. Said explicitly so a client cannot mistake a
       // plan for a result.
       generated: false,

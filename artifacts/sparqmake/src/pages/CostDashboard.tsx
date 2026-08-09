@@ -27,6 +27,15 @@ interface CostSummary {
     hasUnknownBasis: boolean;
   };
   spendWindow?: { rows: number; excludesArchived: boolean };
+  /** Phase 7 item 4. Calendar month-to-date, independent of the range filter. */
+  budget?: {
+    spentUsd: number;
+    budgetUsd: number | null;
+    fraction: number | null;
+    state: "no_budget" | "ok" | "warning" | "over";
+    monthStart: string;
+    warningFraction: number;
+  };
 }
 
 interface CostLogEntry {
@@ -329,6 +338,10 @@ export default function CostDashboard() {
           />
         </div>
 
+        {summary?.budget && summary.budget.state !== "no_budget" && (
+          <MonthAgainstBudget budget={summary.budget} />
+        )}
+
         {summary?.spend && summary.spend.totalUsd > 0 && (
           <SpendSplit spend={summary.spend} window={summary.spendWindow} />
         )}
@@ -448,6 +461,68 @@ export default function CostDashboard() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The month against the soft cap. Phase 7 item 4.
+ *
+ * `monthlyCostThreshold` was already an accepted, stored setting with no reader
+ * anywhere in the repo — the product took the number and never looked at it
+ * again. This is the reader.
+ *
+ * The bar is NOT clamped at 100%: going over is the one state worth seeing
+ * clearly, and a bar that stops at full would render $40 of overspend
+ * identically to landing exactly on budget. The fill is over-width and the
+ * label carries the real figure.
+ *
+ * Renders nothing when no cap is set. `budgetStatus` also treats a threshold of
+ * zero as unset rather than "instantly over", because a permanent red bar for an
+ * unconfigured brand teaches people to ignore the colour.
+ */
+function MonthAgainstBudget({ budget }: { budget: NonNullable<CostSummary["budget"]> }) {
+  const pct = budget.fraction === null ? 0 : budget.fraction * 100;
+  const tone =
+    budget.state === "over"
+      ? { fill: "var(--sparq-rebel-pink, #EB0028)", text: "text-red-400" }
+      : budget.state === "warning"
+        ? { fill: "#E0A32E", text: "text-amber-400" }
+        : { fill: "var(--sparq-grit-teal, #00A19C)", text: "text-muted-foreground" };
+  const monthLabel = new Date(budget.monthStart).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-foreground">
+          {monthLabel} against budget
+        </h3>
+        <p className={`text-xs font-semibold tabular-nums ${tone.text}`}>
+          ${budget.spentUsd.toFixed(2)} of ${(budget.budgetUsd ?? 0).toFixed(2)}
+          {budget.fraction !== null && ` · ${pct.toFixed(0)}%`}
+        </p>
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full transition-[width]"
+          style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: tone.fill }}
+        />
+      </div>
+      {budget.state === "over" && (
+        <p className="mt-3 text-xs text-red-400">
+          Over the monthly budget by $
+          {(budget.spentUsd - (budget.budgetUsd ?? 0)).toFixed(2)}. This is a warning,
+          not a stop — the daily limit in Settings is the one that refuses spend.
+        </p>
+      )}
+      {budget.state === "warning" && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Past {Math.round(budget.warningFraction * 100)}% of the monthly budget.
+        </p>
+      )}
     </div>
   );
 }

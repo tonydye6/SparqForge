@@ -7,7 +7,7 @@
  */
 
 import { db, costLogsTable, appSettingsTable } from "@workspace/db";
-import { eq, sql, gte } from "drizzle-orm";
+import { and, eq, gte, isNull, ne, or, sql } from "drizzle-orm";
 import { buildCostRow } from "../services/cost-recording.js";
 
 const BUDGET_LOCK_KEY = 100001;
@@ -95,5 +95,70 @@ export function budgetExceededBody(todaySpend: number, threshold: number) {
     message:
       `Today's spend ($${todaySpend.toFixed(2)}) has reached the daily budget limit ` +
       `($${threshold.toFixed(2)}). Increase the limit in Cost Dashboard settings or wait until tomorrow.`,
+  };
+}
+
+/**
+ * The monthly SOFT cap key. Phase 7 item 5.
+ *
+ * `monthlyCostThreshold` was already in the settings allowlist and had no reader
+ * anywhere — a number the product accepted, stored, and never consulted. Stored
+ * in dollars, matching `dailyCostThreshold`.
+ *
+ * Deliberately NOT the same key as `dailyCostThreshold`. That one is enforced by
+ * `reserveBudget` above and REFUSES spend; this one only warns. Collapsing them
+ * would silently turn a warning into a hard gate.
+ */
+export const MONTHLY_BUDGET_KEY = "monthlyCostThreshold";
+
+export interface MonthToDate {
+  /** Spend so far this calendar month, holds excluded. */
+  spentUsd: number;
+  /** The soft cap in dollars, or null when unset. */
+  budgetUsd: number | null;
+  monthStart: Date;
+}
+
+/**
+ * Month-to-date spend and the soft cap, for anything that wants to warn before
+ * spending. Lives here rather than in the route so the Cost surface and the
+ * composer cannot drift on what "this month" or "the cap" means.
+ *
+ * Holds are excluded on BOTH columns, matching the Cost surface: a reservation
+ * is deleted on settle, so counting it would make a spread look twice as
+ * expensive the moment it started. (`reserveBudget` deliberately does count
+ * them — that gate needs to see in-flight spend. Same rows, two honest
+ * readings.)
+ */
+export async function monthToDateBudget(): Promise<MonthToDate> {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [row] = await db
+    .select({ total: sql<number>`COALESCE(SUM(${costLogsTable.costUsd}), 0)` })
+    .from(costLogsTable)
+    .where(
+      and(
+        gte(costLogsTable.createdAt, monthStart),
+        ne(costLogsTable.operation, "budget_reservation"),
+        or(
+          isNull(costLogsTable.pricingBasis),
+          ne(costLogsTable.pricingBasis, "reservation"),
+        ),
+      ),
+    );
+
+  const [setting] = await db
+    .select()
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, MONTHLY_BUDGET_KEY));
+  const dollars = setting ? Number.parseFloat(setting.value) : NaN;
+
+  return {
+    spentUsd: Number(row?.total ?? 0),
+    // A zero cap means unset, not "ban all spending" — see `budgetStatus`.
+    budgetUsd: Number.isFinite(dollars) && dollars > 0 ? dollars : null,
+    monthStart,
   };
 }
