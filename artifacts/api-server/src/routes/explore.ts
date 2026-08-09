@@ -331,6 +331,13 @@ router.post(
     // Declared out here because the error handler needs it: it decides whether
     // "nothing was charged" is a true statement or a lie (§1.14).
     let generationStarted = false;
+    /*
+     * Whether the settle transaction actually committed. `generationStarted`
+     * says money LEFT; this says whether we managed to write it down. They are
+     * different facts and the error message needs both — a failure between them
+     * is spend that exists on the vendor's bill and nowhere else.
+     */
+    let costSettled = false;
 
     try {
       const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
@@ -707,6 +714,17 @@ router.post(
        * rather than only after somebody tidies up. A full-pass spread is not
        * part of a two-pass flow at all, and NULL says exactly that.
        */
+      /*
+       * Declared HERE, above the settle, and not further down where it used to
+       * live. Moving the cost rows onto a per-take footing made this block the
+       * first reader of the successful outcomes, and leaving the declaration
+       * below it threw `Cannot access 'succeeded' before initialization` —
+       * after the images had already been generated and billed. The whole point
+       * of settling first is that the money survives a later failure; a
+       * reference error in the settle itself defeats that.
+       */
+      const succeeded = outcomes.filter(o => o.ok);
+
       const spreadCostRowIds: string[] = [];
       await db.transaction(async (tx) => {
         if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
@@ -730,11 +748,11 @@ router.post(
           if (row) spreadCostRowIds.push(row.id);
         }
       });
+      costSettled = true;
       reservationId = null;
 
       // Record every take that produced an image. A slot per take id, so a
       // re-run of one take supersedes only itself.
-      const succeeded = outcomes.filter(o => o.ok);
       if (succeeded.length > 0) {
         /*
          * What this run actually consumed. Recorded, never inferred (§1.3).
@@ -945,10 +963,20 @@ router.post(
        * Once generation has started, images that came back were already billed
        * upstream, so claiming nothing was charged would be the one thing worse
        * than the failure itself.
+       *
+       * BUT IT MUST NOT CLAIM THE COST WAS RECORDED EITHER. This message used to
+       * end "and the cost has been recorded", and a live failure proved that
+       * false: a reference error thrown INSIDE the settle transaction rolled
+       * back the very inserts the sentence was promising, so four billed images
+       * left no row at all. `costSettled` reports what actually happened rather
+       * than what the happy path intends.
        */
       res.status(500).json({
+        costSettled,
         error: generationStarted
-          ? "The spread could not be saved. Any images that had already been generated were still billed, and the cost has been recorded."
+          ? costSettled
+            ? "The spread could not be saved. Any images already generated were still billed, and that cost has been recorded."
+            : "The spread could not be saved. Images had already been generated and billed, and the cost could NOT be recorded — this spend is missing from the Cost surface."
           : "The creative direction for this spread could not be produced, so nothing was generated and nothing was charged. Try again in a moment.",
       });
     }
