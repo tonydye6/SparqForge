@@ -229,13 +229,19 @@ function sleep(ms: number): Promise<void> {
 
 async function requestImage(
   contentParts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }>,
+  /**
+   * Phase 7 item 2. Defaults to the full-render model so every existing caller
+   * keeps the behaviour it had; only a caller that explicitly asks for the
+   * preview tier gets the cheaper one.
+   */
+  model: string = AI_MODELS.GEMINI_FLASH_IMAGE,
 ): Promise<{ data: string; mimeType?: string } | null> {
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), 120_000);
   let response;
   try {
     response = await ai.models.generateContent({
-      model: AI_MODELS.GEMINI_FLASH_IMAGE,
+      model,
       contents: [{ role: "user", parts: contentParts }],
       config: {
         responseModalities: [Modality.TEXT, Modality.IMAGE],
@@ -290,6 +296,14 @@ export async function generateImageFromPrompt(
   prompt: string,
   platformKey: string,
   referenceImages?: ReferenceImage[],
+  /**
+   * Phase 7 item 2 — which image model renders this. Omit for the full-render
+   * model. The reference payload is IDENTICAL for both passes on purpose: a
+   * preview that saw different references would not be previewing the thing the
+   * full render will produce, and subject fidelity is the whole point of the
+   * references (doc 24 §4).
+   */
+  model?: string,
 ): Promise<ImageGenerationResult> {
   const config = PLATFORM_CONFIGS[platformKey];
   if (!config) throw new Error(`Unknown platform: ${platformKey}`);
@@ -315,7 +329,7 @@ export async function generateImageFromPrompt(
   contentParts.push({ text: fullPrompt });
 
   for (let attempt = 1; attempt <= MAX_IMAGE_ATTEMPTS; attempt++) {
-    const image = await requestImage(contentParts);
+    const image = await requestImage(contentParts, model);
     if (image) {
       return {
         platform: config.platform,

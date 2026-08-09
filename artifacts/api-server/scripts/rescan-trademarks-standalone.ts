@@ -31,6 +31,8 @@
  *   --brand <name>    default "Crown U"
  *   --out <path>      where to write the result set (required)
  *   --limit <n>       scan at most n unique images (for a costed probe first)
+ *   --name <substr>   scan only assets whose name contains this, case-insensitive;
+ *                     the way to settle ONE image without paying for the library
  *   --licensed <k,k>  mark kinds this brand licenses; default conference,university
  *   --model <id>      default gemini-3.5-flash
  *   --dry-run         list what would be scanned, spend nothing
@@ -58,6 +60,7 @@ const SERVER = (arg("server") ?? "").replace(/\/$/, "");
 const BRAND = arg("brand") ?? "Crown U";
 const OUT = arg("out");
 const LIMIT = arg("limit") ? Number(arg("limit")) : undefined;
+const NAME = arg("name");
 const MODEL = arg("model") ?? "gemini-3.5-flash";
 const DRY = has("dry-run");
 const LICENSED = (arg("licensed") ?? "conference,university")
@@ -95,8 +98,26 @@ async function main(): Promise<void> {
     rows.push(...page.data);
     if (off + 200 >= page.total) break;
   }
-  const withFiles = rows.filter(r => r.fileUrl);
-  console.log(`\n${brand.name}: ${rows.length} rows, ${withFiles.length} with a file`);
+  /*
+   * `--name` exists because a full re-scan is the wrong tool for a single
+   * image. 22 of 272 images failed the first run with the API declining the
+   * FILE rather than the content, and the retry fixed all but one — leaving one
+   * asset with no verdict at all, which must not be allowed to read as clean.
+   * Re-running 272 images to settle one is both slow and a waste of money, and
+   * "just use --limit" does not work: the limit takes the first N by hash order,
+   * not the one you care about.
+   */
+  const withFiles = rows
+    .filter(r => r.fileUrl)
+    .filter(r => !NAME || r.name.toLowerCase().includes(NAME.toLowerCase()));
+  console.log(
+    `\n${brand.name}: ${rows.length} rows, ${withFiles.length} with a file` +
+      (NAME ? ` matching name ~ "${NAME}"` : ""),
+  );
+  if (NAME && withFiles.length === 0) {
+    console.error(`no asset name contains "${NAME}" — nothing to scan`);
+    process.exit(1);
+  }
 
   /*
    * The brand's own marks must never be reported — flagging the Sparq skull

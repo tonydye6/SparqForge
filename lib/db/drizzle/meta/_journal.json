@@ -232,6 +232,13 @@
       "when": 1786234402198,
       "tag": "0032_friendly_malice",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786239236894,
+      "tag": "0033_dry_violations",
+      "breakpoints": true
     }
   ]
 }

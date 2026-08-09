@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, json, index, real, integer, numeric, boolean, foreignKey, uniqueIndex, check } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, json, index, real, integer, numeric, boolean, foreignKey, uniqueIndex, check, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -8,6 +8,9 @@ import { designerPersonasTable } from "./designer-personas";
 import { templatesTable } from "./templates";
 import { socialAccountsTable } from "./social-accounts";
 import { usersTable } from "./users";
+// Only ever dereferenced inside the lazy `references()` callback on
+// `costLogs.stageTakeId`; see the note there for why it must stay that way.
+import { stageTakesTable } from "./stages";
 
 export const creativesTable = pgTable("creatives", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -301,11 +304,45 @@ export const costLogsTable = pgTable("cost_logs", {
   pricingBasis: text("pricing_basis").$type<CostPricingBasis>(),
   passType: text("pass_type").$type<CostPassType>(),
   /**
-   * M2. FALSE once a take is culled and never published — this is what makes
-   * wasted spend its own colour on the Cost surface. NULL means "not part of a
+   * M2, given a meaning by Phase 7 item 2. FALSE once a preview is superseded
+   * without ever being rendered at full resolution — that is what makes wasted
+   * spend its own colour on the Cost surface. NULL still means "not part of a
    * two-pass flow", which is not the same as unused.
+   *
+   * **Written at the moment the decision is made, not derived from
+   * `stageTakes.isCurrent` at read time.** A take can be deleted and the money
+   * still has to be able to answer for itself, and the monthly archival rollup
+   * keeps no takes at all. The FK below is the mechanism for finding the row;
+   * this column is the record.
    */
   wasUsed: boolean("was_used"),
+  /**
+   * Which take this money bought. Phase 7 item 2.
+   *
+   * **The spread used to log ONE row for eight images**, and the code said so
+   * out loud: a single `wasUsed` could not tell the kept take from the seven
+   * culled ones without lying about one of them. Per-take rows are what make
+   * waste a fact rather than an average.
+   *
+   * The alternative was to derive waste from `stageTakes.costCents`, which I
+   * recommended in doc 30 §8 and which is WRONG for the same reason M2 refused
+   * `amountCents`: that column is an INTEGER of cents, and a $0.0336 flash-lite
+   * preview — the row two-pass makes the common case — rounds to 3c, an error
+   * of ~10% on exactly the number this feature exists to report. `costUsd` is
+   * `numeric(12,4)` and keeps it.
+   *
+   * `set null` on delete, like `creativeId` and `brandId`: deleting a take must
+   * not delete the money it cost.
+   *
+   * The reference is the LAZY callback form on purpose. `stages.ts` imports this
+   * file, so naming `stageTakesTable` eagerly would make the two modules import
+   * each other and the winner would depend on which one a caller happens to load
+   * first — a TDZ error waiting for the day someone imports `./stages` directly.
+   * Deferring the lookup is drizzle's documented answer to a cyclic FK.
+   */
+  stageTakeId: text("stage_take_id").references((): AnyPgColumn => stageTakesTable.id, {
+    onDelete: "set null",
+  }),
   inputTokens: integer("input_tokens"),
   outputTokens: integer("output_tokens"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -313,6 +350,8 @@ export const costLogsTable = pgTable("cost_logs", {
   index("cost_logs_created_at_idx").on(table.createdAt.desc()),
   index("cost_logs_service_created_at_idx").on(table.service, table.createdAt.desc()),
   index("cost_logs_brand_created_at_idx").on(table.brandId, table.createdAt.desc()),
+  /** Every read of "what did this take cost" and "flip the culled previews". */
+  index("cost_logs_stage_take_idx").on(table.stageTakeId),
   check(
     "cost_logs_pricing_basis_check",
     sql`${table.pricingBasis} IS NULL OR ${table.pricingBasis} IN ('measured_tokens', 'estimate_flat', 'estimate_from_bytes', 'reservation', 'pre_m2_estimate')`,
