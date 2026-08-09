@@ -253,6 +253,13 @@
       "when": 1786265473520,
       "tag": "0035_dazzling_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786316963483,
+      "tag": "0036_shiny_hellcat",
+      "breakpoints": true
     }
   ]
 }

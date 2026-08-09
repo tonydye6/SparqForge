@@ -3,6 +3,7 @@ import { promisify } from "util";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { buildMixPlan, type MixTrack } from "./mixer.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -71,6 +72,99 @@ export async function mergeAudioVideo(options: MergeOptions): Promise<Buffer> {
 
     const result = await fs.promises.readFile(outputPath);
     return result;
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Phase 9 item 3 · rendering a real mix.
+ *
+ * `mergeAudioVideo` above handles exactly one audio track with a linear volume,
+ * which is the whole v1 model. This is the N-track one: the graph comes from
+ * `mixer.ts`, which is pure and tested, and this function only moves bytes.
+ * ------------------------------------------------------------------------- */
+
+export interface MixInput extends MixTrack {
+  audioBuffer: Buffer;
+  /** Only used to pick a temp file extension; ffmpeg sniffs the real format. */
+  mimeType?: string;
+}
+
+export interface MixResult {
+  videoBuffer: Buffer;
+  /** Passed through from the plan so the caller can surface what did not happen. */
+  warnings: string[];
+  /** The exact graph ffmpeg was given, for §1.17 inspectability. */
+  filterComplex: string;
+}
+
+function extensionFor(mimeType: string | undefined): string {
+  if (!mimeType) return "mp3";
+  if (mimeType.includes("wav")) return "wav";
+  if (mimeType.includes("aac") || mimeType.includes("m4a")) return "m4a";
+  if (mimeType.includes("ogg")) return "ogg";
+  return "mp3";
+}
+
+/**
+ * Mix N audio tracks onto a video.
+ *
+ * **Track order is the contract.** `buildMixPlan` assigns each track an
+ * `inputIndex` by position, and the ffmpeg inputs are added in that same order,
+ * so the graph's `[0:a]`, `[1:a]` and the array line up. The video is input 0
+ * for the file list, which is why every audio index is offset by one and the
+ * plan is rebuilt against the offset list rather than patched afterwards.
+ */
+export async function renderMix(params: {
+  videoBuffer: Buffer;
+  tracks: readonly MixInput[];
+}): Promise<MixResult> {
+  const { videoBuffer, tracks } = params;
+  if (tracks.length === 0) {
+    return { videoBuffer, warnings: ["There were no audio tracks, so the video is unchanged."], filterComplex: "" };
+  }
+
+  const plan = buildMixPlan(tracks);
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sparqmake-mix-"));
+  try {
+    const videoPath = path.join(tmpDir, "input.mp4");
+    const outputPath = path.join(tmpDir, "output.mp4");
+    await fs.promises.writeFile(videoPath, videoBuffer);
+
+    const args: string[] = ["-i", videoPath];
+    for (const [i, t] of tracks.entries()) {
+      const p = path.join(tmpDir, `track-${i}.${extensionFor(t.mimeType)}`);
+      await fs.promises.writeFile(p, t.audioBuffer);
+      args.push("-i", p);
+    }
+
+    /*
+     * The plan numbers audio inputs from 0, but ffmpeg's input 0 is the video,
+     * so every audio stream reference shifts by one. Done by rewriting the
+     * stream specifiers rather than by teaching the pure planner about video,
+     * which would put a rendering detail inside the thing that exists to be
+     * testable without one.
+     */
+    const shifted = plan.filterComplex.replace(/\[(\d+):a\]/g, (_m, n: string) => `[${Number(n) + 1}:a]`);
+
+    args.push(
+      "-filter_complex", shifted,
+      "-map", "0:v:0",
+      "-map", `[${plan.outputLabel}]`,
+      "-c:v", "copy",
+      // The mix runs to the longest track; the OUTPUT is cut to the video, so a
+      // music bed longer than the clip does not extend the post.
+      "-shortest",
+      "-y", outputPath,
+    );
+
+    await execFileAsync("ffmpeg", args, { maxBuffer: 64 * 1024 * 1024 });
+    return {
+      videoBuffer: await fs.promises.readFile(outputPath),
+      warnings: plan.warnings,
+      filterComplex: shifted,
+    };
   } finally {
     await fs.promises.rm(tmpDir, { recursive: true, force: true });
   }
