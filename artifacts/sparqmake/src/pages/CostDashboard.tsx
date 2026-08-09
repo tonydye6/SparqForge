@@ -17,6 +17,16 @@ interface CostSummary {
   byService: Array<{ service: string; totalCost: number; count: number }>;
   byOperation: Array<{ operation: string; service: string; totalCost: number; count: number }>;
   dailySpend: Array<{ date: string; totalCost: number; count: number }>;
+  /** Phase 7 item 4. Absent on an API that predates it, hence optional. */
+  spend?: {
+    totalUsd: number;
+    usedUsd: number;
+    wastedUsd: number;
+    unclassifiedUsd: number;
+    estimatedUsd: number;
+    hasUnknownBasis: boolean;
+  };
+  spendWindow?: { rows: number; excludesArchived: boolean };
 }
 
 interface CostLogEntry {
@@ -319,6 +329,10 @@ export default function CostDashboard() {
           />
         </div>
 
+        {summary?.spend && summary.spend.totalUsd > 0 && (
+          <SpendSplit spend={summary.spend} window={summary.spendWindow} />
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-4 sm:mb-6">
           <div className="lg:col-span-2 bg-card border border-border rounded-xl p-4 sm:p-6">
             <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -434,6 +448,96 @@ export default function CostDashboard() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the money BOUGHT, which is a different question from what was spent.
+ *
+ * Phase 7 item 4. `summariseSpend` has computed this since M2 and nothing ever
+ * rendered it, so the surface could only say the total — and a total is a bill,
+ * not a decision. Doc 24 §8: does this make the collaboration more visible?
+ *
+ * WASTE IS GRAPHITE, and the colour is the argument. It is deliberately NOT
+ * Rebel Pink, which in this product means *needs you*, and pointedly not
+ * Victory Gold, which means *published* — v1 made exactly that mistake and
+ * coloured a cost as an achievement. Waste is not an alarm and not a triumph.
+ * It is the ordinary price of choosing, and it should read as ordinary.
+ *
+ * "Unaccounted for" is its own bucket rather than being folded into kept.
+ * Calling it kept would overstate how much of the bill we can actually explain,
+ * and most of the history is in that bucket precisely because it predates
+ * two-pass. An honest gap beats a flattering total.
+ */
+function SpendSplit({
+  spend,
+  window: win,
+}: {
+  spend: NonNullable<CostSummary["spend"]>;
+  window?: CostSummary["spendWindow"];
+}) {
+  const pct = (v: number) => (spend.totalUsd > 0 ? (v / spend.totalUsd) * 100 : 0);
+  /*
+   * Unaccounted-for is HATCHED, not filled. Walking this with data in it, a
+   * solid dark band at 4% was invisible against the track — it read as "there
+   * is no third bucket", which is the opposite of the point. Hatching also says
+   * the right thing: the mockup uses it for a slice that is held rather than
+   * known, and money we cannot classify is exactly that.
+   */
+  const HATCH =
+    "repeating-linear-gradient(45deg, #4A5560 0 3px, transparent 3px 6px), #2A3138";
+  const bands = [
+    { key: "kept", label: "Kept", usd: spend.usedUsd, fill: "var(--sparq-grit-teal, #00A19C)" },
+    { key: "wasted", label: "Wasted", usd: spend.wastedUsd, fill: "#4A5560" },
+    { key: "unclassified", label: "Unaccounted for", usd: spend.unclassifiedUsd, fill: HATCH },
+  ].filter(b => b.usd > 0);
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <h3 className="text-sm font-semibold text-foreground">What the money bought</h3>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">
+          {/*
+            Say "estimated" out loud. Every figure here is a flat per-call
+            constant, not a measurement, and pricingBasis exists so the surface
+            can admit that instead of implying a precision nobody paid for.
+          */}
+          {spend.estimatedUsd >= spend.totalUsd
+            ? "All figures estimated"
+            : `$${spend.estimatedUsd.toFixed(2)} of $${spend.totalUsd.toFixed(2)} estimated`}
+          {win?.excludesArchived && " · excludes archived months"}
+        </p>
+      </div>
+
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted" role="img"
+        aria-label={`Kept $${spend.usedUsd.toFixed(2)}, wasted $${spend.wastedUsd.toFixed(2)}, unaccounted for $${spend.unclassifiedUsd.toFixed(2)}`}>
+        {bands.map(b => (
+          <div key={b.key} style={{ width: `${pct(b.usd)}%`, background: b.fill }} />
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+        {bands.map(b => (
+          <div key={b.key} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: b.fill }} />
+            <span className="text-xs text-muted-foreground">{b.label}</span>
+            <span className="text-xs font-semibold text-foreground tabular-nums">
+              ${b.usd.toFixed(2)}
+            </span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {pct(b.usd).toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {spend.wastedUsd > 0 && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Wasted is preview renders that were never taken to full resolution — the
+          ordinary cost of choosing between takes, not a fault.
+        </p>
+      )}
     </div>
   );
 }

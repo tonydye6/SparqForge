@@ -1,7 +1,17 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
-import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
+import { AI_MODELS, COST_ESTIMATES, estimateImagenCost, imagePass, type ImagePassType } from "../lib/ai-config.js";
+
+/**
+ * The pass a spread renders at when the caller does not say. Phase 7 item 2.
+ *
+ * Flip to "preview" only when `scripts/probe-image-pass.ts` has shown that a
+ * flash-lite render off the same references is one you can pick a winner from.
+ * The saving is real ($0.40 against $1.07 for a spread of eight plus one full
+ * render) and it is worth nothing if the preview cannot be judged.
+ */
+const DEFAULT_SPREAD_PASS: ImagePassType = "full";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { buildCostRow } from "../services/cost-recording.js";
@@ -258,7 +268,20 @@ router.post(
   generationLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
-    const perImageUsd = COST_ESTIMATES.IMAGEN_PER_IMAGE_USD;
+    /*
+     * Which pass this spread renders at. Phase 7 item 2.
+     *
+     * The default is still `full`, and that is deliberate: flipping it to
+     * `preview` is a claim that a spread of flash-lite images is good enough to
+     * choose a winner from, and doc 30 §7's "verified" covers the PRICE only.
+     * `scripts/probe-image-pass.ts` renders both tiers off the same references
+     * so that claim can be settled by looking. Until it is, shipping the cheaper
+     * default would be exactly the trap doc 24 §5 lists first — building on a
+     * premise nobody checked.
+     */
+    const requestedPass = (req.body as { pass?: unknown } | undefined)?.pass;
+    const pass: ImagePassType = requestedPass === "preview" ? "preview" : DEFAULT_SPREAD_PASS;
+    const { model: passModel, usdPerImage: perImageUsd } = imagePass(pass);
     let reservationId: string | null = null;
     // Declared out here because the error handler needs it: it decides whether
     // "nothing was charged" is a true statement or a lie (§1.14).
@@ -590,6 +613,7 @@ router.post(
           buildDirectedPrompt({ ...effectivePromptInputs, axisDirective: take.directive }),
           "instagram_feed",
           references,
+          passModel,
         );
         const filename = takeFilename(creativeId, take.id, crypto.randomUUID().slice(0, 8));
         await writeBuffer("generated", filename, image.imageBuffer);
@@ -612,28 +636,40 @@ router.post(
        * rolled back the settlement too, and the money vanished from cost_logs while
        * still having left the account. Recording spend first cannot lose it.
        */
-      const settled = settledCostUsd(outcomes, perImageUsd);
+      /*
+       * ONE COST ROW PER IMAGE, not one per spread. Phase 7 item 2.
+       *
+       * The old single row is what made waste unreportable: a spread of eight
+       * shared one `wasUsed`, which could not describe the kept take and the
+       * seven culled ones at the same time without lying about one of them.
+       *
+       * `wasUsed` starts FALSE on a preview pass and NULL on a full one. False
+       * is the truth at this instant — nothing has been promoted yet — and it
+       * means the waste figure is honest from the moment the money is spent
+       * rather than only after somebody tidies up. A full-pass spread is not
+       * part of a two-pass flow at all, and NULL says exactly that.
+       */
+      const spreadCostRowIds: string[] = [];
       await db.transaction(async (tx) => {
         if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
-        if (settled > 0) {
-          await tx.insert(costLogsTable).values(buildCostRow({
-            creativeId,
-            brandId: creative.brandId,
-            service: "gemini",
-            operation: "explore_spread",
-            model: AI_MODELS.GEMINI_FLASH_IMAGE,
-            costUsd: settled,
-            /*
-             * passType and wasUsed stay NULL deliberately.
-             *
-             * There is no two-pass flow yet — this spread IS the full render —
-             * so stamping it "preview" would describe a pipeline that does not
-             * exist. And one row covers the whole spread, so a single wasUsed
-             * could not tell the kept take from the seven culled ones without
-             * lying about one of them. Per-take accounting is a decision about
-             * granularity that Phase 7 item 2 has to settle first.
-             */
-          }));
+        for (const _ of succeeded) {
+          const [row] = await tx
+            .insert(costLogsTable)
+            .values(buildCostRow({
+              creativeId,
+              brandId: creative.brandId,
+              service: "gemini",
+              operation: "explore_spread",
+              model: passModel,
+              costUsd: perImageUsd,
+              passType: pass,
+              wasUsed: pass === "preview" ? false : null,
+              // The take does not exist yet and the FK would reject it. Linked
+              // in the take transaction below; see the note there for why the
+              // money still goes in first.
+            }))
+            .returning({ id: costLogsTable.id });
+          if (row) spreadCostRowIds.push(row.id);
         }
       });
       reservationId = null;
@@ -665,7 +701,7 @@ router.post(
         );
 
         await db.transaction(async (tx) => {
-          for (const o of succeeded) {
+          for (const [i, o] of succeeded.entries()) {
             const take = plan.takes.find(t => t.id === o.takeId)!;
             await tx
               .update(stageTakesTable)
@@ -731,7 +767,38 @@ router.post(
                 },
               },
               isCurrent: true,
+              /*
+               * Kept for the surfaces that already read it, but it is NOT the
+               * waste ledger. Integer cents cannot hold a $0.0336 preview: it
+               * rounds to 3c, ~10% out on the number Phase 7 exists to report.
+               * `cost_logs.costUsd` is numeric(12,4) and is the record.
+               */
               costCents: Math.round(perImageUsd * 100),
+            }).returning({ id: stageTakesTable.id }).then(async ([inserted]) => {
+              /*
+               * Link the money to the take it bought.
+               *
+               * This is an UPDATE rather than a value on the insert above
+               * because the cost rows went in first, in their own transaction,
+               * and the FK would have rejected a take id that did not exist
+               * yet. The ordering is deliberate and predates this change: these
+               * images were already billed upstream the moment the calls
+               * returned, so settling after the takes meant a failure while
+               * recording takes rolled the settlement back and the money
+               * vanished from cost_logs while still having left the account.
+               *
+               * If this update is what fails, the money is still recorded and
+               * only its take link is missing. That is the right direction to
+               * fail in: an unattributed cost is a reporting gap, a lost cost is
+               * a lie about the bill.
+               */
+              const costRowId = spreadCostRowIds[i];
+              if (inserted && costRowId) {
+                await tx
+                  .update(costLogsTable)
+                  .set({ stageTakeId: inserted.id })
+                  .where(eq(costLogsTable.id, costRowId));
+              }
             });
           }
 
@@ -757,7 +824,14 @@ router.post(
         outcomes,
         succeeded: succeeded.length,
         failed: outcomes.length - succeeded.length,
-        costUsd: settled,
+        costUsd: settledCostUsd(outcomes, perImageUsd),
+        /*
+         * What this spread was rendered at, said out loud in the response.
+         * A caller that gets preview-tier images back for preview-tier money
+         * should not have to infer which it got from the price.
+         */
+        pass,
+        model: passModel,
         generated: true,
         // §1.17: what actually reached the model, reported rather than implied.
         material: {

@@ -299,6 +299,23 @@ export async function collectCostRecordingCases(): Promise<CaseResult[]> {
     check("wasUsed defaults to null, NOT true", sparse.wasUsed === null, sparse.wasUsed);
     check("passType defaults to null", sparse.passType === null);
     check("model defaults to null", sparse.model === null);
+    check("stageTakeId defaults to null", sparse.stageTakeId === null);
+
+    // Phase 7 item 2. The link is what lets one row per image exist at all —
+    // without it a spread is one row and `wasUsed` cannot describe eight takes.
+    const linked = buildCostRow({
+      service: "gemini", operation: "explore_spread", costUsd: 0.0336,
+      passType: "preview", wasUsed: false, stageTakeId: "take-7",
+    });
+    check("builder carries the take the money bought", linked.stageTakeId === "take-7");
+    /*
+     * A preview costs a third of a cent more than 3c. Rounding it into an
+     * integer-cents column loses ~10%, which is why waste is derived from
+     * cost_logs and not from stageTakes.costCents — see the note on
+     * costLogs.stageTakeId. This asserts the precision actually survives.
+     */
+    check("a sub-cent preview keeps its real price", linked.costUsd === 0.0336, linked.costUsd);
+    check("rounding it to cents would have lost it", Math.round(0.0336 * 100) / 100 !== 0.0336);
 
     const logged = buildCostRow({
       service: "anthropic", operation: "taste_distillation", costUsd: 0.01,

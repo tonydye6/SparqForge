@@ -73,8 +73,8 @@ export const COST_ESTIMATES = {
  * the keep at pro costs **$0.40 for a spread of 8 plus one full render**, against
  * **$1.07** for eight pro renders today.
  *
- * Not yet wired to a call site — two-pass is unbuilt, and a constant that claims
- * a tier the code never selects would be a lie about what a spread costs.
+ * Wired as of Phase 7 item 2 — `imagePass()` below is the only thing that may
+ * choose one, so the price and the model it describes can never drift apart.
  */
 export const IMAGE_TIER_USD = {
   /** gemini-3.1-flash-lite-image, 1K. 4.0x cheaper than pro. */
@@ -87,6 +87,39 @@ export const IMAGE_TIER_USD = {
   PRO_1K_2K: 0.134,
   PRO_4K: 0.24,
 } as const;
+
+/**
+ * The two passes of a two-pass spread, as ONE object per pass.
+ *
+ * Model and price travel together deliberately. The `IMAGEN_PER_IMAGE_USD`
+ * fossil above is what happens when they are two constants in two places and
+ * only one of them follows a repoint: the price sat at Imagen 4 Ultra's $0.06
+ * for months after the model became `gemini-3-pro-image` at $0.134, and the
+ * daily budget gate — which sums these — was letting through twice its
+ * threshold. A caller here cannot pick a model without picking its price.
+ *
+ * `preview` is env-overridable so the tier can be moved without a deploy, and
+ * falls back to the full model rather than to a cheaper one: if the override is
+ * set to something unpriced, the honest failure is paying full price, not
+ * quietly billing a preview rate for a pro render.
+ */
+export const IMAGE_PASSES = {
+  preview: {
+    model: process.env.GEMINI_PREVIEW_IMAGE_MODEL || "gemini-3.1-flash-lite-image",
+    usdPerImage: Number(process.env.PREVIEW_IMAGE_COST_USD) || IMAGE_TIER_USD.FLASH_LITE_1K,
+  },
+  full: {
+    model: AI_MODELS.GEMINI_FLASH_IMAGE,
+    usdPerImage: COST_ESTIMATES.IMAGEN_PER_IMAGE_USD,
+  },
+} as const;
+
+export type ImagePassType = keyof typeof IMAGE_PASSES;
+
+/** The model and per-image price for a pass. The only sanctioned way to pick. */
+export function imagePass(pass: ImagePassType): { model: string; usdPerImage: number } {
+  return IMAGE_PASSES[pass];
+}
 
 /**
  * Estimate video clip duration in seconds from compressed buffer size.

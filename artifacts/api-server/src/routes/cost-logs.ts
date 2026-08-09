@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, gte, lte, and, ne, or, isNull, sql } from "drizzle-orm";
 import { db, costLogsTable, costLogMonthlySummaryTable } from "@workspace/db";
+import { summariseSpend } from "../services/cost-recording.js";
 
 const router: IRouter = Router();
 
@@ -213,12 +214,40 @@ router.get("/cost-logs/summary", async (req, res): Promise<void> => {
     }
   }
 
+  /*
+   * Phase 7 item 4 — kept, wasted and unaccounted-for, as three numbers instead
+   * of one total.
+   *
+   * `summariseSpend` has existed since M2 and nothing called it, so the surface
+   * could only ever say what was spent, never what it bought. That is the
+   * difference between a bill and a decision: doc 24 §8 asks whether a thing
+   * makes the collaboration more visible, and a single total hides the one fact
+   * a spread's owner can act on.
+   *
+   * Read from `cost_logs` ONLY, deliberately. The archived monthly rollup keeps
+   * no `was_used`, so folding it in would silently reclassify every archived
+   * dollar as unaccounted-for and make waste look like it collapses the moment a
+   * month ages out. `spendWindow` says which rows the split covers so the
+   * surface can be explicit that it is narrower than the total above it.
+   */
+  const splitRows = await db.select({
+    costUsd: costLogsTable.costUsd,
+    pricingBasis: costLogsTable.pricingBasis,
+    wasUsed: costLogsTable.wasUsed,
+  }).from(costLogsTable).where(whereClause);
+
   res.json({
     totalCost: Number(totalResult[0]?.totalCost || 0) + Number(archivedTotal[0]?.totalCost || 0),
     totalEntries: Number(totalResult[0]?.totalEntries || 0) + Number(archivedTotal[0]?.totalEntries || 0),
     byService: Array.from(serviceMap.values()),
     byOperation: Array.from(operationMap.values()),
     dailySpend: Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
+    spend: summariseSpend(splitRows),
+    spendWindow: {
+      rows: splitRows.length,
+      /** True when archived months are in `totalCost` but not in `spend`. */
+      excludesArchived: Number(archivedTotal[0]?.totalEntries || 0) > 0,
+    },
   });
 });
 

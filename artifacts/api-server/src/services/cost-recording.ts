@@ -123,6 +123,14 @@ export interface CostRowInput {
    * total that Phase 7 exists to show.
    */
   wasUsed?: boolean | null;
+  /**
+   * The take this money bought. Phase 7 item 2.
+   *
+   * Set it wherever one call produces one take. Without it a spread logs one row
+   * for eight images and `wasUsed` has to describe all eight at once, which it
+   * cannot do honestly.
+   */
+  stageTakeId?: string | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
 }
@@ -137,6 +145,7 @@ export interface CostRow {
   pricingBasis: CostPricingBasis;
   passType: CostPassType | null;
   wasUsed: boolean | null;
+  stageTakeId: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
 }
@@ -156,6 +165,7 @@ export function buildCostRow(input: CostRowInput): CostRow {
     pricingBasis: classifyPricingBasis(input),
     passType: input.passType ?? null,
     wasUsed: input.wasUsed ?? null,
+    stageTakeId: input.stageTakeId ?? null,
     inputTokens: input.inputTokens ?? null,
     outputTokens: input.outputTokens ?? null,
   };
