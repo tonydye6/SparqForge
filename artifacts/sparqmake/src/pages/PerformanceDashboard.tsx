@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ConclusionsPanel } from "@/components/performance/conclusions-panel";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -271,6 +272,27 @@ export default function PerformanceDashboard() {
             description="Metrics appear here after posts are published and their stats are collected"
             className="mb-6"
           />
+        )}
+
+        {/*
+          * Conclusions first, numbers second. Doc 22 item 3 asks for "small
+          * metrics table, large conclusions", and the ordering is the argument:
+          * this page could always say what happened and never what to do about
+          * it.
+          *
+          * Brand-scoped because every write a conclusion performs is — the
+          * schedule profile, the default director and the composition rules all
+          * belong to one brand. With "All brands" selected there is no honest
+          * card to draw, so it asks rather than showing a pooled number nobody
+          * could act on.
+          */}
+        {brandFilter ? (
+          <ConclusionsPanel key={brandFilter} brandId={brandFilter} />
+        ) : (
+          <p className="mb-5 rounded-sm border border-border/50 bg-raised px-2.5 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            Pick a brand above to see what its published posts have taught the app, and what you
+            can do about it.
+          </p>
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">

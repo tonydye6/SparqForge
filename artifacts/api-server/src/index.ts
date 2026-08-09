@@ -15,6 +15,10 @@ import {
   startMetricsScheduler,
   stopMetricsScheduler,
 } from "./services/metrics-scheduler";
+import {
+  startConclusionsScheduler,
+  stopConclusionsScheduler,
+} from "./services/performance-conclusions-job";
 import { logStorageStartupStatus } from "./services/storage";
 import { syncAdminEmails } from "./services/admin-sync";
 import { sweepStaleTurns } from "./services/stale-turn-sweep";
@@ -57,6 +61,11 @@ function startServer(seedFailed: boolean): Server {
     } catch (err) {
       logger.error(err, "Metrics scheduler failed to start — post analytics ingestion disabled");
     }
+    try {
+      startConclusionsScheduler();
+    } catch (err) {
+      logger.error(err, "Conclusions scheduler failed to start — Performance will show no new findings");
+    }
   });
 
   server.on("error", (err: NodeJS.ErrnoException) => {
@@ -92,6 +101,7 @@ function registerShutdownHandlers(server: Server): void {
     stopPublishScheduler();
     stopTokenRefreshScheduler();
     stopMetricsScheduler();
+    stopConclusionsScheduler();
 
     server.close((err) => {
       if (err) {
