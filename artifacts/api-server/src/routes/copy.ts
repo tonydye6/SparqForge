@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, assetsTable, creativesTable, costLogsTable, stageStatesTable, stageTakesTable } from "@workspace/db";
+import { db, creativesTable, costLogsTable, stageStatesTable, stageTakesTable } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { requireStandardWrite } from "../middleware/auth.js";
@@ -7,7 +7,6 @@ import { validateRequest } from "../middleware/validate.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import { readFileByUrl } from "../services/reference-images.js";
-import { loadAssetIdReferences } from "../services/explore-direction.js";
 import { generateImageFromPrompt, type ReferenceImage } from "../services/imagen.js";
 import { writeBuffer } from "../services/storage.js";
 import { imagePass } from "../lib/ai-config.js";
@@ -127,28 +126,24 @@ router.post(
           if (!previewBuf) throw new Error("the preview's bytes could not be read");
 
           /*
-           * Preview first, then the original references. Order matters: imagen
-           * puts subject references ahead of style ones and the identity lock
-           * copies the leading run, so the composition being kept has to lead.
+           * THE PREVIEW IS THE ONLY REFERENCE. This started as preview plus the
+           * original subject assets, and the first live run showed why that is
+           * wrong: the refined image kept the pose and the character but changed
+           * the shorts from navy to gold and added a "3" to the jersey.
+           *
+           * I first wrote that off as the model taking licence. It is not. Those
+           * are details from the ORIGINAL Crown U asset, which was still in the
+           * reference list — so the pro model was being shown two versions of the
+           * same character and blended them. The preview already contains the
+           * subject, faithfully, because it was generated from that same asset
+           * one pass earlier. Sending the original again adds no identity the
+           * preview lacks and gives the model a second, conflicting opinion
+           * about what the character looks like.
+           *
+           * A refine has exactly one job: this picture, made better.
            */
-          const subjectIds = (chosenPayload.material?.directorSelections ?? [])
-            .filter(s => s.role === "subject")
-            .map(s => s.assetId);
-          /*
-           * Subject selections only. A style reference tells the model what mood
-           * to aim for, which is exactly what must NOT change here — the mood is
-           * already fixed in the preview, and re-introducing the style asset
-           * gives the model licence to reinterpret it.
-           */
-          const originals = subjectIds.length
-            ? await loadAssetIdReferences(
-                await db.select().from(assetsTable).where(inArray(assetsTable.id, subjectIds)),
-                "subject_reference",
-              )
-            : [];
           const refs: ReferenceImage[] = [
             { imageBuffer: previewBuf, mimeType: "image/png", role: "subject_reference" },
-            ...originals,
           ];
 
           const image = await generateImageFromPrompt(

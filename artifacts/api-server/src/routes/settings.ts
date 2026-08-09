@@ -9,6 +9,15 @@ import { recordAudit, actorFromRequest } from "../lib/audit.js";
 const ALLOWED_SETTING_KEYS = [
   "dailyCostThreshold",
   "monthlyCostThreshold",
+  /**
+   * Phase 7 item 5 — hard caps, DEFAULT OFF. "true" makes the monthly threshold
+   * refuse a spread instead of warning about it. Off by default because the
+   * daily threshold already refuses spend, and a build with two limits that can
+   * both say no is a build where nobody can find the one that did.
+   */
+  "monthlyCostHardCap",
+  /** Phase 7 item 4 — how many takes a spread renders: 4, 6 or 8. */
+  "spreadSize",
   "costAlertEmail",
   "defaultTimezone",
   "defaultPublishLeadMinutes",

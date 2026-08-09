@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
+import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES, estimateImagenCost, imagePass, type ImagePassType } from "../lib/ai-config.js";
 
@@ -23,6 +23,21 @@ import { AI_MODELS, COST_ESTIMATES, estimateImagenCost, imagePass, type ImagePas
  * A spread of 8 previews plus one full render is **$0.40 against $1.07**.
  */
 const DEFAULT_SPREAD_PASS: ImagePassType = "preview";
+
+/**
+ * How many takes a spread renders. Phase 7 item 4's "spread size control".
+ *
+ * Read fresh on every plan and every run rather than cached, so the two can
+ * never disagree about the size — quoting eight and charging for six, or the
+ * reverse, is the same class of lie as quoting the wrong tier.
+ */
+async function configuredSpreadSize(): Promise<number> {
+  const [row] = await db
+    .select()
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, "spreadSize"));
+  return normaliseSpreadSize(row?.value);
+}
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { buildCostRow } from "../services/cost-recording.js";
@@ -60,7 +75,7 @@ import {
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction } from "../services/interactions-client.js";
-import { buildExplorePlan } from "../services/explore-plan.js";
+import { buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import {
   RUN_CONCURRENCY,
@@ -176,7 +191,11 @@ router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Resp
      * price the code does not charge is the fossil problem again, one level up.
      */
     const { model: passModel, usdPerImage } = imagePass(DEFAULT_SPREAD_PASS);
-    const plan = buildExplorePlan({ intent: effective, perImageUsd: usdPerImage });
+    const plan = buildExplorePlan({
+      intent: effective,
+      perImageUsd: usdPerImage,
+      spreadSize: await configuredSpreadSize(),
+    });
 
     /*
      * Phase 7 item 5 — the soft cap, answered BEFORE the turn.
@@ -206,8 +225,13 @@ router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Resp
         monthBudgetUsd: mtd.budgetUsd,
         wouldReachUsd: mtd.spentUsd + spreadUsd,
         wouldExceed: mtd.budgetUsd !== null && mtd.spentUsd + spreadUsd > mtd.budgetUsd,
-        /** Soft: nothing here refuses the run. The daily gate is the hard one. */
-        hard: false,
+        /**
+         * Whether the cap will REFUSE this run rather than warn about it. The
+         * composer needs to know the difference: a warning is advice, a hard cap
+         * means the button will fail, and telling someone "you can still run it"
+         * when they cannot would be worse than saying nothing.
+         */
+        hard: mtd.hard,
       },
       // Nothing has been generated. Said explicitly so a client cannot mistake a
       // plan for a result.
@@ -365,7 +389,11 @@ router.post(
       }
 
       const { intent, briefStageId, briefText, briefTakeId, mentions } = await intentFromBrief(creativeId);
-      const fullPlan = buildExplorePlan({ intent: intent ?? "awareness", perImageUsd });
+      const fullPlan = buildExplorePlan({
+        intent: intent ?? "awareness",
+        perImageUsd,
+        spreadSize: await configuredSpreadSize(),
+      });
 
       /*
        * Debug override: run a subset of the spread.
@@ -391,6 +419,32 @@ router.post(
       if (plan.takes.length === 0) {
         res.status(400).json({
           error: `None of the requested takeIds exist in this spread. Valid ids: ${fullPlan.takes.map(t => t.id).join(", ")}. Nothing was charged.`,
+        });
+        return;
+      }
+
+      /*
+       * The monthly HARD cap. Phase 7 item 5, and off unless somebody turned it
+       * on. Checked before the reservation so a refused run holds nothing.
+       *
+       * Refusing here and warning in the composer are the same number read two
+       * ways, which is deliberate: the warning is what you see while deciding,
+       * this is what happens if the cap has been made binding. When it is off —
+       * the default — this branch cannot fire at all and the daily threshold
+       * below remains the only thing that says no.
+       */
+      const monthly = await monthToDateBudget();
+      const spreadUsd = plan.takes.length * perImageUsd;
+      if (monthly.hard && monthly.budgetUsd !== null && monthly.spentUsd + spreadUsd > monthly.budgetUsd) {
+        res.status(429).json({
+          error: "Monthly budget exceeded",
+          monthSpend: monthly.spentUsd,
+          threshold: monthly.budgetUsd,
+          wouldReach: monthly.spentUsd + spreadUsd,
+          message:
+            `This spread would take the month to $${(monthly.spentUsd + spreadUsd).toFixed(2)}, ` +
+            `past the $${monthly.budgetUsd.toFixed(2)} monthly limit. Nothing was generated and ` +
+            `nothing was charged. Raise or turn off the monthly limit in Cost Dashboard settings.`,
         });
         return;
       }

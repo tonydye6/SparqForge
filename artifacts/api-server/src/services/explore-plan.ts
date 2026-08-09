@@ -265,10 +265,14 @@ function offBriefFor(a: AxisPosition, b: AxisPosition, axes: { a: Axis; b: Axis 
  * top to bottom, which is the order the UI renders and therefore the order a
  * person will compare them in.
  */
-export function buildExploreGrid(axes: { a: Axis; b: Axis }): ExploreTake[] {
+export function buildExploreGrid(axes: { a: Axis; b: Axis }, spreadSize?: number): ExploreTake[] {
   const takes: ExploreTake[] = [];
+  const keep = spreadSize === undefined
+    ? null
+    : SPREAD_SIZES[normaliseSpreadSize(spreadSize)] ?? null;
   for (let row = 0; row < axes.b.positions.length; row++) {
     for (let col = 0; col < axes.a.positions.length; col++) {
+      if (keep && !keep.includes(col)) continue;
       const a = axes.a.positions[col];
       const b = axes.b.positions[row];
       takes.push({
@@ -339,13 +343,48 @@ export interface PlanInput {
   intent: Intent;
   proposedAxes?: unknown;
   perImageUsd: number;
+  /**
+   * How many takes the spread should render. Phase 7 item 4's "spread size
+   * control". Omit for the full grid.
+   */
+  spreadSize?: number;
+}
+
+/**
+ * The sizes a spread may be, and WHICH COLUMNS each one keeps.
+ *
+ * Not a simple truncation, and that is the whole point. Axis A is laid out as
+ * two on-brief positions followed by two departures, so `slice(0, 2)` would
+ * produce a four-take spread with NO off-brief takes at all — quietly deleting
+ * the thing doc 24 §2 calls the answer to the slot-machine problem. Every size
+ * therefore keeps at least one departure explicitly.
+ *
+ * Rows are never dropped. Axis B is the second named dimension; removing it
+ * would leave a single row that is not a grid, and "two axes you can name" is
+ * what makes the spread a choice rather than a slot pull.
+ */
+export const SPREAD_SIZES: Readonly<Record<number, readonly number[]>> = {
+  4: [0, 2],
+  6: [0, 1, 2],
+  8: [0, 1, 2, 3],
+};
+
+export const DEFAULT_SPREAD_SIZE = 8;
+
+/** The nearest offered size at or below `n`, defaulting to the full grid. */
+export function normaliseSpreadSize(n: unknown): number {
+  const asNumber = typeof n === "string" ? Number.parseInt(n, 10) : n;
+  if (typeof asNumber !== "number" || !Number.isFinite(asNumber)) return DEFAULT_SPREAD_SIZE;
+  const offered = Object.keys(SPREAD_SIZES).map(Number).sort((a, b) => a - b);
+  const fit = offered.filter(o => o <= asNumber).pop();
+  return fit ?? offered[0]!;
 }
 
 /** The whole plan, model-proposed axes where valid and the fallback otherwise. */
 export function buildExplorePlan(input: PlanInput): ExplorePlan {
   const proposed = input.proposedAxes === undefined ? null : validateAxes(input.proposedAxes);
   const axes = proposed ?? FALLBACK_AXES[input.intent];
-  const takes = buildExploreGrid(axes);
+  const takes = buildExploreGrid(axes, input.spreadSize);
   return {
     axes,
     takes,
