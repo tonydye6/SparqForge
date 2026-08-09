@@ -26,6 +26,7 @@ import { detectLogoIntent, type LogoPlacementPosition } from "../services/logo-i
 import { checkBrandReadiness } from "../lib/brand-readiness.js";
 import { buildGenerationPacket, normalizeBalance, MAX_IMAGE_REFERENCES, type ReferenceOverrides } from "../services/packet-assembly.js";
 import { recordAssetUsage, packetAssetIds } from "../services/asset-usage.js";
+import { buildCostRow } from "../services/cost-recording.js";
 import { writeBuffer, writeFromFile, readBuffer, deleteObject, resolveUrl, contentTypeFor } from "../services/storage.js";
 import * as fs from "fs";
 import * as path from "path";
@@ -296,12 +297,18 @@ router.post("/creatives/:id/generate", generationLimiter, async (req: Request, r
       }
 
       await tx.insert(costLogsTable).values({
+        // The explicit id stays OUTSIDE buildCostRow: the settle path deletes
+        // this row by that id, so folding it into the builder would drop it and
+        // leave a hold that never clears.
         id: reservationId!,
-        creativeId,
-        service: "system",
-        operation: "budget_reservation",
-        model: null,
-        costUsd: estimatedGenerationCost,
+        ...buildCostRow({
+          creativeId,
+          brandId: campaign.brandId,
+          service: "system",
+          operation: "budget_reservation",
+          model: null,
+          costUsd: estimatedGenerationCost,
+        }),
       });
       return { exceeded: false as const, todaySpend: currentSpend };
     });
@@ -636,37 +643,41 @@ router.post("/creatives/:id/generate", generationLimiter, async (req: Request, r
           .where(eq(costLogsTable.id, reservationId));
       }
 
-      await tx.insert(costLogsTable).values({
+      await tx.insert(costLogsTable).values(buildCostRow({
         creativeId,
+        brandId: campaign.brandId,
         service: "anthropic",
         operation: "caption_generation",
         model: AI_MODELS.CLAUDE_SONNET,
         costUsd: estimateClaudeCost(),
-      });
+      }));
       if (isDesigned) {
         // Designed mode: one cutout image + design-spec/QA text calls.
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "designed_cutout",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: estimateImagenCost(1),
-        });
-        await tx.insert(costLogsTable).values({
+        }));
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "designed_spec_and_qa",
           model: AI_MODELS.GEMINI_FLASH_TEXT,
           costUsd: estimateGeminiTextCost() * (1 + images.length),
-        });
+        }));
       } else {
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "image_generation",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: estimateImagenCost(images.length),
-        });
+        }));
       }
 
       return inserted;
@@ -913,13 +924,14 @@ router.put("/creatives/:id/variants/:variantId/headline", validateRequest({ para
       await db.transaction(async (tx) => {
         await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId!));
         if (renderAttempts > 0) {
-          await tx.insert(costLogsTable).values({
+          await tx.insert(costLogsTable).values(buildCostRow({
             creativeId,
+            brandId: campaign.brandId,
             service: "gemini",
             operation: "headline_render",
             model: AI_MODELS.GEMINI_FLASH_IMAGE,
             costUsd: estimateImagenCost(renderAttempts) + estimateGeminiTextCost() * renderAttempts,
-          });
+          }));
         }
       });
     } catch (costErr) {
@@ -1410,13 +1422,14 @@ async function runVariantImageGeneration(
         }
 
         const cost = isDesignedVariant ? estimateDesignedUnitCost() : estimateImagenCost(1);
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: opts.costOperation,
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: cost,
-        });
+        }));
 
         if (opts.afterCost) {
           await opts.afterCost(tx);
@@ -1594,13 +1607,14 @@ router.post("/creatives/:id/takes", generationLimiter, validateRequest({ params:
         if (reservationId) {
           await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
         }
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "board_takes",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: isDesignedTakes ? estimateDesignedUnitCost() * produced.length : estimateImagenCost(produced.length),
-        });
+        }));
         return rows;
       });
     } catch (dbErr) {
@@ -1707,13 +1721,14 @@ router.post("/creatives/:id/compare-takes", generationLimiter, validateRequest({
         if (reservationId) {
           await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
         }
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "persona_compare",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: isDesignedCompare ? estimateDesignedUnitCost() * produced.length : estimateImagenCost(produced.length),
-        });
+        }));
         return rows;
       });
     } catch (dbErr) {
@@ -2009,39 +2024,43 @@ router.post("/creatives/:id/variants/:variantId/fan-out", generationLimiter, val
           await tx.delete(costLogsTable).where(eq(costLogsTable.id, extraReservationId));
         }
         if (outpaintsUsed > 0) {
-          await tx.insert(costLogsTable).values({
+          await tx.insert(costLogsTable).values(buildCostRow({
             creativeId,
+            brandId: campaign.brandId,
             service: "gemini",
             operation: "fan_out_auto_outpaint",
             model: AI_MODELS.GEMINI_FLASH_IMAGE,
             costUsd: estimateImagenCost(outpaintsUsed),
-          });
+          }));
         }
         if (headlineRenderAttempts > 0) {
-          await tx.insert(costLogsTable).values({
+          await tx.insert(costLogsTable).values(buildCostRow({
             creativeId,
+            brandId: campaign.brandId,
             service: "gemini",
             operation: "fan_out_headline_render",
             model: AI_MODELS.GEMINI_FLASH_IMAGE,
             costUsd: estimateImagenCost(headlineRenderAttempts) + estimateGeminiTextCost() * headlineRenderAttempts,
-          });
+          }));
         }
         if (needsSubjectDetection) {
-          await tx.insert(costLogsTable).values({
+          await tx.insert(costLogsTable).values(buildCostRow({
             creativeId,
+            brandId: campaign.brandId,
             service: "gemini",
             operation: "fan_out_subject_detection",
             model: AI_MODELS.GEMINI_FLASH_TEXT,
             costUsd: estimatedSubjectCost,
-          });
+          }));
         }
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "anthropic",
           operation: "fan_out_captions",
           model: AI_MODELS.CLAUDE_SONNET,
           costUsd: estimateClaudeCost(),
-        });
+        }));
         return rows;
       });
     } catch (dbErr) {
@@ -2287,13 +2306,14 @@ router.post("/creatives/:id/variants/:variantId/outpaint", generationLimiter, va
         if (reservationId) {
           await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
         }
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "outpaint",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: estimateImagenCost(1),
-        });
+        }));
         return [row];
       });
     } catch (dbErr) {

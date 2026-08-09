@@ -30,12 +30,62 @@ export const COPILOT_MODELS = {
   QA_MODEL: process.env.QA_MODEL || AI_MODELS.GEMINI_FLASH_TEXT,
 } as const;
 
+/**
+ * Per-call cost constants. **Every default below was re-derived from the live
+ * vendor price lists on 2026-08-08**, because two of them were fossils of models
+ * this app no longer calls, in opposite directions:
+ *
+ *  - `IMAGEN_PER_IMAGE_USD` was `0.06` — exactly Imagen 4 Ultra's per-image
+ *    price. The image model was repointed to `gemini-3-pro-image` (Task #209)
+ *    and the constant never followed. Pro image output is $120/M tokens, 1120
+ *    tokens for a 1K/2K image = **$0.134**. Every recorded image cost was
+ *    understating real spend by ~2.2x, and the daily budget gate — which sums
+ *    these same numbers — was letting through more than twice its threshold.
+ *  - `VIDEO_COST_PER_SECOND_USD` was `0.42`, ≈ Veo 3 Standard's $0.40/s. The
+ *    video model is now `gemini-omni-flash-preview` at **$0.10/s**, so video
+ *    was OVERstated ~4.2x and the gate was over-conservative there.
+ *
+ * The text and caption figures are flat per-call approximations of token-priced
+ * models, so they are order-of-magnitude by construction; both were low against
+ * a typical call and are nudged toward observed shapes. `cost_logs.pricingBasis`
+ * (M2) is what records that they remain estimates rather than measurements.
+ *
+ * Sources: ai.google.dev/gemini-api/docs/pricing · Anthropic model pricing.
+ * KEEP THIS COMMENT UPDATED WHEN A MODEL IS REPOINTED — the fossils above are
+ * what happens when the model moves and the price does not.
+ */
 export const COST_ESTIMATES = {
-  CLAUDE_CAPTION_USD: Number(process.env.CLAUDE_CAPTION_COST_USD) || 0.01,
-  IMAGEN_PER_IMAGE_USD: Number(process.env.IMAGEN_PER_IMAGE_COST_USD) || 0.06,
-  GEMINI_TEXT_USD: Number(process.env.GEMINI_TEXT_COST_USD) || 0.002,
-  VIDEO_GENERATION_USD: Number(process.env.VIDEO_GENERATION_COST_USD) || 2.10,
-  VIDEO_COST_PER_SECOND_USD: Number(process.env.VIDEO_COST_PER_SECOND_USD) || 0.42,
+  /** claude-sonnet-4-6 at $3/M in, $15/M out; ~2k in + ~500 out per caption set. */
+  CLAUDE_CAPTION_USD: Number(process.env.CLAUDE_CAPTION_COST_USD) || 0.0135,
+  /** gemini-3-pro-image, 1K/2K output. 4K is $0.24 — not modelled separately yet. */
+  IMAGEN_PER_IMAGE_USD: Number(process.env.IMAGEN_PER_IMAGE_COST_USD) || 0.134,
+  /** gemini-3.5-flash at $1.50/M in, $9/M out; ~1k in + ~300 out per call. */
+  GEMINI_TEXT_USD: Number(process.env.GEMINI_TEXT_COST_USD) || 0.004,
+  /** 6s clip (the hard-coded duration) at the per-second rate below. */
+  VIDEO_GENERATION_USD: Number(process.env.VIDEO_GENERATION_COST_USD) || 0.60,
+  /** gemini-omni-flash-preview: 5792 tokens/s of 720p at $17.50/M ≈ $0.10/s. */
+  VIDEO_COST_PER_SECOND_USD: Number(process.env.VIDEO_COST_PER_SECOND_USD) || 0.10,
+} as const;
+
+/**
+ * Cheaper image tiers, verified available on 2026-08-08. These are what make the
+ * Phase 7 two-pass spread worth building: previewing at flash-lite and rendering
+ * the keep at pro costs **$0.40 for a spread of 8 plus one full render**, against
+ * **$1.07** for eight pro renders today.
+ *
+ * Not yet wired to a call site — two-pass is unbuilt, and a constant that claims
+ * a tier the code never selects would be a lie about what a spread costs.
+ */
+export const IMAGE_TIER_USD = {
+  /** gemini-3.1-flash-lite-image, 1K. 4.0x cheaper than pro. */
+  FLASH_LITE_1K: 0.0336,
+  /** gemini-3.1-flash-image at 0.5K / 1K / 2K. */
+  FLASH_0_5K: 0.045,
+  FLASH_1K: 0.067,
+  FLASH_2K: 0.101,
+  /** gemini-3-pro-image, the model in use today. */
+  PRO_1K_2K: 0.134,
+  PRO_4K: 0.24,
 } as const;
 
 /**

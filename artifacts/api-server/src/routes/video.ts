@@ -14,6 +14,7 @@ import * as os from "os";
 import multer from "multer";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { AI_MODELS } from "../lib/ai-config.js";
+import { buildCostRow } from "../services/cost-recording.js";
 import { validateUploadedBuffer } from "../services/fileValidation.js";
 
 function clampVolume(v: unknown, fallback: number): number {
@@ -174,13 +175,14 @@ router.post("/creatives/:id/generate-video", generationLimiter, async (req: Requ
         sendEvent("video_progress", { orientation, status: "completed", videoUrl });
 
         const cost = estimateVideoCost(1);
-        await db.insert(costLogsTable).values({
+        await db.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: campaign.brandId,
           service: "gemini",
           operation: "video_generation",
           model: AI_MODELS.VEO_VIDEO,
           costUsd: cost,
-        });
+        }));
       } catch (error) {
         if (clientDisconnected) break;
         const message = error instanceof Error ? error.message : String(error);
@@ -280,17 +282,25 @@ router.post("/creatives/:id/variants/:variantId/audio", generationLimiter, async
 
       // Settle the reservation: swap the placeholder row for the real cost log
       // in one transaction so the daily total never double-counts.
+      // Read outside the transaction: attribution must never be the reason a
+      // settle fails, and this row is unrelated to the swap's atomicity.
+      const [owning] = await db
+        .select({ brandId: creativesTable.brandId })
+        .from(creativesTable)
+        .where(eq(creativesTable.id, creativeId));
+
       await db.transaction(async (tx) => {
         if (reservationId) {
           await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
         }
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: owning?.brandId ?? null,
           service: "elevenlabs",
           operation: type === "music" ? "music_generation" : "sfx_generation",
           model: "elevenlabs",
           costUsd: estimateElevenLabsCost(),
-        });
+        }));
       });
       reservationId = null;
     }

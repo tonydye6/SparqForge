@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { AI_MODELS, estimateClaudeCost } from "../lib/ai-config.js";
+import { buildCostRow } from "./cost-recording.js";
 
 // Distillation runs automatically once a brand has accumulated this many
 // undistilled signals. It can also be forced from the taste API.
@@ -129,14 +130,15 @@ Produce the updated taste guidance.`;
     });
 
     try {
-      await db.insert(costLogsTable).values({
+      await db.insert(costLogsTable).values(buildCostRow({
+        brandId,
         service: "anthropic",
         operation: "taste_distillation",
         model: AI_MODELS.CLAUDE_SONNET,
         costUsd: estimateClaudeCost(),
         inputTokens: response.usage?.input_tokens ?? null,
         outputTokens: response.usage?.output_tokens ?? null,
-      });
+      }));
     } catch (err) {
       console.error("Failed to log taste distillation cost:", err instanceof Error ? err.message : err);
     }

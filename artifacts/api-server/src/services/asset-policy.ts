@@ -95,6 +95,9 @@ export type PolicyAsset = Pick<
   | "approvedChannels"
   | "approvedTemplates"
   | "conflictTags"
+  // M3 · trademark remediation state. See `trademarkGate` below.
+  | "trademarkScanState"
+  | "trademarkReviewedAt"
 >;
 
 // ── Context ─────────────────────────────────────────────────────────────────
@@ -133,6 +136,58 @@ export interface IneligibilityResult {
 export type PolicyResult = EligibilityResult | IneligibilityResult;
 
 /**
+ * Trademark remediation gate. **Fails closed on purpose.**
+ *
+ * This exists because of a specific, verified hole. The August remediation
+ * produced 28 retouched replacements and left every one of them
+ * `generationAllowed = true` at status `uploaded` — reachable by the Director
+ * while nobody had checked them. Reviewing them found a replacement whose
+ * Nike swoosh had come off but whose Big Ten mark had NOT, and several whose
+ * SPARQ wordmark the retouch had corrupted to "SPARR" / "SPARO".
+ *
+ * So a `replacement` is ineligible until a human sets `trademarkReviewedAt`.
+ * The asymmetry is deliberate: an unreviewed replacement wrongly blocked costs
+ * somebody a click, while one wrongly allowed puts a third-party mark into
+ * generated output and into anything published from it.
+ *
+ * `null` state means never scanned, and is NOT blocked — most of the library is
+ * in that state, and failing closed on it would take the whole library offline.
+ * Absence of evidence is treated as absence of evidence, not as a finding.
+ */
+export function trademarkGate(
+  asset: Pick<Asset, "trademarkScanState" | "trademarkReviewedAt">,
+): PolicyResult {
+  switch (asset.trademarkScanState) {
+    case "blocked":
+      return { eligible: false, reason: "Carries a third-party trademark" };
+    case "refused":
+      return {
+        eligible: false,
+        reason: "Trademark removal was attempted and did not succeed",
+      };
+    case "retouched":
+      // The ORIGINAL of a successful retouch. A clean replacement exists and is
+      // what should be used, so the contaminated source stays out.
+      return { eligible: false, reason: "Superseded by a retouched copy" };
+    case "replacement":
+      return asset.trademarkReviewedAt
+        ? { eligible: true }
+        : { eligible: false, reason: "Retouched copy is awaiting trademark review" };
+    case "review":
+      // A mark IS present; the open question is only whether a licence already
+      // covers it. That is the same shape of uncertainty as an unreviewed
+      // replacement, so it gets the same asymmetry: closed until a human with
+      // the licence terms sets `trademarkReviewedAt`.
+      return asset.trademarkReviewedAt
+        ? { eligible: true }
+        : { eligible: false, reason: "Carries a mark a licence may cover — awaiting review" };
+    case "clean":
+    default:
+      return { eligible: true };
+  }
+}
+
+/**
  * Check all hard constraints for a generation reference slot.
  *
  * Returns `{ eligible: false, reason }` on the first failing constraint
@@ -152,6 +207,12 @@ export function checkGenerationEligibility(
   context: GenerationContext = {},
   role: "generation_reference" | "compositing" = "generation_reference",
 ): PolicyResult {
+  // 0. Trademark state, BEFORE every other constraint and for BOTH roles.
+  //    A third-party mark is not a use-intent question — it is the one class of
+  //    defect that is expensive after the fact, so it gates the logo path too.
+  const tm = trademarkGate(asset);
+  if (!tm.eligible) return tm;
+
   if (role === "generation_reference") {
     // 1. generationAllowed=false — the owner blocked AI reference use.
     if (asset.generationAllowed === false) {

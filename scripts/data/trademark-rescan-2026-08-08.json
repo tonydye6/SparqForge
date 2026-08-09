@@ -1,0 +1,5463 @@
+{
+  "brand": {
+    "id": "08e3006d-02ec-4a4a-8541-418cc9e9a6a4",
+    "name": "Crown U"
+  },
+  "model": "gemini-3.5-flash",
+  "licensedKinds": [
+    "conference",
+    "university"
+  ],
+  "ownMarks": [
+    "the Sparq flame-skull mark",
+    "the SPARQ wordmark",
+    "the Crown U wordmark and crown mark"
+  ],
+  "scannedAt": "2026-08-08T13:32:15.504Z",
+  "totals": {
+    "rows": 299,
+    "uniqueImages": 272,
+    "duplicateRowsCollapsed": 27,
+    "unreadable": 0,
+    "errors": 1
+  },
+  "usage": {
+    "inputTokens": 374397,
+    "outputTokens": 7534,
+    "costUsd": 0.6294
+  },
+  "records": [
+    {
+      "hash": "903236c74a15be4bfc3a6363e6278437fec80de3683d7bec48c66c91844542fb",
+      "assetIds": [
+        "11f7b6b8-2e4b-4586-9371-3bdaa475b76e"
+      ],
+      "names": [
+        "crownu_logo_icon_yellow_02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1d923ea82740c863e10e2489e9492437f138a522f71319f6c8d96449d046ffb8",
+      "assetIds": [
+        "9bf2bf80-0f50-4f6b-9bad-2e0e4c399960"
+      ],
+      "names": [
+        "crownu_logo_icon_yellow.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a70cb2edf6ef287a8db00aa456c12b3900839636d0334d492fd6adbe53ea5e3e",
+      "assetIds": [
+        "e09da9bf-04a4-4e27-a44d-1c36388ff786"
+      ],
+      "names": [
+        "sparq_logo_skull-only_black.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0ffa09193e8063eb1ce9cddaf4639b3b6b2e1899dfdd97e3a24c592beea6f7b8",
+      "assetIds": [
+        "b99e07b3-7111-4079-bef5-1467abb6a3ef"
+      ],
+      "names": [
+        "sparq_logo_skull-only_red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6a28b2c4fab3dc35f023b726edbca03de3ad1182eb2fff4149496bc817810e2d",
+      "assetIds": [
+        "c8898eee-6eff-42ca-89f2-58674a380270"
+      ],
+      "names": [
+        "sparq_logo_skull-only_white.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "75065021e432306bfdbc29c38753c71e8fb6a7023276acd13ceeec1e2350eec6",
+      "assetIds": [
+        "5270fc71-0a52-464d-9015-1b16657347f8",
+        "6e98df3b-ce29-491b-9c6b-9d7d4ead6eb5",
+        "14ae7c42-65b0-4551-8e9c-3edbecab08dd",
+        "a6a8e5d8-75ec-4da8-87a7-e08ceca2d360"
+      ],
+      "names": [
+        "crownu_char_female_blue_tennis_default.jpeg",
+        "crownu_char_female_unknown_tennis_unknown.jpeg",
+        "crownu_char_female_blue_tennis_default.jpeg",
+        "crownu_char_female_unknown_tennis_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "headband",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "dress chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoes sides",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "dress skirt hem",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoulder armor",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Miami Hurricanes U",
+            "kind": "university",
+            "where": "shoe tongues",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (headband), Nike Swoosh (dress chest), Nike Swoosh (shoes sides), Nike Swoosh (dress skirt hem), Nike Swoosh (shoulder armor). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Miami Hurricanes U (shoe tongues).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0e934f9c0439a14337de0c85b786f85b59a121f340d95263e4cd0a63955c24ac",
+      "assetIds": [
+        "7f40ff06-9060-4ab9-9481-3c3f16680b2a",
+        "69b5ab88-7d99-4dfc-a671-f1b29117b8c6",
+        "8497d832-3832-4a7c-8e4a-4235dabaad89"
+      ],
+      "names": [
+        "crownu_char_female_sparq_soccer_default.jpeg",
+        "crownu_char_female_sparq_soccer_default.jpeg",
+        "Sparq_female_basketball.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Big Ten Conference (B1G)",
+            "kind": "conference",
+            "where": "jersey chest, left side",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "jersey chest, right side",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shorts, left leg",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (jersey chest, right side), Nike Swoosh (shorts, left leg). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Big Ten Conference (B1G) (jersey chest, left side).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "07a92e8a7075ba78003dab61e7ada8fe09128ac3257b88c8f992ed10fffc24c9",
+      "assetIds": [
+        "839b59b9-700c-4aa1-98c0-0868c4c9e0ba",
+        "37f9b462-9478-4230-8f65-9cd65ce87df2",
+        "08eb71b4-62ee-4e71-a8b5-04a30a45bdb3",
+        "fc0fb7c5-202c-4017-8f25-7cd595bc8e6e"
+      ],
+      "names": [
+        "crownu_char_female_sparq_soccer_default_01.jpeg",
+        "crownu_char_female_unknown_soccer_unknown.jpeg",
+        "crownu_char_female_sparq_soccer_default_01.jpeg",
+        "crownu_char_female_unknown_soccer_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4b03f469d325aae3b558b5c9ec39a924164635a570e43ab6132eda7fe04113c4",
+      "assetIds": [
+        "f096b1ba-b7b9-4ef5-9dc5-e73bfdfd0f36",
+        "f0f59d91-f597-4fa4-8d20-e3618f064f4e",
+        "5546fca2-ab53-4fc8-a3a3-b770cea2c2ff",
+        "9bea8a36-7742-40ad-bfc0-5fac758d7284"
+      ],
+      "names": [
+        "crownu_char_female_sparq_track_default.jpeg",
+        "crownu_char_female_unknown_track_unknown.jpeg",
+        "crownu_char_female_sparq_track_default.jpeg",
+        "crownu_char_female_unknown_track_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Oregon",
+            "kind": "university",
+            "where": "sports bra chest center",
+            "confidence": 0.98
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "sports bra chest upper left",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shorts left thigh",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoe lateral side",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Pac-12 shield",
+            "kind": "conference",
+            "where": "sports bra chest upper right",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (sports bra chest upper left), Nike Swoosh (shorts left thigh), Nike Swoosh (shoe lateral side). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Oregon (sports bra chest center), Pac-12 shield (sports bra chest upper right).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "bfa80fed936a3489b1b4f76c383f184a0d722a9a4555441ccd7a39b6b014bfd9",
+      "assetIds": [
+        "bec062a6-42fa-40be-bfdf-edf554dfdfae"
+      ],
+      "names": [
+        "crownu_char_female_unknown_gymnastics_resized.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f39639a7c969af13621f0597144cd27f8fb1ba0d982b4c7798e888f9ecb9c5c9",
+      "assetIds": [
+        "9e78ead9-1af3-450d-912b-06be2e438a7d"
+      ],
+      "names": [
+        "crownu_char_female_unknown_tennis_resized.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "headband",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike swoosh (headband), Nike swoosh (right shoe), Nike swoosh (left shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5d4c635138ebe7701981bce396102f3ac1b98835d7509a904ddd4a69d86f3109",
+      "assetIds": [
+        "b26534ab-099f-4acb-8c08-34e3ca65ec9a"
+      ],
+      "names": [
+        "crownu_char_male_blue_basketball_default.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b58bde8f67dd7fc616d399265ca02a7173421269813bfcc069abc00af2715e53",
+      "assetIds": [
+        "b3a2b112-3e9c-4b1a-8f49-02f2964ffc5d",
+        "10e05ddb-5adb-4dfa-80bb-4da464c6f3cf"
+      ],
+      "names": [
+        "crownu_char_male_blue_default_default_01.jpeg",
+        "crownu_char_male_blue_default_default_01.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe of the tennis player on the far right",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (right shoe of the tennis player on the far right). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c4f993d86ce1206a0b6881a2fef0f734a457627919b9e54692f0aca6773315c3",
+      "assetIds": [
+        "bfbd803d-fdeb-483c-8e04-3c138f7f3688",
+        "288c94f6-e22e-4525-801d-da93fceff6c5",
+        "e4cdbea7-7fca-428c-af42-33ec36015c73",
+        "2944bb31-9ac9-45a7-a17c-b10cd481d782"
+      ],
+      "names": [
+        "crownu_char_male_blue_football_ball_02.jpeg",
+        "crownu_char_male_sparq_baseball_default_02.jpeg",
+        "crownu_char_male_unknown_football_unknown.jpeg",
+        "Sparq_male_blue_football_ball.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.98
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.98
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left glove",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right glove",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe), Nike Swoosh (right shoe), Nike Swoosh (left glove), Nike Swoosh (right glove). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "2a855da77400c531c26398cf2a2654c509e8512f501febe35d33a4fb409a2c3a",
+      "assetIds": [
+        "c49ac700-768d-4d9e-832d-afe7c3c14c5d"
+      ],
+      "names": [
+        "sparq_branded_baseball_character_male-1.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "48ea2c6bcd0a64190c84fa76dd3bcc702953e2e404467408238fb8daf633c4df",
+      "assetIds": [
+        "d68e3869-9d3b-4e72-a08f-133030933ac1"
+      ],
+      "names": [
+        "sparq_branded_baseball_character_male_1.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "e88dfe02b972c35adf40eced10cc530a4853a91f0feded4e5ef3b07d13d0f09d",
+      "assetIds": [
+        "56ba0214-0d35-4d1b-86f5-0f003fa123f9"
+      ],
+      "names": [
+        "male_red-white_hockey_character.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b2f6f0347e4eb931461be654a45eb007982d2d7575596087a393bc38f653ed2d",
+      "assetIds": [
+        "c23422d6-3686-48ad-89d5-b9bb260bd7d7"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_female.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "NBA",
+            "kind": "league",
+            "where": "right hip of shorts",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: NBA (right hip of shorts). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9413bcb2e9055d78111171eb0851d165babf2d08fcfaca83abfec67f8fd9ee72",
+      "assetIds": [
+        "a03f8171-100c-4414-ae61-c404961801d4"
+      ],
+      "names": [
+        "sparq_branded_baseball_character_male.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Under Armour",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Under Armour (right shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "dc86437e637bf5dc0ce5eba51e4d208f330685a309c2712b43c97aeebe475d78",
+      "assetIds": [
+        "ec769a51-fe08-454c-a4aa-e510b9571fb6"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_male-1.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Duke University 'D'",
+            "kind": "university",
+            "where": "shorts waistband",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoes",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (shoes). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Duke University 'D' (shorts waistband).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "bcd0c7f58b5a7f058dafb3d8d8198b9182a97222e6128573b1e593a90079f5cf",
+      "assetIds": [
+        "8510aeef-4cb8-4593-b481-c3e4cac3f9bb"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_male-3.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5d70531e5d89504c4a957cc095decfd649f505979553ef061c5edbb0d911f4aa",
+      "assetIds": [
+        "041bb79c-0fb7-42c1-9f6e-53b3a44d8b88"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_male-4.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right jersey chest",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (right jersey chest). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fa1c0cd35cd1df22d3fca053ed6f8c77a62cea6424a91b9bce7b8d8fdd8861c8",
+      "assetIds": [
+        "f718aa61-dc01-4e3d-8c56-1494ff1bff1a"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_male-2.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "University of Kentucky logo",
+            "kind": "university",
+            "where": "shorts waistband",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Only licensed marks found: University of Kentucky logo (shorts waistband).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "878808e736a28a8b351385dbd9f517494a91a9d0c4838545c4bbe2b1ad495590",
+      "assetIds": [
+        "af748f16-3488-40b2-9f11-261ee9c49461"
+      ],
+      "names": [
+        "sparq_branded_football_character_male-1.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right glove",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (right shoe), Nike Swoosh (left shoe), Nike Swoosh (right glove). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f461e8f292352283448deba3c155e898610345e043d44d9e8b3848f4282db349",
+      "assetIds": [
+        "2851d329-8950-4cd5-b96c-27434ef283d7"
+      ],
+      "names": [
+        "sparq_branded_football_character_male-2.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoes",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (shoes). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fe1037f9c264b4c6b839425cce24e788f08a0168456c28bbcf715da103568b17",
+      "assetIds": [
+        "a9dcd963-5156-49fc-bc9a-2ec89cab4f72"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_male.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "009a80f72a9ad1991e9a68cc70bcd6b5e2ee1bac335dbeb753b3d71798b8444a",
+      "assetIds": [
+        "43c80365-e289-42c8-b71d-5e262d8fe5cc"
+      ],
+      "names": [
+        "sparq_branded_gymnastics_character_female.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c5a3d9a98325734f7028b0cfaa70d6a9bc1402a87cf78bbb9f1233a29e5f439d",
+      "assetIds": [
+        "d2f9a8f5-331b-4e21-9158-c77950607d46"
+      ],
+      "names": [
+        "sparq_branded_football_character_male.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe), Nike Swoosh (right shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "870daa7d293cd3c02ba196e499e1c10fdf621c4c77d4b33f28e3e5dfd863e331",
+      "assetIds": [
+        "8c97b8f5-74d9-461e-b7bb-c0325416d530"
+      ],
+      "names": [
+        "sparq_branded_lacrosse_character_male.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a71be8423c64167e80ab51c7c0dfb50b3fcf3a39cb75421e91a6c5da991bb5ac",
+      "assetIds": [
+        "e744aefc-f6f2-498e-8b2e-2af18f1e8c03"
+      ],
+      "names": [
+        "sparq_branded_soccer_character_female-1.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5c6cc60632d1878388d74d2f222da652ca710df9b684fc9ba3fb1eb470cad555",
+      "assetIds": [
+        "28984d04-b5f2-4038-97a3-37f12fa44531"
+      ],
+      "names": [
+        "sparq_branded_soccer_character_male.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "291535879e08b7d1d8847d7854bc882af6c9c01ebab70037aa17657433bf13b3",
+      "assetIds": [
+        "6691007b-b751-4fbb-a990-06931e2892a6"
+      ],
+      "names": [
+        "sparq_branded_tennis_character_female.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "dress chest of front-facing character",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe of profile character",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "dress chest of second character from left",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (dress chest of front-facing character), Nike Swoosh (right shoe of profile character), Nike Swoosh (dress chest of second character from left). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "ba90bd5048e268ad5ff20bd9b2ef50169cc0a01072daf122af73d1ea3b8a812c",
+      "assetIds": [
+        "fede7b3c-a5a8-4ceb-84d4-4a8bb459206f"
+      ],
+      "names": [
+        "sparq_branded_volleyball_character_female.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe), Nike Swoosh (right shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8f8ffb3bb350f33bca56c34a27a6a54317e3925f952f4bd64722b9476816293d",
+      "assetIds": [
+        "f1661057-2a6f-458f-9733-c1767af7ca50"
+      ],
+      "names": [
+        "Sparqitect Logo.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "61d4784b296e5365050f69e8408c3892296609fc28223aea35428141d34f5fbc",
+      "assetIds": [
+        "b58d40be-a7b6-43ff-91aa-e57d4fa42c5e"
+      ],
+      "names": [
+        "sparq_branded_wrestling_character_male.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d22024e005b0e453da2bb51b150572a9c4ebec89787eda6c5bbdccc9bc0bec60",
+      "assetIds": [
+        "d7dec315-d5a2-46a4-8930-1c2c389dcfb9"
+      ],
+      "names": [
+        "sparq_male_baseball.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5a403fa9fe8a93c2a94a4d7fa371f0148dcf1e7ffb0050b21368d3287b4ac2a6",
+      "assetIds": [
+        "2d7e1777-bdaa-4238-8611-9ea3952db6f7"
+      ],
+      "names": [
+        "background_element-1.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "62e42cec392e563c9aab045716df0c16acd3fac779d4fc9a12b024aaaa068d82",
+      "assetIds": [
+        "428390fa-433f-4241-94d9-e85b5f729a61"
+      ],
+      "names": [
+        "background_element-2.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c7991a9ce1247e1481f4eb9f1430802f0b43a096f67b82416f64a90cc9319cbc",
+      "assetIds": [
+        "2f07f940-9378-4618-b114-dfecf5fcffba"
+      ],
+      "names": [
+        "background_element-3.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "120cd27e884fcb4cc34394a7a16af5a6d30ba36164bcef3050ba77f5450d3d1c",
+      "assetIds": [
+        "30433991-0ae7-411b-8e65-b043c24fd500"
+      ],
+      "names": [
+        "background_element-4.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a4afe12272fbf0927d8d046a9ad503198b0feff7bc8223ff37f675e47f951334",
+      "assetIds": [
+        "f8161d14-3068-43ef-abd2-1f30489ac3c9"
+      ],
+      "names": [
+        "background_element-6.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a6762dd775b4e4dab162af51981e27949e70448ef444d887e13f3960648a27a2",
+      "assetIds": [
+        "b00866c5-321d-4c9a-aea5-5abaf9f06bb7"
+      ],
+      "names": [
+        "background_element-5.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "141beb248b0686a5a9bccea6972793408a575e0bab26bba35d43e81096b4ebb9",
+      "assetIds": [
+        "d776cdd6-ac23-4f35-8f92-69c286d9d452"
+      ],
+      "names": [
+        "background_element-9.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "dd0ab896ef0359ccc09e53d2e23746e6f5446a3bf1334fafbe1ed5b7825313a4",
+      "assetIds": [
+        "a71e51ef-87a4-423b-9eda-8d7a96fcc32d"
+      ],
+      "names": [
+        "background_element-8.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "7de8a5914f4b305d081bc2b18725994c90fad95105220c9a9975bbf8bbabc4db",
+      "assetIds": [
+        "62d404f3-fdad-4c56-aa8a-76603809d435"
+      ],
+      "names": [
+        "background_element-7.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9f80c4b4e20dd454cf4d135bc7317f509792834a1b80b9d7a7091bef53ac8f42",
+      "assetIds": [
+        "bfbd0064-d9d9-431f-ae55-80ca1968f82f"
+      ],
+      "names": [
+        "Crown U Logo (primary)"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c5567f202856a0f62777d58a1b81417e8c41a39eb8744401e6115194ca237b19",
+      "assetIds": [
+        "14eab000-51d7-400a-842a-18d4866a7dbd"
+      ],
+      "names": [
+        "Crown U Logo (secondary)"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c2f1f8248b3fbe2575ff529e51193e3423fddfc0babda6091da5853ead581e65",
+      "assetIds": [
+        "70da4b64-5118-4408-bf89-82eb6ab6baa0"
+      ],
+      "names": [
+        "Chase_Huber_Card_Front_Final.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0c509953071403b52f56554eddfd1b729525519a03e9b6724e1a2fb7bd708cd6",
+      "assetIds": [
+        "d53fe43a-c872-407e-afb6-fe45d64031bb"
+      ],
+      "names": [
+        "Daniel_Algatts_Card_Front_Final.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b242c7ec63e4454a7f148e86f49355de15b6a0cc2f5676f5b8fbc5e9b58deadb",
+      "assetIds": [
+        "8b13dbcf-33a5-427c-9c59-375436a0a0b7"
+      ],
+      "names": [
+        "Fumbi_Chima_Card_Front_Final.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8032aec88278063a4fcc0141cdd4ad02a534aa2c1791c933d4324ce788b2c88c",
+      "assetIds": [
+        "69312a8c-9166-4ef1-b61c-3574e4807f01"
+      ],
+      "names": [
+        "Rob_Vogel_Card_Front_Final.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "3c263125ac424d637731bea2b82f0209f34e430776660d00ecf90d556123d9be",
+      "assetIds": [
+        "5747cf27-05e7-4635-bf6a-02772595f3c8"
+      ],
+      "names": [
+        "Jeffrey_Steefel_Card_Front_Final.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8f59afd28de6b71af2ac5542e409c3fcec57c3ea0df6240d51a838d17410f034",
+      "assetIds": [
+        "a431d188-0a71-49f7-90af-465b1dd0f83e"
+      ],
+      "names": [
+        "Jan_Horsfall_Card_Front.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "ab6d9f7d23ad7a43d7045f4643d9b71f2d53720b8cdb99d28fac3af0efe110ea",
+      "assetIds": [
+        "75c3098d-d4c5-403b-9e92-d4f3925517eb"
+      ],
+      "names": [
+        "Tony_Dye_Card_Front_Final.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "954b2773585fb98bebc3ea1545ff72c337d41e43316cb8aaf32d7e1fc93641ba",
+      "assetIds": [
+        "d500bf3e-cd27-4068-8b8b-9f94aef50c3d"
+      ],
+      "names": [
+        "sparq_team_jan-horsfall_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "82a05a97262aa9b8b00b0a27f773accc9accb0c59b218242ad0669b3ae058701",
+      "assetIds": [
+        "8c10a207-ec63-42ed-a768-e564cd3e840a"
+      ],
+      "names": [
+        "sparq_team_daniel-da-algattas_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "31b4406db8482ebca137d2d8f68c6c7364d79b2f8ff09af218f604a373b19418",
+      "assetIds": [
+        "e2a958ad-1d7c-40ef-86fa-2a99c7bfa3be"
+      ],
+      "names": [
+        "sparq_team_jeffrey-steefel_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "618e1168fc653ea27a6ab35be86e9ecd7b5f18989d76474231de3a716489257a",
+      "assetIds": [
+        "63956396-0f22-40fd-b54f-d6586207798c"
+      ],
+      "names": [
+        "sparq_team_michelle-kahle_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4ed6e9e4c1af9a51f2affe54b4a91ae145bc5cb1f2f973a56db5996e8b65a869",
+      "assetIds": [
+        "ee6f5d70-b14a-4935-bb6d-083cf4e41a1d"
+      ],
+      "names": [
+        "sparq_team_sean-embree_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "84d2885870b28a4a9bee1fd9c2d603099f61b275de95ec3c60c560c9627d321c",
+      "assetIds": [
+        "f8b8aaa5-8c20-4722-88f2-bde1dc9f0f29"
+      ],
+      "names": [
+        "sparq_team_tony-dye_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "23b0f8432d8e654b007d59595e561da51c3eb576e7da07eb84a2c6f8e0a7da51",
+      "assetIds": [
+        "ecbf7a01-20c6-4b30-a41d-b6879aa7bbb8"
+      ],
+      "names": [
+        "crownu_char_unknown_lsu_soccer_unknown_01.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "LSU",
+            "kind": "university",
+            "where": "jersey chest",
+            "confidence": 0.99
+          },
+          {
+            "mark": "LSU Tiger",
+            "kind": "university",
+            "where": "jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "LSU Tiger",
+            "kind": "university",
+            "where": "shorts right leg",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "LSU Tiger",
+            "kind": "university",
+            "where": "right glove",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shorts left leg",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (jersey chest), Nike Swoosh (shorts left leg). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: LSU (jersey chest), LSU Tiger (jersey chest), LSU Tiger (shorts right leg), LSU Tiger (right glove).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "bcd52a349060791445cef2d45d9f357eebbffed8bc1017352f1b7591817ffb30",
+      "assetIds": [
+        "9e55d5bc-4ed3-4254-beb6-53e76aab8d19"
+      ],
+      "names": [
+        "crownu_char_male_blue_default_default.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoes of the athlete on the far left",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (shoes of the athlete on the far left). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1d6a8fe13edff2f6832ed44deb3a8c3f218a65042f526ce2d23b2f1a436075ce",
+      "assetIds": [
+        "ba73740c-1aec-4209-8f9f-fceab03248f9"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_action.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1b6635f8099e2987b1c03d6cac40123e1f50d0f1c9801c3a02c0f5fee39aaaa7",
+      "assetIds": [
+        "e650c3bd-4441-4403-8ff5-6844e5289e7e"
+      ],
+      "names": [
+        "crownu_char_male_blue_basketball_action.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f5134b1d528fdcb681c8e24db8cb9f08facca94b0eaa3dc24bf9c39d326de3f8",
+      "assetIds": [
+        "8fbae6a1-bd67-4850-92ad-bfc7575f19f5"
+      ],
+      "names": [
+        "crownu_char_male_red-white_hockey_hero.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5c4d0282ba80ff1f0f2f26ae1579de28e5caa88e5bfe986781e1767f182ee7bd",
+      "assetIds": [
+        "3db93c76-3a18-46a4-a011-c686aeb44cec",
+        "de508ea1-5069-4a90-87f5-2c8788b5ad2e"
+      ],
+      "names": [
+        "crownu_char_male_sparq_baseball_default_01.jpeg",
+        "crownu_char_male_unknown_football_unknown_01.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "side of shoes",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Georgia Bulldogs G",
+            "kind": "university",
+            "where": "front ankle strap of shoes",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Jordan Jumpman",
+            "kind": "sportswear",
+            "where": "wearer's left chest of jersey",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (side of shoes), Jordan Jumpman (wearer's left chest of jersey). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Georgia Bulldogs G (front ankle strap of shoes).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6aef574fcc4a35305abe0b962c95806975ac6d5cda0d6e8469e7c2728c78cf2c",
+      "assetIds": [
+        "08d50d6f-0987-4ea5-af8e-d8327d923d08"
+      ],
+      "names": [
+        "crownu_char_male_sparq_default_action_01.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "85db3c2a94920c62e2183f76ed4cd85df70d0a7deb151a465b745e70df56306e",
+      "assetIds": [
+        "0dfb9266-9b65-47c4-a10f-2c5b7e4c8afc"
+      ],
+      "names": [
+        "crownu_char_male_sparq_baseball_default.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8435d83b7bc49fd663c515e0b0b1d37021af1638a4c660bc4ec72caabf7a1f0f",
+      "assetIds": [
+        "32d21e52-b9d8-4630-83f0-42518ba7d56f"
+      ],
+      "names": [
+        "crownu_char_male_sparq_default_action_03.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d42a7d5d67ef7964bcd9f9ad98b3807b2fe0eaabe93afb90e45b70b75c61faac",
+      "assetIds": [
+        "c4a4412a-695a-485e-9509-40bd2c79b7c3"
+      ],
+      "names": [
+        "crownu_char_male_sparq_default_action_05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1dc4c9d78113d726475e46d5a898264481528363585a58f0d04086f03da1efaf",
+      "assetIds": [
+        "c5bdce3d-01c7-432f-b76e-713fdd35919d"
+      ],
+      "names": [
+        "crownu_char_male_sparq_default_action_02.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "35fc3db9f2d4bdc881bc77c6f7571a94431eb9935618a71c97b76394cab55137",
+      "assetIds": [
+        "9926e314-3c3b-42c0-b56f-5d26a3514dd5"
+      ],
+      "names": [
+        "crownu_char_male_unknown_baseball_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c5e0ae287d3cd4fe544160012134d570948ac2f6ca192ce70f6b82b6e61f4773",
+      "assetIds": [
+        "81322c3d-8357-40f1-b4fc-239bee17e793"
+      ],
+      "names": [
+        "crownu_char_male_sparq_football_default.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Georgia Bulldogs G",
+            "kind": "university",
+            "where": "tongue of both shoes",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "outer sides of both shoes",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Jordan Jumpman",
+            "kind": "sportswear",
+            "where": "upper left chest",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (outer sides of both shoes), Jordan Jumpman (upper left chest). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Georgia Bulldogs G (tongue of both shoes).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "3c1ef301055a7f66fa2b0ecfd4d3d5f4ed029b9a92803fa5498e1a8ed62d28c0",
+      "assetIds": [
+        "75160f10-3622-4c8a-b386-37408263283a"
+      ],
+      "names": [
+        "crownu_char_male_sparq_football_default.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Georgia Bulldogs G",
+            "kind": "university",
+            "where": "right shoe tongue",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Georgia Bulldogs G",
+            "kind": "university",
+            "where": "left shoe tongue",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Jumpman",
+            "kind": "sportswear",
+            "where": "jersey chest",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (right shoe), Nike Swoosh (left shoe), Jumpman (jersey chest). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Georgia Bulldogs G (right shoe tongue), Georgia Bulldogs G (left shoe tongue).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "82998d28986d5b6bba26202a40cf0096ff022d72b8fbf303ffa087a01674e0c6",
+      "assetIds": [
+        "18f5ad1a-619f-4c0a-b086-6d21477fcd1f"
+      ],
+      "names": [
+        "crownu_char_male_unknown_basketball_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d5694026ea3385508eb5bd72a9681a61992d5ebb9af9caf5e8c61bf9bf9848f5",
+      "assetIds": [
+        "8fe4c35d-b082-4102-9a5e-c308e35a81a0"
+      ],
+      "names": [
+        "crownu_char_male_unknown_basketball_unknown.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1c3f26c084dc42e10b6c3a2985969309c1fe1765dbe1f14a10f40a36f9bf42f6",
+      "assetIds": [
+        "e16fbb66-d8b0-4a6f-91d1-ad5a04141a00"
+      ],
+      "names": [
+        "crownu_char_male_unknown_soccer_unknown_01.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shorts left leg",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (jersey chest), Nike Swoosh (shorts left leg). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "cbbd2c7668e17320906417c190bf9d255fc856db3afd25e80b830829c0791baf",
+      "assetIds": [
+        "c4dbf79c-2ef7-474e-9237-8867934459b8"
+      ],
+      "names": [
+        "crownu_char_unknown_kentucky_unknown_unknown_04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "82b8a03e5b0ec0520ccb20ac1587aab5cd4d7451dba0e29a138afc953a702f05",
+      "assetIds": [
+        "37e4b6d3-97fb-4a55-8ea8-e41e7179976a"
+      ],
+      "names": [
+        "crownu_char_multi_multi_multi_default_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Notre Dame monogram",
+            "kind": "university",
+            "where": "glowing armband on right character's left upper arm",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Only licensed marks found: Notre Dame monogram (glowing armband on right character's left upper arm).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "23bdf74ca46200b495d3df538a0b67ec632bb50a6c82a76232e768cb31d311f2",
+      "assetIds": [
+        "f5e0a392-f086-4b91-bb6c-e4ced5615112"
+      ],
+      "names": [
+        "crownu_char_unknown_kentucky_unknown_unknown_03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Kentucky Wildcats UK logo",
+            "kind": "university",
+            "where": "waistband",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Only licensed marks found: Kentucky Wildcats UK logo (waistband).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a5e3295f640c36c578ca37ddd9f52264f06e8fec07d9e4c97d52495a5334ce4a",
+      "assetIds": [
+        "32d0061c-da83-4296-a983-e403659cccdb"
+      ],
+      "names": [
+        "crownu_char_unknown_lsu_unknown_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "NBA",
+            "kind": "league",
+            "where": "right hip of shorts",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: NBA (right hip of shorts). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b64abd5dedf21ebc8aab15ac47a742c4a07617f78ae4eaace1ac3c65315a80c4",
+      "assetIds": [
+        "a7df7494-2203-47c5-81c4-93eee6068571"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_unknown_01.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "outer side of left shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "outer side of right shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right glove wrist",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left glove wrist",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (outer side of left shoe), Nike Swoosh (outer side of right shoe), Nike Swoosh (right glove wrist), Nike Swoosh (left glove wrist). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c26007f34eaf912725bc18772a9eb04b6b1bd63356d02a7b44a7f418a57dbb42",
+      "assetIds": [
+        "d0cbda1f-dc3f-48eb-949a-a10a9e2ba322"
+      ],
+      "names": [
+        "crownu_char_unknown_kentucky_unknown_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe), Nike Swoosh (right shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "ec80f4ef7ed7722de551aa5df10681f3292e8cdd9c2e44b51bdf88b81af09161",
+      "assetIds": [
+        "c9440143-836f-405e-a2c4-760c4878d544"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_unknown_02.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe outer side",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe outer side",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe outer side), Nike Swoosh (right shoe outer side). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d4b2993aa6baa9ab7f5303e8e1252e28613adcd0c6e2c8d1f1bfa860a1c39931",
+      "assetIds": [
+        "95f2f7cf-d0a7-40f9-8105-de1a30c73b47"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_unknown_04.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "headband",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike swoosh (headband), Nike swoosh (right shoe), Nike swoosh (left shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6fc1d74d2521109d4be05587adeeb4805ad44ffbf8930fbb0fc7cb522f1d3266",
+      "assetIds": [
+        "97f0896c-df5c-406a-9ab8-ce6d625edeb8"
+      ],
+      "names": [
+        "crownu_char_unknown_michigan_unknown_unknown_02.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe), Nike Swoosh (right shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "20d5268daa676d577fe6707255cb3736d9f8d96e3c76ba3f2d245c5afe1fff2e",
+      "assetIds": [
+        "7087cb45-832b-4b70-82c9-85324f81a57e"
+      ],
+      "names": [
+        "crownu_char_unknown_michigan_unknown_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (right shoe), Nike Swoosh (left shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "20a5ede7cf39c98f4fe93d2a0ca26299bfebdbf1d4849ae65717b3348ca46ee0",
+      "assetIds": [
+        "12d36e93-3a61-42b3-92d7-b2e410fec971"
+      ],
+      "names": [
+        "crownu_char_unknown_wisconsin_unknown_unknown_01.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f4933cc543172c885d2e03bed0c63ada85d74bdf16037683b4004ac4c9e4bdd3",
+      "assetIds": [
+        "01ef67be-1005-445f-b191-2de959d88025"
+      ],
+      "names": [
+        "crownu_char_unknown_wisconsin_unknown_unknown.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Adidas Three Stripes",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Adidas Three Stripes",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Adidas Three Stripes (right shoe), Adidas Three Stripes (left shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f0c5e1cfd8cf17402909e5634fbd39613c0bd9c280663dc6fc3d22c24103aefa",
+      "assetIds": [
+        "3dd06dab-b620-40e2-ab88-b1a517eed1ae"
+      ],
+      "names": [
+        "sparq_logo_skull_black-on-gray.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d0f2410f0129c54bcecb3af37bb287d273781c191716b64dd89a3696f7edab10",
+      "assetIds": [
+        "d8c7520f-98da-466b-9a90-4c8ad2ad6e65"
+      ],
+      "names": [
+        "sparq_logo_icon_red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "46600337e4c4a4a8ad25c9cfc0347de951070af0d02af986306963bab060d10f",
+      "assetIds": [
+        "2097baf1-bf5f-490a-a295-6799d53babf1"
+      ],
+      "names": [
+        "sparq_logo_skull-wordmark-tagline_white.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6ff9fcab30bf22422a4425b63363252dc36232c9e47caa1ee64d01ad421fe526",
+      "assetIds": [
+        "09cb65e4-4c19-4a85-bcc5-855ee51dea79"
+      ],
+      "names": [
+        "sparq_logo_skull_black-on-red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "992c212992e8ca203f390964388991996f31ded6f927ad50a85db2e316a7a45a",
+      "assetIds": [
+        "f4d3d29f-f549-448d-a707-4b970427df0b"
+      ],
+      "names": [
+        "sparq_logo_skull_striped-red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9cbc4a9c3e0a0563d382279cf15d8a7ac99dabf79d6f784210a914fe532b0638",
+      "assetIds": [
+        "3bf117b2-dab9-43d3-bdbe-b558d842fe6c"
+      ],
+      "names": [
+        "sparq_logo_skull_red-on-black.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "02217132444c105d7f1e0211911a2338c116dd2ae68ed3252ee046c03358e3f1",
+      "assetIds": [
+        "be4a5c41-b0d4-4e15-a21f-047d3fbe254c"
+      ],
+      "names": [
+        "sparq_logo_skull_striped-white.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "02abe648cc3600b3867ef5f6f821db9a48555888877d3fede9e96a2c17705370",
+      "assetIds": [
+        "1de45f8f-35c6-41ab-ab8b-d6836eae28da"
+      ],
+      "names": [
+        "sparq_logo_skull_white-on-red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5602466f837977cd50e9d6646dd4a18b82a380767b90aeef0cfd928e79481b74",
+      "assetIds": [
+        "0a37d410-6382-4eef-9d1e-b24aca04a653"
+      ],
+      "names": [
+        "sparq_logo_skull_white-on-gray.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d34e0a876a1df26a242fee68154a2a2034ff3185dd5b548b3bf693f0f9adff9b",
+      "assetIds": [
+        "43dcdfb1-acec-4cb8-99ea-9f3e4362a476"
+      ],
+      "names": [
+        "sparq_promo_og-image.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "tennis player's headband",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "tennis player's left shoe",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike swoosh",
+            "kind": "sportswear",
+            "where": "tennis player's right shoe",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike swoosh (tennis player's headband), Nike swoosh (tennis player's left shoe), Nike swoosh (tennis player's right shoe). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6d4893362cd6fbf994f275c0788237450ab55b88a88ee4405ffd1b5cc1e4a507",
+      "assetIds": [
+        "166823c3-a8b8-4c93-b4d7-ec612212371c"
+      ],
+      "names": [
+        "sparq_promo_phone_wp.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4187263479c71e6ef94811a235b256f2168253ee9ecaf88558fdc5b5e13173f5",
+      "assetIds": [
+        "a0af2959-06e8-4da7-861a-ba99f863c058"
+      ],
+      "names": [
+        "sparq_asset_1770673959076.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0e316c71cc8b7e29541f6c0b9f3fc51b746576e574a4fc493907dee1080bb423",
+      "assetIds": [
+        "1d21a289-ba44-4f93-aba8-ade15a55b48c"
+      ],
+      "names": [
+        "ref_screenshot_crownu_character_select_with_ui.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Florida Gators Wordmark",
+            "kind": "university",
+            "where": "left character's jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "FSU Wordmark",
+            "kind": "university",
+            "where": "floor emblem in center background",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "middle character's headband",
+            "confidence": 0.9
+          },
+          {
+            "mark": "SMU Wordmark",
+            "kind": "university",
+            "where": "middle character's jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "UNC Tar Heels Monogram",
+            "kind": "university",
+            "where": "right character's jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Florida State Seminole Head Logo",
+            "kind": "university",
+            "where": "pennant on the center-left wall",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Iowa Hawkeyes Tigerhawk Logo",
+            "kind": "university",
+            "where": "pennant on the right wall",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Notre Dame Monogram",
+            "kind": "university",
+            "where": "pennant on the far right wall",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (middle character's headband). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Florida Gators Wordmark (left character's jersey chest), FSU Wordmark (floor emblem in center background), SMU Wordmark (middle character's jersey chest), UNC Tar Heels Monogram (right character's jersey chest), Florida State Seminole Head Logo (pennant on the center-left wall), Iowa Hawkeyes Tigerhawk Logo (pennant on the right wall), Notre Dame Monogram (pennant on the far right wall).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "aa3478fc88ca8dae267e52c26117d364d25d1aa7c7418d6b9f14e5ed87b7947b",
+      "assetIds": [
+        "ef8020f3-7eb5-45e7-9e6f-26092e72309a"
+      ],
+      "names": [
+        "ref_gameplay_crown_u_gameplay_prompt_1_result.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Jordan Jumpman",
+            "kind": "sportswear",
+            "where": "red jersey chest",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Jordan Jumpman (red jersey chest). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "abc69387b64d215cf72bbbad47ea8ecdb0d85d75e651da6310626d4d6c50e9cd",
+      "assetIds": [
+        "3fd017dd-7032-4b36-9f9d-4c23e3ada45e"
+      ],
+      "names": [
+        "ref_screenshot_hf_20260209_221307_a7cbd297-e32d-4e71-9bad-7a2f1b899499.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d53d3242121c113313595ba545a9212bd15aa7649a47dbaf6769cedd40cfeec8",
+      "assetIds": [
+        "b17b0c1c-e24a-41ec-8840-6a71498f37bd",
+        "f0047990-4144-44d8-9e4d-f0fc79378c08"
+      ],
+      "names": [
+        "ref_screenshot_hf_20260209_221933_4cd548c4-cf5e-4384-8738-c6a1bf4b894c.png",
+        "ref_concept_combine_concept_3.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Texas Longhorns",
+            "kind": "university",
+            "where": "chest of orange jersey on left and right players",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Michigan",
+            "kind": "university",
+            "where": "chest of blue jersey on center player",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left thigh of shorts on orange players",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left thigh of shorts on orange players). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Texas Longhorns (chest of orange jersey on left and right players), Michigan (chest of blue jersey on center player).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a2349620905aed28f2e8606bcc770b869bfd0cfcc4d294278ce9a3c94b59655f",
+      "assetIds": [
+        "5b0a2e51-4c63-447a-aea8-4195d1fba447",
+        "98b200e8-2fdc-4fee-a224-91262737f02a"
+      ],
+      "names": [
+        "ref_screenshot_hf_20260209_221801_adf14eaa-c2e1-45fa-92c6-3ef77286eec8.png",
+        "ref_concept_combine_concept_2.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "orange jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "green and white jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Texas Longhorns",
+            "kind": "university",
+            "where": "white shorts leg",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Oregon Ducks",
+            "kind": "university",
+            "where": "green pants leg",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (orange jersey chest), Nike Swoosh (green and white jersey chest). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Texas Longhorns (white shorts leg), Oregon Ducks (green pants leg).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "aed81df618148a64c44d879033b9018ae367894ea1a80d7da33e5c8bf569c68d",
+      "assetIds": [
+        "cc9342d8-9d5f-48f4-b9a0-390405774e44"
+      ],
+      "names": [
+        "sparq_product_unity-editor-texas-player.jpg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Texas Longhorns",
+            "kind": "university",
+            "where": "jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right shoe",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (jersey chest), Nike Swoosh (left shoe), Nike Swoosh (right shoe). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Texas Longhorns (jersey chest).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b0fa88ba89c3e9774a651a46a5a8a7e8c7e96a7668a0d67812fb68ddb037f078",
+      "assetIds": [
+        "8b852a40-dc2f-4a8e-a893-040aee776a5f"
+      ],
+      "names": [
+        "ref_concept_ath-cust.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "B1G (Big Ten)",
+            "kind": "conference",
+            "where": "jersey chest",
+            "confidence": 1
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "jersey chest",
+            "confidence": 1
+          },
+          {
+            "mark": "University of Iowa (IOWA)",
+            "kind": "university",
+            "where": "jersey chest",
+            "confidence": 1
+          },
+          {
+            "mark": "Iowa Hawkeyes Tigerhawk",
+            "kind": "university",
+            "where": "shorts",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Washington Huskies W",
+            "kind": "university",
+            "where": "purple cleats",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (jersey chest). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: B1G (Big Ten) (jersey chest), University of Iowa (IOWA) (jersey chest), Iowa Hawkeyes Tigerhawk (shorts), Washington Huskies W (purple cleats).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "399e5376cdc29004ac529ae35aa2783bf6801f0e53482d6f7cd48cbaf93107ca",
+      "assetIds": [
+        "452cc5a7-38a2-47b3-b388-0e249f840f37"
+      ],
+      "names": [
+        "ref_concept_attributes-archetypes-frame.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Duke Blue Devils",
+            "kind": "university",
+            "where": "John Smith jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Miami Hurricanes U",
+            "kind": "university",
+            "where": "Jane Star dress chest and skirt",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Michigan Wolverines",
+            "kind": "university",
+            "where": "Ryan Stomps jersey chest and pants",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "Jane Star dress chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "Jane Star shoes",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "John Smith jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Jumpman",
+            "kind": "sportswear",
+            "where": "Ryan Stomps jersey chest",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (Jane Star dress chest), Nike Swoosh (Jane Star shoes), Nike Swoosh (John Smith jersey chest), Jumpman (Ryan Stomps jersey chest). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Duke Blue Devils (John Smith jersey chest), Miami Hurricanes U (Jane Star dress chest and skirt), Michigan Wolverines (Ryan Stomps jersey chest and pants).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "79e16578729f35b6d44f59216f36efd5553ca7a55120d66500b1c62b026e6297",
+      "assetIds": [
+        "6ea8d214-2a4b-4fde-ba48-e79997e4f5f3"
+      ],
+      "names": [
+        "ref_concept_gameplay_6.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "athlete's right jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "University of Oregon",
+            "kind": "university",
+            "where": "athlete's jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "athlete's headband",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "athlete's shorts left thigh",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Oregon O",
+            "kind": "university",
+            "where": "athlete's waistband",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Under Armour",
+            "kind": "sportswear",
+            "where": "background athlete jerseys in the right box",
+            "confidence": 0.85
+          },
+          {
+            "mark": "University of Utah",
+            "kind": "university",
+            "where": "background athlete jerseys in the right box",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (athlete's right jersey chest), Nike Swoosh (athlete's headband), Nike Swoosh (athlete's shorts left thigh), Under Armour (background athlete jerseys in the right box). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: University of Oregon (athlete's jersey chest), Oregon O (athlete's waistband), University of Utah (background athlete jerseys in the right box).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6c4da61dff37fae4bd01056d467e0bf8eaf5dd504290ed42f26689179cbd68ac",
+      "assetIds": [
+        "188218a1-6d9e-494f-b34f-f40ad448f7b3"
+      ],
+      "names": [
+        "ref_concept_gameplay_1000288209.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Georgia Bulldogs G logo",
+            "kind": "university",
+            "where": "left character's cap",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Georgia wordmark",
+            "kind": "university",
+            "where": "left character's jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Ohio State block O logo",
+            "kind": "university",
+            "where": "middle character's shorts",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Ohio State wordmark",
+            "kind": "university",
+            "where": "middle character's jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "UW wordmark",
+            "kind": "university",
+            "where": "right character's jersey chest",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Only licensed marks found: Georgia Bulldogs G logo (left character's cap), Georgia wordmark (left character's jersey chest), Ohio State block O logo (middle character's shorts), Ohio State wordmark (middle character's jersey chest), UW wordmark (right character's jersey chest).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6d25d99cbf0469158347f6c391c4fb4a5c3cf9e55158741eae2aef7c840c4bf9",
+      "assetIds": [
+        "ae9971cb-aca8-4bac-a914-a0d0bf5a45ac"
+      ],
+      "names": [
+        "ref_concept_gameplay_1000291266.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Texas Longhorns",
+            "kind": "university",
+            "where": "jersey chest",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Only licensed marks found: Texas Longhorns (jersey chest).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b04da258b9d1759d1bd71e272c5e0707e77854d77b3e434fa57bd7584596fefa",
+      "assetIds": [
+        "dee52f27-4394-404f-b151-619775f27ca1"
+      ],
+      "names": [
+        "ref_concept_gameplay_1000291270.jpg"
+      ],
+      "assessment": {
+        "severity": "review",
+        "findings": [
+          {
+            "mark": "Unity",
+            "kind": "other",
+            "where": "editor window title and application interface",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries institutional marks that may be covered by an existing licence: Unity (editor window title and application interface). A human with the licence terms decides.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "3ec6c3d2f3c562d3163b81a4cbe9137427fecfc7a506876ce05dbd152a031a39",
+      "assetIds": [
+        "fc5e00c3-8faa-4761-8cb7-5fb260ce368c"
+      ],
+      "names": [
+        "ref_concept_hf_20260310_042949_286ffe2a-d6d2-402c-bb26-ea4a6a56fa2d.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left shoe of the climber wearing number 5",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left shoe of the climber wearing number 5). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5786f143e7cfdcefdce2a9e248f4a5fa58f24a9f1d0109c0bcd08743fd1137b1",
+      "assetIds": [
+        "5fed2483-c263-4555-9fff-03b2cebb898d"
+      ],
+      "names": [
+        "ref_concept_hf_20260310_083018_464f46e6-fdf0-437c-998b-70d392e383e0.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left glove",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (left glove). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "dcda06395cb007d5d6d2d80242b4af6682154f528def1fe100ac8a04836767ff",
+      "assetIds": [
+        "389fd055-7015-42cd-9ed5-bb99f32774f2"
+      ],
+      "names": [
+        "ref_concept_hf_20260310_091849_8dd59c75-4007-4771-b9d3-f62b2a1be5cf.jpeg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Big Ten B1G logo",
+            "kind": "conference",
+            "where": "left chest of female runner in black jersey",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right chest of female runner in black jersey",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "left thigh of shorts on female runner in black jersey",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Big Ten B1G logo",
+            "kind": "conference",
+            "where": "collar of male player in white jersey",
+            "confidence": 0.8
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "right chest of male player in white jersey",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (right chest of female runner in black jersey), Nike Swoosh (left thigh of shorts on female runner in black jersey), Nike Swoosh (right chest of male player in white jersey). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Big Ten B1G logo (left chest of female runner in black jersey), Big Ten B1G logo (collar of male player in white jersey).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "52b4cd3f10ba758c86d8294ebc1afee06a30515350d0c024bbbf09b26bba4dfd",
+      "assetIds": [
+        "8d657d97-4768-44bc-88ac-d75d30f01f24"
+      ],
+      "names": [
+        "ref_concept_s10.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "character jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Texas Longhorns silhouette",
+            "kind": "university",
+            "where": "character jersey chest",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Texas",
+            "kind": "university",
+            "where": "character jersey chest",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Learfield",
+            "kind": "other",
+            "where": "bottom left corner",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (character jersey chest). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Texas Longhorns silhouette (character jersey chest), Texas (character jersey chest), Learfield (bottom left corner).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "75039b07b3c8a7a485430a9ed099cd3a6cf0a16e7f5890e9dcf26e5c15d3c528",
+      "assetIds": [
+        "47b2f8dc-a220-4ccd-971b-528f478ae5ea"
+      ],
+      "names": [
+        "ref_concept_the-game.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Alabama A logo",
+            "kind": "university",
+            "where": "helmet of the baseball character on the bottom right",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Florida wordmark",
+            "kind": "university",
+            "where": "jersey chest of the athlete character on the bottom right",
+            "confidence": 0.95
+          },
+          {
+            "mark": "NC State Wolf logo and wordmark",
+            "kind": "university",
+            "where": "chest of the wrestler character on the left",
+            "confidence": 0.95
+          },
+          {
+            "mark": "UNC interlocking NC logo",
+            "kind": "university",
+            "where": "jersey chest of the running female character on the left",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Only licensed marks found: Alabama A logo (helmet of the baseball character on the bottom right), Florida wordmark (jersey chest of the athlete character on the bottom right), NC State Wolf logo and wordmark (chest of the wrestler character on the left), UNC interlocking NC logo (jersey chest of the running female character on the left).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "35facbaeae8c499c47cb334e7169214999f9701e67d11dbeacfcdaf990da304e",
+      "assetIds": [
+        "7f274cba-708d-49d3-8c84-8d8024174d9b"
+      ],
+      "names": [
+        "ref_render_crownu-merchandise-bags.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Alabama Crimson Tide",
+            "kind": "university",
+            "where": "bottom-left red houndstooth bag",
+            "confidence": 1
+          },
+          {
+            "mark": "Kentucky Wildcats UK",
+            "kind": "university",
+            "where": "center of middle black bag",
+            "confidence": 1
+          },
+          {
+            "mark": "NC State Wolfpack",
+            "kind": "university",
+            "where": "center of bottom-right black bag",
+            "confidence": 1
+          },
+          {
+            "mark": "Ohio State Buckeyes",
+            "kind": "university",
+            "where": "center of top-left camo bag",
+            "confidence": 1
+          },
+          {
+            "mark": "Penn State Nittany Lions",
+            "kind": "university",
+            "where": "center of top-right silver bag",
+            "confidence": 1
+          }
+        ],
+        "reason": "Only licensed marks found: Alabama Crimson Tide (bottom-left red houndstooth bag), Kentucky Wildcats UK (center of middle black bag), NC State Wolfpack (center of bottom-right black bag), Ohio State Buckeyes (center of top-left camo bag), Penn State Nittany Lions (center of top-right silver bag).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "49313c1670383daf98dad105df1bd27559bd04f48e6a8cddb40bb1492031091c",
+      "assetIds": [
+        "f53715ea-f6bd-432e-85db-d7c8cf3b0653"
+      ],
+      "names": [
+        "ref_concept_stage_path.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "bcef931181488568fc70a40c379d53a8ad757b8a7b84b250028f71450ad16875",
+      "assetIds": [
+        "c447a118-08d5-42f5-963f-074f469041df"
+      ],
+      "names": [
+        "ref_concept_stadiumcoursecloseups.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a933f7c42bd152087295010a488d509548aeb0579cabecace468582d1906d2ff",
+      "assetIds": [
+        "a2b63d1b-cc8b-4c3f-8695-1126e8953174"
+      ],
+      "names": [
+        "ref_concept_hf_20260209_155255_03a3d8ef-3db8-49e8-93ca-1e21ca9280bb.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "shoes of the character on the far right",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (shoes of the character on the far right). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "ade1b3ff0d1101d1d0e000288bfc3c32fbce9ec4608fee904b93ee63f582f6d8",
+      "assetIds": [
+        "f116e4ab-f08b-4ee6-8868-a094c6b97b5a"
+      ],
+      "names": [
+        "ref_render_cu_closeup_capsulebridge_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8d2952d97467a633215113b1dbe33bd4de57457b977b07368f7ad9a3e294f692",
+      "assetIds": [
+        "05598fa3-3dfe-453a-892b-345ded737272"
+      ],
+      "names": [
+        "ref_render_cu_aerial_stadium_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8dee1812e704188c10555de4ee9a534604c936cbfb94b57b1fe1a2ddb7595ad2",
+      "assetIds": [
+        "9c994ac2-536c-4ef2-844c-aff4ff2e9208"
+      ],
+      "names": [
+        "ref_render_cu_aerial_stadium_02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4bfd9f3c2921140166a223043ddf7fdc73fcf9510e60991541f4bc7edcece00b",
+      "assetIds": [
+        "d0be9c5f-79a4-4674-81f2-f68694c92fbb"
+      ],
+      "names": [
+        "ref_render_cu_closeup_spindrum_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4c78769c8a0aac683d89ff227dc5cf2f39edd4d34836861cb6a81e8fca87c64c",
+      "assetIds": [
+        "3dd32511-63b0-47f4-8032-e2ae0f03530c"
+      ],
+      "names": [
+        "ref_render_cu_closeup_hextrampoline_02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "bb9b22a0e6f74858de8f9246be4f838ec2d9b2854e5244c088ab97338b862185",
+      "assetIds": [
+        "9d0d8a04-87bf-4828-bfc8-2c74907cfdcd"
+      ],
+      "names": [
+        "ref_render_cu_closeup_hextrampoline_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "73e7fa6f42f0e96552e084578c0103d1dc7faaa131bd75103655a9c0227130ff",
+      "assetIds": [
+        "a031c8fd-44dd-4666-a768-397ecc1dd22a"
+      ],
+      "names": [
+        "ref_render_cu_closeup_watermoat_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "da54e7b20412d59c45b32e31eee84947c494e5ebab1a951ed219aa1c554c82aa",
+      "assetIds": [
+        "76131464-216b-42fc-82b3-a5179764d8f5"
+      ],
+      "names": [
+        "ref_render_cu_closeup_startplatform_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "925159a1db6dc2982d87a1516693ee740051cbad94f8dcd95affdf062be9f026",
+      "assetIds": [
+        "128562a0-a39f-4bc0-ba17-bde8829163c6"
+      ],
+      "names": [
+        "ref_render_cu_courseoverview_finishtostart.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "ce5a65063f629833448838058aef4743d2babb2d66ca2be92bea89a9bf98c0eb",
+      "assetIds": [
+        "64622baa-ee30-4397-a4f6-b913749494e1"
+      ],
+      "names": [
+        "ref_render_cu_courseoverview_hexfield.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a09cfbab90d00e92a5148b74cacb0c41cef648d2c5570c7d7ad2ed8d0ff5defe",
+      "assetIds": [
+        "c34f81f6-d76a-49d5-b588-16eb05bcf3a0"
+      ],
+      "names": [
+        "ref_render_cu_courseoverview_sideangle.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5060ac45bb0869992c9112b08ee7aaec92483fb3177b7ba2e7f18a1a71f8f28a",
+      "assetIds": [
+        "020d8757-7572-4f5a-84b1-2f26c3547f14"
+      ],
+      "names": [
+        "ref_render_cu_courseoverview_midsection.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5dd7ac3854bc675abf6fe90c80dba8732f2073bdb657663eb36512847e10f454",
+      "assetIds": [
+        "664bed50-7cbd-4cd3-9171-f33542d419d6"
+      ],
+      "names": [
+        "ref_render_cu_detail_goldstar_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f2655e4b0671fe2531123e98d506799acd52522074521bb87623cc3c73a1b639",
+      "assetIds": [
+        "fe445d1a-ae77-42c2-aa70-64f29db913a8"
+      ],
+      "names": [
+        "ref_render_cu_courseoverview_watersection.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "de7c16e861f14f20f59bf704452ef94e43eec7dd1a94bf6313b055870e6d4a51",
+      "assetIds": [
+        "9f3bcc88-aea6-4571-8cdc-c54dc45a01b2"
+      ],
+      "names": [
+        "ref_render_cu_courseoverview_starttofinish.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "47c7d095dc3c680f2da4030755ce65b3a1547ffba39c1deb38f098a009012f87",
+      "assetIds": [
+        "d8ce1d09-758f-4870-92e1-d5b901c7ab45"
+      ],
+      "names": [
+        "ref_render_cu_detail_trusswork_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "7196196cab71e6b94a8f0c054a5a6d7ddf14231b72e826e24c12c36c3dbb8f4d",
+      "assetIds": [
+        "1bb8a347-967b-4676-a9cf-f3eb981536e8"
+      ],
+      "names": [
+        "ref_render_cu_mood_coursecanyon_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4a1061c3990bccf9850c575caafc78e9815f7a97002f8f580b0c23ba2e3b84d5",
+      "assetIds": [
+        "05382361-3012-41cb-82d3-39a7c1208262"
+      ],
+      "names": [
+        "ref_render_cu_detail_screens_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "32897e9ad30473e99103876b35585297fd9146ef7a7277e8236032e6fcbc8e9f",
+      "assetIds": [
+        "25ed3a40-ae77-4501-8c47-91823a19e9c1"
+      ],
+      "names": [
+        "ref_render_cu_mood_dramaticperspective_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "2028cd11073ff22395788188422232a2090a93b5a90649292b8c9db057c907a7",
+      "assetIds": [
+        "cec609f2-a7e8-4c2a-97f5-03956c5e85b5"
+      ],
+      "names": [
+        "ref_render_cu_stadium_panorama_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0e186a68807f6301161ecc03428b3cdf38ef28887e2ee65c04081e6f8c03aa76",
+      "assetIds": [
+        "26f44a3d-61d8-48a5-bc49-24607c54de95"
+      ],
+      "names": [
+        "ref_render_cu_stadium_birdseye_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "96dafa3a8cdd31fab944ab408c4b4ce28af2968fa3c9828029274d35b321b397",
+      "assetIds": [
+        "4ad04e3b-01a1-4dad-ac06-d0ac66ae49bd"
+      ],
+      "names": [
+        "ref_render_cu_stadium_sunset_01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a96eaab69d4ee4aec4b5b0bcdc800b0b5ec6ec07816b0de3e8c721495c590b06",
+      "assetIds": [
+        "e1dfe34f-10e4-4e35-9366-9d2a9ec9d077"
+      ],
+      "names": [
+        "ref_render_cu_stadium_panorama_02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "52011e06f9bb3007df97857e4f4976213c943f0ad5ad15ee55ee7f4aa844e668",
+      "assetIds": [
+        "b7a957e2-7350-4826-8549-ba683891671b",
+        "0efa39bc-71b1-438c-862e-0b5591afffc8"
+      ],
+      "names": [
+        "ref_render_locker-room-blue.png",
+        "ref_render_locker-room-jerseys.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "red jersey chest on back wall",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Texas",
+            "kind": "university",
+            "where": "orange jersey chest on back wall",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "grey jersey chest on back wall",
+            "confidence": 0.85
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "green jersey chest on back wall",
+            "confidence": 0.85
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (red jersey chest on back wall), Nike Swoosh (grey jersey chest on back wall), Nike Swoosh (green jersey chest on back wall). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: Texas (orange jersey chest on back wall).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "87c412ed81a4739f93169f954e1da96520bc15e05e3b78eef04eaff8e9b8e3f0",
+      "assetIds": [
+        "6bbbc7e2-5555-4671-9780-c1503ee03bb9"
+      ],
+      "names": [
+        "style_background_arena-elevated-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "08746965162c666fedc9f9786de21af9cc3b0ecd899f5f3a283eaa6a91c7c851",
+      "assetIds": [
+        "35c4d939-2b45-47c4-b71a-c25e08622dfc"
+      ],
+      "names": [
+        "style_background_arena-elevated-05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4ffa46fffe26f12a7f0381ccdca5e6d45c40f78323bf68b3204feff54204fc3c",
+      "assetIds": [
+        "14491fe6-ce7e-42a7-93b3-0526fe7bfbbb"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "580a8940108116d5510ef25c33e0d87a670755e84bdbae56e8f031137d8f3745",
+      "assetIds": [
+        "b23942b8-ab10-4c58-8202-17e43575bf0e",
+        "8e853562-380e-49e8-b3cc-11eb8a3a3005",
+        "7ee667f5-b5f6-4b98-b04e-a841a15de80f"
+      ],
+      "names": [
+        "style_background_arena-elevated-finish-and-upper-course-copy.png",
+        "style_background_arena-elevated-finish-and-upper-course.png",
+        "style_background_arena-elevated-jumbotron-zipline.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9f6e4d47ec30d4890b9512806416650b1b3e61495759ec1d21eba19d3fc7dbb7",
+      "assetIds": [
+        "b29a8a2d-07d1-40d6-913c-9ca3bad71326"
+      ],
+      "names": [
+        "style_background_arena-elevated-finish-gate-topdown.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fe7f5cb37a7d8b6d99a911b2becd65b5a6d22ee9461ac405319e81548404d4d0",
+      "assetIds": [
+        "993c45ec-e98a-4d31-a370-b2a6b266ff37"
+      ],
+      "names": [
+        "style_background_arena-ground-level-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "7d9863fca6e43fbcefab3bc5db780cd62deb63573b606e2e6235b06849fd263f",
+      "assetIds": [
+        "e5964a1d-8d14-45c9-b010-8f23224b9754"
+      ],
+      "names": [
+        "style_background_arena-ground-level-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8bc7f8acd861a32993542347689a34fe7af42494d184c9d7778f9de304a59024",
+      "assetIds": [
+        "c7301c69-895f-4f56-81ed-e9543e88bd8c"
+      ],
+      "names": [
+        "style_background_arena-ground-level-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "de543ec3f6d65e003dc748bfa3b4f1537ca2961aa12df4d8a668944d59b7b3ae",
+      "assetIds": [
+        "2040153c-c97c-4855-b9c0-c29adf9e9f6e"
+      ],
+      "names": [
+        "style_background_arena-ground-level-05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6d55eccd851b33c3b0943ef377a3ea0049c1248224c62d8f98b52214dc856af5",
+      "assetIds": [
+        "7fdcb80c-68e8-4ecf-9fe7-5c2a3ff1d9fb"
+      ],
+      "names": [
+        "style_background_arena-ground-level-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b28904767ee7195c2a7ec27da7f663d5417aa5eafd786bcbb441fed1d88d233c",
+      "assetIds": [
+        "5f87023d-388e-4045-93f5-e07bba4738a4"
+      ],
+      "names": [
+        "style_background_arena-ground-level-08.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fcbdae2840747e8ac1b8d80c92a209cf998da9a01d94306afeedb91a6848c5b5",
+      "assetIds": [
+        "ddc7a4fc-dae3-45db-925b-305c7f6db4b8"
+      ],
+      "names": [
+        "style_background_arena-ground-level-07.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "aef3e5ff923bf88da97cb1e85da7eb8da6fd1b57ca4d7949e405b5e8caa24b99",
+      "assetIds": [
+        "46b8d537-943a-4f22-9a53-b75fe16179cf"
+      ],
+      "names": [
+        "style_background_arena-ground-level-06.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "343d5899abfd768b410dc6fe8f339071ac41501ece156631577e2d2facba2cc5",
+      "assetIds": [
+        "ada101cd-450d-45f8-9ec8-d2894261efa9"
+      ],
+      "names": [
+        "style_background_arena-high-angle-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "956697651afad5227e443545c923009505b97e3b397ded5a3ed531bb4097af77",
+      "assetIds": [
+        "2ed4b197-bbe8-4cc4-9c4a-6a5ce151f25a"
+      ],
+      "names": [
+        "style_background_arena-ground-level-start-platform.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "225c59ae867a434386e178b742e47895442c30392f20b06e0ea554344ac8aa47",
+      "assetIds": [
+        "f6fe2175-21bb-4e71-a616-87487dd952e1"
+      ],
+      "names": [
+        "style_background_arena-ground-level-09.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "bf0402b905b74b8e78f990482b0e86c97774c3da17833331546ec61dcf456fde",
+      "assetIds": [
+        "9d4fdcf4-656d-4a91-a5e8-b2cc5c2fc87d"
+      ],
+      "names": [
+        "style_background_arena-high-angle-06.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "36ac682ad0453260885ef48151f0c7173f71c2782f811409740f8ea83a7177ff",
+      "assetIds": [
+        "0207f0d0-b18e-4662-9e94-bbaa9f93d8f0"
+      ],
+      "names": [
+        "style_background_arena-high-angle-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "73ae7668a08b381e182d16dc9920a22d9b5b0bb1101e9093266aa2e5719ac00f",
+      "assetIds": [
+        "2905c116-45be-4906-8d5c-f5e3c3301c67"
+      ],
+      "names": [
+        "style_background_arena-high-angle-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9fe932bb4be587e566b69182fd29bb4daf8c00c473bf573dab67d9c6994b670b",
+      "assetIds": [
+        "17a558e5-c5fc-4eab-b44f-cb9247b0d64a"
+      ],
+      "names": [
+        "style_background_arena-high-angle-09.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a2d9d84b79b6a430693b60fbaf97462552025a53a2dce0f58c0d723561137f43",
+      "assetIds": [
+        "9aede82c-c284-4340-9ec8-f0899163bd2b"
+      ],
+      "names": [
+        "style_background_arena-high-angle-08.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "15ebc49f4424d6fd75ed2cacf3869331834250d3ae69fc82e6dbfc4f289ab03e",
+      "assetIds": [
+        "56f911ba-fd46-494c-97cc-0009535e55f0"
+      ],
+      "names": [
+        "style_background_arena-high-angle-07.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "7fe0f159398934abd00c079ff3806fdeb4f372dd8ed1094977875a0a147272ec",
+      "assetIds": [
+        "d4f65959-1b87-4392-87ab-522d1354e67a"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "7e1eb882e4db7f52df87e31e0930863a1ba881ad228a92d9623ce5470dbc1d83",
+      "assetIds": [
+        "7f896ef2-1f52-4c43-8e88-35ec269b908a"
+      ],
+      "names": [
+        "style_background_arena-high-angle-full-course.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "978e46820d0659bf39c9cfb79c541cf56f6af52080eae5a198841b20981cfba2",
+      "assetIds": [
+        "3db1ffe2-27a1-4e9b-969d-b33b5d6cb199"
+      ],
+      "names": [
+        "style_background_arena-high-angle-alt.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "19bab8ead0a7f7adc33d8d6425004318af53d5d894f819df614ab50f0a31063d",
+      "assetIds": [
+        "4497e161-445b-407f-ad9a-ed00963b3d2e"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "72220eb94b223981b85e42bf3740f84cb07cd14d02e36d5674f7a0b4bd86b566",
+      "assetIds": [
+        "0b138e01-a68e-43c6-8328-148a28d6122a"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "3a2238192b5ee1b8ac82a9ef0ce78cedb5c869df68e8c2e118642137116cb11d",
+      "assetIds": [
+        "24a21584-517d-45a5-a6cd-feea3ff4635d"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a358a0753947326ff4b7600960eb47cef655c6f6541ad0765dc0bd6ebf9db262",
+      "assetIds": [
+        "987204cf-47f1-4ccb-85ec-b837b30740f8"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-07.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0a9f4251bf3ddf8142d52c49762fbdf3f7231f04940a14ade6874ce8c303b772",
+      "assetIds": [
+        "648a182d-9e47-4961-8890-41e8f5cbc5c8"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-06.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4ff3967d1bef72533515f7d32b8bfe29f3250faf85a63b663efbf101ca5d7aef",
+      "assetIds": [
+        "057d52f9-1c51-4781-8023-ab7347bf2010"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f7c1d918d88ea273ce41d201752d2ef06c3b01ceab7394fcd0d4ce0b2d82a78e",
+      "assetIds": [
+        "61d1c7f7-9496-441a-9bd9-49ca02859bce"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "39df2c3b1138d0e15104428ebbb767affb452f5256f61e0ca04463d2ded7b183",
+      "assetIds": [
+        "1e98bdd4-0971-4930-ba2b-08c75b03a632"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-09.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "397fb5a56119710d516e1e1354f12bee8f2da0e19a5b1387514ef5276e633110",
+      "assetIds": [
+        "9535fabd-f22b-4b65-8e3d-4e79e0ec3aee"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-finish-side-08.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "06e52b7578861cf244c230761cb01d025685862758eb18e4b3cb2cb114dbc539",
+      "assetIds": [
+        "e6f9eecd-62e2-4f76-820c-9952ff227cb9"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "e3b2519f89697ab5442c741a9e57bbc334948998503477f8ac217ae9216efe53",
+      "assetIds": [
+        "40ec587b-c82d-44a6-89df-9c1a24664fa8"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a8b1356a1b21391765ee1d54a1bbc738370a52145b05de2627854cf968184ddf",
+      "assetIds": [
+        "6c40c328-7b5a-411c-a560-a6bc68ce814a"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d90518ecbde74e678328f2398e1a6af0e70f0f359f0aa5a1199c0fe5afde3de6",
+      "assetIds": [
+        "3b6efcaf-13fd-443e-8bf4-b8780a2fe2ae",
+        "24a69acf-94da-4594-af71-e38b150efeb9"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-05.png",
+        "style_background_arena-mid-angle-stands-side-05b.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d083a87bbb3a41c1e644f08666ea1cf127cd4405c6f094ec95da2123c7807a28",
+      "assetIds": [
+        "9a3d77a8-203c-4fd3-8808-ba58b0dd0e20"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "553759dc793ebe807cb724bafd26cb5dab813a945a827c3219cced54c88d412f",
+      "assetIds": [
+        "bb908b76-7ab5-4ade-86ab-6a5a0c31de21"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-08.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "75598be765fa058ce320d61a13a166813120d7fa5aa047eab6ae59e632638298",
+      "assetIds": [
+        "43ce3011-286b-4b9b-9f9a-6a85cc628304"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "037447841f2132b87a3bdfc37682551a7b3c5408734947fdf30c3113c0a23722",
+      "assetIds": [
+        "11a5d56f-19f4-4ccf-ad93-34c4bd11a1be"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-stands-side-06.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "710bfe85cb04d66b3de62528a2156f1a48b3191389c83a2f7e63ad057db356ce",
+      "assetIds": [
+        "3dca9247-8929-480a-aab6-5d02bf7c1df0"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "70126f54a37b3f09c29c64f90af7768b59ec63258aba37c4fb74e28a8c493bf2",
+      "assetIds": [
+        "3860caeb-9657-4fed-a64b-aea4a71d5cc4"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "69daa2fb934a2fae0cdab62b88b363ae598dabfa1f666eef8f29ba1ef49dc3aa",
+      "assetIds": [
+        "8fc5dc4b-6d4b-4a67-957e-19d466b8e1a8"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0b6d13957177659a46960485a0a1cc45cfc1ac716bd199a2ca10f46e880c2852",
+      "assetIds": [
+        "be571710-1ed2-476e-a664-2cbec8072ef7",
+        "0c93a24a-526a-4ad1-97c3-0df9c0d05002"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-07.png",
+        "style_background_arena-mid-angle-start-side-07b.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "29cf70054dbd0d3d33759a5d6ec94dca86e14cf6ad775db9ffd138340e4a32d2",
+      "assetIds": [
+        "a7df1514-5ad0-416d-bce1-c955c11cd576"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-06.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "11e62ac982127515d3ceeae1289feb02a2680e891696a9bcf0c8cc6c21ec116c",
+      "assetIds": [
+        "02846b36-8cf8-4e2d-b06b-bcee89111bee"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9e163949f7889e39cd0581f8898eb352bfb11441b852750ae09c3ae9c989017e",
+      "assetIds": [
+        "3b1e9165-edf2-4cea-88f6-139c232f7edd",
+        "a4a200eb-6bb6-4e35-bcc1-2310d9a5fd0a"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-08b.png",
+        "style_background_arena-mid-angle-start-side-08.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "aee4ba9a8fa35dfb4e2416706d24bb9b1a7b3fd8bdb57eed681a53e9629ce553",
+      "assetIds": [
+        "15549d40-ffc3-45c8-a328-454c3233664b"
+      ],
+      "names": [
+        "style_background_arena-overhead-birdseye-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "da92a8bae27fec21c38f2c500de864f0a06b87d24c40945047bdd4d7f135e34d",
+      "assetIds": [
+        "77ff00bd-109e-4b64-95d2-d89fc18c93e3"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-start-side-09.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4140099b6d20168a22062483358bade609128edfb7e97efb7ac6cd3bde6eaf43",
+      "assetIds": [
+        "983d2c4f-11e0-4185-9ed9-f0b7c3503641"
+      ],
+      "names": [
+        "style_background_arena-mid-angle-wide-start-side.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a2db9c6ed66a87f62156af998d13d44b5ac7eddd1071e5bc8be285245c35f524",
+      "assetIds": [
+        "b8a122bb-db56-4fb5-90d7-f711f2516b3e"
+      ],
+      "names": [
+        "style_background_course-closeup-center-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "49c4617a75e45d0cecb3146a796a41461f2292c2366e65cd8ca4add11741f46f",
+      "assetIds": [
+        "6600f8db-2e7b-4faf-8717-ba32865f4c76"
+      ],
+      "names": [
+        "style_background_arena-overhead-birdseye-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1312d814386407e8e431e5dd23a2e699d7ca622c24ebf9b2e916b2fd40160ddb",
+      "assetIds": [
+        "d5f28190-cd85-4e95-bcd6-008e1c18afac"
+      ],
+      "names": [
+        "style_background_arena-overhead-birdseye-full.png"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "billboard to the left of the main screen",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "billboard to the right of the main screen",
+            "confidence": 0.9
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (billboard to the left of the main screen), Nike Swoosh (billboard to the right of the main screen). Anything generated from this asset inherits them.",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "27b217baefb7ff0b40d0353fae771863c2c4597a937bd7a7d051ca3290a82c97",
+      "assetIds": [
+        "681ab2f5-eb9c-4c70-9ef5-8bc2b6bc4515"
+      ],
+      "names": [
+        "style_background_course-closeup-center-05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "258c094ef264f049663bc2d3080eb2e755257529782344585a46a021aa5eba2b",
+      "assetIds": [
+        "b750751a-6d70-48b4-b641-2dda4d47759f"
+      ],
+      "names": [
+        "style_background_course-closeup-center-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "04fa5e288d7cc0bc4813af9ea9f46105fb04fd4fc504eff1a08c4a4f67bd74a4",
+      "assetIds": [
+        "a5b83454-62ec-4a07-9771-4311922dca7c"
+      ],
+      "names": [
+        "style_background_course-closeup-center-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4022ce19e6aa6b6769b64c04bc6781e92afac7819ba20d877f3355249e7fe487",
+      "assetIds": [
+        "366db2b8-8beb-40e3-96e8-5ea0267acad6"
+      ],
+      "names": [
+        "style_background_course-closeup-left-05.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5a6fff98ef81389ab9e1d0da9a5e26ea0b8eac3f71b08c575b9f091277d33256",
+      "assetIds": [
+        "16bcce68-bc08-4f7e-b411-0ba78b1afa3b"
+      ],
+      "names": [
+        "style_background_course-closeup-left-04.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "684f2e00dffc8893bc00a1bb6c26d3cbbd4fd742926bdd661354d7c877537fd3",
+      "assetIds": [
+        "f2bffbd6-e044-4329-98f6-d38a717ecf72"
+      ],
+      "names": [
+        "style_background_course-closeup-center-stumps-ramp.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "70b0788f64b3e14ed1d2e28062513b87b30434ef9f09e9fa9b52112ffef152bf",
+      "assetIds": [
+        "04bce9e2-0dd5-4bf9-bf4e-e079bc252019"
+      ],
+      "names": [
+        "style_background_course-closeup-left-star-pads-01.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "09de79833c6e7023e008e29e6d9c78e73ae63121d8c05064fb0b11fb74ae6fe0",
+      "assetIds": [
+        "c35baf5a-9e47-4862-a60f-679ae540f5db"
+      ],
+      "names": [
+        "style_background_course-closeup-left-star-pads-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "81512e183c5717c85afb8e6048a08fb714dc065a2a5d3f42ebbe7b56e95e6204",
+      "assetIds": [
+        "af76f82f-809f-4952-87f8-3a858734eefa"
+      ],
+      "names": [
+        "style_background_course-closeup-left-climbing-wall.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "266857023d96551ea06b003a80540d4a621060af3a472a9e0944f137ceb91cc3",
+      "assetIds": [
+        "3f677921-4269-4e94-8b0a-2eeb7b7040d5"
+      ],
+      "names": [
+        "style_background_course-closeup-right-star-pads-spinner.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5ebc78fa0c94810a21dc20bb51c252c87bb59bf11434185660edc635e7ba17d7",
+      "assetIds": [
+        "187974e8-426f-416d-97e4-4fe89055c7ea"
+      ],
+      "names": [
+        "style_background_course-closeup-right-spinner-cross-pads.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4ce8b0ec64cc32545e5647fb0e9e3174b47109762982ea9554c8fd1451f373ee",
+      "assetIds": [
+        "59f56ec0-609e-42b7-9e9b-a6c1a3510f26"
+      ],
+      "names": [
+        "style_background_course-closeup-right-03.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f0a587fb7fc2e576aa36f5e217c5120b3036a38081da4ec0029cff0b8cb822ef",
+      "assetIds": [
+        "b14c7048-44fd-4316-afd6-080ceb07cad2",
+        "da19055d-9902-4331-9acf-a510ec50dce9"
+      ],
+      "names": [
+        "style_background_course-closeup-zipline-03.png",
+        "style_background_course-closeup-zipline-03-copy.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "f977c39a2dfd027a92ece305a23e8ef44adcce0bbfeb8884bdca3b49fcfe86da",
+      "assetIds": [
+        "ba8c074c-d3f5-483c-875b-631b958865ab"
+      ],
+      "names": [
+        "style_background_course-closeup-zipline-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "766ce7ec7be711a41e7a3051caf9b2cc4b39e9a317d66179252d6b398c1d74ec",
+      "assetIds": [
+        "9a85ba2f-195e-4021-be33-2eb474525901",
+        "c17f06b8-c853-4592-ba28-0ec149d4aa4d"
+      ],
+      "names": [
+        "style_background_finish-gate-front-view-01.png",
+        "style_background_finish-gate-front-view-02.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "2ef66153af524053c382603eafb04e18bbc283e9a76eda3e222414a865800ffc",
+      "assetIds": [
+        "251653b0-1fd3-467a-a627-c76e5694a9bb",
+        "5054f11a-5ac0-4428-95a8-875c9d375fe9"
+      ],
+      "names": [
+        "style_background_course-closeup-zipline-cables-copy.png",
+        "style_background_course-closeup-zipline-cables.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b1d234925c9a38d58e72bf7c16165ad2526bffdfdff90b1c16d8b7793179bf31",
+      "assetIds": [
+        "6756b0bf-c15a-451b-bdbf-8f4d4930ad3c"
+      ],
+      "names": [
+        "ref_brand_some-brand-guidelines_3.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "a9e062b677ab560ad76ed566d588f89630c3d6763f8215a658f1cf0813aa1a71",
+      "assetIds": [
+        "0ef2418b-e26e-498f-b7b0-e98167725e77"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_colors.jpeg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "455dcfda01f01562f26e4619825baf3b05252a31d9e50ca0ae198e5756908c08",
+      "assetIds": [
+        "12879e44-2b56-4a2a-a8c8-71393e7eab81"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_14_image_0002.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "048599dcf86dc73fab70f7d962048e297bf2ad614832ccd0dc29870d71d382bf",
+      "assetIds": [
+        "83ad44ee-184a-42a8-aeea-e10a1e52a063"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0003.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "44779e61b401d967723a3ba393d382bd6f729a03b1ebd618693ee35a01cf7f58",
+      "assetIds": [
+        "3bf9bcb8-200a-491f-bc49-30944fc7db30"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0002.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "0559cbcae1e2a258d106d2c88c71439c56f304eff674af04a581b8adc3b6e20d",
+      "assetIds": [
+        "8b4d14d2-4b3d-47fe-acab-75fb7a2a1b5d"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0001.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "81f52e5798f299b3c98b010a9f385c06b5486a8620359906b0e7c273a7e8f035",
+      "assetIds": [
+        "ff36e723-ef70-4ce4-9418-2192cb6eff76"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0006.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "b79edd0f7fb1f7fa85ec8ffc8375a4b712f1f9c4aadd938bb43880cda7cfb404",
+      "assetIds": [
+        "814623c0-c9a2-4b9d-9190-aa07d144a647"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0004.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "3dfb390bc3fea86c34365689067437fb1e42527906ab425beecb20bb5ad5081f",
+      "assetIds": [
+        "4d4d82a8-13b0-4e27-a805-931056f3c609"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0005.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "29e452b7836dcad2c34801c182d0099c3f8ffbb2343376e2b22a2c2a85cf85e5",
+      "assetIds": [
+        "f110cba2-e40b-4594-9b3f-8434b088c067"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0008.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "54c0ad72242f58b073b53c94b2032ef6815af82c99eb28c5ac5ef3c702e9fc97",
+      "assetIds": [
+        "922b39e4-2445-42fe-8221-d05966ee8fe9"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0007.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "8ce8ffc9d7477b04292e85639b8fe74acadb99b042d4985bbcb1129df77dfaa9",
+      "assetIds": [
+        "3cab03fa-423d-48e9-b457-e636d0758594"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_15_image_0009.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "7bbd5149b7113ba1f41aa7d2e546a30be73c4c9798e4a7846c5b4010c0db14bd",
+      "assetIds": [
+        "77ef3db7-7f25-4c61-b54f-8d651d387377"
+      ],
+      "names": [
+        "ref_brand_sparq_brand_identity_guide_page_16_image_0002.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "40a719b5d92e4287b15692eba59347d4952397694320f5b6ea36bad1b47cc3d7",
+      "assetIds": [
+        "b44b41f8-4009-42c1-91e6-dc3429852ed3"
+      ],
+      "names": [
+        "Crown-U_Mark_Gold.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "dc746561b642f8800093d5d79be6c94691b291ee2c3a33b663ca764653b2c9ca",
+      "assetIds": [
+        "4e1686bc-424a-47f7-8619-895774a4dfe5"
+      ],
+      "names": [
+        "Mascot-Mayhem_Horizontal.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9d5d9f74d88e1a432b2f5a25c5905f42cf86cebee61606c295726051f6d2a59b",
+      "assetIds": [
+        "ac7f8612-1c7f-4b63-ad21-f986f54500ca"
+      ],
+      "names": [
+        "Rumble-U_Horizontal.png"
+      ],
+      "assessment": {
+        "severity": "review",
+        "findings": [
+          {
+            "mark": "Pokémon Rumble U",
+            "kind": "other",
+            "where": "entire logo",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Carries institutional marks that may be covered by an existing licence: Pokémon Rumble U (entire logo). A human with the licence terms decides.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4de49b3976eaa6f510de08cf80b862dd469f883ded57bead36ea07b282f80e47",
+      "assetIds": [
+        "64cba7a6-ae31-4ad9-af95-49df45fa437d"
+      ],
+      "names": [
+        "Sparq-Games_Horizontal_Black.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "dbffcf4439ba0ed0573c79d68d1c7fe02a0c32f868013349a64920af2dbe12f9",
+      "assetIds": [
+        "75041a0c-956e-4763-802d-a25897f077b0"
+      ],
+      "names": [
+        "Sparq-Games_Horizontal_Red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "ffd230b78618645de5086d01370511898e7b5ffb48841600f6883d3706fe97f1",
+      "assetIds": [
+        "dac3e393-6386-4d89-8ff1-661cb49b5788"
+      ],
+      "names": [
+        "Sparq-Games_Horizontal_RedSkull-WhiteText.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "dd886295b4a46239d08c06359579fbecec8d92e244098b1fd2f70b03d146933e",
+      "assetIds": [
+        "5a232e9a-22f9-4e03-ba15-9d5855feab94"
+      ],
+      "names": [
+        "Sparq-Games_Horizontal_White.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "80d12c4ead472c4b1c7c37b03de2b4e012fb1de375a29a5d60ba89f44505b0cd",
+      "assetIds": [
+        "534283e6-75ad-478b-946f-9a34b15019c5"
+      ],
+      "names": [
+        "Sparq-Games_Mark_Black.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fb60caa4839727fb60ee98f52e0b02c0520bf0f70bb4e640251b793e7e17bdfb",
+      "assetIds": [
+        "c7ff688b-a699-448d-aab9-9b8bab8ad385"
+      ],
+      "names": [
+        "Sparq-Games_Mark_Red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "4586b20991fff8567a1262c39503e8d69185e3dd1212bb4d31b1a650a2036e99",
+      "assetIds": [
+        "1abcd6b1-34d2-4108-bfde-1ff49df1aa4d"
+      ],
+      "names": [
+        "Sparq-Games_Mark_White.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "03ab1dcdfabfc65eef4933453f50c56072e36c1405a13de3b93003b3d56b4281",
+      "assetIds": [
+        "efbf9b60-b0d0-4dff-8226-06bc2655ac7c"
+      ],
+      "names": [
+        "Sparq-Games_Vertical_Black.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "39d68c3542b20d1279314ef6d4b49287f2e5833076c9d560e6fcab738d48d0db",
+      "assetIds": [
+        "7a6f1d13-f8e8-4064-80cb-5cff942d454a"
+      ],
+      "names": [
+        "Sparq-Games_Vertical_Red.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "09905186ba6fd807b7cb6cab00bfe09fb8f3e931934a490f82e89c656ef27a39",
+      "assetIds": [
+        "a5423d22-39bd-4ff2-b8af-c38febdc2c09"
+      ],
+      "names": [
+        "Sparq-Games_Vertical_White.png"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9979a5a0b47be7a17b0e9ad7d6e16c3402150bce0f1647c1600b1ba2613ec657",
+      "assetIds": [
+        "4e614cd6-8a1c-4318-acf4-4eef15e6803e"
+      ],
+      "names": [
+        "ref_screenshot_hf_20260209_221307_a7cbd297-e32d-4e71-9bad-7a_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "71417eda9ec94ff0a37dbb4c11df490832ab1eec739ae7f96143eb6e8055d01f",
+      "assetIds": [
+        "319573aa-d48b-465c-af17-9cbad5b25691"
+      ],
+      "names": [
+        "Sparq_female_basketball_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Big Ten",
+            "kind": "conference",
+            "where": "jersey chest",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Only licensed marks found: Big Ten (jersey chest).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "58aecd81b5c90ce4f32bf8262fccb2cf7f2aabba78abb6686bf04a76734ade0e",
+      "assetIds": [
+        "679b8fe7-d815-46d4-9fb2-4ab1b74fd570"
+      ],
+      "names": [
+        "Sparq_male_blue_football_ball_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "70e8ae7f6692eb589d9a6bc82924637371d5780fe9119d98fbba7d3026eba309",
+      "assetIds": [
+        "0f0fd2fc-26d8-4275-8c14-46c681a5e081"
+      ],
+      "names": [
+        "crownu_char_unknown_wisconsin_unknown_unknown_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1f992b03cf808f5c12b07eeec43a713b65f09df27a229b5e7d981c083178faa9",
+      "assetIds": [
+        "7907a904-4082-49ca-86f6-d38cd7d383c1"
+      ],
+      "names": [
+        "crownu_char_unknown_michigan_unknown_unknown_02_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9f7b20f4c2e7bc950f8702141987e3a2211c62f8356dced45813ad4e907d1ff7",
+      "assetIds": [
+        "8c7683f6-f66f-4d83-9aab-918ab72d0304"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_unknown_04_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d0fbaef98be7e9fb821a92a3a7e7c3637d83c66ac50c669b52c949824b811f23",
+      "assetIds": [
+        "d1038441-87e5-4127-974a-e340508f462d"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_unknown_02_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9e07b6db412fb04590e9641c0175179c7c16ad58f77223aba8cbfdf448d1bb97",
+      "assetIds": [
+        "d0e4623b-e817-4379-ba23-670d3b24f03a"
+      ],
+      "names": [
+        "crownu_char_unknown_kentucky_unknown_unknown_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "2e43ef146977c3afdc6dcbe9b307d78d972d93be38bd5af7fc2550b3f5d3c9dc",
+      "assetIds": [
+        "aa1e1188-561f-40c4-ba4c-3b6c03ccef27"
+      ],
+      "names": [
+        "crownu_char_unknown_miami_unknown_unknown_01_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "6e829b23f51a1fbfb2f9689851d18f2e9ba2352b71ba54dfea2dc6cf7dde967a",
+      "assetIds": [
+        "945e5108-40e3-48a1-a34a-e5394651a301"
+      ],
+      "names": [
+        "crownu_char_unknown_lsu_unknown_unknown_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "cca9b885cca1754b0257f6f6a912765a219f4d4872d1661c78ff0eb70b0f4932",
+      "assetIds": [
+        "869daa13-4fc4-4e19-9153-11b8843d5359"
+      ],
+      "names": [
+        "crownu_char_male_unknown_soccer_unknown_01_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5f151dd382bbccd344bf873748d1221d9c0f6a28788ade82aee02d19adf68c70",
+      "assetIds": [
+        "690f012e-f6b8-4bac-9f46-3fd2334c7bd3"
+      ],
+      "names": [
+        "crownu_char_male_unknown_football_unknown_01_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Georgia Bulldogs G logo",
+            "kind": "university",
+            "where": "shoe tongues",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Only licensed marks found: Georgia Bulldogs G logo (shoe tongues).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5a0323f2f39aa33ec658bdb2fc42cd7bcb42fc9cf83ab9ca9242ff1cf4215f0c",
+      "assetIds": [
+        "dead3a07-d9c4-4468-b905-ce6be74a6922"
+      ],
+      "names": [
+        "crownu_char_male_sparq_football_default_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "e780339ee5b9cc0e084921d88bda2c8eb077d1a032ac09965329454edbdd01e7",
+      "assetIds": [
+        "5e754559-c907-44a2-92cf-e82f583acc6e"
+      ],
+      "names": [
+        "crownu_char_male_sparq_football_default_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [
+          {
+            "mark": "Georgia Bulldogs G logo",
+            "kind": "university",
+            "where": "right shoe tongue",
+            "confidence": 0.95
+          },
+          {
+            "mark": "Georgia Bulldogs G logo",
+            "kind": "university",
+            "where": "left shoe tongue",
+            "confidence": 0.95
+          }
+        ],
+        "reason": "Only licensed marks found: Georgia Bulldogs G logo (right shoe tongue), Georgia Bulldogs G logo (left shoe tongue).",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "027fea374361dc8d8f78b222ba10ec9556117b1af1aa689863bb909012c359f2",
+      "assetIds": [
+        "5ccc0ccb-08ae-4b70-93a5-fc226a1c175a"
+      ],
+      "names": [
+        "crownu_char_female_unknown_tennis_unknown_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "blocked",
+        "findings": [
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "heel of shoes",
+            "confidence": 0.95
+          },
+          {
+            "mark": "University of Miami U",
+            "kind": "university",
+            "where": "shoulder pad",
+            "confidence": 0.9
+          },
+          {
+            "mark": "Nike Swoosh",
+            "kind": "sportswear",
+            "where": "headband",
+            "confidence": 0.85
+          },
+          {
+            "mark": "University of Miami U",
+            "kind": "university",
+            "where": "racket strings",
+            "confidence": 0.8
+          }
+        ],
+        "reason": "Carries third-party commercial marks this brand cannot licence: Nike Swoosh (heel of shoes), Nike Swoosh (headband). Anything generated from this asset inherits them. Also present, and a separate question for whoever holds the licence: University of Miami U (shoulder pad), University of Miami U (racket strings).",
+        "recommendBlock": true
+      },
+      "rejected": []
+    },
+    {
+      "hash": "9af1a89eb518fa3bdecd0791b4757d08bffb94513000b7060362deccd537598c",
+      "assetIds": [
+        "50639d13-b9e9-4a61-a38f-b6e5a51c9724"
+      ],
+      "names": [
+        "crownu_char_female_unknown_track_unknown_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5f67b330e88e0f30b9ff0e507e3486ec915e5b8382315c1b99ee97f6a0b49bcd",
+      "assetIds": [
+        "17e85b27-6d2b-48c4-8a92-795d32d452b2"
+      ],
+      "names": [
+        "ref_concept_hf_20260209_155255_03a3d8ef-3db8-49e8-93ca-1e21c_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "94c78d1e100cfa39f1e9927be148f1595f755a2413cf507158df46ba7d9bb75b",
+      "assetIds": [
+        "e55309e4-d677-421c-bb0f-c66288719df6"
+      ],
+      "names": [
+        "ref_concept_hf_20260310_091849_8dd59c75-4007-4771-b9d3-f62b2_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "68fc231c53285b59c64f41eedef3b021000bc9561871accb7b733106b10af575",
+      "assetIds": [
+        "254c40fb-8595-401f-bcff-9b9b3337accd"
+      ],
+      "names": [
+        "ref_concept_hf_20260310_083018_464f46e6-fdf0-437c-998b-70d39_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "1f7cc5bdc870f884c298e4e689a9884e7ef68ff16e512760231f45bb4cdf8742",
+      "assetIds": [
+        "df241672-e97b-4a8c-a1c0-24c5a621ff2b"
+      ],
+      "names": [
+        "ref_concept_hf_20260310_042949_286ffe2a-d6d2-402c-bb26-ea4a6_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fd4603a3dd50a5a5c43620199d22831fa994f1d00fcb783cdb43f272b38c6541",
+      "assetIds": [
+        "726c0dcf-a2fc-4a22-86f3-ddcdad745822"
+      ],
+      "names": [
+        "sparq_product_unity-editor-texas-player_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "c2b613d6c3e4a54618f88cf7424d3225a37cffdc191f12e6a2c13cf7d97af444",
+      "assetIds": [
+        "3c17daed-6db0-44a4-a00b-5c3260a324fd"
+      ],
+      "names": [
+        "crownu_char_unknown_michigan_unknown_unknown_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "311d2637e4c07378d0dcb9d9222b975772d69100ba41ba7a58600c9139750466",
+      "assetIds": [
+        "ed874596-3949-4a6c-9dc8-bf9f9698cf01"
+      ],
+      "names": [
+        "crownu_char_male_blue_default_default_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "75432bb4ba09c194c72dd920cf0a76aa27f82db61d906c65ba48d486f8497c46",
+      "assetIds": [
+        "7ac2b53c-b0ee-406c-b233-d2a19e2f8258"
+      ],
+      "names": [
+        "sparq_branded_volleyball_character_female_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "d5a1f1b39377779555ce21b278e14e58ba4a4a28680461b6cfaaec77699afdf6",
+      "assetIds": [
+        "ce367e22-3557-4497-8fc5-d66e0922f7bb"
+      ],
+      "names": [
+        "sparq_branded_tennis_character_female_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "af455ecd6ae6f7633849b2dd2c4f16499cf06cc307b95efef782ed7ef9d92604",
+      "assetIds": [
+        "ff8dfea2-6512-4b01-b370-99a156b48717"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_male-4_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "5b2217351c5d7f10e4e4a904301233572ce2025dbde6b780f196752492c8e6de",
+      "assetIds": [
+        "6eb0bbed-38d2-4202-834d-130ab4e21be8"
+      ],
+      "names": [
+        "sparq_branded_baseball_character_male_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    },
+    {
+      "hash": "fa1268355d0897e6875cd721d3054cebc560c4c90059e1cd8fea18b21a781284",
+      "assetIds": [
+        "cad0bd67-4ac2-47d5-9859-978ca55e0316"
+      ],
+      "names": [
+        "sparq_branded_basketball_character_female_retouched.jpg"
+      ],
+      "assessment": {
+        "severity": "clear",
+        "findings": [],
+        "reason": "No third-party marks found.",
+        "recommendBlock": false
+      },
+      "rejected": []
+    }
+  ]
+}

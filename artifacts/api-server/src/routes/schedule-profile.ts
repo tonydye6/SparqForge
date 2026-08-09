@@ -6,6 +6,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { AI_MODELS } from "../lib/ai-config.js";
 import { extractJSON } from "../lib/extract-json.js";
 import { generationLimiter } from "../lib/rate-limit.js";
+import { buildCostRow } from "../services/cost-recording.js";
 
 const router: IRouter = Router();
 
@@ -248,12 +249,13 @@ Return ONLY valid JSON:
     allSlots.push({ platform: plat, slots: uniqueSlots });
   }
 
-  await db.insert(costLogsTable).values({
+  await db.insert(costLogsTable).values(buildCostRow({
+    brandId,
     service: "anthropic",
     operation: "schedule_profile_generation",
     model: AI_MODELS.CLAUDE_SONNET,
     costUsd: 0.01 * platforms.length,
-  });
+  }));
 
   res.json({ brandId, generated: allSlots });
 });

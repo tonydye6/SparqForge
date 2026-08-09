@@ -4,6 +4,7 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { AI_MODELS, COST_ESTIMATES, estimateImagenCost } from "../lib/ai-config.js";
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
+import { buildCostRow } from "../services/cost-recording.js";
 import { reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
@@ -615,13 +616,24 @@ router.post(
       await db.transaction(async (tx) => {
         if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
         if (settled > 0) {
-          await tx.insert(costLogsTable).values({
+          await tx.insert(costLogsTable).values(buildCostRow({
             creativeId,
+            brandId: creative.brandId,
             service: "gemini",
             operation: "explore_spread",
             model: AI_MODELS.GEMINI_FLASH_IMAGE,
             costUsd: settled,
-          });
+            /*
+             * passType and wasUsed stay NULL deliberately.
+             *
+             * There is no two-pass flow yet — this spread IS the full render —
+             * so stamping it "preview" would describe a pipeline that does not
+             * exist. And one row covers the whole spread, so a single wasUsed
+             * could not tell the kept take from the seven culled ones without
+             * lying about one of them. Per-take accounting is a decision about
+             * granularity that Phase 7 item 2 has to settle first.
+             */
+          }));
         }
       });
       reservationId = null;
@@ -1088,13 +1100,14 @@ router.post(
         });
 
         if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId,
+          brandId: creative.brandId,
           service: "gemini",
           operation: "region_edit",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: estimateImagenCost(1),
-        });
+        }));
       });
       reservationId = null;
 

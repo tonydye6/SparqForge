@@ -18,6 +18,7 @@ import {
   mergeReferenceSlots, buildAssetCatalog, buildCreativeDirection, buildOverflowDescriptors,
   loadBrand, type DirectorAssetSelection, type AssetCatalog,
 } from "./creative-direction.js";
+import { buildCostRow } from "./cost-recording.js";
 import { INTENT_COPY_DIRECTIVES, isIntent } from "../lib/intents.js";
 import { accountPlatformFor } from "../lib/platform-accounts.js";
 import { compositeImage, reframeImage, imageDimensions } from "./compositing.js";
@@ -840,13 +841,14 @@ export async function executeTurn(params: {
       }).where(eq(studioSessionsTable.id, sessionId));
 
       if (result.costUsd && result.costUsd > 0) {
-        await tx.insert(costLogsTable).values({
+        await tx.insert(costLogsTable).values(buildCostRow({
           creativeId: creative.id,
+          brandId: creative.brandId,
           service: "copilot",
           operation: input.action,
           model: result.modelUsed || COPILOT_MODELS.NANO_BANANA_MODEL,
           costUsd: result.costUsd,
-        });
+        }));
       }
 
       // B2: Delete the budget reservation row atomically with the real cost insert
@@ -1611,13 +1613,14 @@ async function applyQaPass(params: {
 
     // Log the corrective generation cost separately so the cost dashboard
     // accurately reflects the extra generation spend.
-    await db.insert(costLogsTable).values({
+    await db.insert(costLogsTable).values(buildCostRow({
       creativeId,
+      brandId,
       service: "copilot",
       operation: "qa_correction",
       model: COPILOT_MODELS.NANO_BANANA_MODEL,
       costUsd: correctionCostUsd,
-    });
+    }));
 
     onProgress({ type: "progress", step: "qa", message: "QA: correction applied", done: true });
     return { interactionId: corrected.interactionId, qaRetried: true, qaIssue: verdict.issue };
