@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, creativesTable, costLogsTable, stageStatesTable, stageTakesTable } from "@workspace/db";
+import { db, assetsTable, creativesTable, costLogsTable, stageStatesTable, stageTakesTable } from "@workspace/db";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { requireStandardWrite } from "../middleware/auth.js";
@@ -7,6 +7,11 @@ import { validateRequest } from "../middleware/validate.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import { readFileByUrl } from "../services/reference-images.js";
+import { loadAssetIdReferences } from "../services/explore-direction.js";
+import { generateImageFromPrompt, type ReferenceImage } from "../services/imagen.js";
+import { writeBuffer } from "../services/storage.js";
+import { imagePass } from "../lib/ai-config.js";
+import { buildCostRow } from "../services/cost-recording.js";
 import { buildImageAwareCaption } from "../services/session-service.js";
 import { splitTrailingHashtags } from "../services/copy-stage.js";
 
@@ -48,6 +53,14 @@ router.post(
         .select()
         .from(stageStatesTable)
         .where(eq(stageStatesTable.creativeId, creativeId));
+      const [creativeRow] = await db
+        .select({ brandId: creativesTable.brandId })
+        .from(creativesTable)
+        .where(eq(creativesTable.id, creativeId));
+      // Attribution written at spend time, so deleting the creative later cannot
+      // orphan the full render's cost the way it once orphaned every other row.
+      const creativeBrandId = creativeRow?.brandId ?? null;
+
       const image = stages.find(s => s.stageKind === "asset");
       const copy = stages.find(s => s.stageKind === "copy");
       if (!image || !copy) {
@@ -70,10 +83,90 @@ router.post(
             eq(stageTakesTable.isCurrent, true),
           ),
         );
-      const imageUrl = (chosen?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
-      if (typeof imageUrl !== "string") {
+      const chosenPayload = chosen?.payload as {
+        imageUrl?: unknown;
+        pass?: unknown;
+        renderPrompt?: unknown;
+        material?: { directorSelections?: Array<{ assetId: string; role: string }> };
+      } | undefined;
+      const previewUrl = chosenPayload?.imageUrl;
+      if (typeof previewUrl !== "string") {
         res.status(400).json({ error: "That take has not rendered an image, so it cannot be the stage's output." });
         return;
+      }
+
+      /*
+       * THE SECOND PASS. Phase 7 item 2.
+       *
+       * A spread renders at the cheap tier; only the take somebody actually
+       * keeps is worth full-resolution money. Eight previews plus one full
+       * render is $0.40 against $1.07 for eight pro renders, and the previews
+       * arrive in about a fifth of the time.
+       *
+       * THE PREVIEW ITSELF GOES IN AS A SUBJECT REFERENCE, and that is the
+       * whole trick. Re-rendering from the prompt alone produces a DIFFERENT
+       * PICTURE — measured, not assumed: the same prompt and references at the
+       * two tiers gave a different pose, framing and crowd. You would pick
+       * image X and ship image Y, which makes the spread a lie about what you
+       * were choosing between. Feeding the preview back returns the same shot
+       * at higher fidelity; verified across three briefs by eye.
+       *
+       * FAILS OPEN. If the full render errors, promotion still succeeds and the
+       * preview stays the stage output. A creative that cannot move to Copy
+       * because a nice-to-have upgrade failed would be a worse outcome than a
+       * slightly softer image, and the response says which one you got.
+       */
+      let imageUrl = previewUrl;
+      let fullRender: { costUsd: number; model: string } | null = null;
+      let fullRenderError: string | null = null;
+
+      if (chosenPayload?.pass === "preview" && typeof chosenPayload.renderPrompt === "string") {
+        try {
+          const { model, usdPerImage } = imagePass("full");
+          const previewBuf = await readFileByUrl(previewUrl);
+          if (!previewBuf) throw new Error("the preview's bytes could not be read");
+
+          /*
+           * Preview first, then the original references. Order matters: imagen
+           * puts subject references ahead of style ones and the identity lock
+           * copies the leading run, so the composition being kept has to lead.
+           */
+          const subjectIds = (chosenPayload.material?.directorSelections ?? [])
+            .filter(s => s.role === "subject")
+            .map(s => s.assetId);
+          /*
+           * Subject selections only. A style reference tells the model what mood
+           * to aim for, which is exactly what must NOT change here — the mood is
+           * already fixed in the preview, and re-introducing the style asset
+           * gives the model licence to reinterpret it.
+           */
+          const originals = subjectIds.length
+            ? await loadAssetIdReferences(
+                await db.select().from(assetsTable).where(inArray(assetsTable.id, subjectIds)),
+                "subject_reference",
+              )
+            : [];
+          const refs: ReferenceImage[] = [
+            { imageBuffer: previewBuf, mimeType: "image/png", role: "subject_reference" },
+            ...originals,
+          ];
+
+          const image = await generateImageFromPrompt(
+            `${chosenPayload.renderPrompt}\n\nRender THIS EXACT COMPOSITION at full fidelity: same ` +
+              `pose, same camera angle, same framing, same lighting. Improve detail and material ` +
+              `quality only. Change nothing else.`,
+            "instagram_feed",
+            refs,
+            model,
+          );
+          const filename = `full-${creativeId}-${slotKey}-${crypto.randomUUID().slice(0, 8)}.png`;
+          await writeBuffer("generated", filename, image.imageBuffer);
+          imageUrl = `/api/files/generated/${filename}`;
+          fullRender = { costUsd: usdPerImage, model };
+        } catch (e) {
+          fullRenderError = e instanceof Error ? e.message : String(e);
+          console.error("Full render of the kept take failed; keeping the preview", e);
+        }
       }
 
       await db.transaction(async (tx) => {
@@ -155,9 +248,49 @@ router.post(
               isNotNull(costLogsTable.wasUsed),
             ),
           );
+
+        /*
+         * The full render's own row. `wasUsed: true` because a full render is
+         * only ever made for a take somebody kept — there is no such thing as a
+         * wasted second pass. It carries the same `stageTakeId`, so the take
+         * now owns both halves of what it cost.
+         */
+        if (fullRender) {
+          await tx.insert(costLogsTable).values(buildCostRow({
+            creativeId,
+            brandId: creativeBrandId,
+            service: "gemini",
+            operation: "explore_full_render",
+            model: fullRender.model,
+            costUsd: fullRender.costUsd,
+            passType: "full",
+            wasUsed: true,
+            stageTakeId: chosen.id,
+          }));
+        }
+
+        // The take now points at the full render, so every surface that reads
+        // the take — not just the stage output — shows what actually shipped.
+        if (fullRender) {
+          await tx
+            .update(stageTakesTable)
+            .set({ payload: { ...chosenPayload, imageUrl, previewUrl, pass: "full" } })
+            .where(eq(stageTakesTable.id, chosen.id));
+        }
       });
 
-      res.json({ ok: true, imageStageId: image.id, copyStageId: copy.id, slotKey, imageUrl });
+      res.json({
+        ok: true,
+        imageStageId: image.id,
+        copyStageId: copy.id,
+        slotKey,
+        imageUrl,
+        // Say which image you got. A caller cannot tell a full render from a
+        // preview by looking at the URL, and the difference is what it cost.
+        pass: fullRender ? "full" : (chosenPayload?.pass ?? null),
+        fullRender,
+        fullRenderError,
+      });
     } catch (err) {
       console.error("Failed to use this take", err);
       res.status(500).json({ error: "That take could not be made the stage's output." });
@@ -195,6 +328,14 @@ router.post(
         .select()
         .from(stageStatesTable)
         .where(eq(stageStatesTable.creativeId, creativeId));
+      const [creativeRow] = await db
+        .select({ brandId: creativesTable.brandId })
+        .from(creativesTable)
+        .where(eq(creativesTable.id, creativeId));
+      // Attribution written at spend time, so deleting the creative later cannot
+      // orphan the full render's cost the way it once orphaned every other row.
+      const creativeBrandId = creativeRow?.brandId ?? null;
+
       const image = stages.find(s => s.stageKind === "asset");
       if (!image) {
         res.status(404).json({ error: "This creative has no Image stage." });
