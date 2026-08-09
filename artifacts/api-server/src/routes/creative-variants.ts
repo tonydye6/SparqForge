@@ -3,6 +3,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, creativeVariantsTable, creativesTable, refinementLogsTable, assetPairingsTable } from "@workspace/db";
 import { recordTasteSignal } from "../services/taste-signals.js";
+import { mediaChoices } from "../services/media-pair.js";
 
 const router: IRouter = Router();
 
@@ -18,6 +19,35 @@ router.get("/creatives/:creativeId/variants", async (req, res): Promise<void> =>
     res.json(variants);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch variants" });
+  }
+});
+
+/**
+ * What each channel of this creative can ship, and whether the two media are
+ * the same piece of work.
+ *
+ * Doc 21 §4.5. Kept separate from `/variants` rather than folded into it: that
+ * endpoint returns rows, this returns a judgement about them, and a caller
+ * wanting the rows should not have to know which fields the judgement used.
+ */
+router.get("/creatives/:creativeId/media", async (req, res): Promise<void> => {
+  const { creativeId } = req.params;
+  try {
+    const variants = await db
+      .select({
+        id: creativeVariantsTable.id,
+        platform: creativeVariantsTable.platform,
+        mediumType: creativeVariantsTable.mediumType,
+        videoUrl: creativeVariantsTable.videoUrl,
+        sourceImageVariantId: creativeVariantsTable.sourceImageVariantId,
+        createdAt: creativeVariantsTable.createdAt,
+      })
+      .from(creativeVariantsTable)
+      .where(eq(creativeVariantsTable.creativeId, creativeId as string));
+
+    res.json({ choices: mediaChoices(variants) });
+  } catch {
+    res.status(500).json({ error: "Failed to resolve the media for this creative" });
   }
 });
 

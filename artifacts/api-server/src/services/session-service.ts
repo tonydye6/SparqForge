@@ -1930,6 +1930,25 @@ async function executeConvertVideo(params: {
       videoUrl,
       status: "generated",
       sourceVariantId: targetVariantId,
+      /*
+       * M4's medium and lineage columns, finally written.
+       *
+       * The still is ALREADY the first frame here — `imageBuffer` above is the
+       * source variant's own bytes, and `runVideoInteraction` puts them inside
+       * `input` as an image block. What was missing is the record of it, and
+       * doc 21 §2.2 is specific about why `sourceImageVariantId` rather than the
+       * existing `sourceVariantId`: the latter is Vary lineage, meaning "this
+       * image came from that image". This one means "this motion was animated
+       * from that still", which is what lets a channel take EITHER medium from
+       * one creative (§4.5). Both are set because both are true.
+       *
+       * `mediumType` is written only on motion. NULL reads as "image" by the
+       * column's own documented contract, so backfilling every still would be
+       * writing a value nobody needs in order to say what the absence already
+       * says.
+       */
+      mediumType: "motion",
+      sourceImageVariantId: targetVariantId,
     })
     .returning({ id: creativeVariantsTable.id });
 
@@ -2035,6 +2054,20 @@ async function executeEditVideo(params: {
       videoUrl,
       status: "generated",
       sourceVariantId: activeVariantId || undefined,
+      mediumType: "motion",
+      /*
+       * The chain points at the STILL, not at the clip this was edited from.
+       * An edit of an edit of a converted still is still that still's motion,
+       * and a link that walked back one hop per edit would make "which image is
+       * this the motion of" a recursive question with a different answer after
+       * every touch-up. Falls back to the immediate source when the clip came
+       * from somewhere with no still behind it, which is the honest answer for
+       * an uploaded or natively generated video.
+       */
+      sourceImageVariantId:
+        (sourceVariant as { sourceImageVariantId?: string | null } | null)?.sourceImageVariantId
+        ?? activeVariantId
+        ?? undefined,
     })
     .returning({ id: creativeVariantsTable.id });
 
