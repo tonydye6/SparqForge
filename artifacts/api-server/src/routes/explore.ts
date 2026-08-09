@@ -314,18 +314,18 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
     /*
-     * Which pass this spread renders at. Phase 7 item 2.
+     * Which pass this spread renders at. Phase 7 item 2. See
+     * DEFAULT_SPREAD_PASS above for why the default is `preview`.
      *
-     * The default is still `full`, and that is deliberate: flipping it to
-     * `preview` is a claim that a spread of flash-lite images is good enough to
-     * choose a winner from, and doc 30 §7's "verified" covers the PRICE only.
-     * `scripts/probe-image-pass.ts` renders both tiers off the same references
-     * so that claim can be settled by looking. Until it is, shipping the cheaper
-     * default would be exactly the trap doc 24 §5 lists first — building on a
-     * premise nobody checked.
+     * BOTH values are accepted explicitly. An earlier cut read
+     * `x === "preview" ? "preview" : DEFAULT`, which was fine only while the
+     * default was `full`; the moment it flipped, a caller asking for `full`
+     * would have silently got a preview instead. A request the code quietly
+     * ignores is worse than one it rejects.
      */
     const requestedPass = (req.body as { pass?: unknown } | undefined)?.pass;
-    const pass: ImagePassType = requestedPass === "preview" ? "preview" : DEFAULT_SPREAD_PASS;
+    const pass: ImagePassType =
+      requestedPass === "preview" || requestedPass === "full" ? requestedPass : DEFAULT_SPREAD_PASS;
     const { model: passModel, usdPerImage: perImageUsd } = imagePass(pass);
     let reservationId: string | null = null;
     // Declared out here because the error handler needs it: it decides whether
