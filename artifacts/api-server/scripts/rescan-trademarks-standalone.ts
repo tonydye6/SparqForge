@@ -200,12 +200,48 @@ async function main(): Promise<void> {
     return { text: j.candidates?.[0]?.content?.parts?.map(p => p.text ?? "").join("") ?? "", ...used };
   }
 
+  /**
+   * Shrink before the FIRST attempt when the file is big, instead of waiting for
+   * a failure to trigger the retry.
+   *
+   * `sparq_branded_soccer_character_female.png` is **31.8 MB**, which is ~42 MB
+   * once base64-encoded into the request body. It did not come back "unable to
+   * process input image" — it came back **"Deadline expired before operation
+   * could complete"**, and that message does not match the retry predicate
+   * below, so the re-encode that would have fixed it never ran. It was the one
+   * image out of 272 with no verdict after two full runs, and the reason was
+   * never the model: it was that nobody looked at the file size.
+   *
+   * 6 MB is comfortably under the inline-request limit while leaving every
+   * normal asset (the rest of the library tops out around 4 MB) untouched, so
+   * this changes nothing about what was already scanned successfully.
+   */
+  const INLINE_BYTES_LIMIT = 6 * 1024 * 1024;
+  const shrink = (buf: Buffer): Promise<Buffer> =>
+    sharp(buf)
+      .resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+
   for (const [hash, g] of todo) {
     const label = g.rows[0]!.name.slice(0, 56);
     let attempt: { text: string; inTok: number; outTok: number } | null = null;
     let note = "";
+    let buf = g.buf;
+    let mime = g.mime;
+    if (buf.length > INLINE_BYTES_LIMIT) {
+      try {
+        const before = buf.length;
+        buf = await shrink(buf);
+        mime = "image/jpeg";
+        note = `  (pre-shrunk ${(before / 1e6).toFixed(1)}MB -> ${(buf.length / 1e6).toFixed(1)}MB)`;
+      } catch {
+        // Fall through and send the original: a failed shrink is not a reason to
+        // skip the image, and the retry path below is still there.
+      }
+    }
     try {
-      attempt = await callModel(g.buf, g.mime);
+      attempt = await callModel(buf, mime);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       inTok += (e as { inTok?: number }).inTok ?? 0;
@@ -218,12 +254,16 @@ async function main(): Promise<void> {
        * unscanned image that is silently dropped reads exactly like a clean one.
        * 1568px is the pre-high-res tier — small marks stay legible at it.
        */
-      if (/unable to process input image|invalid image|image.*too large/i.test(msg)) {
+      /*
+       * `deadline expired` is in this list because of the 31.8 MB PNG above: a
+       * payload big enough to time out is exactly the case re-encoding fixes,
+       * and leaving it out is what let one image go two full runs with no
+       * verdict at all. An unscanned image that is silently dropped reads
+       * exactly like a clean one.
+       */
+      if (/unable to process input image|invalid image|image.*too large|deadline expired|timeout/i.test(msg)) {
         try {
-          const shrunk = await sharp(g.buf)
-            .resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true })
-            .jpeg({ quality: 90 })
-            .toBuffer();
+          const shrunk = await shrink(g.buf);
           attempt = await callModel(shrunk, "image/jpeg");
           note = "  (retried re-encoded)";
         } catch (e2) {
