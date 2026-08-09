@@ -16,6 +16,7 @@ export * from "./social-content-plan-items";
 export * from "./audit-logs";
 export * from "./publish-alerts";
 export * from "./post-metrics";
+export * from "./performance-conclusions";
 export * from "./signals";
 export * from "./taste";
 export * from "./studio-sessions";
