@@ -84,6 +84,14 @@ interface PlanResponse {
   fallback: boolean;
   goal: { id: string; label: string; fromBrief: boolean };
   generated: boolean;
+  /** Phase 7 item 5. Absent on an API that predates it, hence optional. */
+  budget?: {
+    monthSpentUsd: number;
+    monthBudgetUsd: number | null;
+    wouldReachUsd: number;
+    wouldExceed: boolean;
+    hard: boolean;
+  };
 }
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
@@ -417,6 +425,32 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
           </button>
         </div>
       </div>
+
+      {/*
+        Phase 7 item 5 — the soft cap, said BEFORE the turn rather than after.
+        A cap you only learn about from the receipt is not a control.
+
+        It does NOT disable the button. The monthly number is advisory by
+        design; the gate that actually refuses spend is the DAILY threshold in
+        `reserveBudget`, and the run returns 429 with its own message when that
+        one bites. Two things that can say no is how a build ends up with a
+        limit nobody can find.
+
+        Rebel Pink is right here where it was wrong on the Cost surface: this is
+        the *needs you* case — a person is about to spend, and a decision is
+        being asked for.
+      */}
+      {plan.budget?.wouldExceed && plan.budget.monthBudgetUsd !== null && (
+        <p
+          role="status"
+          className="rounded-sm border border-rebel-pink/40 bg-card px-3 py-2 text-[11px] leading-relaxed text-rebel-pink"
+        >
+          This spread would take the month to{" "}
+          <span data-numeric>${plan.budget.wouldReachUsd.toFixed(2)}</span>, past the{" "}
+          <span data-numeric>${plan.budget.monthBudgetUsd.toFixed(2)}</span> monthly budget.
+          You can still run it — this is a warning, not a limit.
+        </p>
+      )}
 
       {runError && (
         <p className="rounded-sm border border-rebel-pink/40 bg-card px-3 py-2 text-[11px] leading-relaxed text-rebel-pink">

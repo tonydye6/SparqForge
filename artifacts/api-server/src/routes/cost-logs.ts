@@ -1,7 +1,10 @@
 import { Router, type IRouter } from "express";
 import { eq, desc, gte, lte, and, ne, or, isNull, sql } from "drizzle-orm";
-import { db, costLogsTable, costLogMonthlySummaryTable } from "@workspace/db";
-import { summariseSpend } from "../services/cost-recording.js";
+import { db, appSettingsTable, costLogsTable, costLogMonthlySummaryTable } from "@workspace/db";
+import { budgetStatus, summariseSpend, BUDGET_WARNING_FRACTION } from "../services/cost-recording.js";
+import { monthToDateBudget } from "../lib/budget.js";
+
+
 
 const router: IRouter = Router();
 
@@ -236,6 +239,19 @@ router.get("/cost-logs/summary", async (req, res): Promise<void> => {
     wasUsed: costLogsTable.wasUsed,
   }).from(costLogsTable).where(whereClause);
 
+  /*
+   * Phase 7 item 4 — the month against the budget.
+   *
+   * Deliberately IGNORES the date-range filter above. The surface offers
+   * 7d/30d/90d/all, and a monthly budget answered against "last 90 days" would
+   * be a different question wearing the same words — the cap resets on the 1st
+   * whatever the viewer is looking at.
+   *
+   * Read through `monthToDateBudget` so this and the composer's pre-turn warning
+   * cannot disagree about what "this month" or "the cap" means.
+   */
+  const mtd = await monthToDateBudget();
+
   res.json({
     totalCost: Number(totalResult[0]?.totalCost || 0) + Number(archivedTotal[0]?.totalCost || 0),
     totalEntries: Number(totalResult[0]?.totalEntries || 0) + Number(archivedTotal[0]?.totalEntries || 0),
@@ -243,6 +259,12 @@ router.get("/cost-logs/summary", async (req, res): Promise<void> => {
     byOperation: Array.from(operationMap.values()),
     dailySpend: Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
     spend: summariseSpend(splitRows),
+    /** Calendar month-to-date against the soft cap, independent of the range filter. */
+    budget: {
+      ...budgetStatus(mtd.spentUsd, mtd.budgetUsd === null ? null : Math.round(mtd.budgetUsd * 100)),
+      monthStart: mtd.monthStart.toISOString(),
+      warningFraction: BUDGET_WARNING_FRACTION,
+    },
     spendWindow: {
       rows: splitRows.length,
       /** True when archived months are in `totalCost` but not in `spend`. */

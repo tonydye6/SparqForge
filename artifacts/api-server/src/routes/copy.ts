@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, creativesTable, stageStatesTable, stageTakesTable } from "@workspace/db";
-import { and, eq } from "drizzle-orm";
+import { db, creativesTable, costLogsTable, stageStatesTable, stageTakesTable } from "@workspace/db";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
@@ -61,7 +61,7 @@ router.post(
 
       // The take being promoted must exist and must have produced an image.
       const [chosen] = await db
-        .select({ payload: stageTakesTable.payload })
+        .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
         .from(stageTakesTable)
         .where(
           and(
@@ -111,6 +111,50 @@ router.post(
           .update(stageStatesTable)
           .set({ consumedFrom: [...merged], updatedAt: new Date() })
           .where(eq(stageStatesTable.id, copy.id));
+
+        /*
+         * Phase 7 item 3 — promotion is what decides which spend was kept.
+         *
+         * This is THE cull event. A spread gives every take its own slotKey, so
+         * `isCurrent` cannot answer "which one won" — each take is current in
+         * its own slot. Choosing happens exactly here, and until now nothing
+         * told `cost_logs` about it, so every preview stayed `wasUsed = false`
+         * forever and the Cost surface reported 100% of a spread as waste.
+         *
+         * Reset-then-set, rather than only setting the winner, because
+         * promotion SUPERSEDES: pick take 3, change your mind, pick take 6, and
+         * without the reset both would read as kept and the money spent would
+         * exceed the money the spread cost. The reset is scoped to this Image
+         * stage so other creatives are untouched.
+         *
+         * `was_used IS NOT NULL` guards both statements. NULL means "not part of
+         * a two-pass flow" — a full-render spread, or pre-M2 history — and
+         * writing a boolean over it would invent a claim about takes nobody ever
+         * previewed.
+         */
+        const takesInStage = tx
+          .select({ id: stageTakesTable.id })
+          .from(stageTakesTable)
+          .where(eq(stageTakesTable.stageStateId, image.id));
+
+        await tx
+          .update(costLogsTable)
+          .set({ wasUsed: false })
+          .where(
+            and(
+              inArray(costLogsTable.stageTakeId, takesInStage),
+              isNotNull(costLogsTable.wasUsed),
+            ),
+          );
+        await tx
+          .update(costLogsTable)
+          .set({ wasUsed: true })
+          .where(
+            and(
+              eq(costLogsTable.stageTakeId, chosen.id),
+              isNotNull(costLogsTable.wasUsed),
+            ),
+          );
       });
 
       res.json({ ok: true, imageStageId: image.id, copyStageId: copy.id, slotKey, imageUrl });
