@@ -27,6 +27,7 @@ import Pipeline from "@/pages/Pipeline";
 import DesignSystem from "@/pages/DesignSystem";
 import BrandRecord from "@/pages/BrandRecord";
 import StudioV2 from "@/pages/StudioV2";
+import SequenceTimeline from "@/pages/SequenceTimeline";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -186,6 +187,14 @@ function Router() {
           way Studio v2 sits beside Studio: the old screen keeps working until
           this one is genuinely better.
         */}
+        {/*
+          Phase 9. Its own route rather than inside stage 03: doc 22 item 9 is a
+          separate item, and an unproven timeline in the spine would sit in the
+          path of every existing still post.
+        */}
+        <Route path="/sequence/:id">
+          <AppLayout><SequenceTimeline /></AppLayout>
+        </Route>
         <Route path="/brand-record">
           <AppLayout><BrandRecord /></AppLayout>
         </Route>
