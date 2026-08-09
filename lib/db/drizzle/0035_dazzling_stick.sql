@@ -1,0 +1,2 @@
+ALTER TABLE "performance_conclusions" ADD COLUMN "conclusion_key" text NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "performance_conclusions_brand_key_uq" ON "performance_conclusions" USING btree ("brand_id","conclusion_key");

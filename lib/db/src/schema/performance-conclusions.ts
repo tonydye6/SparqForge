@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, jsonb, index, check } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, jsonb, index, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -56,6 +56,20 @@ export type ConclusionConfidence = "low" | "medium" | "high";
 export const performanceConclusionsTable = pgTable("performance_conclusions", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   brandId: text("brand_id").notNull().references(() => brandsTable.id, { onDelete: "cascade" }),
+  /**
+   * What the finding is ABOUT, stable across re-derivations. `window:twitter:evening`.
+   *
+   * The derivation job runs on a timer, so without this every pass inserts a
+   * fresh copy of every standing finding: the surface fills with duplicates and
+   * dismissing one accomplishes nothing, because the next pass puts it straight
+   * back. The unique index below is what turns the job's write into an upsert.
+   *
+   * Derived from the SUBJECT of the finding and never from its numbers, so a
+   * conclusion that strengthens from 1.4x to 1.9x is still the same conclusion
+   * and keeps whatever decision a human already made about it.
+   * `brands.compositionRules.conclusionId` is the same idea and points here.
+   */
+  conclusionKey: text("conclusion_key").notNull(),
   kind: text("kind").$type<ConclusionKind>().notNull(),
   /** Plain sentence, e.g. "Ava K outperforms house style by 2.3x saves". */
   statement: text("statement").notNull(),
@@ -84,6 +98,14 @@ export const performanceConclusionsTable = pgTable("performance_conclusions", {
 }, (table) => [
   index("performance_conclusions_brand_status_idx")
     .on(table.brandId, table.status, table.createdAt.desc()),
+  /**
+   * One row per finding per brand, enforced rather than trusted to the job.
+   *
+   * This is the constraint that makes "dismissed stays dismissed" true. The job
+   * upserts against it and deliberately does NOT touch a row a human has
+   * already applied or dismissed, so a decision survives every later pass.
+   */
+  uniqueIndex("performance_conclusions_brand_key_uq").on(table.brandId, table.conclusionKey),
   check(
     "performance_conclusions_kind_check",
     sql`${table.kind} IN ('persona', 'composition', 'window', 'disagreement')`,
