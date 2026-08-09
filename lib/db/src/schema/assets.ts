@@ -16,6 +16,13 @@ import { brandsTable } from "./brands";
  *                encoding could not represent at all** — the 18 refusals were
  *                indistinguishable from never-scanned.
  *  - `replacement` this row IS a retouched output (see `retouchedFromAssetId`)
+ *  - `review`    a mark was found that an existing licence may already cover,
+ *                so the scanner declined to rule and a human with the licence
+ *                terms has to. **Added because the 2026-08-08 re-scan returned
+ *                two of these and the enum had nowhere to put them** — and
+ *                folding an undecided verdict into `clean` would assert a
+ *                ruling nobody made, which is the exact failure this table
+ *                exists to prevent.
  *
  * Deliberately NOT a pg enum: a new outcome would otherwise need a migration,
  * and this describes how far remediation got, not the spine's shape.
@@ -25,7 +32,8 @@ export type TrademarkScanState =
   | "blocked"
   | "retouched"
   | "refused"
-  | "replacement";
+  | "replacement"
+  | "review";
 
 export const TRADEMARK_SCAN_STATES = [
   "clean",
@@ -33,6 +41,7 @@ export const TRADEMARK_SCAN_STATES = [
   "retouched",
   "refused",
   "replacement",
+  "review",
 ] as const satisfies readonly TrademarkScanState[];
 
 export const assetsTable = pgTable("assets", {
@@ -147,7 +156,7 @@ export const assetsTable = pgTable("assets", {
   }).onDelete("set null"),
   check(
     "assets_trademark_scan_state_check",
-    sql`${table.trademarkScanState} IS NULL OR ${table.trademarkScanState} IN ('clean', 'blocked', 'retouched', 'refused', 'replacement')`,
+    sql`${table.trademarkScanState} IS NULL OR ${table.trademarkScanState} IN ('clean', 'blocked', 'retouched', 'refused', 'replacement', 'review')`,
   ),
   /**
    * A refusal must say why. The whole reason the 18 refusals were unusable as a

@@ -501,6 +501,27 @@ describe("trademarkGate", () => {
     }));
     expect(r.eligible).toBe(true);
   });
+
+  it("BLOCKS an unreviewed `review` — a mark is present, only the licence is open", () => {
+    // The 2026-08-08 re-scan returned two: a Unity editor window in a concept
+    // frame, and a "Rumble U" logo it reads as Pokémon Rumble U. The scanner
+    // declined to rule; until someone with the licence terms does, the mark is
+    // still in the image.
+    const r = trademarkGate(makeAsset({
+      trademarkScanState: "review",
+      trademarkReviewedAt: null,
+    }));
+    expect(r.eligible).toBe(false);
+    expect(r.reason).toContain("awaiting review");
+  });
+
+  it("allows a `review` asset once a human has ruled on the licence", () => {
+    const r = trademarkGate(makeAsset({
+      trademarkScanState: "review",
+      trademarkReviewedAt: new Date(),
+    }));
+    expect(r.eligible).toBe(true);
+  });
 });
 
 describe("checkGenerationEligibility — trademark state outranks everything", () => {

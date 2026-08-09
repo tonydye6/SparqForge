@@ -173,6 +173,14 @@ export function trademarkGate(
       return asset.trademarkReviewedAt
         ? { eligible: true }
         : { eligible: false, reason: "Retouched copy is awaiting trademark review" };
+    case "review":
+      // A mark IS present; the open question is only whether a licence already
+      // covers it. That is the same shape of uncertainty as an unreviewed
+      // replacement, so it gets the same asymmetry: closed until a human with
+      // the licence terms sets `trademarkReviewedAt`.
+      return asset.trademarkReviewedAt
+        ? { eligible: true }
+        : { eligible: false, reason: "Carries a mark a licence may cover — awaiting review" };
     case "clean":
     default:
       return { eligible: true };

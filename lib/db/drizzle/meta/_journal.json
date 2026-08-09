@@ -225,6 +225,13 @@
       "when": 1786189955305,
       "tag": "0031_steep_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786234402198,
+      "tag": "0032_friendly_malice",
+      "breakpoints": true
     }
   ]
 }

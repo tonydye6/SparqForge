@@ -1,0 +1,2 @@
+ALTER TABLE "assets" DROP CONSTRAINT "assets_trademark_scan_state_check";--> statement-breakpoint
+ALTER TABLE "assets" ADD CONSTRAINT "assets_trademark_scan_state_check" CHECK ("assets"."trademark_scan_state" IS NULL OR "assets"."trademark_scan_state" IN ('clean', 'blocked', 'retouched', 'refused', 'replacement', 'review'));
