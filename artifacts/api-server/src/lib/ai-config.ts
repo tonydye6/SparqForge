@@ -134,6 +134,17 @@ export function estimateClaudeCost(): number {
   return COST_ESTIMATES.CLAUDE_CAPTION_USD;
 }
 
+/**
+ * A short Claude text turn (brief improve/collab/intake, concepts): a few
+ * hundred output tokens, no image. Flat estimate like the rest of this file;
+ * M2's pricing_basis marks the row as estimated. These calls spent invisibly
+ * until doc 39 §5.1 — the comparison walk found the whole v2 text layer wrote
+ * no cost rows at all.
+ */
+export function estimateClaudeTextCost(): number {
+  return Number(process.env.CLAUDE_TEXT_COST_USD) || 0.005;
+}
+
 export function estimateImagenCost(imageCount: number): number {
   return imageCount * COST_ESTIMATES.IMAGEN_PER_IMAGE_USD;
 }

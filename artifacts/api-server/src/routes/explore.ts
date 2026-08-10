@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq, inArray, ne } from "drizzle-orm";
-import { AI_MODELS, COST_ESTIMATES, estimateImagenCost, imagePass, type ImagePassType } from "../lib/ai-config.js";
+import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, estimateGeminiTextCost, estimateImagenCost, estimateVideoDurationSeconds, imagePass, type ImagePassType } from "../lib/ai-config.js";
 
 /**
  * The pass a spread renders at when the caller does not say. Phase 7 item 2.
@@ -75,7 +75,7 @@ import {
 } from "../services/explore-direction.js";
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
-import { runImageInteraction } from "../services/interactions-client.js";
+import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
 import { buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import {
@@ -627,6 +627,23 @@ router.post(
         // invent how they relate.
         extraContext: mentionsDirectiveBlock(effectiveMentions),
       });
+      /*
+       * The director's own turn, billed beside the images it directs. Every
+       * spread paid this call and no ledger row said so (doc 39 §5.1). Best
+       * effort: a failed insert never fails the spread the user paid for.
+       */
+      try {
+        await db.insert(costLogsTable).values(buildCostRow({
+          creativeId,
+          brandId: creative.brandId,
+          service: "gemini",
+          operation: "creative_direction",
+          model: COPILOT_MODELS.ART_DIRECTION_MODEL,
+          costUsd: estimateGeminiTextCost(),
+        }));
+      } catch (costErr) {
+        console.error("Cost row for creative_direction could not be written", costErr);
+      }
       directorSelections = direction.assetSelections;
       /*
        * Whoever ended up being the subject: the user's mention, the pin
@@ -1234,6 +1251,349 @@ router.post(
  * much moved. §1.17: the invisible made visible. The result is kept either way and
  * the verdict advises, per §1.13.
  */
+/**
+ * Refine the whole take with a sentence — the Co-pilot's chat loop, living
+ * inside stage 03 where Tony asked for it ("the studio v1 chat box + media
+ * preview refinement step should be available after the best of 8 is
+ * selected", doc 38 §6.3; doc 40 P0.3 found Refine was region-edit only).
+ *
+ * Same machinery as the region edit below, minus the geometry: the brand
+ * contract wraps the instruction, the result is a NEW take in the same slot's
+ * history (nothing is overwritten, restore stays free), and the money is a
+ * budget-reserved single image charge stated in the UI before the press.
+ *
+ * `mentions` are `@` attachments typed into the instruction. They pass the
+ * SAME eligibility gate the spread's mentions do — an edit is still AI
+ * reference use — and enter the model as reference slots beside the image
+ * being edited (subject→character, mark→object, style→style).
+ */
+const RefineEditBody = z.object({
+  slotKey: z.string().min(1).max(64),
+  instruction: z.string().min(1).max(1000),
+  mentions: z
+    .array(z.object({
+      assetId: z.string().min(1),
+      name: z.string().min(1),
+      role: z.enum(["subject", "style", "object"]),
+    }))
+    .max(4)
+    .optional(),
+});
+
+router.post(
+  "/creatives/:creativeId/stages/:stageId/refine-edit",
+  requireStandardWrite,
+  generationLimiter,
+  validateRequest({ body: RefineEditBody }),
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const { slotKey, instruction, mentions = [] } = req.body as z.infer<typeof RefineEditBody>;
+    let reservationId: string | null = null;
+
+    try {
+      const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
+      if (!creative) {
+        res.status(404).json({ error: "Creative not found" });
+        return;
+      }
+
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({
+          error: "This stage is locked, so nothing was changed and nothing was charged. Unlock it first.",
+          stageStatus: "locked",
+        });
+        return;
+      }
+
+      const [current] = await db
+        .select({ payload: stageTakesTable.payload })
+        .from(stageTakesTable)
+        .where(
+          and(
+            eq(stageTakesTable.stageStateId, stageId),
+            eq(stageTakesTable.slotKey, slotKey),
+            eq(stageTakesTable.isCurrent, true),
+          ),
+        );
+      const beforeUrl = (current?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
+      if (typeof beforeUrl !== "string") {
+        res.status(400).json({ error: "That take has no image to refine, so nothing was charged." });
+        return;
+      }
+      const beforeBuffer = await readFileByUrl(beforeUrl);
+      if (!beforeBuffer) {
+        res.status(400).json({ error: "The image for that take could not be read, so nothing was charged." });
+        return;
+      }
+
+      // The same gate the spread's mentions pass, refusals named the same way.
+      const mentionRows = await loadBrandAssetsByIds(creative.brandId, mentions.map(m => m.assetId));
+      const mentionRowById = new Map(mentionRows.map(a => [a.id, a]));
+      const droppedMentions: Array<{ name: string; reason: string }> = [];
+      const allowed = mentions.filter((mn) => {
+        const row = mentionRowById.get(mn.assetId);
+        if (!row) {
+          droppedMentions.push({ name: mn.name, reason: "No longer in this brand's library" });
+          return false;
+        }
+        const verdict = checkGenerationEligibility(
+          row,
+          { channel: null, template: creative.templateId ?? null },
+          mn.role === "object" ? "compositing" : "generation_reference",
+        );
+        if (!verdict.eligible) {
+          droppedMentions.push({ name: mn.name, reason: verdict.reason ?? "Not eligible" });
+          return false;
+        }
+        return true;
+      });
+
+      const budget = await reserveBudget(creativeId, estimateImagenCost(1));
+      if (!budget.ok) {
+        res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
+        return;
+      }
+      reservationId = budget.reservationId;
+
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, creative.brandId));
+      const persona = await directorFor(creativeId, creative.brandId);
+      const contract = brand ? buildSessionStyleContract({ brand, persona }) : "";
+      const prompt = wrapEditInstruction(contract, instruction.trim());
+
+      const slotFor = { subject: "character", object: "object", style: "style" } as const;
+      const referenceSlots = [] as Array<{ imageBuffer: Buffer; mimeType: string; slot: "character" | "object" | "style"; description: string }>;
+      for (const mn of allowed) {
+        const row = mentionRowById.get(mn.assetId);
+        const url = row?.fileUrl;
+        if (typeof url !== "string") continue;
+        const buf = await readFileByUrl(url);
+        if (!buf) {
+          droppedMentions.push({ name: mn.name, reason: "The reference image could not be read" });
+          continue;
+        }
+        referenceSlots.push({
+          imageBuffer: buf,
+          mimeType: (row?.mimeType as string) || "image/png",
+          slot: slotFor[mn.role],
+          description: `Brand asset "${mn.name}", attached by the user for this edit.`,
+        });
+      }
+
+      const result = await runImageInteraction({
+        prompt,
+        slots: [
+          { imageBuffer: beforeBuffer, mimeType: "image/png", slot: "object", description: "The image being refined. Apply the instruction to this image." },
+          ...referenceSlots,
+        ],
+      });
+
+      const filename = takeFilename(creativeId, `${slotKey}_refine`, crypto.randomUUID().slice(0, 8));
+      await writeBuffer("generated", filename, result.imageBuffer);
+      const afterUrl = `/api/files/generated/${filename}`;
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stageTakesTable)
+          .set({ isCurrent: false })
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
+        const prior = await tx
+          .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
+          .from(stageTakesTable)
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
+        await tx.insert(stageTakesTable).values({
+          stageStateId: stageId,
+          slotKey,
+          takeIndex: nextTakeIndex(prior, slotKey),
+          origin: "region_edit",
+          payload: {
+            imageUrl: afterUrl,
+            sourceImageUrl: beforeUrl,
+            instruction: instruction.trim(),
+            // The whole image was fair game; the null region is how the deck
+            // tells a prose refine from a boxed edit.
+            region: null,
+            mentions: allowed,
+            droppedMentions,
+            material: { referenceCount: 1 + referenceSlots.length, director: persona?.name ?? null },
+          },
+          isCurrent: true,
+          costCents: Math.round(estimateImagenCost(1) * 100),
+        });
+
+        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
+        await tx.insert(costLogsTable).values(buildCostRow({
+          creativeId,
+          brandId: creative.brandId,
+          service: "gemini",
+          operation: "refine_edit",
+          model: AI_MODELS.GEMINI_FLASH_IMAGE,
+          costUsd: estimateImagenCost(1),
+        }));
+      });
+      reservationId = null;
+
+      res.json({ imageUrl: afterUrl, droppedMentions });
+    } catch (err) {
+      if (reservationId) {
+        try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
+      }
+      console.error("Refine edit failed", err);
+      res.status(500).json({ error: "That refinement could not be made. Nothing was charged." });
+    }
+  },
+);
+
+/**
+ * Animate the PICK — motion made inside stage 03, where doc 24 §3 put it
+ * (motion is a MEDIUM of this stage, not a stage). Until now the Motion tab's
+ * only content was a note sending people back to the legacy Co-pilot, because
+ * this route did not exist (doc 40 P0.4).
+ *
+ * The still is never consumed: the clip lands as a take in the `motion` slot,
+ * the pick stays exactly where it was, and ship carries the clip beside the
+ * image on every channel version (`mediumType`, M4's columns). The clip is
+ * always animated FROM the current pick, so "this clip is the still in
+ * motion" is true by construction.
+ */
+const MotionConvertBody = z.object({
+  instruction: z.string().max(1000).optional(),
+});
+
+router.post(
+  "/creatives/:creativeId/stages/:stageId/motion-convert",
+  requireStandardWrite,
+  generationLimiter,
+  validateRequest({ body: MotionConvertBody }),
+  async (req: Request, res: Response): Promise<void> => {
+    const creativeId = String(req.params.creativeId);
+    const stageId = String(req.params.stageId);
+    const { instruction } = req.body as z.infer<typeof MotionConvertBody>;
+    let reservationId: string | null = null;
+
+    try {
+      const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
+      if (!creative) {
+        res.status(404).json({ error: "Creative not found" });
+        return;
+      }
+      const [stage] = await db
+        .select({ id: stageStatesTable.id, status: stageStatesTable.status })
+        .from(stageStatesTable)
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
+      if (!stage) {
+        res.status(404).json({ error: "Stage not found on this creative" });
+        return;
+      }
+      if (stage.status === "locked") {
+        res.status(409).json({
+          error: "This stage is locked, so nothing was made and nothing was charged. Unlock it first.",
+          stageStatus: "locked",
+        });
+        return;
+      }
+
+      const [picked] = await db
+        .select({ payload: stageTakesTable.payload })
+        .from(stageTakesTable)
+        .where(
+          and(
+            eq(stageTakesTable.stageStateId, stageId),
+            eq(stageTakesTable.slotKey, "selected"),
+            eq(stageTakesTable.isCurrent, true),
+          ),
+        );
+      const stillUrl = (picked?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
+      if (typeof stillUrl !== "string") {
+        res.status(400).json({ error: "Pick a take first. Motion animates the picked still, so there is nothing to animate yet." });
+        return;
+      }
+      const stillBuffer = await readFileByUrl(stillUrl);
+      if (!stillBuffer) {
+        res.status(400).json({ error: "The picked image could not be read, so nothing was charged." });
+        return;
+      }
+
+      // Reserved at the longest clip the model produces; the final row bills
+      // the seconds that actually came back, the way the Co-pilot always has.
+      const reserveUsd = 8 * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
+      const budget = await reserveBudget(creativeId, reserveUsd);
+      if (!budget.ok) {
+        res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
+        return;
+      }
+      reservationId = budget.reservationId;
+
+      const videoResult = await runVideoInteraction({
+        prompt: instruction?.trim() ||
+          "Convert this image into a short, dynamic video clip. Animate the subject naturally with subtle movement, camera drift, and ambient motion. Keep the brand framing intact.",
+        imageBuffer: stillBuffer,
+        imageMimeType: "image/png",
+        aspectRatio: "1:1",
+      });
+
+      const videoFilename = `studio-motion-${crypto.randomUUID()}.mp4`;
+      await writeBuffer("generated", videoFilename, videoResult.videoBuffer);
+      const videoUrl = `/api/files/generated/${videoFilename}`;
+      const durationSeconds = estimateVideoDurationSeconds(videoResult.videoBuffer.length);
+      const costUsd = durationSeconds * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(stageTakesTable)
+          .set({ isCurrent: false })
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "motion")));
+        const prior = await tx
+          .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
+          .from(stageTakesTable)
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "motion")));
+        await tx.insert(stageTakesTable).values({
+          stageStateId: stageId,
+          slotKey: "motion",
+          takeIndex: nextTakeIndex(prior, "motion"),
+          origin: "generated",
+          payload: {
+            videoUrl,
+            sourceImageUrl: stillUrl,
+            instruction: instruction?.trim() || null,
+            durationSeconds,
+          },
+          isCurrent: true,
+          costCents: Math.round(costUsd * 100),
+        });
+
+        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
+        await tx.insert(costLogsTable).values(buildCostRow({
+          creativeId,
+          brandId: creative.brandId,
+          service: "gemini",
+          operation: "convert_video",
+          model: COPILOT_MODELS.OMNI_VIDEO_MODEL,
+          costUsd,
+          costDerivedFromUsage: true,
+        }));
+      });
+      reservationId = null;
+
+      res.json({ videoUrl, durationSeconds, costUsd });
+    } catch (err) {
+      if (reservationId) {
+        try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
+      }
+      console.error("Motion convert failed", err);
+      res.status(500).json({ error: "The clip could not be made. Nothing was charged." });
+    }
+  },
+);
+
 const RegionEditBody = z.object({
   slotKey: z.string().min(1).max(64),
   region: z.unknown(),

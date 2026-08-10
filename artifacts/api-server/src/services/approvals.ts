@@ -395,7 +395,14 @@ export function approvalStatus(
       summary: needsYou
         ? "This is waiting on you."
         : latest.requestedBy === viewerId
-          ? "You asked for a decision on this. It is waiting on someone else."
+          ? canDecide(viewerRole)
+            /*
+             * The asker who can also decide used to read "waiting on someone
+             * else" directly above live Approve buttons (doc 40, found in the
+             * review walk). Both facts are true; say both.
+             */
+            ? "You asked for a decision on this. Another approver can take it, or you can decide it yourself."
+            : "You asked for a decision on this. It is waiting on someone else."
           : "This is waiting on a decision.",
     };
   }

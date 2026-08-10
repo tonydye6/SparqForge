@@ -146,7 +146,25 @@ export function Entrance({
       .catch(() => setDirectors([{ id: "house", name: "House style" }]));
   }, []);
 
-  const rollConcepts = useCallback(async (forBrand: string) => {
+  /*
+   * Cached per brand per day. Every entrance visit used to pay a fresh model
+   * call and add seconds to first paint, and the ideas a user glanced at were
+   * gone on return (doc 40 P2.11). Re-roll is the explicit "pay for fresh
+   * ones" — it bypasses the cache and replaces it.
+   */
+  const conceptCacheKey = (forBrand: string) =>
+    `sparqmake.concepts.${forBrand}.${new Date().toISOString().slice(0, 10)}`;
+
+  const rollConcepts = useCallback(async (forBrand: string, force = false) => {
+    if (!force) {
+      try {
+        const cached = localStorage.getItem(conceptCacheKey(forBrand));
+        if (cached) {
+          setConcepts(JSON.parse(cached) as Concept[]);
+          return;
+        }
+      } catch { /* an unreadable cache is an empty cache */ }
+    }
     setRolling(true);
     try {
       const res = await apiFetch("/api/concept-suggestions", {
@@ -156,7 +174,9 @@ export function Entrance({
       });
       if (!res.ok) return;
       const body = await res.json();
-      setConcepts(body.concepts ?? body.data ?? []);
+      const rows = body.concepts ?? body.data ?? [];
+      setConcepts(rows);
+      try { localStorage.setItem(conceptCacheKey(forBrand), JSON.stringify(rows)); } catch { /* full storage loses only the cache */ }
     } catch {
       // Concepts are an offer, not a dependency; the composer works without them.
     } finally {

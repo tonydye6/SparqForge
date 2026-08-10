@@ -9,7 +9,7 @@ import { nextTakeIndex } from "../services/stage-graph.js";
 import { readFileByUrl } from "../services/reference-images.js";
 import { generateImageFromPrompt, type ReferenceImage } from "../services/imagen.js";
 import { writeBuffer } from "../services/storage.js";
-import { imagePass } from "../lib/ai-config.js";
+import { imagePass, AI_MODELS, estimateClaudeCost } from "../lib/ai-config.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { buildImageAwareCaption } from "../services/session-service.js";
 import { splitTrailingHashtags } from "../services/copy-stage.js";
@@ -386,6 +386,25 @@ router.post(
         imageMimeType: imageUrl.endsWith(".jpeg") || imageUrl.endsWith(".jpg") ? "image/jpeg" : "image/png",
         intent: creative.intent,
       });
+
+      /*
+       * The draft is a real vision call and the legacy path has always billed
+       * its equivalent; this one wrote nothing (doc 39 §5.1 — found by reading
+       * the ledger straight after pressing the button). Best effort: a failed
+       * insert never loses the drafted copy.
+       */
+      try {
+        await db.insert(costLogsTable).values(buildCostRow({
+          creativeId,
+          brandId: creativeBrandId,
+          service: "anthropic",
+          operation: "copy_draft",
+          model: AI_MODELS.CLAUDE_SONNET,
+          costUsd: estimateClaudeCost(),
+        }));
+      } catch (err) {
+        console.error("Cost row for copy_draft could not be written", err);
+      }
 
       /*
        * Hashtags are split OUT of the caption body here.

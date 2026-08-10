@@ -17,6 +17,7 @@
  * different ideas.
  */
 import { useCallback, useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/utils";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -28,9 +29,69 @@ interface MediumChoice {
   motionFromThisImage: boolean;
 }
 
-export function MotionPanel({ creativeId }: { creativeId: string }) {
+interface MotionTake {
+  videoUrl?: string;
+  sourceImageUrl?: string;
+  instruction?: string | null;
+  durationSeconds?: number;
+}
+
+export function MotionPanel({
+  creativeId,
+  stageId,
+  /** The current pick's image, or null when nothing is picked yet. */
+  pickImageUrl,
+  /** The current motion take's payload, when one exists. */
+  motionTake,
+  locked,
+  onChanged,
+}: {
+  creativeId: string;
+  stageId: string;
+  pickImageUrl: string | null;
+  motionTake: MotionTake | null;
+  locked: boolean;
+  onChanged: () => void;
+}) {
   const [choices, setChoices] = useState<MediumChoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Animate the pick, from HERE. This tab used to hold one paragraph sending
+   * people back to the legacy Co-pilot, because no stage route existed
+   * (doc 40 P0.4). The route exists now; the paragraph is gone.
+   */
+  const [instruction, setInstruction] = useState("");
+  const [converting, setConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+
+  async function convert() {
+    if (converting || locked || !pickImageUrl) return;
+    setConverting(true);
+    setConvertError(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/stages/${stageId}/motion-convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(instruction.trim() ? { instruction: instruction.trim() } : {}),
+      });
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) {
+        setConvertError(body?.error ?? "The clip could not be made.");
+        return;
+      }
+      setInstruction("");
+      onChanged();
+    } catch {
+      setConvertError("The clip could not be reached. Nothing was charged.");
+    } finally {
+      setConverting(false);
+    }
+  }
+
+  const motionIsStale = Boolean(
+    motionTake?.videoUrl && pickImageUrl && motionTake.sourceImageUrl !== pickImageUrl,
+  );
 
   const load = useCallback(async (): Promise<void> => {
     setError(null);
@@ -69,20 +130,71 @@ export function MotionPanel({ creativeId }: { creativeId: string }) {
         </p>
       )}
 
-      {choices !== null && withMotion.length === 0 && (
-        /*
-          No fake Convert button. Converting a still to a clip runs as a turn in
-          the Co-pilot today and there is no stage route for it, so offering the
-          action here would be a control that does nothing. Doc 24 §4: a thing
-          that is half-built and pretending to work is worse than one honestly
-          absent.
-        */
-        <div className="rounded-sm border border-border/60 bg-raised px-3 py-2.5">
-          <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-            No motion for this creative yet. A clip is made by converting a still in the Co-pilot,
-            which animates the take you keep and leaves the still untouched.
+      {motionTake?.videoUrl && (
+        <div className="space-y-2">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            controls
+            src={motionTake.videoUrl}
+            className="max-h-[420px] rounded-sm border border-border bg-card"
+            data-testid="motion-clip"
+          />
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            {motionTake.durationSeconds ? `${motionTake.durationSeconds}s clip` : "Clip"}
+            {motionTake.instruction ? ` ${"·"} "${motionTake.instruction}"` : ""}
+            {motionIsStale ? (
+              <span className="text-victory-gold">
+                {" "}Animated from an earlier pick, so it will not ship. Animate again to carry it.
+              </span>
+            ) : (
+              <span className="text-dim"> {"·"} Ships with the still on every channel version.</span>
+            )}
           </p>
         </div>
+      )}
+
+      {!locked && (
+        pickImageUrl ? (
+          <div className="rounded-sm border border-border bg-card px-3 py-2.5">
+            <textarea
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void convert(); }
+              }}
+              rows={2}
+              placeholder="slow push-in, the gold arcs crackle and flow"
+              aria-label="How the clip should move. Leave empty for natural motion."
+              className="w-full resize-none border-0 bg-transparent p-0 text-[13.5px] leading-snug text-foreground outline-none placeholder:text-dim"
+              data-testid="input-motion-instruction"
+            />
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+                Animates the pick {"·"} billed per second of clip {"·"} recent clips {"≈"} $1.70
+              </span>
+              <div className="flex-1" />
+              <button
+                onClick={() => void convert()}
+                disabled={converting}
+                className="rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                data-testid="button-motion-convert"
+              >
+                {converting ? <Loader2 size={10} className="animate-spin" /> : motionTake?.videoUrl ? "Animate again" : "Animate the pick"}
+              </button>
+            </div>
+            {convertError && (
+              <p className="mt-1.5 text-[11px] leading-relaxed text-rebel-pink">{convertError}</p>
+            )}
+          </div>
+        ) : (
+          !motionTake?.videoUrl && (
+            <div className="rounded-sm border border-border/60 bg-raised px-3 py-2.5">
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                Pick a take on the Image tab first. Motion animates the pick, and nothing is picked yet.
+              </p>
+            </div>
+          )
+        )
       )}
 
       {withMotion.length > 0 && (

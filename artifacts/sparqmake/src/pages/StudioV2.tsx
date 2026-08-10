@@ -399,6 +399,7 @@ export default function StudioV2() {
                     mode={activeStage.mode}
                     // The slot Refine is working on — stage state, not a pick.
                     modeSlotKey={(activeStage as { modeSlotKey?: string | null }).modeSlotKey ?? null}
+                    brandId={brandId}
                     takes={spine.takes[activeStage.id] ?? []}
                     locked={activeStage.status === "locked"}
                     onChanged={() => void loadSpine(creativeId)}
