@@ -14,7 +14,8 @@ import { BrandContract } from "@/components/studio/BrandContract";
 import { MaterialRail } from "@/components/studio/MaterialRail";
 import { ReviewBar } from "@/components/studio/ReviewBar";
 import { ShipBar } from "@/components/studio/ShipBar";
-import { SavedRunsPanel, SaveRunButton } from "@/components/studio/SavedRuns";
+import { SaveRunButton } from "@/components/studio/SavedRuns";
+import { Entrance } from "@/components/studio/Entrance";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -226,52 +227,24 @@ export default function StudioV2() {
     await loadSpine(creativeId);
   }, [creativeId, activeStage, loadSpine]);
 
-  // ---------------------------------------------------------------- picker
+  // ------------------------------------------------------------- entrance
   if (!creativeId) {
-    const recent = (creatives?.data ?? []).slice(0, 12);
     const open = (id: string) => {
       const next = new URLSearchParams(searchParams);
       next.set("creative", id);
       setSearchParams(next);
     };
+    /*
+     * /studio-v2 IS stage 01. The picker this replaced could only open work
+     * that already existed, and its predecessor forced people INTO existing
+     * work — both failure modes, one screen. The entrance starts from a typed
+     * line, and the rail keeps every previous effort one click away.
+     */
     return (
-      <div className="mx-auto max-w-3xl space-y-5 p-8">
-        <div className="space-y-1.5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
-            Studio v2
-          </p>
-          <h1 className="font-display text-2xl tracking-wide text-foreground">Run something, or open something</h1>
-          <p className="max-w-[76ch] text-[12.5px] leading-relaxed text-muted-foreground">
-            The v2 Studio. It runs beside the existing Studio rather than replacing it, so nothing you rely
-            on has moved. <span className="text-foreground">All five stages are live.</span> The spine
-            across the top is how you move between them.
-          </p>
-        </div>
-
-        {/*
-          Saved runs sit ABOVE the list on purpose. The picker could previously
-          only open work that already existed, which left the v2 Studio with no
-          way in from nothing. A saved run is that way in.
-        */}
-        <SavedRunsPanel onOpenCreative={open} />
-
-        <div className="space-y-1.5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">Recent posts</p>
-          {recent.length === 0 && (
-            <p className="text-[12.5px] text-dim">No creatives yet. Make one in the Studio first.</p>
-          )}
-          {recent.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => open(c.id)}
-              className="block w-full rounded-sm border border-border/60 bg-card px-3 py-2 text-left transition-colors hover:border-grit-teal/50"
-            >
-              <p className="truncate text-[13px] text-foreground">{c.name}</p>
-              <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">{c.status}</p>
-            </button>
-          ))}
-        </div>
-      </div>
+      <Entrance
+        recent={(creatives?.data ?? []).slice(0, 12).map((c) => ({ id: c.id, name: c.name, status: c.status }))}
+        onOpen={open}
+      />
     );
   }
 
@@ -430,12 +403,11 @@ export default function StudioV2() {
                     onSaved={() => void loadSpine(creativeId)}
                   />
                 ) : (
+                  // Unreachable since Phase 4 finished: every stageKind has a
+                  // component above. Kept as a plain fallback rather than the
+                  // stale "arrives later in Phase 4" paragraph it used to show.
                   <div className="p-8">
-                    <p className="max-w-[70ch] text-[12.5px] leading-relaxed text-muted-foreground">
-                      {activeStage ? STAGE_LABELS[activeStage.stageKind] : "This stage"} arrives later in Phase 4.
-                      The spine, the dependency engine and the lock behaviour above are already live, so you can
-                      reopen a stage and watch what it marks stale.
-                    </p>
+                    <p className="text-[12.5px] text-muted-foreground">This stage could not be opened.</p>
                   </div>
                 )}
               </div>

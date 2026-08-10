@@ -1,0 +1,21 @@
+import { describe, it, expect } from "vitest";
+import { collectBriefAssistCases } from "./brief-assist.cases.js";
+
+/**
+ * brief-assist invariants, under vitest so CI runs them. The cases live in
+ * brief-assist.cases.ts, shared with the tsx runner; each becomes its own named
+ * test so a failure names the invariant, not the file.
+ */
+
+const cases = collectBriefAssistCases();
+
+describe("brief-assist", () => {
+  it("has cases to run at all", () => {
+    // A silent zero would let a broken extraction look like a green suite.
+    expect(cases.length).toBeGreaterThan(15);
+  });
+
+  it.each(cases.map((c) => [c.name, c] as const))("%s", (_name, c) => {
+    expect(c.ok, `${c.name}${c.detail === undefined ? "" : ` · got ${JSON.stringify(c.detail)}`}`).toBe(true);
+  });
+});
