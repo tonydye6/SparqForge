@@ -4,6 +4,7 @@ import { ChevronDown, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { apiFetch, cn } from "@/lib/utils";
 import { useCanWrite } from "@/hooks/useAuth";
 import { InfoDot } from "./InfoDot";
+import { MentionChips, MentionPickerList, reconcile, useMentions, type AssetOption } from "./mentions";
 import { SavedRunsPanel } from "./SavedRuns";
 
 /**
@@ -83,6 +84,26 @@ export function Entrance({
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  /*
+   * `@` mentions, the same machinery as stage 01's composer. This entrance IS
+   * stage 01 (doc 38 §3), and it already SAID "@ attaches an asset" while
+   * writing takes with no mentions — a brief naming a character shipped
+   * without pinning one, and the director guessed a different girl.
+   */
+  const m = useMentions(brandId);
+
+  function chooseMention(asset: AssetOption) {
+    const el = textareaRef.current;
+    const caret = el ? el.selectionStart : line.length;
+    const r = m.choose(asset, line, caret);
+    if (!r) return;
+    setLine(r.line);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(r.caret, r.caret);
+    });
+  }
 
   // ---- improve ----
   const [improving, setImproving] = useState(false);
@@ -271,6 +292,13 @@ export function Entrance({
             origin: "user_typed",
             payload: {
               line: yours.trim(),
+              /*
+               * Only the mentions whose `@name` token survives in the line
+               * actually being saved: Improve or a director-led rewrite may
+               * have dropped the token, and a mention outliving its text
+               * would attach a picture the user believes they removed.
+               */
+              mentions: reconcile(m.mentions, yours.trim()),
               intentId,
               derived,
               answers: [],
@@ -364,18 +392,35 @@ export function Entrance({
                   </div>
                 </>
               ) : (
-                <textarea
-                  ref={textareaRef}
-                  value={line}
-                  onChange={(e) => setLine(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void start(); }
-                  }}
-                  placeholder="What are we making?"
-                  rows={3}
-                  className="w-full resize-none bg-transparent px-5 pt-4 text-[17px] leading-relaxed text-foreground outline-none placeholder:text-dim"
-                  data-testid="input-line"
-                />
+                <div className="relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={line}
+                    onChange={(e) => { setLine(e.target.value); m.onLineChange(e.target.value, e.target.selectionStart); }}
+                    onClick={(e) => m.onCaretMove(line, e.currentTarget.selectionStart)}
+                    onBlur={m.onBlur}
+                    onKeyDown={(e) => {
+                      if (m.picker && m.matches.length > 0 && (e.key === "Enter" || e.key === "Tab")) {
+                        e.preventDefault();
+                        const pick = m.matches[m.highlight];
+                        if (pick) chooseMention(pick);
+                        return;
+                      }
+                      if (m.onKeyDown(e)) return;
+                      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void start(); }
+                    }}
+                    placeholder="What are we making?"
+                    rows={3}
+                    aria-expanded={m.picker !== null}
+                    aria-controls={m.picker ? "entrance-mention-picker" : undefined}
+                    className="w-full resize-none bg-transparent px-5 pt-4 text-[17px] leading-relaxed text-foreground outline-none placeholder:text-dim"
+                    data-testid="input-line"
+                  />
+                  <MentionPickerList m={m} pickerId="entrance-mention-picker" onChoose={chooseMention} />
+                  <div className="px-5">
+                    <MentionChips mentions={m.mentions} />
+                  </div>
+                </div>
               )}
 
               <div className="flex items-center gap-1.5 border-t border-border/60 px-3.5 py-2.5">
