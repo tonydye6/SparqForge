@@ -30,6 +30,8 @@ export interface TimelineClip {
   overlapMs: number;
   transitionIn: "cut" | "dissolve";
   sourceKind: "generated" | "library_asset" | "upload";
+  /** The file this clip pointed at was deleted underneath it. */
+  sourceMissing: boolean;
 }
 
 export interface TimelineTrack {
@@ -48,6 +50,8 @@ export interface TimelineData {
   clips: TimelineClip[];
   tracks: TimelineTrack[];
   totalDurationMs: number;
+  /** False when a clip has lost its source. Distinct from having warnings. */
+  renderable: boolean;
   warnings: string[];
 }
 
@@ -115,15 +119,29 @@ function ClipLane({ clips, totalMs }: { clips: TimelineClip[]; totalMs: number }
         {clips.map(clip => (
           <div
             key={clip.id}
-            className="absolute inset-y-1.5 overflow-hidden rounded-sm border border-card-border bg-raised-2"
+            className={`absolute inset-y-1.5 overflow-hidden rounded-sm border ${
+              clip.sourceMissing
+                /* Hatched and pink: it holds its slot but it is not going to
+                   play, and the only warning hue in the system says so. */
+                ? "border-dashed border-rebel-pink bg-[repeating-linear-gradient(135deg,hsl(var(--rebel-pink)/0.16)_0_5px,transparent_5px_10px)]"
+                : "border-card-border bg-raised-2"
+            }`}
             style={{
               left: `${pct(clip.timelineStartMs, totalMs)}%`,
               width: `${pct(clip.durationMs, totalMs)}%`,
             }}
-            title={`${SOURCE_LABEL[clip.sourceKind]} · ${secs(clip.durationMs)}`}
+            title={
+              clip.sourceMissing
+                ? "The file this clip pointed at was deleted. Replace it or remove it."
+                : `${SOURCE_LABEL[clip.sourceKind]} · ${secs(clip.durationMs)}`
+            }
           >
-            <span className="absolute left-1.5 top-1 font-mono text-[8px] tracking-[0.07em] text-muted-foreground">
-              {SOURCE_LABEL[clip.sourceKind]} · {secs(clip.durationMs)}
+            <span
+              className={`absolute left-1.5 top-1 font-mono text-[8px] tracking-[0.07em] ${
+                clip.sourceMissing ? "text-rebel-pink" : "text-muted-foreground"
+              }`}
+            >
+              {clip.sourceMissing ? "file missing" : `${SOURCE_LABEL[clip.sourceKind]} · ${secs(clip.durationMs)}`}
             </span>
             {/* A dissolve overlaps the clip before it. Drawn on the incoming
                 clip's leading edge, which is where the overlap actually is. */}

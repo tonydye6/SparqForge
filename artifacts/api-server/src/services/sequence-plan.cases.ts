@@ -133,6 +133,53 @@ export function runCases(): Result[] {
     check("no clips, no plan", plan.totalDurationMs === 0 && plan.filterComplex === "");
   }
 
+  // ---- a clip whose source was deleted underneath it ----
+  {
+    /*
+     * The decision: keep the slot, refuse the render. The alternative that was
+     * accidentally in place refused the DELETE instead, with a constraint error
+     * that never mentioned sequences.
+     */
+    const plan = buildSequencePlan([
+      clip({ id: "a", position: 0 }),
+      clip({ id: "gone", position: 1, sourceMissingAt: "2026-08-09T10:00:00Z" }),
+      clip({ id: "c", position: 2 }),
+    ]);
+    check("a broken clip keeps its slot", plan.clips.length === 3, plan.clips.length);
+    check("and its place in the order", plan.clips[1].id === "gone", plan.clips.map(c => c.id));
+    check("and its duration, so nothing silently reshuffles",
+      plan.clips[1].durationMs === 6000 && plan.totalDurationMs === 18_000, plan.totalDurationMs);
+    check("it is flagged", plan.clips[1].sourceMissing === true, plan.clips[1]);
+    check("its neighbours are not", plan.clips[0].sourceMissing === false && plan.clips[2].sourceMissing === false);
+    check("the sequence will not render", plan.renderable === false, plan.renderable);
+    /*
+     * No graph at all. Emitting one would produce a command pointing at a file
+     * that is not there, so the failure would come from ffmpeg rather than from
+     * the thing that knows why.
+     */
+    check("and no graph is offered", plan.filterComplex === "", plan.filterComplex);
+    check("the reason names the clip and the fix",
+      plan.warnings.some(w => w.includes("Clip 2") && w.includes("Replace it or remove it")), plan.warnings);
+  }
+  {
+    const plan = buildSequencePlan([clip({ id: "a", position: 0 })]);
+    check("an intact sequence renders", plan.renderable === true);
+    check("and still has its graph", plan.filterComplex.length > 0);
+  }
+  {
+    /*
+     * Renderable is not the same as warning-free. A shortened dissolve is worth
+     * saying and still renders; treating the two alike would let somebody press
+     * Render on a sequence that is going to fail.
+     */
+    const plan = buildSequencePlan([
+      clip({ id: "a", position: 0, trimEndMs: 300 }),
+      clip({ id: "b", position: 1, trimEndMs: 300, transitionIn: "dissolve" }),
+    ]);
+    check("a warning alone does not block the render",
+      plan.warnings.length > 0 && plan.renderable === true, [plan.warnings, plan.renderable]);
+  }
+
   // ---- the line above the timeline ----
   {
     check("nothing to assemble says so", describeSequence(buildSequencePlan([])).includes("nothing to assemble"));

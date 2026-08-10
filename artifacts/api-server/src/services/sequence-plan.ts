@@ -22,6 +22,14 @@ export interface PlanClip {
   trimStartMs: number;
   trimEndMs: number;
   transitionIn: ClipTransition;
+  /**
+   * Set when the thing this clip pointed at was deleted underneath it.
+   *
+   * The clip keeps its slot and its trim so the timeline does not silently
+   * reshuffle around a hole, but the sequence cannot render until somebody
+   * replaces or removes it.
+   */
+  sourceMissingAt?: Date | string | null;
 }
 
 /**
@@ -36,6 +44,8 @@ export const DISSOLVE_MS = 500;
 export interface PlannedClip extends PlanClip {
   /** Length after trimming, before any overlap is taken off. */
   durationMs: number;
+  /** True when the source is gone. The slot is kept; the render is refused. */
+  sourceMissing: boolean;
   /** Where this clip's first frame lands in the finished video. */
   timelineStartMs: number;
   /** Overlap with the previous clip. Zero for a cut, and for the first clip. */
@@ -45,6 +55,15 @@ export interface PlannedClip extends PlanClip {
 export interface SequencePlan {
   clips: PlannedClip[];
   totalDurationMs: number;
+  /**
+   * False when at least one clip has lost its source.
+   *
+   * Deliberately separate from `warnings`: a shortened dissolve is worth
+   * mentioning and still renders, whereas this cannot render at all, and a
+   * surface that treated the two the same would let somebody press Render on a
+   * sequence that is going to fail.
+   */
+  renderable: boolean;
   /** The ffmpeg graph, empty when there is nothing or only one clip to join. */
   filterComplex: string;
   outputLabel: string;
@@ -86,19 +105,37 @@ export function buildSequencePlan(clips: readonly PlanClip[]): SequencePlan {
       }
     }
 
+    const sourceMissing = Boolean(clip.sourceMissingAt);
+    if (sourceMissing) {
+      warnings.push(
+        `Clip ${i + 1} has lost the file it pointed at, so this sequence cannot render. ` +
+        `Replace it or remove it.`,
+      );
+    }
+
     const timelineStartMs = i === 0 ? 0 : cursor - overlapMs;
-    planned.push({ ...clip, durationMs, timelineStartMs, overlapMs });
+    planned.push({ ...clip, durationMs, sourceMissing, timelineStartMs, overlapMs });
     cursor = timelineStartMs + durationMs;
   });
 
   if (planned.length === 0) {
-    return { clips: [], totalDurationMs: 0, filterComplex: "", outputLabel: "", warnings };
+    return { clips: [], totalDurationMs: 0, renderable: true, filterComplex: "", outputLabel: "", warnings };
   }
+
+  const renderable = planned.every(c => !c.sourceMissing);
 
   return {
     clips: planned,
     totalDurationMs: cursor,
-    ...buildFilterGraph(planned),
+    renderable,
+    /*
+     * No graph for a sequence that cannot render. Emitting one would produce a
+     * command referencing a file that is not there, and the failure would
+     * arrive from ffmpeg rather than from the thing that knows why.
+     */
+    ...(renderable
+      ? buildFilterGraph(planned)
+      : { filterComplex: "", outputLabel: "" }),
     warnings,
   };
 }
