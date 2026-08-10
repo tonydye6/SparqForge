@@ -8,6 +8,7 @@ import { MediaTile } from "@/components/ui/media-tile";
 import { StateChip } from "@/components/ui/state-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PublishHealthBanner } from "@/components/PublishHealthBanner";
+import { ScheduleModal } from "@/components/ScheduleModal";
 import { agingDays, stateFromPublishStatus, type CreativeState } from "@/lib/creative-state";
 
 /**
@@ -130,6 +131,28 @@ export default function Pipeline() {
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({});
   const [loading, setLoading] = useState(true);
   const { data: creatives } = useGetCreatives();
+
+  /*
+   * The Studio's ship bar arrives here with ?focus=<creativeId>. The user just
+   * pressed "Schedule it": the answer is the schedule dialog for that post,
+   * open, not a week view to go searching in (doc 40 P1.6). The param is
+   * consumed once so refreshes and later visits do not re-open it.
+   */
+  const [scheduleFor, setScheduleFor] = useState<{ id: string; name: string } | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const focusId = searchParams.get("focus");
+  useEffect(() => {
+    if (!focusId || !creatives?.data) return;
+    const c = creatives.data.find((x) => x.id === focusId);
+    if (c) {
+      setScheduleFor({ id: c.id, name: c.name });
+      setScheduleOpen(true);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("focus");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusId, creatives]);
 
   const start = useMemo(() => weekStart(anchor), [anchor]);
   const days = useMemo(
@@ -351,10 +374,18 @@ export default function Pipeline() {
               </p>
             )}
             {undated.map((u) => (
-              <Link
+              /*
+               * A card in "Not scheduled" has exactly one next step: place it.
+               * This used to be a Link to "/" — the LEGACY Co-pilot root — so
+               * the rail's only affordance dropped v2 work into the deprecated
+               * stack (doc 40, found in passing during P1.6).
+               */
+              <button
                 key={u.id}
-                href="/"
-                className="block cursor-grab rounded-sm border border-border/60 bg-card px-2.5 py-2 transition-colors hover:border-grit-teal/50"
+                type="button"
+                onClick={() => { setScheduleFor({ id: u.id, name: u.name }); setScheduleOpen(true); }}
+                className="block w-full text-left rounded-sm border border-border/60 bg-card px-2.5 py-2 transition-colors hover:border-grit-teal/50"
+                data-testid={`unscheduled-${u.id}`}
               >
                 <p className="line-clamp-2 text-[11.5px] leading-tight text-muted-foreground">{u.name}</p>
                 {awaiting[u.id] && (
@@ -370,7 +401,7 @@ export default function Pipeline() {
                 ) : (
                   <StateChip state="drafting" className="mt-1.5" />
                 )}
-              </Link>
+              </button>
             ))}
           </div>
           <p className="border-t border-border/60 px-3 py-2 font-mono text-[8.5px] leading-relaxed tracking-[0.06em] text-dim">
@@ -487,6 +518,24 @@ export default function Pipeline() {
           ×N expands to per-channel
         </span>
       </footer>
+
+      {scheduleFor && (
+        <ScheduleModal
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          creativeId={scheduleFor.id}
+          creativeName={scheduleFor.name}
+          onScheduled={() => {
+            // The week view reads calendar entries; a fresh schedule belongs on
+            // it the moment the modal closes, not on the next visit.
+            setLoading(true);
+            getCalendarEntries({ start: start.toISOString(), end: end.toISOString() })
+              .then((data) => setEntries((data.entries ?? []) as CalEntry[]))
+              .catch((err) => console.error("Pipeline: failed to reload entries", err))
+              .finally(() => setLoading(false));
+          }}
+        />
+      )}
     </div>
   );
 }

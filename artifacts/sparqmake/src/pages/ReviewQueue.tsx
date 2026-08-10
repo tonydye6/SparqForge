@@ -75,6 +75,36 @@ export default function ReviewQueue() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [, setLocation] = useLocation();
 
+  /*
+   * Decisions the STUDIO asked for. These live in approval_requests, not in
+   * creatives.status — a Studio v2 post stays "draft" through its whole life,
+   * so the status columns below can never show it. This page said PENDING
+   * REVIEW: 0 while two requests sat waiting (doc 40 P0.2); this lane is the
+   * reviewer's path to them.
+   */
+  const [awaiting, setAwaiting] = useState<Array<{
+    creativeId: string;
+    creativeName: string | null;
+    brandId: string | null;
+    requestedByName: string | null;
+    requestedAt: string;
+    needsYou: boolean;
+  }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/api/approvals/awaiting`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled && Array.isArray(body?.data)) setAwaiting(body.data);
+      } catch {
+        // A lane that cannot load renders empty; the columns still work.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const [expandedCreativeId, setExpandedCreativeId] = useState<string | null>(null);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
@@ -399,7 +429,40 @@ export default function ReviewQueue() {
         <PublishHealthBanner />
       </div>
 
-      {!isLoading && filteredCreatives.length === 0 && (
+      {awaiting.length > 0 && (
+        <div className="mb-4 shrink-0 rounded-xl border border-grit-teal/40 bg-card">
+          <div className="flex items-center justify-between border-b border-border/60 px-4 py-2.5">
+            <h3 className="font-bold uppercase tracking-wide text-xs sm:text-sm text-foreground">
+              Waiting on a decision
+            </h3>
+            <Badge variant="secondary" className="bg-muted text-muted-foreground">{awaiting.length}</Badge>
+          </div>
+          <div className="flex flex-wrap gap-2 p-3">
+            {awaiting.map((a) => {
+              const brand = a.brandId ? getBrand(a.brandId) : undefined;
+              return (
+                <button
+                  key={a.creativeId}
+                  onClick={() => setLocation(`/studio-v2?creative=${a.creativeId}`)}
+                  className="flex min-w-0 max-w-full items-center gap-2.5 rounded-lg border border-border bg-background px-3 py-2 text-left hover-elevate"
+                  data-testid={`awaiting-${a.creativeId}`}
+                >
+                  {brand && <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: brand.colorPrimary }} />}
+                  <span className="min-w-0 truncate text-sm text-foreground">{a.creativeName ?? a.creativeId}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    asked by {a.requestedByName ?? "someone"} · {new Date(a.requestedAt).toLocaleDateString()}
+                  </span>
+                  {a.needsYou && (
+                    <Badge className="shrink-0 bg-grit-teal/15 text-cyber-teal border border-grit-teal/40">needs you</Badge>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!isLoading && filteredCreatives.length === 0 && awaiting.length === 0 && (
         <EmptyState
           icon={ClipboardCheck}
           title="Nothing to review"

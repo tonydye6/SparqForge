@@ -52,6 +52,10 @@ interface RecentRow {
   id: string;
   name: string;
   status: string;
+  /** The picked image, when the post has one — the grid is pictures. */
+  previewImageUrl?: string | null;
+  /** Last touched, so three same-named drafts stop being interchangeable. */
+  at?: string | null;
 }
 
 const INTENT_LABELS: Record<string, string> = {
@@ -630,10 +634,17 @@ export function Entrance({
               className="flex w-full items-center gap-2.5 rounded-sm border border-transparent px-2 py-1.5 text-left hover:border-border hover:bg-muted/30"
               data-testid={`recent-${c.id}`}
             >
-              <span className="h-8 w-8 shrink-0 rounded-sm border border-border bg-gradient-to-br from-muted/50 to-background" />
+              {c.previewImageUrl ? (
+                <img src={c.previewImageUrl} alt="" className="h-8 w-8 shrink-0 rounded-sm border border-border object-cover" />
+              ) : (
+                <span className="h-8 w-8 shrink-0 rounded-sm border border-border bg-gradient-to-br from-muted/50 to-background" />
+              )}
               <span className="min-w-0">
                 <span className="block truncate text-[12px] text-foreground">{c.name}</span>
-                <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">{c.status}</span>
+                <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+                  {c.status}
+                  {c.at ? ` ${"·"} ${new Date(c.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}
+                </span>
               </span>
             </button>
           ))}

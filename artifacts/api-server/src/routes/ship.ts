@@ -121,7 +121,19 @@ async function load(creativeId: string): Promise<Loaded | null> {
   const cropsPayload = currentPayload(takes, idOf("crops"), "crops") as { focal?: unknown } | null;
 
   const existingVariants = await db
-    .select({ id: creativeVariantsTable.id, platform: creativeVariantsTable.platform })
+    .select({
+      id: creativeVariantsTable.id,
+      platform: creativeVariantsTable.platform,
+      // The content columns shipping writes, so the preview can say whether a
+      // re-ship would CHANGE anything. "A row exists" alone read as "Ready to
+      // update" forever after a reload, and the schedule handoff only survived
+      // inside the client session that pressed Ship (doc 40 P1.9).
+      caption: creativeVariantsTable.caption,
+      hookText: creativeVariantsTable.hookText,
+      compositedImageUrl: creativeVariantsTable.compositedImageUrl,
+      focalX: creativeVariantsTable.focalX,
+      focalY: creativeVariantsTable.focalY,
+    })
     .from(creativeVariantsTable)
     .where(eq(creativeVariantsTable.creativeId, creativeId));
 
@@ -143,21 +155,55 @@ async function load(creativeId: string): Promise<Loaded | null> {
   };
 }
 
-function shape(plan: ShipPlan, scheduleBlock: string | null) {
+function shape(
+  plan: ShipPlan,
+  scheduleBlock: string | null,
+  existing: Array<{
+    id: string;
+    platform: string;
+    caption: string | null;
+    hookText: string | null;
+    compositedImageUrl: string | null;
+    focalX: number | null;
+    focalY: number | null;
+  }> = [],
+) {
+  const byPlatform = new Map(existing.map((e) => [e.platform, e]));
+  /** Would re-shipping this channel change what is already written? */
+  const changed = (v: ShipPlan["variants"][number]): boolean => {
+    const e = byPlatform.get(v.platform);
+    if (!e) return true;
+    return (
+      e.caption !== v.caption ||
+      (e.hookText ?? null) !== (v.hookText ?? null) ||
+      e.compositedImageUrl !== v.imageUrl ||
+      e.focalX !== v.focalX ||
+      e.focalY !== v.focalY
+    );
+  };
+  const variants = plan.variants.map((v) => ({
+    platform: v.platform,
+    label: v.label,
+    accountName: v.accountName,
+    aspectRatio: v.aspectRatio,
+    caption: v.caption,
+    hookText: v.hookText,
+    updates: v.existingId !== null,
+    changed: changed(v),
+  }));
   return {
     // The schedule block is a block like any other, so a caller never has to
     // check two different places to learn whether shipping is possible.
     blocked: scheduleBlock ? [scheduleBlock, ...plan.blocked] : plan.blocked,
     warnings: plan.warnings,
-    variants: plan.variants.map((v) => ({
-      platform: v.platform,
-      label: v.label,
-      accountName: v.accountName,
-      aspectRatio: v.aspectRatio,
-      caption: v.caption,
-      hookText: v.hookText,
-      updates: v.existingId !== null,
-    })),
+    variants,
+    /*
+     * True when what is shipped IS what the stages currently say. The old
+     * signal ("a variant row exists") read as "Ready to update" forever, so a
+     * shipped post lost its schedule handoff on the first reload (doc 40
+     * P1.9). The client shows the exit when nothing would change.
+     */
+    inSync: plan.blocked.length === 0 && variants.length > 0 && variants.every((v) => v.updates && !v.changed),
   };
 }
 
@@ -171,7 +217,7 @@ router.get("/creatives/:creativeId/ship-preview", async (req: Request, res: Resp
       return;
     }
     const plan = planShip(loaded);
-    res.json(shape(plan, shippingBlockedBySchedule(loaded.entries)));
+    res.json(shape(plan, shippingBlockedBySchedule(loaded.entries), loaded.existingVariants));
   } catch (err) {
     console.error("Failed to preview shipping", err);
     res.status(500).json({ error: "What this would publish could not be worked out." });

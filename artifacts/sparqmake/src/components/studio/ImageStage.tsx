@@ -36,6 +36,12 @@ interface ImageStageProps {
   stageId: string;
   /** §1.2: one stage, two modes. Explore and Refine are not separate stages. */
   mode: "explore" | "refine";
+  /**
+   * Which Explore slot Refine is working on, from the stage row. This used to
+   * be inferred from the current "selected" take — which is why entering
+   * Refine had to WRITE one, un-picking the chosen image (doc 40 P0.1).
+   */
+  modeSlotKey: string | null;
   /** Every take on this stage, so the deck can show a slot's history. */
   takes: StageTake[];
   locked: boolean;
@@ -137,7 +143,7 @@ function MediumSwitch({
   );
 }
 
-export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged }: ImageStageProps) {
+export function ImageStage({ creativeId, stageId, mode, modeSlotKey, takes, locked, onChanged }: ImageStageProps) {
   const [medium, setMedium] = useState<"image" | "motion">("image");
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -167,9 +173,10 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
   }, [load]);
 
   /**
-   * Which Explore slot Refine is working on. Recorded as a take in the
-   * "selected" slot, so the choice has its own history rather than being a
-   * field that the last write wins.
+   * The PICKED slot — the current "selected" take, which since 0042 always
+   * carries the image it points at. Used to mark the tile that is in use.
+   * The refine target is `modeSlotKey` from the stage row, a separate fact:
+   * looking closer at a take must never change which one the post uses.
    */
   const selectedSlotKey = (() => {
     const sel = takes.find((t) => t.slotKey === "selected" && t.isCurrent);
@@ -286,7 +293,7 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
     );
   }
 
-  if (mode === "refine" && selectedSlotKey) {
+  if (mode === "refine" && modeSlotKey) {
     return (
       <div className="space-y-4">
         <div className="mx-auto max-w-5xl px-6 pt-6">
@@ -295,7 +302,7 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
       <RefineDeck
         creativeId={creativeId}
         stageId={stageId}
-        slotKey={selectedSlotKey}
+        slotKey={modeSlotKey}
         takes={takes}
         locked={locked}
         onChanged={onChanged}

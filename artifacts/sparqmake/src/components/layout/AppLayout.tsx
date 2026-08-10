@@ -17,7 +17,15 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div className="flex flex-1 min-h-0">
         <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
         <main className="flex-1 relative flex flex-col min-w-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-background">
-          <AnimatePresence mode="wait">
+          {/*
+            initial={false}: no entrance animation on the FIRST mount. On a cold
+            load the main thread is busy booting modules, the 0.2s fade stalls
+            mid-frame, and the whole app sits at half opacity looking clickable
+            while nothing is wired yet — the "dimmed dead window" that ate three
+            inputs in doc 40's walk (P1.5). Route CHANGES still crossfade; by
+            then the app is warm and 0.2s means 0.2s.
+          */}
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={location}
               initial={{ opacity: 0, y: 10 }}

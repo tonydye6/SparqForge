@@ -38,6 +38,8 @@ interface Preview {
   blocked: string[];
   warnings: string[];
   variants: PlannedVariant[];
+  /** Shipped, and re-shipping would change nothing: show the exit, not "update". */
+  inSync?: boolean;
 }
 
 export function ShipBar({
@@ -130,7 +132,12 @@ export function ShipBar({
                   </span>
                 )}
               </p>
-              <Link href="/pipeline">
+              {/*
+                Carries the creative: the Pipeline opens its schedule dialog for
+                THIS post instead of dropping the user on a generic week view to
+                go find their own work again (doc 40 P1.6).
+              */}
+              <Link href={`/pipeline?focus=${creativeId}`}>
                 <a className="inline-flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-cyber-teal hover:underline" data-testid="link-pipeline">
                   Schedule it in the Pipeline <ArrowRight size={9} />
                 </a>
@@ -142,6 +149,23 @@ export function ShipBar({
               {preview.blocked.map((b, i) => (
                 <p key={i} className="text-[12px] leading-relaxed text-rebel-pink">{b}</p>
               ))}
+            </>
+          ) : preview.inSync ? (
+            <>
+              {/*
+                Shipped, and nothing since would change it. This state used to
+                exist only in the client session that pressed Ship: one reload
+                and the exit was gone, replaced by "Ready to update" for
+                content that was already identical (doc 40 P1.9).
+              */}
+              <p className="text-[12.5px] text-foreground">
+                {preview.variants.length === 1 ? "One channel version is" : `${preview.variants.length} channel versions are`} ready to schedule.
+              </p>
+              <Link href={`/pipeline?focus=${creativeId}`}>
+                <a className="inline-flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-cyber-teal hover:underline" data-testid="link-pipeline-insync">
+                  Schedule it in the Pipeline <ArrowRight size={9} />
+                </a>
+              </Link>
             </>
           ) : (
             <>
@@ -166,7 +190,7 @@ export function ShipBar({
           {error && <p className="text-[12px] text-rebel-pink">{error}</p>}
         </div>
 
-        {canWrite && ready && !shipped && (
+        {canWrite && ready && !shipped && !preview.inSync && (
           <button
             onClick={() => void ship()}
             disabled={shipping}
