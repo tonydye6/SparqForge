@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, cn } from "@/lib/utils";
+import { useChannels } from "@/hooks/useChannels";
 
 /**
  * Stage 04 · Copy.
@@ -24,7 +25,12 @@ import { apiFetch, cn } from "@/lib/utils";
  *      model, a note to you
  */
 
-const PLATFORM_ORDER = ["instagram_feed", "twitter", "linkedin", "tiktok"] as const;
+/*
+ * The channel list used to live here, hardcoded, and stage 05 hardcoded a
+ * different one while stage 01 read the brand's connected accounts. Three
+ * surfaces, three answers, on the same post: this stage offered LinkedIn copy
+ * to a brand with no LinkedIn account. It now asks, like everything else.
+ */
 
 interface CopyStageProps {
   creativeId: string;
@@ -91,6 +97,8 @@ function voiceNotes(text: string, banned: string[]): string[] {
 }
 
 export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSaved }: CopyStageProps) {
+  const { channels: resolved, emptyReason } = useChannels(creativeId);
+  const platformOrder = useMemo(() => (resolved ?? []).map((c) => c.platform), [resolved]);
   const [hook, setHook] = useState("");
   const [base, setBase] = useState("");
   const [channels, setChannels] = useState<Record<string, ChannelState>>({});
@@ -175,7 +183,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
       }
       setChannels((prev) => {
         const next = { ...prev };
-        for (const p of PLATFORM_ORDER) {
+        for (const p of platformOrder) {
           // A version you typed is never overwritten by a draft.
           if (next[p]?.authored) continue;
           const d = drafted[p];
@@ -229,8 +237,8 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
 
   const baseStale = derivedFrom !== "" && derivedFrom !== base;
   const offerable = useMemo(
-    () => PLATFORM_ORDER.filter((p) => channels[p] && !channels[p].authored),
-    [channels],
+    () => platformOrder.filter((p) => channels[p] && !channels[p].authored),
+    [channels, platformOrder],
   );
   const baseNotes = voiceNotes(base, banned);
 
@@ -332,10 +340,18 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
         </div>
       )}
 
+      {/*
+        A brand with no connected account gets the sentence rather than an
+        empty grid, because "no channels" and "still loading" look identical
+        otherwise and only one of them is worth acting on.
+      */}
+      {emptyReason && <p className="text-[12.5px] leading-relaxed text-rebel-pink">{emptyReason}</p>}
+
       {/* Per channel: adapted, not truncated, with the real limit on screen. */}
       <div className="grid gap-3 sm:grid-cols-2">
-        {PLATFORM_ORDER.map((platform) => {
-          const rule = RULES[platform]!;
+        {platformOrder.map((platform) => {
+          const rule = RULES[platform];
+          if (!rule) return null;
           const st = channels[platform] ?? { caption: "", hashtags: "", authored: false };
           const chars = charCount(st.caption);
           const state = fitState(chars, rule.caption);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, cn } from "@/lib/utils";
+import { useChannels } from "@/hooks/useChannels";
 
 /**
  * Stage 05 · Channel crops. NOT resizing.
@@ -11,9 +12,14 @@ import { apiFetch, cn } from "@/lib/utils";
  * you can move, and anything colliding is flagged before it ships rather than
  * after.
  *
- * One focal point drives all four frames, so nudging is one gesture rather than
- * four. This is also where the Pipeline's ×N badge comes from: one creative, N
+ * One focal point drives every frame, so nudging is one gesture rather than N.
+ * This is also where the Pipeline's ×N badge comes from: one creative, N
  * channel outputs.
+ *
+ * The channels are the ones the brand can actually publish to, resolved from
+ * its connected accounts. They used to be a hardcoded four here and a DIFFERENT
+ * hardcoded four in stage 04, which is how a post ended up with LinkedIn copy
+ * it could never send and a Story crop nothing had written copy for.
  */
 
 interface CropStageProps {
@@ -75,6 +81,7 @@ function underSafe(p: Focal, a: SafeArea): boolean {
 }
 
 export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook, onSaved }: CropStageProps) {
+  const { channels: resolved, emptyReason } = useChannels(creativeId);
   const [focal, setFocal] = useState<Focal>(DEFAULT_FOCAL);
   const [sourceAspect, setSourceAspect] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -104,9 +111,35 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
     return () => { cancelled = true; };
   }, [creativeId, stageId]);
 
+  /**
+   * The channels this brand can actually publish to, in place of every channel
+   * this component happens to know about.
+   *
+   * A connected channel whose furniture nobody has mapped still gets a frame
+   * and an honest line, rather than being dropped: showing four placements
+   * when the brand publishes to three, and hiding a fourth it does publish to,
+   * is how this stage and stage 04 came to disagree in the first place.
+   */
+  const targets = useMemo(() => {
+    if (!resolved) return [] as Target[];
+    const known = new Map(TARGETS.map((t) => [t.platform, t]));
+    return resolved.map((channel) => {
+      const mapped = known.get(channel.platform);
+      if (mapped) return mapped;
+      const [w, h] = channel.aspectLabel.split(":").map(Number);
+      return {
+        platform: channel.platform,
+        label: channel.label,
+        aspect: w && h ? w / h : 1,
+        aspectLabel: channel.aspectLabel,
+        safeAreas: [],
+      } satisfies Target;
+    });
+  }, [resolved]);
+
   const plans = useMemo(
     () =>
-      TARGETS.map((target) => {
+      targets.map((target) => {
         const rect = cropRect(sourceAspect, target.aspect, focal);
         const framedFocal = inFrame(focal, rect);
         const warnings: string[] = [];
@@ -118,9 +151,9 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
             if (underSafe(HOOK_ANCHOR, a)) warnings.push(`The hook sits under ${a.what}. It will reflow higher for this channel.`);
           }
         }
-        return { target, rect, warnings };
+        return { target, rect, warnings, furnitureMapped: resolved?.find((c) => c.platform === target.platform)?.furnitureMapped ?? true };
       }),
-    [focal, sourceAspect, hook],
+    [focal, sourceAspect, hook, targets, resolved],
   );
 
   const totalWarnings = plans.reduce((n, p) => n + p.warnings.length, 0);
@@ -199,13 +232,21 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
         </div>
       </div>
 
+      {emptyReason && <p className="text-[12.5px] leading-relaxed text-rebel-pink">{emptyReason}</p>}
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {plans.map(({ target, rect, warnings }) => (
+        {plans.map(({ target, rect, warnings, furnitureMapped }) => (
           <div key={target.platform} className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-2">
               <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">{target.label}</p>
               <span className="font-mono text-[9px] text-dim">{target.aspectLabel}</span>
             </div>
+            {!furnitureMapped && (
+              <p className="text-[10.5px] leading-relaxed text-dim">
+                This channel's on-screen furniture is not mapped, so the frame is right but nothing
+                here is checked for cover-up.
+              </p>
+            )}
 
             {/* The frame, with the platform's furniture drawn over it. */}
             <div
