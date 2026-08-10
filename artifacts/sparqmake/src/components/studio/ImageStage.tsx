@@ -364,77 +364,73 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
         */}
       </div>
 
-      {/* Axis A header. The grid is only legible if the axis is labelled above it. */}
-      <div className="space-y-1.5">
-        <div className="flex items-baseline gap-2">
-          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-dim">
-            Across · {plan.axes.a.name}
-          </p>
-          <span className="h-px flex-1 bg-border" />
+      {/*
+        THE GRID IS PICTURES; THE INSPECTOR IS WORDS.
+
+        The previous form labelled the grid three ways at once — column heads,
+        row labels, an "Off brief" badge in the cell — and Tony red-penned all
+        of it, twice: first the jargon keys, then the plain-language heads that
+        replaced them. Any words near the thumbnails are noise. So the tiles
+        carry nothing but state-as-material (§1.8): dashed = not made, image =
+        made, gold edge = past the brief, pink edge = did not render, teal =
+        in use. Hovering or focusing a tile points the inspector at it, and the
+        inspector holds ALL the words: the position in plain language, the
+        directive the director wrote for that cell, and the actions.
+      */}
+      <div className="flex items-start gap-4">
+        <div
+          className="grid flex-1 gap-2 rounded-sm bg-surround p-2"
+          style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+        >
+          {plan.axes.b.positions.map((rowPos, rowIndex) =>
+            plan.takes
+              .filter((t) => t.row === rowIndex)
+              .map((t) => {
+                const o = outcomeFor(t.id);
+                return (
+                  <button
+                    key={t.id}
+                    onMouseEnter={() => setHovered(t.id)}
+                    onFocus={() => setHovered(t.id)}
+                    aria-label={`${t.axisA.label}, ${t.axisB.label}${t.offBrief ? ", past the brief" : ""}${o?.ok ? "" : o ? ", did not render" : ", not made yet"}`}
+                    className={cn(
+                      "relative aspect-square min-w-0 overflow-hidden rounded-sm border transition-colors",
+                      // The material vocabulary, one edge at a time.
+                      o?.ok
+                        ? t.offBrief
+                          ? "border-victory-gold/60"
+                          : "border-border"
+                        : o
+                          ? "border-rebel-pink/60"
+                          : t.offBrief
+                            ? "border-dashed border-victory-gold/40"
+                            : "border-dashed border-border",
+                      usedSlotKey === t.id && "border-solid border-grit-teal",
+                      hovered === t.id && "border-solid border-cyber-teal",
+                    )}
+                    // The gutter where the spread stops honouring the brief. A
+                    // gap is content-independent, so it survives the tiles
+                    // filling with images where a border style would vanish.
+                    style={t.col === firstDeparture && t.col > 0 ? { marginLeft: 10 } : undefined}
+                  >
+                    {o?.ok && o.imageUrl && (
+                      <img src={o.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    )}
+                  </button>
+                );
+              }),
+          )}
         </div>
 
-        <div className="grid gap-2 rounded-sm bg-surround p-2" style={{ gridTemplateColumns: `88px repeat(${cols}, minmax(0, 1fr))` }}>
-          {/* Corner spacer, then the column labels. */}
-          <div />
-          {plan.axes.a.positions.map((p, i) => (
-            <p
-              key={p.key}
-              className={cn(
-                "px-0.5 font-mono text-[9px] uppercase tracking-[0.06em]",
-                p.departure ? "text-foreground" : "text-dim",
-                i === firstDeparture && i > 0 && "border-l border-border pl-2.5",
-              )}
-            >
-              {p.label}
-            </p>
-          ))}
-
-          {plan.axes.b.positions.map((rowPos, rowIndex) => (
-            <FragmentRow
-              key={rowPos.key}
-              rowLabel={rowPos.label}
-              rowDeparture={rowPos.departure}
-              takes={plan.takes.filter((t) => t.row === rowIndex)}
-              firstDeparture={firstDeparture}
-              outcomeFor={outcomeFor}
-              onUse={(k) => void useTake(k)}
-              usedSlotKey={usedSlotKey}
-              onRefine={enterRefine}
-              canRefine={!locked && !switching}
-              hovered={hovered}
-              setHovered={setHovered}
-            />
-          ))}
-        </div>
-
-        <div className="flex items-baseline gap-2">
-          <span className="h-px w-[88px] bg-border" />
-          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-dim">
-            Down · {plan.axes.b.name}
-          </p>
-        </div>
+        <SpreadInspector
+          take={plan.takes.find((x) => x.id === (hovered ?? usedSlotKey)) ?? plan.takes[0] ?? null}
+          outcomeFor={outcomeFor}
+          usedSlotKey={usedSlotKey}
+          onUse={(k) => void useTake(k)}
+          onRefine={enterRefine}
+          canAct={!locked && !switching}
+        />
       </div>
-
-      {/* Why a take is flagged, shown for the hovered cell rather than crammed in it. */}
-      {hovered && (
-        <p className="rounded-sm border border-border/60 bg-card px-3.5 py-2.5 text-[11.5px] leading-relaxed text-muted-foreground">
-          {(() => {
-            const t = plan.takes.find((x) => x.id === hovered);
-            if (!t) return null;
-            return (
-              <>
-                <span className="text-foreground">
-                  {t.axisA.label} · {t.axisB.label}
-                </span>{" "}
-                {t.directive}.
-                {t.offBrief && (
-                  <span className="text-foreground"> {t.offBrief.reason}</span>
-                )}
-              </>
-            );
-          })()}
-        </p>
-      )}
 
       <div className="flex flex-wrap items-center gap-3 rounded-sm border border-border/60 bg-card px-3.5 py-2.5">
         <div className="space-y-0.5">
@@ -542,149 +538,90 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
   );
 }
 
-/** One grid row: the axis-B label, then that row's takes. */
-function FragmentRow({
-  rowLabel,
-  rowDeparture,
-  takes,
-  firstDeparture,
+/**
+ * The inspector. All the words the grid refuses to carry.
+ *
+ * Follows hover and keyboard focus, and stays on the last take pointed at
+ * rather than blinking away on mouseleave: an inspector that vanishes the
+ * moment you travel toward its buttons is a trap, and the sticky form is also
+ * what lets the actions live here instead of crowding every tile.
+ */
+function SpreadInspector({
+  take,
   outcomeFor,
-  onUse,
   usedSlotKey,
+  onUse,
   onRefine,
-  canRefine,
-  hovered,
-  setHovered,
+  canAct,
 }: {
-  rowLabel: string;
-  rowDeparture: boolean;
-  takes: ExploreTake[];
-  firstDeparture: number;
+  take: ExploreTake | null;
   outcomeFor: (takeId: string) => TakeOutcome | null;
-  onUse: (slotKey: string) => void;
   usedSlotKey: string | null;
+  onUse: (slotKey: string) => void;
   onRefine: (slotKey: string) => void;
-  canRefine: boolean;
-  hovered: string | null;
-  setHovered: (id: string | null) => void;
+  canAct: boolean;
 }) {
+  if (!take) return null;
+  const o = outcomeFor(take.id);
+
   return (
-    <>
-      <p
-        className={cn(
-          "self-center pr-1 font-mono text-[9px] uppercase tracking-[0.06em]",
-          rowDeparture ? "text-foreground" : "text-dim",
-        )}
-      >
-        {rowLabel}
+    <aside
+      className="w-[340px] shrink-0 overflow-hidden rounded-sm border border-grit-teal/60 bg-card"
+      data-testid="spread-inspector"
+      aria-live="polite"
+    >
+      <p className="border-b border-border/60 px-3.5 py-2 font-mono text-[9px] uppercase tracking-[0.08em] text-cyber-teal">
+        {take.axisA.label} × {take.axisB.label}
+        {take.offBrief && <span className="text-victory-gold"> · past the brief, on purpose</span>}
       </p>
-      {takes.map((t) => (
-        <button
-          key={t.id}
-          onMouseEnter={() => setHovered(t.id)}
-          onMouseLeave={() => setHovered(null)}
-          onFocus={() => setHovered(t.id)}
-          onBlur={() => setHovered(null)}
-          aria-label={`${t.axisA.label}, ${t.axisB.label}${t.offBrief ? ", off brief" : ""}`}
-          className={cn(
-            // Planned state per §1.8: dashed, no image, because nothing exists yet.
-            // min-w-0 lets the cell shrink inside the grid track instead of
-            // pushing its own contents over the neighbouring column.
-            "relative flex aspect-[4/3] min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-dashed p-2 text-left transition-colors",
-            // Departures sit on the raised ground. Material rather than colour,
-            // per §1.8, because off-brief is a property of the plan and not one
-            // of the seven states, so it has no hue of its own to spend.
-            t.offBrief ? "bg-raised" : "bg-transparent",
-            hovered === t.id ? "border-grit-teal bg-grit-teal/5" : "border-border",
-          )}
-          // A wider gutter at the crossing point. A gap is content-independent,
-          // so unlike the ground lift or the border style it still separates the
-          // two halves once these tiles contain generated images.
-          style={t.col === firstDeparture && t.col > 0 ? { marginLeft: 10 } : undefined}
-        >
-          {/*
-            No axis label in here. It would repeat the column header above and the
-            row label beside, in every single cell, and at this column width the
-            repeat is what pushed the off-brief badge over the next tile. The
-            headers carry the position; the cell carries only what is true of this
-            cell alone. Screen readers still get both, from aria-label.
-          */}
-          <div className="relative z-10 flex min-w-0 justify-end">
-            {t.offBrief && (
-              <span
-                className="flex min-w-0 items-center gap-0.5 rounded-sm border border-muted-foreground/50 bg-surround px-1 py-px font-mono text-[7px] uppercase tracking-[0.06em] text-muted-foreground"
-                title={t.offBrief.reason}
-              >
-                {/*
-                  No warning icon. A departure is a deliberate, valid choice and
-                  often the best take on the board; a caution triangle would tell
-                  the user it is a problem, which is the opposite of §1.17's point
-                  in flagging it at all.
-                */}
-                <span className="truncate">Off brief</span>
-              </span>
-            )}
+
+      <div className="aspect-square bg-surround">
+        {o?.ok && o.imageUrl ? (
+          <img src={o.imageUrl} alt={`${take.axisA.label}, ${take.axisB.label}`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <span className={cn("font-mono text-[9px] uppercase tracking-[0.08em]", o && !o.ok ? "text-rebel-pink" : "text-dim")}>
+              {o && !o.ok ? "Did not render · run again retries it" : "Not made yet"}
+            </span>
           </div>
-          {(() => {
-            const o = outcomeFor(t.id);
-            if (o?.ok && o.imageUrl) {
-              return (
-                <>
-                  <img
-                    src={o.imageUrl}
-                    alt=""
-                    className="absolute inset-0 h-full w-full rounded-sm object-cover"
-                  />
-                  <div className="relative z-10 flex self-start gap-1">
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); if (canRefine) onRefine(t.id); }}
-                      onKeyDown={(e) => { if (e.key === "Enter" && canRefine) { e.stopPropagation(); onRefine(t.id); } }}
-                      className="rounded-sm border border-border bg-surround px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
-                    >
-                      Refine
-                    </span>
-                    {/*
-                      The way forward. Until this existed there was none: stage 03
-                      could produce eight takes and the spine still called it
-                      empty, with nothing downstream told which one won.
-                    */}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => { e.stopPropagation(); onUse(t.id); }}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onUse(t.id); } }}
-                      className={cn(
-                        "rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] hover-elevate",
-                        usedSlotKey === t.id
-                          ? "border-grit-teal/60 bg-surround text-grit-teal"
-                          : "border-border bg-surround text-muted-foreground",
-                      )}
-                    >
-                      {usedSlotKey === t.id ? "In use" : "Use this"}
-                    </span>
-                  </div>
-                </>
-              );
-            }
-            if (o && !o.ok) {
-              // §1.14: say what it affects. The tile stays in place so the grid
-              // does not silently reshape around a missing take.
-              return (
-                <span className="line-clamp-3 font-mono text-[8px] uppercase leading-tight tracking-[0.06em] text-rebel-pink">
-                  Did not render
-                </span>
-              );
-            }
-            return (
-              <span className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
-                Not made yet
-              </span>
-            );
-          })()}
-        </button>
-      ))}
-    </>
+        )}
+      </div>
+
+      <div className="space-y-2 px-3.5 py-3">
+        <p className="font-mono text-[8.5px] uppercase tracking-[0.1em] text-grit-teal">What drives this take</p>
+        <p className="text-[12px] leading-relaxed text-muted-foreground">
+          {take.directive}.
+          {take.offBrief && <span className="text-foreground"> {take.offBrief.reason}</span>}
+        </p>
+        {o?.ok && (
+          <div className="flex items-center gap-2 pt-1">
+            <span className="flex-1" />
+            <button
+              onClick={() => canAct && onRefine(take.id)}
+              disabled={!canAct}
+              className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+              data-testid="inspector-refine"
+            >
+              Refine
+            </button>
+            {/*
+              The way forward. Until this existed there was none: stage 03
+              could produce eight takes and the spine still called it empty,
+              with nothing downstream told which one won.
+            */}
+            <button
+              onClick={() => onUse(take.id)}
+              className={cn(
+                "rounded-sm border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate",
+                usedSlotKey === take.id ? "border-grit-teal text-grit-teal" : "border-grit-teal text-cyber-teal",
+              )}
+              data-testid="inspector-use"
+            >
+              {usedSlotKey === take.id ? "In use" : "Use this"}
+            </button>
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }
