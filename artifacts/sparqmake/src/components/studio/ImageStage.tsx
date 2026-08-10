@@ -42,6 +42,8 @@ interface ImageStageProps {
    * Refine had to WRITE one, un-picking the chosen image (doc 40 P0.1).
    */
   modeSlotKey: string | null;
+  /** For Refine's `@` picker; mentions are brand-scoped. */
+  brandId: string | null;
   /** Every take on this stage, so the deck can show a slot's history. */
   takes: StageTake[];
   locked: boolean;
@@ -143,7 +145,7 @@ function MediumSwitch({
   );
 }
 
-export function ImageStage({ creativeId, stageId, mode, modeSlotKey, takes, locked, onChanged }: ImageStageProps) {
+export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, takes, locked, onChanged }: ImageStageProps) {
   const [medium, setMedium] = useState<"image" | "motion">("image");
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -283,12 +285,25 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, takes, lock
    * stop existing because the image plan is loading.
    */
   if (medium === "motion") {
+    const pickPayload = takes.find((t) => t.slotKey === "selected" && t.isCurrent)?.payload as
+      | { imageUrl?: string }
+      | undefined;
+    const motionPayload = takes.find((t) => t.slotKey === "motion" && t.isCurrent)?.payload as
+      | { videoUrl?: string; sourceImageUrl?: string; instruction?: string | null; durationSeconds?: number }
+      | undefined;
     return (
       <div>
         <div className="mx-auto max-w-5xl px-6 pt-6">
           <MediumSwitch medium={medium} onChange={setMedium} />
         </div>
-        <MotionPanel creativeId={creativeId} />
+        <MotionPanel
+          creativeId={creativeId}
+          stageId={stageId}
+          pickImageUrl={typeof pickPayload?.imageUrl === "string" ? pickPayload.imageUrl : null}
+          motionTake={motionPayload?.videoUrl ? motionPayload : null}
+          locked={locked}
+          onChanged={onChanged}
+        />
       </div>
     );
   }
@@ -302,10 +317,14 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, takes, lock
       <RefineDeck
         creativeId={creativeId}
         stageId={stageId}
+        brandId={brandId}
         slotKey={modeSlotKey}
         takes={takes}
         locked={locked}
         onChanged={onChanged}
+        // A refined take a person is happy with must be one press from being
+        // THE pick — the same full-render pick the inspector's Use this runs.
+        onUse={() => void useTake(modeSlotKey)}
       />
       </div>
     );
@@ -472,7 +491,22 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, takes, lock
             )}
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {/*
+            The picked take's path into Refine, standing beside the run button
+            instead of hidden in the hover inspector — doc 40 P0.3's second
+            half: the affordance existed and nothing announced it.
+          */}
+          {selectedSlotKey && !locked && (
+            <button
+              onClick={() => void enterRefine(selectedSlotKey)}
+              disabled={switching}
+              className="rounded-sm border border-grit-teal px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+              data-testid="button-refine-pick"
+            >
+              Refine the pick
+            </button>
+          )}
           <button
             onClick={() => void runSpread()}
             disabled={locked || running}

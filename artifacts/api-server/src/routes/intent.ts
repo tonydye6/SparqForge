@@ -1,9 +1,10 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
-import { db, brandsTable, socialAccountsTable } from "@workspace/db";
+import { db, brandsTable, costLogsTable, socialAccountsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { AI_MODELS } from "../lib/ai-config.js";
+import { AI_MODELS, estimateClaudeTextCost } from "../lib/ai-config.js";
+import { buildCostRow } from "../services/cost-recording.js";
 import { validateRequest } from "../middleware/validate.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { extractJSON } from "../lib/extract-json.js";
@@ -212,6 +213,27 @@ Respond with ONLY JSON, no markdown and no code fence:
           },
         ],
       });
+
+      /*
+       * The money is spent whether or not the JSON parses, so the row is
+       * written before the parse. Intake fires per debounced keystroke pause,
+       * and each firing is a real Sonnet call — the ledger should say so
+       * (doc 39 §5.1: the whole v2 text layer was unmetered). Best effort:
+       * a failed insert never fails the intake.
+       */
+      try {
+        await db.insert(costLogsTable).values(buildCostRow({
+          service: "anthropic",
+          operation: "brief_intake",
+          model: AI_MODELS.CLAUDE_SONNET,
+          costUsd: estimateClaudeTextCost(),
+          brandId: brandId ?? null,
+          inputTokens: message.usage?.input_tokens ?? null,
+          outputTokens: message.usage?.output_tokens ?? null,
+        }));
+      } catch (err) {
+        console.error("Cost row for brief_intake could not be written", err);
+      }
 
       const raw = message.content[0]?.type === "text" ? message.content[0].text : "";
       const parsed = IntakeSchema.safeParse(extractJSON(raw));

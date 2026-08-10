@@ -209,7 +209,20 @@ export async function collectApprovalsCases(): Promise<CaseResult[]> {
     // The rule that keeps the badge meaningful.
     const forChase = approvalStatus(open, "chase", "editor");
     check("you are not blocked by your own request", !forChase.needsYou, forChase);
-    check("and it says who it is waiting on", /waiting on someone else/.test(forChase.summary));
+    // A requester who can ALSO decide reads both truths: it used to say
+    // "waiting on someone else" directly above live Approve buttons.
+    check(
+      "and a decide-capable asker is told they may decide it themselves",
+      /you can decide it yourself/.test(forChase.summary),
+      forChase.summary,
+    );
+    // A requester who genuinely cannot decide keeps the old sentence.
+    const forChaseAsViewer = approvalStatus(open, "chase", "viewer");
+    check(
+      "an asker with no decide power is told it waits on someone else",
+      /waiting on someone else/.test(forChaseAsViewer.summary),
+      forChaseAsViewer.summary,
+    );
 
     const forViewer = approvalStatus(open, "jan", "viewer");
     check("a viewer is never 'needs you'", !forViewer.needsYou);

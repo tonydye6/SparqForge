@@ -119,6 +119,15 @@ async function load(creativeId: string): Promise<Loaded | null> {
   const imagePayload = currentPayload(takes, idOf("asset"), "selected") as { imageUrl?: unknown } | null;
   const copyPayload = currentPayload(takes, idOf("copy"), "copy") as ShipCopy | null;
   const cropsPayload = currentPayload(takes, idOf("crops"), "crops") as { focal?: unknown } | null;
+  /*
+   * Stage 03's motion take, if one exists. Carried onto every channel version
+   * ONLY when it was animated from the still being shipped: a clip made from
+   * an earlier pick is a different picture wearing the same post, and shipping
+   * it silently is the lineage failure the Motion panel exists to name.
+   */
+  const motionPayload = currentPayload(takes, idOf("asset"), "motion") as
+    | { videoUrl?: unknown; sourceImageUrl?: unknown }
+    | null;
 
   const existingVariants = await db
     .select({
@@ -131,6 +140,7 @@ async function load(creativeId: string): Promise<Loaded | null> {
       caption: creativeVariantsTable.caption,
       hookText: creativeVariantsTable.hookText,
       compositedImageUrl: creativeVariantsTable.compositedImageUrl,
+      videoUrl: creativeVariantsTable.videoUrl,
       focalX: creativeVariantsTable.focalX,
       focalY: creativeVariantsTable.focalY,
     })
@@ -144,12 +154,22 @@ async function load(creativeId: string): Promise<Loaded | null> {
 
   const focal = (cropsPayload?.focal ?? null) as ShipCrops["focal"] | null;
 
+  const stillUrl = typeof imagePayload?.imageUrl === "string" ? imagePayload.imageUrl : null;
+  const motionUrl = typeof motionPayload?.videoUrl === "string" ? motionPayload.videoUrl : null;
+  const motionSource = typeof motionPayload?.sourceImageUrl === "string" ? motionPayload.sourceImageUrl : null;
+
   return {
     creative,
     channels: resolveChannels(accounts, creative.brandId),
-    image: typeof imagePayload?.imageUrl === "string" ? { imageUrl: imagePayload.imageUrl } : null,
+    image: stillUrl ? { imageUrl: stillUrl } : null,
     copy: copyPayload && typeof copyPayload === "object" ? copyPayload : null,
     crops: focal && typeof focal.x === "number" && typeof focal.y === "number" ? { focal } : null,
+    /** The clip that ships with the still, or the reason one did not. */
+    motion: motionUrl
+      ? motionSource === stillUrl
+        ? { videoUrl: motionUrl, stale: false as const }
+        : { videoUrl: motionUrl, stale: true as const }
+      : null,
     existingVariants,
     entries,
   };
@@ -164,11 +184,14 @@ function shape(
     caption: string | null;
     hookText: string | null;
     compositedImageUrl: string | null;
+    videoUrl: string | null;
     focalX: number | null;
     focalY: number | null;
   }> = [],
+  motion: { videoUrl: string; stale: boolean } | null = null,
 ) {
   const byPlatform = new Map(existing.map((e) => [e.platform, e]));
+  const shipVideoUrl = motion && !motion.stale ? motion.videoUrl : null;
   /** Would re-shipping this channel change what is already written? */
   const changed = (v: ShipPlan["variants"][number]): boolean => {
     const e = byPlatform.get(v.platform);
@@ -177,10 +200,19 @@ function shape(
       e.caption !== v.caption ||
       (e.hookText ?? null) !== (v.hookText ?? null) ||
       e.compositedImageUrl !== v.imageUrl ||
+      (e.videoUrl ?? null) !== shipVideoUrl ||
       e.focalX !== v.focalX ||
       e.focalY !== v.focalY
     );
   };
+  // Said before anything is pressed, both ways: the clip that will ride
+  // along, and the clip that will be left behind because the pick moved on.
+  const warnings = [...plan.warnings];
+  if (motion && !motion.stale) {
+    warnings.push("A motion clip ships with every channel version, animated from this still.");
+  } else if (motion?.stale) {
+    warnings.push("A clip exists but was animated from an earlier pick, so it will not ship. Animate the current pick on the Motion tab to carry it.");
+  }
   const variants = plan.variants.map((v) => ({
     platform: v.platform,
     label: v.label,
@@ -195,7 +227,7 @@ function shape(
     // The schedule block is a block like any other, so a caller never has to
     // check two different places to learn whether shipping is possible.
     blocked: scheduleBlock ? [scheduleBlock, ...plan.blocked] : plan.blocked,
-    warnings: plan.warnings,
+    warnings,
     variants,
     /*
      * True when what is shipped IS what the stages currently say. The old
@@ -217,7 +249,7 @@ router.get("/creatives/:creativeId/ship-preview", async (req: Request, res: Resp
       return;
     }
     const plan = planShip(loaded);
-    res.json(shape(plan, shippingBlockedBySchedule(loaded.entries), loaded.existingVariants));
+    res.json(shape(plan, shippingBlockedBySchedule(loaded.entries), loaded.existingVariants, loaded.motion));
   } catch (err) {
     console.error("Failed to preview shipping", err);
     res.status(500).json({ error: "What this would publish could not be worked out." });
@@ -270,6 +302,11 @@ router.post(
       const written = await db.transaction(async (tx) => {
         const out: Array<{ id: string; platform: string; updated: boolean }> = [];
 
+        // Attached only when the clip is THIS still in motion (load() checked
+        // the lineage). A stale clip stays a take on stage 03 and the preview
+        // says why it was left behind.
+        const shipMotion = loaded.motion && !loaded.motion.stale ? loaded.motion.videoUrl : null;
+
         for (const v of plan.variants) {
           const common = {
             platform: v.platform,
@@ -287,7 +324,8 @@ router.post(
             hookRenderMode: v.hookText ? "overlay" : null,
             focalX: v.focalX,
             focalY: v.focalY,
-            mediumType: "image",
+            videoUrl: shipMotion,
+            mediumType: shipMotion ? "motion" : "image",
             status: "generated",
             updatedAt: new Date(),
           };

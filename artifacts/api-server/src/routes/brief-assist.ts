@@ -15,8 +15,33 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
-import { db, brandsTable, designerPersonasTable } from "@workspace/db";
-import { AI_MODELS } from "../lib/ai-config.js";
+import { db, brandsTable, costLogsTable, designerPersonasTable } from "@workspace/db";
+import { AI_MODELS, estimateClaudeTextCost } from "../lib/ai-config.js";
+import { buildCostRow } from "../services/cost-recording.js";
+
+/**
+ * Every model call in this file writes a cost row. "Stateless and writes
+ * nothing" (above) was true of the PRODUCT state and false of the money:
+ * doc 39 §5.1 found the entire v2 text layer — improve, the director
+ * conversation, intake, concepts — spending with no ledger rows at all,
+ * in a product whose thesis is visible cost. Best effort: a failed cost
+ * insert never fails the user's turn.
+ */
+async function recordAssistCost(operation: string, brandId: string, usage?: { input_tokens?: number; output_tokens?: number }) {
+  try {
+    await db.insert(costLogsTable).values(buildCostRow({
+      service: "anthropic",
+      operation,
+      model: AI_MODELS.CLAUDE_SONNET,
+      costUsd: estimateClaudeTextCost(),
+      brandId,
+      inputTokens: usage?.input_tokens ?? null,
+      outputTokens: usage?.output_tokens ?? null,
+    }));
+  } catch (err) {
+    console.error(`Cost row for ${operation} could not be written`, err);
+  }
+}
 import { generationLimiter } from "../lib/rate-limit.js";
 import { validateRequest } from "../middleware/validate.js";
 import {
@@ -69,6 +94,7 @@ router.post(
         max_tokens: 300,
         messages: [{ role: "user", content: buildImprovePrompt(briefText, brand) }],
       });
+      await recordAssistCost("brief_improve", brandId, message.usage);
       const improved = normalizeImprove(firstText(message));
       if (!improved) {
         res.status(502).json({ error: "No usable improvement came back. Try again." });
@@ -142,6 +168,7 @@ router.post(
         system: buildCollabSystem(voice, brand),
         messages: toModelMessages(convo),
       });
+      await recordAssistCost("brief_collab", brandId, message.usage);
 
       let parsed: unknown = null;
       try {
