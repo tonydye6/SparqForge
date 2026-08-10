@@ -28,6 +28,7 @@ import DesignSystem from "@/pages/DesignSystem";
 import BrandRecord from "@/pages/BrandRecord";
 import StudioV2 from "@/pages/StudioV2";
 import SequenceTimeline from "@/pages/SequenceTimeline";
+import { PhoneQueue, PhoneCreative } from "@/pages/Phone";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -132,6 +133,21 @@ function Router() {
         </Route>
         <Route path="/copilot">
           <CopilotRedirect />
+        </Route>
+        {/*
+          Phase 10 item 5 · the phone. Principle 1.15: three capabilities, and
+          nothing else responsive.
+
+          Deliberately OUTSIDE AppLayout. AppLayout is the desktop sidebar, and
+          a 240px rail on a 390px screen is most of the screen. Reflowing the
+          Studio onto a phone would also be claiming a capability that is not
+          there: generating on a phone is not built, and these screens say so.
+        */}
+        <Route path="/m">
+          <PhoneQueue />
+        </Route>
+        <Route path="/m/:creativeId">
+          <PhoneCreative />
         </Route>
         <Route path="/studio">
           <FirstRunGuard>
