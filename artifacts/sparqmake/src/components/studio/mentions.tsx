@@ -35,6 +35,30 @@ export interface AssetOption {
   compositingOnly: boolean | null;
   thumbnailUrl: string | null;
   fileUrl: string | null;
+  generationAllowed?: boolean | null;
+  approvedForCompositing?: boolean | null;
+}
+
+/**
+ * Why this asset cannot be attached, or undefined when it can.
+ *
+ * Mirrors the Co-pilot picker's rule (SessionView.tsx) and, through it,
+ * checkGenerationEligibility on the server — which explore now enforces on
+ * every mention regardless of what a client showed. Found the hard way: this
+ * picker offered crownu_char_female_blue_tennis while the legacy picker
+ * refused her ("Not approved for AI generation" — the Nike swoosh on her
+ * chest), and a spread rendered from an owner-blocked asset.
+ */
+export function ineligibleReasonFor(a: AssetOption): string | undefined {
+  const isMark = Boolean(a.compositingOnly || a.assetClass === "compositing");
+  if (isMark) {
+    if (a.assetClass === "compositing" && a.approvedForCompositing === false) {
+      return "Not approved for logo use";
+    }
+    return undefined;
+  }
+  if (a.generationAllowed === false) return "Not approved for AI generation";
+  return undefined;
 }
 
 /** Mirrors roleForAssetClass on the server, so both ends agree what a pick is. */
@@ -152,6 +176,8 @@ export function useMentions(brandId: string | null): MentionState {
               compositingOnly: a.compositingOnly ?? null,
               thumbnailUrl: a.thumbnailUrl ?? null,
               fileUrl: a.fileUrl ?? null,
+              generationAllowed: a.generationAllowed ?? null,
+              approvedForCompositing: a.approvedForCompositing ?? null,
             })),
         );
       } catch {
@@ -210,6 +236,9 @@ export function useMentions(brandId: string | null): MentionState {
       return false;
     },
     choose: (asset, line, caret) => {
+      // The picker row already says why; refusing here keeps keyboard Enter
+      // honest too. The server gate in explore is the real fence.
+      if (ineligibleReasonFor(asset)) return null;
       const active = picker ?? activeQuery(line, caret);
       if (!active) return null;
       const token = `@${asset.name} `;
@@ -249,30 +278,34 @@ export function MentionPickerList({
             : `Nothing in this brand's library matches "${m.picker.query}".`}
         </p>
       ) : (
-        m.matches.map((a, i) => (
-          <button
-            key={a.id}
-            type="button"
-            role="option"
-            aria-selected={i === m.highlight}
-            onMouseEnter={() => m.setHighlight(i)}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onChoose(a)}
-            className={`flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left ${
-              i === m.highlight ? "bg-grit-teal/15" : ""
-            }`}
-          >
-            {a.thumbnailUrl || a.fileUrl ? (
-              <img src={a.thumbnailUrl || a.fileUrl || ""} alt="" className="h-8 w-8 shrink-0 rounded-sm object-cover" />
-            ) : (
-              <span className="h-8 w-8 shrink-0 rounded-sm border border-border" />
-            )}
-            <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">{a.name}</span>
-            <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
-              {ROLE_LABEL[roleFor(a.assetClass, a.compositingOnly)]}
-            </span>
-          </button>
-        ))
+        m.matches.map((a, i) => {
+          const blocked = ineligibleReasonFor(a);
+          return (
+            <button
+              key={a.id}
+              type="button"
+              role="option"
+              aria-selected={i === m.highlight}
+              aria-disabled={Boolean(blocked)}
+              onMouseEnter={() => m.setHighlight(i)}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { if (!blocked) onChoose(a); }}
+              className={`flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left ${
+                i === m.highlight && !blocked ? "bg-grit-teal/15" : ""
+              } ${blocked ? "cursor-not-allowed opacity-55" : ""}`}
+            >
+              {a.thumbnailUrl || a.fileUrl ? (
+                <img src={a.thumbnailUrl || a.fileUrl || ""} alt="" className="h-8 w-8 shrink-0 rounded-sm object-cover" />
+              ) : (
+                <span className="h-8 w-8 shrink-0 rounded-sm border border-border" />
+              )}
+              <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">{a.name}</span>
+              <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+                {blocked ?? ROLE_LABEL[roleFor(a.assetClass, a.compositingOnly)]}
+              </span>
+            </button>
+          );
+        })
       )}
     </div>
   );
