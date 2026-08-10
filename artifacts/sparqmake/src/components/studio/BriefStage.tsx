@@ -567,7 +567,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
         <p className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-dim">
           {yourWords > 0 ? (
             <>
-              <span data-numeric className="font-mono">{yourWords}</span> {yourWords === 1 ? "word" : "words"} \u00b7 never rewritten
+              <span data-numeric className="font-mono">{yourWords}</span> {yourWords === 1 ? "word" : "words"} {"\u00b7"} never rewritten
             </>
           ) : (
             <>One line is enough {"\u00b7"} @ attaches an asset</>
