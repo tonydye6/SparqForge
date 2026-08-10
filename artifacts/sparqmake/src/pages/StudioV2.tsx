@@ -13,6 +13,7 @@ import { CropStage } from "@/components/studio/CropStage";
 import { BrandContract } from "@/components/studio/BrandContract";
 import { MaterialRail } from "@/components/studio/MaterialRail";
 import { ReviewBar } from "@/components/studio/ReviewBar";
+import { ShipBar } from "@/components/studio/ShipBar";
 import { SavedRunsPanel, SaveRunButton } from "@/components/studio/SavedRuns";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -107,6 +108,12 @@ export default function StudioV2() {
   const [brandId, setBrandId] = useState<string | null>(null);
 
   const [spine, setSpine] = useState<SpineResponse | null>(null);
+  /**
+   * Bumped every time the spine is re-read, which is after every stage save.
+   * The publishing bar watches it, so what it says a post will publish cannot
+   * drift from what the stages currently hold.
+   */
+  const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [preview, setPreview] = useState<ReopenPreview | null>(null);
@@ -120,6 +127,7 @@ export default function StudioV2() {
       if (!res.ok) throw new Error(`Failed to load stages (${res.status})`);
       const body: SpineResponse = await res.json();
       setSpine(body);
+      setRevision((n) => n + 1);
       // Land on the first stage that is not finished, which is where the work
       // actually is, rather than always dropping people on stage 01.
       const next = body.stages.find((s) => s.status !== "done" && s.status !== "locked") ?? body.stages[0];
@@ -435,6 +443,15 @@ export default function StudioV2() {
                 Review Queue was a separate page whose Approve button 400'd by
                 design; dissolving it meant the decision had to land here.
               */}
+              {/*
+                Publishing sits ABOVE the decision, because that is the real
+                order: making the post publishable is what gives a reviewer
+                something to look at per channel. The phone's review screen
+                reads variants, so before this existed it had nothing to show
+                for a v2 post either.
+              */}
+              <ShipBar creativeId={creativeId} revision={revision} />
+
               <ReviewBar
                 creativeId={creativeId}
                 activeStageId={activeStage?.id ?? null}

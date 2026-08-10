@@ -1,7 +1,8 @@
 import { str } from "../lib/http-params.js";
 import { Router, type IRouter } from "express";
 import { eq, and, gte, sql, desc } from "drizzle-orm";
-import { db, creativesTable, creativeVariantsTable, calendarEntriesTable } from "@workspace/db";
+import { db, creativesTable, creativeVariantsTable, calendarEntriesTable, socialAccountsTable } from "@workspace/db";
+import { accountPlatformFor } from "../lib/platform-accounts.js";
 import {
   GetCreativesQueryParams,
   CreateCreativeBody,
@@ -217,12 +218,35 @@ router.post("/creatives/:id/schedule", async (req, res): Promise<void> => {
     return;
   }
 
+  /**
+   * Resolve the account that will actually publish each entry.
+   *
+   * This used to take the account only from the caller's `socialAccounts` map
+   * and write NULL otherwise, which produces entries the publisher can never
+   * send: the retry poll requires a `socialAccountId`, so they fail once and
+   * are never picked up again. `smart-schedule` has resolved accounts through
+   * `accountPlatformFor` since the scheduling batch was fixed; this path did
+   * not, and nothing reached it from the v2 Studio until the ship step existed.
+   * Enabling that path without this would have shipped a known-broken schedule.
+   *
+   * The caller's map still wins where it is given, because a brand with two
+   * accounts on one platform needs somebody to choose.
+   */
+  const connected = await db
+    .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform })
+    .from(socialAccountsTable)
+    .where(and(eq(socialAccountsTable.brandId, campaign.brandId), eq(socialAccountsTable.status, "connected")));
+  const accountByPlatform = new Map(connected.map((a) => [a.platform, a.id]));
+
   const created = [];
   for (const variant of variants) {
     const time = perPlatform?.[variant.platform] || scheduledAt;
     if (!time) continue;
 
-    const socialAccountId = socialAccountsMap?.[variant.platform] || null;
+    const socialAccountId =
+      socialAccountsMap?.[variant.platform]
+      || accountByPlatform.get(accountPlatformFor(variant.platform))
+      || null;
 
     const [entry] = await db.insert(calendarEntriesTable).values({
       creativeId,
