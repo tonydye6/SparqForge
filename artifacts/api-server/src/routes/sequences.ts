@@ -294,6 +294,74 @@ router.post(
   },
 );
 
+/**
+ * Reorder the clips, which is what dragging one does.
+ *
+ * **The two-phase renumber is the whole difficulty.** `(sequence_id, position)`
+ * is unique, so writing the new positions directly collides the moment any clip
+ * moves into a slot another still holds, which is every reorder that is not a
+ * no-op. Positions therefore go to a negative scratch range first, where they
+ * cannot collide with anything, and then to their real values. Both phases are
+ * in one transaction, so a failure cannot leave the sequence half-renumbered.
+ *
+ * The request must name EVERY clip. A partial order would leave the unnamed
+ * ones somewhere nobody chose, and silently deciding where is worse than
+ * refusing.
+ */
+router.patch(
+  "/sequences/:id/clips/order",
+  requireStandardWrite,
+  async (req: Request, res: Response): Promise<void> => {
+    const id = str(req.params.id);
+    const { order } = req.body as { order?: unknown };
+
+    if (!Array.isArray(order) || order.some(v => typeof v !== "string")) {
+      res.status(400).json({ error: "Send `order` as an array of clip ids." });
+      return;
+    }
+    const wanted = order as string[];
+    if (new Set(wanted).size !== wanted.length) {
+      res.status(400).json({ error: "The same clip appears more than once in that order." });
+      return;
+    }
+
+    const existing = await db
+      .select({ id: sequenceClipsTable.id })
+      .from(sequenceClipsTable)
+      .where(eq(sequenceClipsTable.sequenceId, id));
+
+    if (existing.length === 0) {
+      res.status(404).json({ error: "That sequence has no clips to reorder." });
+      return;
+    }
+    const have = new Set(existing.map(c => c.id));
+    if (wanted.length !== have.size || wanted.some(cid => !have.has(cid))) {
+      res.status(400).json({
+        error: "The order has to name every clip in this sequence, and only those clips.",
+      });
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      // Phase 1: park everything out of the way. -1 downwards can never collide
+      // with a real position, which is 0 upwards.
+      for (const [i, clipId] of wanted.entries()) {
+        await tx.update(sequenceClipsTable)
+          .set({ position: -(i + 1) })
+          .where(eq(sequenceClipsTable.id, clipId));
+      }
+      // Phase 2: land them.
+      for (const [i, clipId] of wanted.entries()) {
+        await tx.update(sequenceClipsTable)
+          .set({ position: i })
+          .where(eq(sequenceClipsTable.id, clipId));
+      }
+    });
+
+    res.json({ ok: true, order: wanted });
+  },
+);
+
 router.delete(
   "/sequences/:id/clips/:clipId",
   requireStandardWrite,

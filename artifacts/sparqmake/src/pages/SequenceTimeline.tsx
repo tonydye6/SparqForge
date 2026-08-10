@@ -82,7 +82,26 @@ export default function SequenceTimeline() {
               </span>
             </div>
 
-            <Timeline data={data} />
+            <Timeline
+              data={data}
+              onReorder={async (order) => {
+                setError(null);
+                try {
+                  const resp = await apiFetch(`${API_BASE}/api/sequences/${sequenceId}/clips/order`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ order }),
+                  });
+                  if (!resp.ok) {
+                    const body = await resp.json().catch(() => ({}));
+                    throw new Error(body.error ?? "The clips could not be reordered.");
+                  }
+                  await load();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "The clips could not be reordered.");
+                }
+              }}
+            />
           </div>
         )}
       </div>
