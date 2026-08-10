@@ -95,6 +95,7 @@ function current(takes: readonly BarTake[], stageKind: string, slotKey: string):
 interface MaterialFacts {
   catalogSize: number | null;
   subjectCount: number | null;
+  subjectPinned: boolean;
 }
 
 /**
@@ -103,20 +104,29 @@ interface MaterialFacts {
  * rail about the fact both report. `directorSelections` roles are the honest
  * count; `material.subjectCount` is deliberately not read, for the rail's own
  * documented reason (imagen lanes miscount a logo as a subject).
+ *
+ * `subjectPin` is read alongside, because a director that was HANDED the
+ * subject selects zero of its own on purpose: an `@` mention (or the pin
+ * inherited from the previous run) enters the references as an attachment,
+ * above the director's picks, and the director is explicitly told not to
+ * choose a second subject. Counting only `directorSelections` here fired the
+ * pink card on exactly the sessions doing subject fidelity RIGHT — vc-cr-9's
+ * brief mentioned the character by name and still got accused.
  */
 function materialFactsOf(take: BarTake | null): MaterialFacts {
   const p = take?.payload as
-    | { material?: { catalogSize?: unknown; directorSelections?: unknown } }
+    | { material?: { catalogSize?: unknown; directorSelections?: unknown; subjectPin?: unknown } }
     | null
     | undefined;
   const m = p?.material;
-  if (!m || typeof m !== "object") return { catalogSize: null, subjectCount: null };
+  if (!m || typeof m !== "object") return { catalogSize: null, subjectCount: null, subjectPinned: false };
   const selections = Array.isArray(m.directorSelections)
     ? (m.directorSelections as Array<{ role?: unknown }>)
     : null;
   return {
     catalogSize: typeof m.catalogSize === "number" ? m.catalogSize : null,
     subjectCount: selections ? selections.filter((s) => s.role === "subject").length : null,
+    subjectPinned: Boolean(m.subjectPin && typeof m.subjectPin === "object"),
   };
 }
 
@@ -185,7 +195,7 @@ export function deriveCards(input: BarInput): BarCard[] {
     ? rendered.reduce((a, b) => (a.createdAt > b.createdAt ? a : b))
     : null;
   const material = materialFactsOf(latestRendered);
-  if (material.subjectCount === 0 && (material.catalogSize ?? 0) > 0) {
+  if (material.subjectCount === 0 && !material.subjectPinned && (material.catalogSize ?? 0) > 0) {
     cards.push({
       id: "no-subject-reference",
       saw: "spread rendered · material",

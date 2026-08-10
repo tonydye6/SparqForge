@@ -404,6 +404,23 @@ router.get("/assets/:id", validateRequest({ params: GetAssetParams }), async (re
 });
 
 router.put("/assets/:id", validateRequest({ params: UpdateAssetParams, body: UpdateAssetBody }), async (req, res): Promise<void> => {
+  // The generated body schema types the score columns as any nullish number,
+  // and this route is the one the Asset Library editor actually calls — it is
+  // how 0–1 fractions got written into columns whose contract is 1–5 (the
+  // /metadata route below always validated; this one never did). Same rule
+  // now: 1–5 or null.
+  const putScores = {
+    subjectIdentityScore: req.body.subjectIdentityScore,
+    styleStrengthScore: req.body.styleStrengthScore,
+    freshnessScore: req.body.freshnessScore,
+  };
+  for (const [field, value] of Object.entries(putScores)) {
+    if (value !== undefined && value !== null && (value < 1 || value > 5)) {
+      res.status(400).json({ error: `${field} must be a number between 1 and 5, or null to clear` });
+      return;
+    }
+  }
+
   const updateData: Record<string, unknown> = { ...req.body, updatedAt: new Date() };
 
   if (req.body.status === "approved" && req.body.approvedBy) {
@@ -469,10 +486,12 @@ router.put("/assets/:id/metadata", async (req, res): Promise<void> => {
     return;
   }
 
+  // null is a valid write: it clears a rating back to "never scored", which is
+  // how the editor expresses zero stars. Only numbers outside 1–5 are refused.
   const scoreFields = { subjectIdentityScore, styleStrengthScore, referencePriorityDefault, freshnessScore };
   for (const [field, value] of Object.entries(scoreFields)) {
-    if (value !== undefined && (typeof value !== "number" || value < 1 || value > 5)) {
-      res.status(400).json({ error: `${field} must be a number between 1 and 5` });
+    if (value !== undefined && value !== null && (typeof value !== "number" || value < 1 || value > 5)) {
+      res.status(400).json({ error: `${field} must be a number between 1 and 5, or null to clear` });
       return;
     }
   }

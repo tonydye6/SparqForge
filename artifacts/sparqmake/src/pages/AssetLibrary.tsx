@@ -987,7 +987,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
             <span className="text-xs text-muted-foreground">{new Date(asset.createdAt).toLocaleDateString()}</span>
             {(asset.subjectIdentityScore || asset.styleStrengthScore) ? (
               <StarRating
-                value={Math.round((asset.subjectIdentityScore || asset.styleStrengthScore || 0) * 5)}
+                value={Math.round(asset.subjectIdentityScore || asset.styleStrengthScore || 0)}
                 size={10}
               />
             ) : null}
@@ -1461,9 +1461,12 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
   const [generationRole, setGenerationRole] = useState(asset.generationRole || "");
   const [brandLayer, setBrandLayer] = useState(asset.brandLayer || "");
   const [franchise, setFranchise] = useState(asset.franchise || "");
-  const [subjectScore, setSubjectScore] = useState(Math.round((asset.subjectIdentityScore || 0) * 5));
-  const [styleScore, setStyleScore] = useState(Math.round((asset.styleStrengthScore || 0) * 5));
-  const [freshnessScoreVal, setFreshnessScoreVal] = useState(Math.round((asset.freshnessScore || 0) * 5));
+  // The score columns are 1–5. The old *5 here read them as 0–1, and the
+  // matching /5 on save wrote fractions back — one of the three writers that
+  // put a second scale into these columns (migration 0041 cleaned them up).
+  const [subjectScore, setSubjectScore] = useState(Math.round(asset.subjectIdentityScore || 0));
+  const [styleScore, setStyleScore] = useState(Math.round(asset.styleStrengthScore || 0));
+  const [freshnessScoreVal, setFreshnessScoreVal] = useState(Math.round(asset.freshnessScore || 0));
   const [compositingOnly, setCompositingOnly] = useState(asset.compositingOnly || false);
   const [generationAllowed, setGenerationAllowed] = useState(asset.generationAllowed !== false);
   const [conflictTagsStr, setConflictTagsStr] = useState((asset.conflictTags || []).join(", "));
@@ -1478,9 +1481,9 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
     setGenerationRole(asset.generationRole || "");
     setBrandLayer(asset.brandLayer || "");
     setFranchise(asset.franchise || "");
-    setSubjectScore(Math.round((asset.subjectIdentityScore || 0) * 5));
-    setStyleScore(Math.round((asset.styleStrengthScore || 0) * 5));
-    setFreshnessScoreVal(Math.round((asset.freshnessScore || 0) * 5));
+    setSubjectScore(Math.round(asset.subjectIdentityScore || 0));
+    setStyleScore(Math.round(asset.styleStrengthScore || 0));
+    setFreshnessScoreVal(Math.round(asset.freshnessScore || 0));
     setCompositingOnly(asset.compositingOnly || false);
     setGenerationAllowed(asset.generationAllowed !== false);
     setConflictTagsStr((asset.conflictTags || []).join(", "));
@@ -1494,9 +1497,10 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
       generationRole: generationRole || null,
       brandLayer: brandLayer || null,
       franchise: franchise || null,
-      subjectIdentityScore: subjectScore / 5,
-      styleStrengthScore: styleScore / 5,
-      freshnessScore: freshnessScoreVal / 5,
+      // 0 stars = never rated: send null (clear), not a number the API rejects.
+      subjectIdentityScore: subjectScore >= 1 ? subjectScore : null,
+      styleStrengthScore: styleScore >= 1 ? styleScore : null,
+      freshnessScore: freshnessScoreVal >= 1 ? freshnessScoreVal : null,
       compositingOnly,
       generationAllowed,
       conflictTags: conflictTagsStr.split(",").map(s => s.trim()).filter(Boolean),

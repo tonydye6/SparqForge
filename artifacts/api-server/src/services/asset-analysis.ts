@@ -253,16 +253,21 @@ export async function analyzeAndStoreAsset(assetId: string): Promise<Asset> {
     setIntelligenceField("brandLayer", asset.brandLayer, analysis.brandLayer);
   }
 
+  // Stored on the model's own 1–5 scale — the ONE scale for these columns.
+  // The old `/5` here put 0.2–1.0 in a column every consumer reads as 1–5:
+  // asset-policy's ranking treated an analysis-scored 5 as bottom-of-scale,
+  // so the best identity references were the ones being penalized.
+  // Migration 0041 renormalized the rows this had already written.
   if (analysis.subjectIdentityScore !== null) {
-    setIntelligenceField("subjectIdentityScore", asset.subjectIdentityScore, analysis.subjectIdentityScore / 5);
+    setIntelligenceField("subjectIdentityScore", asset.subjectIdentityScore, analysis.subjectIdentityScore);
   }
 
   if (analysis.styleStrengthScore !== null) {
-    setIntelligenceField("styleStrengthScore", asset.styleStrengthScore, analysis.styleStrengthScore / 5);
+    setIntelligenceField("styleStrengthScore", asset.styleStrengthScore, analysis.styleStrengthScore);
   }
 
   if (analysis.freshnessScore !== null) {
-    setIntelligenceField("freshnessScore", asset.freshnessScore, analysis.freshnessScore / 5);
+    setIntelligenceField("freshnessScore", asset.freshnessScore, analysis.freshnessScore);
   }
 
   // Always pass generationAllowed (true or false) so re-analysis can refresh an AI-suggested
