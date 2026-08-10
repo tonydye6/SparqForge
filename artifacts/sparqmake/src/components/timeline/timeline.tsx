@@ -20,6 +20,7 @@
  * **SFX are hits, not blocks, and they are free.** Tony's call: a whistle rarely
  * lands exactly on a cut, so they are not snapped to clip boundaries.
  */
+import { useState } from "react";
 import { SparqSkull } from "@/components/ui/generation-indicator";
 
 export interface TimelineClip {
@@ -106,7 +107,33 @@ function Ruler({ totalMs }: { totalMs: number }) {
   );
 }
 
-function ClipLane({ clips, totalMs }: { clips: TimelineClip[]; totalMs: number }) {
+function ClipLane({
+  clips,
+  totalMs,
+  onReorder,
+}: {
+  clips: TimelineClip[];
+  totalMs: number;
+  onReorder?: (order: string[]) => void;
+}) {
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+
+  /*
+   * Reordering sends the WHOLE order, not a moved-from/moved-to pair. The
+   * server refuses a partial order, because clips it was not told about would
+   * end up somewhere nobody chose.
+   */
+  const drop = (targetId: string): void => {
+    if (!onReorder || !dragging || dragging === targetId) return;
+    const ids = clips.map(c => c.id).filter(id => id !== dragging);
+    const at = ids.indexOf(targetId);
+    ids.splice(at < 0 ? ids.length : at, 0, dragging);
+    setDragging(null);
+    setOver(null);
+    onReorder(ids);
+  };
+
   return (
     <div className="grid grid-cols-[128px_1fr] border-b border-border">
       <div className="flex flex-col justify-center gap-0.5 border-r border-border bg-card px-3 py-2">
@@ -119,7 +146,16 @@ function ClipLane({ clips, totalMs }: { clips: TimelineClip[]; totalMs: number }
         {clips.map(clip => (
           <div
             key={clip.id}
+            draggable={Boolean(onReorder)}
+            onDragStart={() => setDragging(clip.id)}
+            onDragEnd={() => { setDragging(null); setOver(null); }}
+            onDragOver={e => { if (onReorder) { e.preventDefault(); setOver(clip.id); } }}
+            onDrop={e => { e.preventDefault(); drop(clip.id); }}
             className={`absolute inset-y-1.5 overflow-hidden rounded-sm border ${
+              onReorder ? "cursor-grab active:cursor-grabbing" : ""
+            } ${dragging === clip.id ? "opacity-40" : ""} ${
+              over === clip.id && dragging && dragging !== clip.id ? "ring-1 ring-cyber-teal" : ""
+            } ${
               clip.sourceMissing
                 /* Hatched and pink: it holds its slot but it is not going to
                    play, and the only warning hue in the system says so. */
@@ -255,7 +291,14 @@ function Waveform({ seed }: { seed: string }) {
   );
 }
 
-export function Timeline({ data }: { data: TimelineData }) {
+export function Timeline({
+  data,
+  onReorder,
+}: {
+  data: TimelineData;
+  /** Given the new full order of clip ids. Omit to leave clips undraggable. */
+  onReorder?: (order: string[]) => void;
+}) {
   const totalMs = data.totalDurationMs;
 
   if (data.clips.length === 0 && data.tracks.length === 0) {
@@ -276,7 +319,7 @@ export function Timeline({ data }: { data: TimelineData }) {
           <Ruler totalMs={totalMs} />
         </div>
 
-        <ClipLane clips={data.clips} totalMs={totalMs} />
+        <ClipLane clips={data.clips} totalMs={totalMs} onReorder={onReorder} />
         {data.tracks.map(track => (
           <TrackLane key={track.id} track={track} totalMs={totalMs} />
         ))}

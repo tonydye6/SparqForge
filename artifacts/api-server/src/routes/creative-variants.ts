@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db, creativeVariantsTable, creativesTable, refinementLogsTable, assetPairingsTable } from "@workspace/db";
 import { recordTasteSignal } from "../services/taste-signals.js";
 import { mediaChoices } from "../services/media-pair.js";
+import { buildCaptionTrack } from "../services/captions.js";
 
 const router: IRouter = Router();
 
@@ -49,6 +50,77 @@ router.get("/creatives/:creativeId/media", async (req, res): Promise<void> => {
   } catch {
     res.status(500).json({ error: "Failed to resolve the media for this creative" });
   }
+});
+
+/**
+ * The second text layer, and the subtitle track.
+ *
+ * M4 added `hookText`, `hookRenderMode` and `captionsVtt` to this table and
+ * NOTHING wrote or read any of them. This is what writes them.
+ *
+ * `hookRenderMode` defaults to "overlay" rather than "rendered", because doc 24
+ * §7 says to prefer the overlay path and calls it a default change rather than
+ * a new capability. Rendered typography costs a model call and an OCR check;
+ * the overlay is deterministic, editable afterwards, and free.
+ *
+ * The captions are built from the SAME words-per-minute the composer quotes and
+ * positioned by the SAME safe areas the crop stage uses, so the burned-in track
+ * and the sidecar cannot disagree with either.
+ */
+router.patch("/creative-variants/:id/text", async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const body = req.body as { hookText?: unknown; hookRenderMode?: unknown; script?: unknown };
+
+  const [variant] = await db
+    .select()
+    .from(creativeVariantsTable)
+    .where(eq(creativeVariantsTable.id, id as string));
+  if (!variant) {
+    res.status(404).json({ error: "Variant not found" });
+    return;
+  }
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (typeof body.hookText === "string") {
+    patch.hookText = body.hookText.trim() || null;
+    patch.hookRenderMode =
+      body.hookRenderMode === "rendered" || body.hookRenderMode === "overlay"
+        ? body.hookRenderMode
+        : (variant.hookRenderMode ?? "overlay");
+  }
+
+  let captionSummary: { cues: number; linePercent: number } | null = null;
+  if (typeof body.script === "string") {
+    const script = body.script.trim();
+    if (script.length === 0) {
+      // An empty script clears the track rather than writing an empty file with
+      // a header and no cues, which a player would load and show nothing for.
+      patch.captionsVtt = null;
+    } else {
+      const track = buildCaptionTrack(script, variant.platform);
+      patch.captionsVtt = track.vtt;
+      captionSummary = { cues: track.cues.length, linePercent: track.linePercent };
+    }
+  }
+
+  if (Object.keys(patch).length === 1) {
+    res.status(400).json({ error: "Nothing to change. Send a hook, a script, or both." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(creativeVariantsTable)
+    .set(patch)
+    .where(eq(creativeVariantsTable.id, id as string))
+    .returning({
+      id: creativeVariantsTable.id,
+      hookText: creativeVariantsTable.hookText,
+      hookRenderMode: creativeVariantsTable.hookRenderMode,
+      captionsVtt: creativeVariantsTable.captionsVtt,
+    });
+
+  res.json({ variant: updated, captions: captionSummary });
 });
 
 router.post("/creatives/:creativeId/variants", async (req, res): Promise<void> => {
