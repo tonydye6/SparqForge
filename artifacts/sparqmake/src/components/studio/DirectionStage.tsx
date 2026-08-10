@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { InfoDot } from "./InfoDot";
 
 /**
  * Stage 02 · Direction.
@@ -183,12 +184,10 @@ export function DirectionStage({
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
           Stage 02 · Direction
         </p>
-        <h2 className="font-display text-xl tracking-wide text-foreground">Who directs this one</h2>
-        <p className="max-w-[76ch] text-[12.5px] leading-relaxed text-muted-foreground">
-          A director decides how the work is composed. It never decides what the work is made of, so
-          picking one cannot take this off brand. House style is the baseline the others are a departure
-          from.
-        </p>
+        <h2 className="flex items-center gap-2 font-display text-xl tracking-wide text-foreground">
+          Who directs this one
+          <InfoDot text="A director decides how the work is composed, never what it is made of, so picking one cannot take this off brand. House style is the baseline; the others are departures from it." />
+        </h2>
       </div>
 
       {error && (
@@ -285,13 +284,6 @@ export function DirectionStage({
           );
         })}
       </div>
-
-      {/* §1.10, said out loud. */}
-      <p className="rounded-sm border border-border/60 bg-card px-3.5 py-2.5 text-[11px] leading-relaxed text-dim">
-        No director changes {data.brandOwned.join(", ").toLowerCase()}. Those stay with{" "}
-        {data.brandName ?? "the brand"} whichever card you pick, which is what lets one director work
-        across four brands without flattening them into one.
-      </p>
 
       <div className="flex flex-wrap items-center gap-3 rounded-sm border border-border/60 bg-card px-3.5 py-2.5">
         <p className="text-[11.5px] text-muted-foreground">

@@ -22,7 +22,13 @@ export interface Case {
   detail?: unknown;
 }
 
-const CHANNELS = resolveChannels(["instagram", "twitter"]);
+const CHANNELS = resolveChannels(
+  [
+    { id: "acct-ig", platform: "instagram", accountName: "@sparqgames", brandId: null },
+    { id: "acct-x", platform: "twitter", accountName: "@SparqGames", brandId: null },
+  ],
+  "brand-crown",
+);
 
 function input(over: Partial<ShipInput> = {}): ShipInput {
   return {
@@ -63,6 +69,11 @@ export function collectShipCases(): Case[] {
     check("the chosen picture is carried to every channel", plan.variants.every((v) => v.imageUrl === "/api/files/take.png"));
     check("the framing is carried to every channel", plan.variants.every((v) => v.focalX === 0.5 && v.focalY === 0.42));
     check("each channel is shaped for its own placement", ig?.aspectRatio === "4:5", plan.variants.map((v) => v.aspectRatio));
+    check(
+      "every variant names the handle it publishes through",
+      plan.variants.every((v) => v.accountId && v.accountName),
+      plan.variants.map((v) => [v.platform, v.accountName]),
+    );
     const story = plan.variants.find((v) => v.platform === "instagram_story");
     check("and the story is not shaped like the feed", story?.aspectRatio === "9:16", story?.aspectRatio);
   }
@@ -117,7 +128,12 @@ export function collectShipCases(): Case[] {
     check("and a warning", plan.warnings.some((w) => w.includes("no hook")), plan.warnings);
   }
   {
-    const plan = planShip(input({ channels: resolveChannels(["linkedin"]) }));
+    const plan = planShip(input({
+      channels: resolveChannels(
+        [{ id: "acct-li", platform: "linkedin", accountName: "Tony Dye", brandId: null }],
+        "brand-crown",
+      ),
+    }));
     check(
       "a channel whose furniture is unmapped warns that its crop was unchecked",
       plan.warnings.some((w) => w.includes("furniture is not mapped")),

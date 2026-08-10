@@ -58,6 +58,14 @@ export interface ShipInput {
 export interface PlannedVariant {
   platform: string;
   label: string;
+  /**
+   * The account this channel will publish through by default. Carried on the
+   * plan so the preview can SAY it: with every brand currently posting through
+   * the shared Sparq accounts, which handle a post goes out under is exactly
+   * the kind of fact that must not be discovered after publishing.
+   */
+  accountId: string;
+  accountName: string | null;
   aspectRatio: string;
   /** The caption as it will publish, hashtags included. */
   caption: string;
@@ -147,9 +155,13 @@ export function planShip(input: ShipInput): ShipPlan {
       );
     }
 
+    const defaultAccount = channel.accounts.find((a) => a.id === channel.defaultAccountId);
+
     return {
       platform: channel.platform,
       label: channel.label,
+      accountId: channel.defaultAccountId,
+      accountName: defaultAccount?.accountName ?? null,
       aspectRatio: channel.aspectLabel,
       caption: composeCaption(channelCaption || copy.base || "", written?.hashtags ?? ""),
       hookText: hook || null,

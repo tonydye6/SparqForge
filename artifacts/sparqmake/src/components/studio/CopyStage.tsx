@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiFetch, cn } from "@/lib/utils";
 import { useChannels } from "@/hooks/useChannels";
+import { InfoDot } from "./InfoDot";
 
 /**
  * Stage 04 · Copy.
@@ -245,10 +246,9 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
   if (!selectedImageUrl) {
     return (
       <div className="mx-auto max-w-3xl p-8">
-        <p className="max-w-[70ch] text-[12.5px] leading-relaxed text-muted-foreground">
-          Copy is written against the picture, not in the abstract. Open stage 03, pick the take you
-          want and choose <span className="text-foreground">Use this take</span>; this stage will open
-          with it.
+        <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+          Choose a picture in stage 03 first
+          <InfoDot text="Copy is written against the picture, not in the abstract. Pick a take in stage 03 and press Use this; this stage opens with it." />
         </p>
       </div>
     );

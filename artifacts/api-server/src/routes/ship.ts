@@ -84,10 +84,18 @@ async function load(creativeId: string): Promise<Loaded | null> {
     .where(eq(creativesTable.id, creativeId));
   if (!creative) return null;
 
+  // Workspace-wide, not brand-scoped: every brand currently publishes through
+  // the Sparq Games accounts, and the brand id only decides each channel's
+  // DEFAULT account. See services/channels.ts.
   const accounts = await db
-    .select({ platform: socialAccountsTable.platform })
+    .select({
+      id: socialAccountsTable.id,
+      platform: socialAccountsTable.platform,
+      accountName: socialAccountsTable.accountName,
+      brandId: socialAccountsTable.brandId,
+    })
     .from(socialAccountsTable)
-    .where(and(eq(socialAccountsTable.brandId, creative.brandId), eq(socialAccountsTable.status, "connected")));
+    .where(eq(socialAccountsTable.status, "connected"));
 
   const stages = await db
     .select({ id: stageStatesTable.id, stageKind: stageStatesTable.stageKind })
@@ -126,7 +134,7 @@ async function load(creativeId: string): Promise<Loaded | null> {
 
   return {
     creative,
-    channels: resolveChannels(accounts.map((a) => a.platform)),
+    channels: resolveChannels(accounts, creative.brandId),
     image: typeof imagePayload?.imageUrl === "string" ? { imageUrl: imagePayload.imageUrl } : null,
     copy: copyPayload && typeof copyPayload === "object" ? copyPayload : null,
     crops: focal && typeof focal.x === "number" && typeof focal.y === "number" ? { focal } : null,
@@ -144,6 +152,7 @@ function shape(plan: ShipPlan, scheduleBlock: string | null) {
     variants: plan.variants.map((v) => ({
       platform: v.platform,
       label: v.label,
+      accountName: v.accountName,
       aspectRatio: v.aspectRatio,
       caption: v.caption,
       hookText: v.hookText,

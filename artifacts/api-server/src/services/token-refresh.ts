@@ -34,9 +34,22 @@ async function classifyFailure(response: globalThis.Response, platformLabel: str
     try {
       const body = await response.clone().text();
       const lower = body.toLowerCase();
+      /**
+       * WHY `invalid_request` IS ON THIS LIST. X returns it, not
+       * `invalid_grant`, when a rotating refresh token is dead — and X rotates
+       * on every refresh, so a lost rotation kills the stored token for good.
+       * Before this, the app retried Sparq's dead X token hourly for 16 days,
+       * showing "expired" instead of asking anyone to reconnect, because the
+       * body string never matched. A 400/401 on a refresh grant is definitive
+       * for every OAuth provider this app talks to; the string match is now
+       * only a reason, not the gate.
+       */
       definitive =
+        response.status === 400 ||
+        response.status === 401 ||
         lower.includes("invalid_grant") ||
         lower.includes("invalid_token") ||
+        lower.includes("invalid_request") ||
         lower.includes("revoked");
     } catch {
       definitive = response.status === 400 || response.status === 401;

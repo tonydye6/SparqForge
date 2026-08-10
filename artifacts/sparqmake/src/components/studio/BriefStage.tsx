@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { InfoDot } from "./InfoDot";
 
 /**
  * Stage 01 · Brief.
@@ -563,10 +564,15 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
             ))}
           </div>
         )}
-        <p className="mt-1.5 text-[10.5px] leading-relaxed text-dim">
-          {yourWords > 0
-            ? `${yourWords} ${yourWords === 1 ? "word" : "words"}. This is the only part that is yours by default, and it is never rewritten.`
-            : "One line is enough. Type @ to attach a character or logo from this brand\u2019s library. Everything below is derived and labelled with who decided it."}
+        <p className="mt-1.5 flex items-center gap-1.5 text-[10.5px] text-dim">
+          {yourWords > 0 ? (
+            <>
+              <span data-numeric className="font-mono">{yourWords}</span> {yourWords === 1 ? "word" : "words"} \u00b7 never rewritten
+            </>
+          ) : (
+            <>One line is enough {"\u00b7"} @ attaches an asset</>
+          )}
+          <InfoDot text="Your line is the only part that is yours by default, and no model ever rewrites it. Type @ to attach a character or logo from this brand's library. Everything derived below is labelled with who decided it." />
         </p>
       </div>
 
@@ -735,9 +741,9 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
       </div>
 
       {locked && (
-        <p className="text-[11px] leading-relaxed text-dim">
-          This stage is locked because you typed it. That is what stops an upstream re-run from overwriting your
-          words. Unlock it above if you want it to rejoin the generated flow.
+        <p className="flex items-center gap-1.5 text-[11px] text-dim">
+          Locked · your words cannot be overwritten
+          <InfoDot text="A hand-typed brief locks itself, which is what stops an upstream re-run from rewriting your words. Unlock it above if you want it to rejoin the generated flow." />
         </p>
       )}
     </div>

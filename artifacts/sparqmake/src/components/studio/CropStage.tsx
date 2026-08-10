@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, cn } from "@/lib/utils";
 import { useChannels } from "@/hooks/useChannels";
+import { InfoDot } from "./InfoDot";
 
 /**
  * Stage 05 · Channel crops. NOT resizing.
@@ -195,10 +196,9 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
-        <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">Framing</p>
-        <p className="mt-1 max-w-[80ch] text-[12px] leading-relaxed text-muted-foreground">
-          This is not resizing. Each channel draws its own interface over your picture, so the frame
-          moves to keep the subject clear of it. One point drives all four.
+        <p className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">
+          Framing
+          <InfoDot text="Not resizing. Each channel draws its own interface over your picture, so the frame moves to keep the subject clear of it. One point drives every frame." />
         </p>
         <div className="mt-2.5 flex flex-wrap items-center gap-4">
           <label className="flex items-center gap-2 text-[10.5px] text-dim">
@@ -318,9 +318,9 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
       </div>
 
       <div className="flex items-center justify-between gap-3 rounded-sm border border-border/60 bg-card px-3.5 py-3">
-        <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-          Warnings never block. You may well decide the mark can sit under TikTok's caption block;
-          what you should not do is find out afterwards.
+        <p className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          Warnings never block
+          <InfoDot text="You may well decide the mark can sit under TikTok's caption block; what you should not do is find out afterwards. Save with warnings standing whenever the call is yours." />
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {saved && <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">Saved</span>}
