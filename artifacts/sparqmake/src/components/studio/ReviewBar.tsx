@@ -64,10 +64,19 @@ export function ReviewBar({
   creativeId,
   activeStageId,
   onDecided,
+  /**
+   * Bumped by the shell whenever anything upstream changed the post.
+   *
+   * Shipping can RESET an approval, because the decision covered content that
+   * shipping replaced. Without this the bar sat there still reading "approved
+   * and scheduled" beside a publishing bar that had just said the opposite.
+   */
+  revision,
 }: {
   creativeId: string;
   activeStageId: string | null;
   onDecided?: () => void;
+  revision: number;
 }) {
   const [state, setState] = useState<TeamState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -87,7 +96,7 @@ export function ReviewBar({
     }
   }, [creativeId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, revision]);
 
   /*
    * The suggestion is asked for when a category is picked, not precomputed.

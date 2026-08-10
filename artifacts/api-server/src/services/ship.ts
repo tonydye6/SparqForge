@@ -166,10 +166,13 @@ export function planShip(input: ShipInput): ShipPlan {
   const orphaned = input.existingVariants.filter(
     (v) => !input.channels.some((c) => c.platform === v.platform),
   );
-  if (orphaned.length > 0) {
+  if (orphaned.length === 1) {
     warnings.push(
-      `${orphaned.length} older ${orphaned.length === 1 ? "version" : "versions"} on channels this brand `
-      + "no longer publishes to were left untouched.",
+      `One older version, on a channel this brand no longer publishes to, was left untouched.`,
+    );
+  } else if (orphaned.length > 1) {
+    warnings.push(
+      `${orphaned.length} older versions, on channels this brand no longer publishes to, were left untouched.`,
     );
   }
 
