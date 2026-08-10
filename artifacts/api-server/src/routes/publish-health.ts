@@ -9,14 +9,26 @@ import {
 } from "@workspace/db";
 import { MAX_RETRIES } from "../services/publish-constants";
 import { isEmailConfigured } from "../services/email";
+import { groupFailures } from "../services/publish-failures";
 
 const router: IRouter = Router();
 
 /**
- * Publish health summary: every currently-failed scheduled publish (with its
- * human-readable reason and whether the scheduler will still retry it) plus
- * the recent alert-delivery history. Read-only; retrying is a separate,
- * write-gated action (POST /calendar-entries/:id/retry).
+ * Publish health summary.
+ *
+ * Phase 10 item 4 changed the shape of this response. It used to return the
+ * vendor's raw error string and leave the client to render it beside a Retry
+ * button, which meant offering a retry that could not possibly work on roughly
+ * half of the failures this build produces. It now returns a typed failure per
+ * entry and a GROUPED view, where each group is one problem with exactly one
+ * action. See services/publish-failures.ts for the classification and why each
+ * kind gets the action it does.
+ *
+ * `failures` is kept alongside `groups` because the alert digest and the older
+ * surfaces read it, and changing them was not this item's job.
+ *
+ * Read-only. Retrying is a separate, write-gated action
+ * (POST /calendar-entries/:id/retry).
  */
 router.get("/publish-health", async (_req, res): Promise<void> => {
   const failures = await db
@@ -31,6 +43,9 @@ router.get("/publish-health", async (_req, res): Promise<void> => {
       alertedAt: calendarEntriesTable.alertedAt,
       updatedAt: calendarEntriesTable.updatedAt,
       creativeName: creativesTable.name,
+      // The brand, so a "connect an account" action can land on the right one
+      // rather than on a Settings page that asks which brand you meant.
+      brandId: creativesTable.brandId,
       accountName: socialAccountsTable.accountName,
     })
     .from(calendarEntriesTable)
@@ -65,6 +80,12 @@ router.get("/publish-health", async (_req, res): Promise<void> => {
   res.json({
     failedCount: shaped.length,
     permanentCount: shaped.filter((f) => f.permanent).length,
+    /**
+     * One entry per PROBLEM, ordered so whatever needs a person is first.
+     * Six posts stuck behind one disconnected account is one row here, which
+     * is the whole point: the surface leads with the fix, not with the count.
+     */
+    groups: groupFailures(shaped),
     failures: shaped,
     alerts,
     emailConfigured: isEmailConfigured(),
