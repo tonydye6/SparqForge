@@ -16,6 +16,7 @@ import { ReviewBar } from "@/components/studio/ReviewBar";
 import { ShipBar } from "@/components/studio/ShipBar";
 import { SaveRunButton } from "@/components/studio/SavedRuns";
 import { Entrance } from "@/components/studio/Entrance";
+import { SmartBar } from "@/components/studio/SmartBar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -467,6 +468,19 @@ export default function StudioV2() {
                 stages={spine.stages}
                 activeStage={activeStage}
                 takesByStage={spine.takes}
+              />
+              {/*
+                The proactive half of the sidebar. Below the contract and the
+                rail because those state facts; this reacts to them. A stage
+                save bumps the revision, and the bump IS the event.
+              */}
+              <SmartBar
+                creativeId={creativeId}
+                revision={revision}
+                onOpenStage={(kind) => {
+                  const target = spine.stages.find((s) => s.stageKind === kind);
+                  if (target) void openStage(target.id);
+                }}
               />
             </aside>
           </div>

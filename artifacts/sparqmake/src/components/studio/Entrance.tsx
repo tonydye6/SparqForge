@@ -244,13 +244,20 @@ export function Entrance({
       const briefStage = (spine.stages ?? []).find((s: { stageKind: string }) => s.stageKind === "brief");
 
       let derived: unknown[] = [];
+      let intentId: string | null = null;
       try {
         const intakeRes = await apiFetch("/api/brief-intake", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ briefText: yours.trim(), brandId }),
         });
-        if (intakeRes.ok) derived = (await intakeRes.json()).derived ?? [];
+        if (intakeRes.ok) {
+          const intake = await intakeRes.json();
+          derived = intake.derived ?? [];
+          // The goal, in the same payload field stage 01 writes. Without it a
+          // post born here planned its spread on default axes forever.
+          intentId = intake.intent?.id ?? null;
+        }
       } catch {
         // Derivation degrading never blocks a save; stage 01's own rule.
       }
@@ -264,6 +271,7 @@ export function Entrance({
             origin: "user_typed",
             payload: {
               line: yours.trim(),
+              intentId,
               derived,
               answers: [],
               // The director's framing rides beside the line, attributed, so
