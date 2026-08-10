@@ -36,12 +36,15 @@ function take(over: Partial<BarTake>): BarTake {
 }
 
 /** A community-engagement spread: axes People × Timing, 8 takes, 3 departures. */
-function spreadTakes(opts: { subjectCount: number; catalogSize: number } = { subjectCount: 1, catalogSize: 300 }): BarTake[] {
+function spreadTakes(
+  opts: { subjectCount: number; catalogSize: number; subjectPin?: { assetId: string } | null } = { subjectCount: 1, catalogSize: 300 },
+): BarTake[] {
   const material = {
     material: {
       referenceCount: 6,
       catalogSize: opts.catalogSize,
       directorSelections: Array.from({ length: opts.subjectCount }, () => ({ role: "subject" })),
+      subjectPin: opts.subjectPin ?? null,
     },
   };
   // Slot keys must match the deterministic plan for community_engagement.
@@ -122,6 +125,19 @@ export function collectSmartBarCases(): Case[] {
     const cards = deriveCards(input({ takes: spreadTakes({ subjectCount: 0, catalogSize: 0 }) }));
     check(
       "an empty library does not accuse the director of ignoring it",
+      !cards.some((c) => c.id === "no-subject-reference"),
+      cards.map((c) => c.id),
+    );
+  }
+  {
+    // The vc-cr-9 shape: the user @-mentioned the character, the pin rode into
+    // the references as an attachment, and the director — told the subject was
+    // already decided — selected zero of its own. That is fidelity working.
+    const cards = deriveCards(input({
+      takes: [briefTake, ...spreadTakes({ subjectCount: 0, catalogSize: 60, subjectPin: { assetId: "a-1" } })],
+    }));
+    check(
+      "a pinned subject silences the pink card: a handed subject is not a missing one",
       !cards.some((c) => c.id === "no-subject-reference"),
       cards.map((c) => c.id),
     );
