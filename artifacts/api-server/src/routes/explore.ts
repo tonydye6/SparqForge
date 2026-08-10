@@ -64,6 +64,7 @@ import {
   wrapEditInstruction,
 } from "../services/creative-direction.js";
 import { mentionsDirectiveBlock, normalizeMentions, pinnedSubjectFrom, type BriefMention } from "../services/brief-mentions.js";
+import { checkGenerationEligibility } from "../services/asset-policy.js";
 import {
   buildDirectedPrompt,
   leadingSubjectRun,
@@ -537,9 +538,44 @@ router.post(
        * statement of fact. It is expressed AS a mention so it travels through
        * exactly the same machinery rather than growing a second path.
        */
+      /*
+       * Mentions pass the SAME gate the director's catalog does, before they
+       * can steer anything.
+       *
+       * Found by running the identical brief through both stacks: the legacy
+       * Co-pilot's picker refused crownu_char_female_blue_tennis ("Not
+       * approved for AI generation" — the analysis flagged the Nike swoosh on
+       * her chest), while this path attached her and rendered a spread from
+       * her. An explicit human mention is still AI reference use; the flag and
+       * the trademark gate exist precisely for the asset somebody most wants
+       * to use. Dropping is RECORDED, never silent: the run proceeds on the
+       * director's own pick and the payload names what fell out and why.
+       */
+      const mentionGateContext = { channel: null, template: creative.templateId ?? null };
+      const droppedMentions: Array<{ name: string; reason: string }> = [];
+      const mentionRows = await loadBrandAssetsByIds(creative.brandId, mentions.map(m => m.assetId));
+      const mentionRowById = new Map(mentionRows.map(a => [a.id, a]));
+      const allowedMentions = mentions.filter((mn) => {
+        const row = mentionRowById.get(mn.assetId);
+        if (!row) {
+          droppedMentions.push({ name: mn.name, reason: "No longer in this brand's library" });
+          return false;
+        }
+        const verdict = checkGenerationEligibility(
+          row,
+          mentionGateContext,
+          mn.role === "object" ? "compositing" : "generation_reference",
+        );
+        if (!verdict.eligible) {
+          droppedMentions.push({ name: mn.name, reason: verdict.reason ?? "Not eligible" });
+          return false;
+        }
+        return true;
+      });
+
       let subjectPinnedFrom: "mention" | "previous run" | null =
-        mentions.some(m => m.role === "subject") ? "mention" : null;
-      const effectiveMentions: BriefMention[] = [...mentions];
+        allowedMentions.some(m => m.role === "subject") ? "mention" : null;
+      const effectiveMentions: BriefMention[] = [...allowedMentions];
 
       if (!subjectPinnedFrom) {
         const priorTakes = await db
@@ -550,8 +586,16 @@ router.post(
         if (pinnedId) {
           const [pinnedAsset] = await loadBrandAssetsByIds(creative.brandId, [pinnedId]);
           if (pinnedAsset) {
-            effectiveMentions.push({ assetId: pinnedAsset.id, name: pinnedAsset.name, role: "subject" });
-            subjectPinnedFrom = "previous run";
+            // An inherited pin is a mention by another name, so it passes the
+            // same gate — an asset blocked since the last run must not keep
+            // steering generation through its own memory.
+            const verdict = checkGenerationEligibility(pinnedAsset, mentionGateContext, "generation_reference");
+            if (verdict.eligible) {
+              effectiveMentions.push({ assetId: pinnedAsset.id, name: pinnedAsset.name, role: "subject" });
+              subjectPinnedFrom = "previous run";
+            } else {
+              droppedMentions.push({ name: pinnedAsset.name, reason: verdict.reason ?? "Not eligible" });
+            }
           }
         }
       }
@@ -902,6 +946,13 @@ router.post(
                    */
                   subjectPin: pinnedSubjectId ? { assetId: pinnedSubjectId, briefTakeId } : null,
                   subjectPinnedFrom,
+                  /*
+                   * Mentions the eligibility gate refused, with the gate's own
+                   * reason. Falling back is allowed; falling back quietly is
+                   * not — this is how a user learns their named character was
+                   * blocked (trademark, owner opt-out) rather than ignored.
+                   */
+                  droppedMentions,
                 },
               },
               isCurrent: true,
@@ -993,6 +1044,9 @@ router.post(
           // Where the subject came from: named by the user, inherited from the
           // previous run of this brief, or chosen fresh by the director.
           subjectPinnedFrom,
+          // Mentions the eligibility gate refused, with the gate's reason —
+          // the response-level copy of the per-take record above.
+          droppedMentions,
           // What the Director judged the format should be. NOT applied here: the
           // spread is a grid and stage 05 owns reframing, so acting on this would
           // change the grid's shape and pre-empt a stage that has not been built.
