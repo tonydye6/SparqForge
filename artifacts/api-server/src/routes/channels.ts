@@ -12,7 +12,7 @@
  */
 
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, brandsTable, socialAccountsTable } from "@workspace/db";
 import { str } from "../lib/http-params.js";
 import { resolveChannels, NO_CHANNELS_REASON } from "../services/channels.js";
@@ -31,12 +31,25 @@ router.get("/brands/:brandId/channels", async (req: Request, res: Response): Pro
       return;
     }
 
+    /**
+     * WORKSPACE-wide, not brand-scoped. Tony, 2026-08-10: every brand
+     * currently publishes through the Sparq Games accounts, brand-owned
+     * accounts arrive later, and the user chooses the account per post. The
+     * first version scoped this to the brand, which quietly narrowed Crown U
+     * to its single LinkedIn account. The brand id now only decides which
+     * account is each channel's DEFAULT.
+     */
     const accounts = await db
-      .select({ platform: socialAccountsTable.platform })
+      .select({
+        id: socialAccountsTable.id,
+        platform: socialAccountsTable.platform,
+        accountName: socialAccountsTable.accountName,
+        brandId: socialAccountsTable.brandId,
+      })
       .from(socialAccountsTable)
-      .where(and(eq(socialAccountsTable.brandId, brandId), eq(socialAccountsTable.status, "connected")));
+      .where(eq(socialAccountsTable.status, "connected"));
 
-    const channels = resolveChannels(accounts.map((a) => a.platform));
+    const channels = resolveChannels(accounts, brandId);
     res.json({
       channels,
       // The sentence, not a boolean, so all three surfaces say the same thing

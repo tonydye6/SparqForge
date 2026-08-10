@@ -27,6 +27,7 @@ import { useCanWrite } from "@/hooks/useAuth";
 interface PlannedVariant {
   platform: string;
   label: string;
+  accountName: string | null;
   aspectRatio: string;
   caption: string;
   hookText: string | null;
@@ -187,10 +188,14 @@ export function ShipBar({
           {preview.variants.map((v) => (
             <div key={v.platform} className="flex gap-3" data-testid={`ship-channel-${v.platform}`}>
               <span className={cn(
-                "w-[132px] shrink-0 font-mono text-[9.5px] uppercase tracking-[0.06em]",
+                "w-[190px] shrink-0 truncate font-mono text-[9.5px] uppercase tracking-[0.06em]",
                 v.updates ? "text-muted-foreground" : "text-cyber-teal",
               )}>
                 {v.label} · {v.aspectRatio}
+                {/* Which handle it goes out under. With every brand currently
+                    posting through the shared Sparq accounts, this is the fact
+                    most worth seeing before pressing anything. */}
+                {v.accountName && <span className="text-dim"> · {v.accountName}</span>}
               </span>
               <p className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground">
                 {v.hookText && <span className="text-foreground">{v.hookText} · </span>}

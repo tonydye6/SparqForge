@@ -3,6 +3,7 @@ import { ChevronRight, Loader2, Play } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
 import { useCanWrite } from "@/hooks/useAuth";
+import { InfoDot } from "./InfoDot";
 
 /**
  * Phase 10 · saved runs and cross-brand fan-out, on the Studio v2 surface.
@@ -165,13 +166,10 @@ export function SaveRunButton({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="space-y-1">
-                <p className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-grit-teal">Save this run</p>
-                <p className="text-[12px] leading-relaxed text-muted-foreground">
-                  A saved run is the brief plus whichever stages you locked. Running it later writes them
-                  straight in and costs nothing.
-                </p>
-              </div>
+              <p className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.08em] text-grit-teal">
+                Save this run
+                <InfoDot text="A saved run is the brief plus whichever stages you locked. Running it later writes them straight in and costs nothing." />
+              </p>
 
               <input
                 value={name}
@@ -192,9 +190,6 @@ export function SaveRunButton({
                     The brief has nothing in it yet, so there is nothing to replay.
                   </p>
                 )}
-                <p className="text-[11px] leading-relaxed text-dim">
-                  Lock a stage to make it travel too.
-                </p>
               </div>
 
               <div className="space-y-1">
@@ -217,10 +212,6 @@ export function SaveRunButton({
                     );
                   })}
                 </div>
-                <p className="text-[11px] leading-relaxed text-dim">
-                  This post's own brand is always included. Another brand gets the idea and its own
-                  contract, never this one's material.
-                </p>
               </div>
 
               {error && <p className="text-[12px] text-rebel-pink">{error}</p>}
@@ -388,11 +379,9 @@ export function SavedRunsPanel({ onOpenCreative }: { onOpenCreative: (creativeId
 
   return (
     <div className="space-y-1.5" data-testid="panel-saved-runs">
-      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">Saved runs</p>
-      <p className="max-w-[76ch] text-[12.5px] leading-relaxed text-muted-foreground">
-        A brief plus whichever stages were locked, ready to run again. Running one writes those stages
-        straight in, so it costs nothing. A run pointed at more than one brand makes one post per brand,
-        each under its own contract.
+      <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+        Saved runs
+        <InfoDot text="A brief plus whichever stages were locked, ready to run again. Running one writes those stages straight in, so it costs nothing. A run pointed at more than one brand makes one post per brand, each under its own contract." />
       </p>
       <div className="space-y-1.5 pt-1">
         {runs.map((run) => (

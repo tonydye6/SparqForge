@@ -224,19 +224,33 @@ router.post("/creatives/:id/schedule", async (req, res): Promise<void> => {
    * This used to take the account only from the caller's `socialAccounts` map
    * and write NULL otherwise, which produces entries the publisher can never
    * send: the retry poll requires a `socialAccountId`, so they fail once and
-   * are never picked up again. `smart-schedule` has resolved accounts through
-   * `accountPlatformFor` since the scheduling batch was fixed; this path did
-   * not, and nothing reached it from the v2 Studio until the ship step existed.
-   * Enabling that path without this would have shipped a known-broken schedule.
+   * are never picked up again.
    *
-   * The caller's map still wins where it is given, because a brand with two
-   * accounts on one platform needs somebody to choose.
+   * The caller's map ALWAYS wins where given: the user may publish any post
+   * through any configured account, and the schedule modal offers exactly that
+   * choice. The fallback is only a default, and it is workspace-wide with the
+   * post's own brand preferred, because today every brand publishes through
+   * the shared Sparq Games accounts and brand-owned accounts arrive later.
+   * A brand-scoped fallback here quietly produced NULL for every brand that
+   * had no accounts of its own, which is currently most of them.
    */
   const connected = await db
-    .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform })
+    .select({
+      id: socialAccountsTable.id,
+      platform: socialAccountsTable.platform,
+      brandId: socialAccountsTable.brandId,
+    })
     .from(socialAccountsTable)
-    .where(and(eq(socialAccountsTable.brandId, campaign.brandId), eq(socialAccountsTable.status, "connected")));
-  const accountByPlatform = new Map(connected.map((a) => [a.platform, a.id]));
+    .where(eq(socialAccountsTable.status, "connected"));
+  // Own-brand accounts first, then first-wins per platform: one sort makes
+  // the preference and the tie-break the same rule.
+  const ranked = [...connected].sort(
+    (a, b) => Number(b.brandId === campaign.brandId) - Number(a.brandId === campaign.brandId),
+  );
+  const accountByPlatform = new Map<string, string>();
+  for (const a of ranked) {
+    if (!accountByPlatform.has(a.platform)) accountByPlatform.set(a.platform, a.id);
+  }
 
   const created = [];
   for (const variant of variants) {

@@ -4,19 +4,21 @@
  * THE BUG THIS EXISTS TO KILL. Three surfaces in the Studio each decided this
  * for themselves and gave three different answers on the same post:
  *
- *   stage 01  read the brand's connected accounts        (Instagram, X)
+ *   stage 01  read connected accounts
  *   stage 04  hardcoded instagram_feed, twitter, linkedin, tiktok
  *   stage 05  hardcoded instagram_feed, instagram_story, tiktok, twitter
  *
  * So a post got LinkedIn copy that could never publish, and an Instagram Story
  * crop that nothing had written copy for. Whichever set is right, three cannot
- * be, and the brief's answer is the only one grounded in something real.
+ * be.
  *
- * THE RULE: a channel exists for this post if the brand has a connected account
- * that can publish it. Nothing else qualifies a channel. That is also what
- * makes the whole flow honest end to end, because it is the same fact the
- * publish scheduler enforces at send time and the same one the failure surface
- * reports as `no_account`.
+ * THE RULE, corrected by Tony 2026-08-10: a channel exists for this post if
+ * ANY connected account in the workspace can publish it. The first version
+ * scoped accounts to the post's brand, which quietly narrowed Crown U to one
+ * channel; the real model is that every brand currently publishes through the
+ * Sparq Games accounts, brand-owned accounts arrive later, and the user picks
+ * the account per post. So the CHANNEL comes from the workspace, the DEFAULT
+ * account prefers the post's own brand, and the choice is always the user's.
  *
  * Pure, and runnable under tsx like the other services carrying invariants.
  */
@@ -25,12 +27,44 @@ import { ACCOUNT_PLATFORM_MAP } from "../lib/platform-accounts.js";
 import { PLATFORM_COPY_RULES } from "./copy-stage.js";
 import { CROP_TARGETS } from "./crop-stage.js";
 
+/** A connected account, as the resolver needs to see it. */
+export interface AccountRef {
+  id: string;
+  /** Social-account platform: "instagram", not "instagram_feed". */
+  platform: string;
+  accountName: string | null;
+  /** The brand this account belongs to, null for a workspace/house account. */
+  brandId: string | null;
+}
+
+/** One account that could publish a channel, ready for a picker. */
+export interface ChannelAccount {
+  id: string;
+  accountName: string | null;
+  brandId: string | null;
+  /** True when this account belongs to the post's own brand. */
+  ownBrand: boolean;
+}
+
 export interface Channel {
   /** The calendar-entry platform. What a variant and an entry are keyed by. */
   platform: string;
   label: string;
-  /** The social account that publishes it. Instagram serves feed AND story. */
+  /** The social-account platform that publishes it. Instagram serves feed AND story. */
   accountPlatform: string;
+  /**
+   * Every connected account that could publish this channel, own-brand first.
+   *
+   * Plural because that is the real state: today every brand posts through
+   * the Sparq Games accounts, and later brands gain their own, at which point
+   * the same channel has two eligible accounts and somebody has to choose.
+   */
+  accounts: ChannelAccount[];
+  /**
+   * The account this channel publishes through unless the user picks another.
+   * The post's own brand's account when one exists, otherwise the house one.
+   */
+  defaultAccountId: string;
   /** What a variant made for this channel should be shaped as. */
   aspectLabel: string;
   /**
@@ -87,39 +121,66 @@ const FALLBACK_ASPECT: Record<string, string> = {
 };
 
 /**
- * Every channel this brand can actually publish to.
+ * Every channel this post can actually publish to, given the WORKSPACE's
+ * connected accounts.
  *
- * `connectedAccountPlatforms` are social-account platforms ("instagram"), not
- * entry platforms ("instagram_feed"). One account can serve more than one
- * placement, which is why this is an expansion rather than a filter, and why it
- * reads `ACCOUNT_PLATFORM_MAP` backwards instead of keeping a second copy of
- * that relationship.
+ * One account can serve more than one placement (Instagram serves the feed and
+ * the story), which is why this is an expansion rather than a filter, and why
+ * it reads `ACCOUNT_PLATFORM_MAP` backwards instead of keeping a second copy
+ * of that relationship.
+ *
+ * Ordering inside a channel's account list is the default rule made visible:
+ * the post's own brand's accounts first, then the rest. `defaultAccountId` is
+ * simply the first entry, so the picker and the default can never disagree.
  */
-export function resolveChannels(connectedAccountPlatforms: readonly string[]): Channel[] {
-  const connected = new Set(connectedAccountPlatforms.map((p) => p.trim()).filter(Boolean));
+export function resolveChannels(accounts: readonly AccountRef[], brandId: string | null): Channel[] {
   const cropByPlatform = new Map(CROP_TARGETS.map((t) => [t.platform, t]));
 
-  return CHANNEL_ORDER.filter((platform) => connected.has(ACCOUNT_PLATFORM_MAP[platform] ?? platform))
-    .map((platform) => {
-      const crop = cropByPlatform.get(platform);
-      return {
-        platform,
-        label: CHANNEL_LABELS[platform] ?? platform,
-        accountPlatform: ACCOUNT_PLATFORM_MAP[platform] ?? platform,
-        aspectLabel: crop?.aspectLabel ?? FALLBACK_ASPECT[platform] ?? "1:1",
-        furnitureMapped: crop !== undefined,
-        hasSafeAreas: (crop?.safeAreas.length ?? 0) > 0,
-        hasCopyRules: platform in PLATFORM_COPY_RULES,
-      };
-    });
+  const byAccountPlatform = new Map<string, AccountRef[]>();
+  for (const account of accounts) {
+    const platform = account.platform.trim();
+    if (!platform) continue;
+    const list = byAccountPlatform.get(platform) ?? [];
+    // One account can be handed in twice by a sloppy caller; a duplicate id in
+    // a picker is a duplicate React key and a double-counted default.
+    if (!list.some((a) => a.id === account.id)) list.push(account);
+    byAccountPlatform.set(platform, list);
+  }
+
+  return CHANNEL_ORDER.filter((platform) =>
+    byAccountPlatform.has(ACCOUNT_PLATFORM_MAP[platform] ?? platform),
+  ).map((platform) => {
+    const crop = cropByPlatform.get(platform);
+    const eligible = byAccountPlatform.get(ACCOUNT_PLATFORM_MAP[platform] ?? platform)!;
+    const ranked: ChannelAccount[] = [...eligible]
+      .map((a) => ({
+        id: a.id,
+        accountName: a.accountName,
+        brandId: a.brandId,
+        ownBrand: brandId !== null && a.brandId === brandId,
+      }))
+      .sort((a, b) => Number(b.ownBrand) - Number(a.ownBrand));
+
+    return {
+      platform,
+      label: CHANNEL_LABELS[platform] ?? platform,
+      accountPlatform: ACCOUNT_PLATFORM_MAP[platform] ?? platform,
+      accounts: ranked,
+      defaultAccountId: ranked[0]!.id,
+      aspectLabel: crop?.aspectLabel ?? FALLBACK_ASPECT[platform] ?? "1:1",
+      furnitureMapped: crop !== undefined,
+      hasSafeAreas: (crop?.safeAreas.length ?? 0) > 0,
+      hasCopyRules: platform in PLATFORM_COPY_RULES,
+    };
+  });
 }
 
 /**
- * What to say when a brand has no connected account at all.
+ * What to say when the workspace has no connected account at all.
  *
- * Its own function because three surfaces need the same sentence, and because
+ * One constant because three surfaces need the same sentence, and because
  * "no channels" is the single most consequential state in the Studio: nothing
  * made can go anywhere until it changes.
  */
 export const NO_CHANNELS_REASON =
-  "No channel is connected for this brand yet, so nothing can publish. Connect one in Settings.";
+  "No social account is connected yet, so nothing can publish. Connect one in Settings.";

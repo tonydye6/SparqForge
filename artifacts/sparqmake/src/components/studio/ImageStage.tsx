@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { InfoDot } from "@/components/studio/InfoDot";
 import { RefineDeck, type StageTake } from "@/components/studio/RefineDeck";
 import { MotionPanel } from "@/components/studio/MotionPanel";
 
@@ -347,23 +348,20 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
           Stage 03 · Image · Explore
         </p>
-        <h2 className="font-display text-xl tracking-wide text-foreground">
-          Eight takes, on two axes you can name
+        <h2 className="flex items-center gap-2 font-display text-xl tracking-wide text-foreground">
+          Eight takes on <span className="text-cyber-teal">{plan.axes.a.name}</span> ×{" "}
+          <span className="text-cyber-teal">{plan.axes.b.name}</span>
+          <InfoDot
+            text={`Every take sits at a stated position on ${plan.axes.a.name} and ${plan.axes.b.name}, so picking one tells you which direction to push rather than only which picture you liked. Takes that go past the brief on purpose are kept and marked, not hidden.`}
+          />
         </h2>
-        <p className="max-w-[80ch] text-[12.5px] leading-relaxed text-muted-foreground">
-          {/*
-            The sentence has to know whether the spread exists. It read "Nothing
-            has been generated yet" over eight rendered takes, which is the same
-            class of untruth as the tiles that said "Not made yet" while holding
-            images: the screen describing a state the screen itself contradicts.
-          */}
-          {persisted.size > 0 || run
-            ? "This spread is made. Every take sits at a stated position on "
-            : "Nothing has been generated yet. This is what would be made. Every take sits at a stated position on "}
-          <span className="text-foreground">{plan.axes.a.name}</span> and{" "}
-          <span className="text-foreground">{plan.axes.b.name}</span>, so picking one tells you which
-          direction to push rather than only which picture you liked.
-        </p>
+        {/*
+          The paragraph that lived here had to know whether the spread existed,
+          and once read "Nothing has been generated yet" over eight rendered
+          takes. The grid itself already shows made vs not-made; prose
+          restating the screen's own state is exactly the text noise Tony
+          called out, so the axes moved into the title and the why into the dot.
+        */}
       </div>
 
       {/* Axis A header. The grid is only legible if the axis is labelled above it. */}
