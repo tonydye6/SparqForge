@@ -43,9 +43,12 @@ export function ShipBar({
   creativeId,
   /** Bumped by the shell whenever a stage saves, so the plan re-reads. */
   revision,
+  /** Called after a successful ship, because it can reset an approval. */
+  onShipped,
 }: {
   creativeId: string;
   revision: number;
+  onShipped?: () => void;
 }) {
   const canWrite = useCanWrite();
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -67,7 +70,14 @@ export function ShipBar({
 
   useEffect(() => { void load(); }, [load, revision]);
 
-  // Anything already shipped is stale the moment a stage saves again.
+  /**
+   * Anything already shipped is stale once a stage saves again.
+   *
+   * `revision` counts STAGE saves only. Shipping notifies the shell through
+   * `onShipped` on a separate channel precisely so that this effect does not
+   * fire on the ship's own refresh and wipe the message the instant it
+   * appears, which is what happened when both used the same counter.
+   */
   useEffect(() => { setShipped(null); }, [revision]);
 
   async function ship() {
@@ -87,6 +97,7 @@ export function ShipBar({
       }
       setShipped({ count: body.variants?.length ?? 0, approvalReset: Boolean(body.approvalReset) });
       await load();
+      onShipped?.();
     } catch {
       setError("This post could not be made ready to publish.");
     } finally {

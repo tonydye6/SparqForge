@@ -114,6 +114,8 @@ export default function StudioV2() {
    * drift from what the stages currently hold.
    */
   const [revision, setRevision] = useState(0);
+  /** Bumped when the approval state changed without a stage changing. */
+  const [teamRevision, setTeamRevision] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
   const [preview, setPreview] = useState<ReopenPreview | null>(null);
@@ -450,11 +452,20 @@ export default function StudioV2() {
                 reads variants, so before this existed it had nothing to show
                 for a v2 post either.
               */}
-              <ShipBar creativeId={creativeId} revision={revision} />
+              <ShipBar
+                creativeId={creativeId}
+                revision={revision}
+                // Shipping can reset an approval, so the decision below has to
+                // re-read. On its OWN counter, not the spine's: bumping the
+                // spine here would clear the publishing bar's success message
+                // the instant it appeared.
+                onShipped={() => setTeamRevision((n) => n + 1)}
+              />
 
               <ReviewBar
                 creativeId={creativeId}
                 activeStageId={activeStage?.id ?? null}
+                revision={revision + teamRevision}
                 onDecided={() => void loadSpine(creativeId)}
               />
 
