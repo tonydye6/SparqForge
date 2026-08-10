@@ -281,6 +281,13 @@
       "when": 1786336640287,
       "tag": "0039_sparkling_mattie_franklin",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786338614706,
+      "tag": "0040_lumpy_eternals",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import { CropStage } from "@/components/studio/CropStage";
 import { BrandContract } from "@/components/studio/BrandContract";
 import { MaterialRail } from "@/components/studio/MaterialRail";
 import { ReviewBar } from "@/components/studio/ReviewBar";
+import { SavedRunsPanel, SaveRunButton } from "@/components/studio/SavedRuns";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -93,6 +94,18 @@ export default function StudioV2() {
   const creativeId = searchParams.get("creative");
   const { data: creatives } = useGetCreatives();
 
+  /**
+   * The open creative's own brand, fetched rather than looked up in the list.
+   *
+   * THE BUG THIS FIXES. The brand used to be read out of `useGetCreatives()`,
+   * which is a cached first page. A creative made moments ago is not in it, and
+   * neither is anything past the page limit, so the brand contract rendered
+   * "no brand on this creative" for a post that plainly had one. Principle 1.9
+   * makes that block the frame around everything, so an empty one is not a
+   * cosmetic miss: it is the one panel that is never allowed to be wrong.
+   */
+  const [brandId, setBrandId] = useState<string | null>(null);
+
   const [spine, setSpine] = useState<SpineResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeStageId, setActiveStageId] = useState<string | null>(null);
@@ -121,6 +134,20 @@ export default function StudioV2() {
   useEffect(() => {
     if (creativeId) void loadSpine(creativeId);
   }, [creativeId, loadSpine]);
+
+  useEffect(() => {
+    if (!creativeId) {
+      setBrandId(null);
+      return;
+    }
+    // Fall back to the list, which is right for the common case and costs
+    // nothing, so a slow fetch does not blank a panel that was already correct.
+    setBrandId((creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null);
+    void apiFetch(`/api/creatives/${creativeId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c) => { if (c?.brandId) setBrandId(c.brandId); })
+      .catch(() => { /* the list fallback above already stands */ });
+  }, [creativeId, creatives]);
 
   const stages: SpineStage[] = useMemo(
     () =>
@@ -192,32 +219,41 @@ export default function StudioV2() {
   // ---------------------------------------------------------------- picker
   if (!creativeId) {
     const recent = (creatives?.data ?? []).slice(0, 12);
+    const open = (id: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("creative", id);
+      setSearchParams(next);
+    };
     return (
       <div className="mx-auto max-w-3xl space-y-5 p-8">
         <div className="space-y-1.5">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
-            Studio v2 · in progress
+            Studio v2
           </p>
-          <h1 className="font-display text-2xl tracking-wide text-foreground">Pick something to open</h1>
+          <h1 className="font-display text-2xl tracking-wide text-foreground">Run something, or open something</h1>
           <p className="max-w-[76ch] text-[12.5px] leading-relaxed text-muted-foreground">
-            The v2 Studio, built stage by stage. It runs beside the existing Studio rather than replacing
-            it, so nothing you rely on has moved. <span className="text-foreground">Brief, Direction and
-            Image are live.</span> Copy and Channel crops arrive later in Phase 4. Open something below and
-            the spine across the top is how you move between stages.
+            The v2 Studio. It runs beside the existing Studio rather than replacing it, so nothing you rely
+            on has moved. <span className="text-foreground">All five stages are live.</span> The spine
+            across the top is how you move between them.
           </p>
         </div>
+
+        {/*
+          Saved runs sit ABOVE the list on purpose. The picker could previously
+          only open work that already existed, which left the v2 Studio with no
+          way in from nothing. A saved run is that way in.
+        */}
+        <SavedRunsPanel onOpenCreative={open} />
+
         <div className="space-y-1.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">Recent posts</p>
           {recent.length === 0 && (
             <p className="text-[12.5px] text-dim">No creatives yet. Make one in the Studio first.</p>
           )}
           {recent.map((c) => (
             <button
               key={c.id}
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("creative", c.id);
-                setSearchParams(next);
-              }}
+              onClick={() => open(c.id)}
               className="block w-full rounded-sm border border-border/60 bg-card px-3 py-2 text-left transition-colors hover:border-grit-teal/50"
             >
               <p className="truncate text-[13px] text-foreground">{c.name}</p>
@@ -276,34 +312,44 @@ export default function StudioV2() {
                   Stage {String(activeStage?.stageNumber ?? 0).padStart(2, "0")} ·{" "}
                   {activeStage ? STAGE_LABELS[activeStage.stageKind] : ""}
                 </span>
-                {activeStage && (
-                  <button
-                    onClick={() => void toggleLock()}
-                    title={
-                      activeStage.status === "locked"
-                        ? "Unlock, so this stage rejoins the normal flow"
-                        : "Lock, making this an input to every other stage"
-                    }
-                    className={cn(
-                      "ml-auto flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate",
-                      activeStage.status === "locked"
-                        ? "border-grit-teal text-cyber-teal"
-                        : "border-border text-muted-foreground",
-                    )}
-                  >
-                    {activeStage.status === "locked" ? <Lock size={9} /> : <Unlock size={9} />}
-                    {activeStage.status === "locked" ? "Locked" : "Lock"}
-                  </button>
-                )}
+                <div className="ml-auto flex items-center gap-2">
+                  {activeStage && (
+                    <button
+                      onClick={() => void toggleLock()}
+                      title={
+                        activeStage.status === "locked"
+                          ? "Unlock, so this stage rejoins the normal flow"
+                          : "Lock, making this an input to every other stage"
+                      }
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate",
+                        activeStage.status === "locked"
+                          ? "border-grit-teal text-cyber-teal"
+                          : "border-border text-muted-foreground",
+                      )}
+                    >
+                      {activeStage.status === "locked" ? <Lock size={9} /> : <Unlock size={9} />}
+                      {activeStage.status === "locked" ? "Locked" : "Lock"}
+                    </button>
+                  )}
+                  {/*
+                    Beside Lock, because locking is what decides what a saved run
+                    carries. Putting the two controls anywhere else would leave
+                    the connection between them to be guessed.
+                  */}
+                  <SaveRunButton
+                    creativeId={creativeId}
+                    brandId={brandId}
+                    stages={spine.stages}
+                  />
+                </div>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {activeStage?.stageKind === "brief" ? (
                   <BriefStage
                     creativeId={creativeId}
-                    brandId={
-                      (creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null
-                    }
+                    brandId={brandId}
                     stageId={activeStage.id}
                     locked={activeStage.status === "locked"}
                     onSaved={() => void loadSpine(creativeId)}
@@ -415,7 +461,7 @@ export default function StudioV2() {
             {/* The brand contract, permanently locked, and the Material rail. */}
             <aside className="flex w-[196px] shrink-0 flex-col border-l border-border/60 bg-card">
               <BrandContract
-                brandId={(creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null}
+                brandId={brandId}
               />
               <MaterialRail
                 stages={spine.stages}
