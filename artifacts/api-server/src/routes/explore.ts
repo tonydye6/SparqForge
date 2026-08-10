@@ -1097,10 +1097,10 @@ router.post(
  * §1.2: this is one stage in two modes, not two screens, which is why the mode
  * lives on the stage row rather than becoming a sixth stage.
  *
- * The choice is written as a take in the "selected" slot rather than a column.
- * A take is this system's record of a decision, so recording it that way gets
- * the history for free: you can see what was picked before, and picking again
- * supersedes rather than overwrites.
+ * The refine target is a COLUMN on the stage row, not a take. "Selected"
+ * takes are reserved for actual picks — the ones with an image — because
+ * three surfaces read that slot as "the chosen picture" and a target pointer
+ * in there un-published a finished post once already (doc 40 P0.1).
  */
 const ModeBody = z.object({
   mode: z.enum(["explore", "refine"]),
@@ -1136,31 +1136,19 @@ router.post(
         return;
       }
 
-      await db.transaction(async (tx) => {
-        await tx
-          .update(stageStatesTable)
-          .set({ mode, updatedAt: new Date() })
-          .where(eq(stageStatesTable.id, stageId));
-
-        if (mode === "refine" && slotKey) {
-          await tx
-            .update(stageTakesTable)
-            .set({ isCurrent: false })
-            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
-          const prior = await tx
-            .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
-            .from(stageTakesTable)
-            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "selected")));
-          await tx.insert(stageTakesTable).values({
-            stageStateId: stageId,
-            slotKey: "selected",
-            takeIndex: nextTakeIndex(prior, "selected"),
-            origin: "swapped_in",
-            payload: { slotKey },
-            isCurrent: true,
-          });
-        }
-      });
+      /*
+       * A mode target is stage state, NOT a decision. The first version
+       * recorded it as a current take in the "selected" slot — a pointer take
+       * with no imageUrl — and everything that reads that slot as "the pick"
+       * (the ship bar, the publish checks, the Smart Bar's take_picked event)
+       * saw the pick vanish: one click on "Refine" walked a shipped post back
+       * to "cannot publish" (doc 40 P0.1). The target lives on the stage row
+       * now; migration 0042 repaired the pointer takes this had written.
+       */
+      await db
+        .update(stageStatesTable)
+        .set({ mode, modeSlotKey: mode === "refine" ? (slotKey ?? null) : null, updatedAt: new Date() })
+        .where(eq(stageStatesTable.id, stageId));
 
       res.json({ mode, slotKey: slotKey ?? null });
     } catch (err) {

@@ -95,7 +95,31 @@ function summarise(stage: StageRow, takes: SpineResponse["takes"]): string {
 export default function StudioV2() {
   const [searchParams, setSearchParams] = useSearchParams();
   const creativeId = searchParams.get("creative");
-  const { data: creatives } = useGetCreatives();
+
+  /*
+   * The rail's rows, fetched with ?preview=1 so each carries the picked image
+   * and a Studio-work count. Three identically named, pictureless drafts —
+   * one finished, two dead — were indistinguishable in the old rail, and
+   * legacy Co-pilot creatives (no stage takes) opened here as empty spines
+   * over real session work (doc 40 P1.7). Only posts with v2 takes are shown.
+   */
+  const [recentRows, setRecentRows] = useState<Array<{
+    id: string; name: string; status: string; previewImageUrl: string | null; updatedAt?: string; createdAt?: string; studioTakeCount: number;
+  }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/creatives?preview=1&limit=24`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (!cancelled && Array.isArray(body?.data)) setRecentRows(body.data);
+      } catch {
+        // The rail renders empty rather than blocking the entrance.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [creativeId]);
 
   /**
    * The open creative's own brand, fetched rather than looked up in the list.
@@ -132,9 +156,23 @@ export default function StudioV2() {
       const body: SpineResponse = await res.json();
       setSpine(body);
       setRevision((n) => n + 1);
-      // Land on the first stage that is not finished, which is where the work
-      // actually is, rather than always dropping people on stage 01.
-      const next = body.stages.find((s) => s.status !== "done" && s.status !== "locked") ?? body.stages[0];
+      /*
+       * Land where the work actually stops — at or after the FURTHEST stage
+       * that holds takes — never on an untouched stage upstream of finished
+       * work. The old rule ("first stage not done") dropped a fully shipped
+       * post on stage 02's director screen, because using the default director
+       * writes no take and leaves 02 "empty" forever (doc 40 P1.8). A post
+       * with no takes at all still starts at stage 01.
+       */
+      const lastIdx = (() => {
+        for (let i = body.stages.length - 1; i >= 0; i--) {
+          if ((body.takes[body.stages[i].id] ?? []).length > 0) return i;
+        }
+        return 0;
+      })();
+      const next =
+        body.stages.find((s, i) => i >= lastIdx && s.status !== "done" && s.status !== "locked") ??
+        body.stages[lastIdx] ?? body.stages[0];
       setActiveStageId((prev) => prev ?? next?.id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load stages");
@@ -152,14 +190,11 @@ export default function StudioV2() {
       setBrandId(null);
       return;
     }
-    // Fall back to the list, which is right for the common case and costs
-    // nothing, so a slow fetch does not blank a panel that was already correct.
-    setBrandId((creatives?.data ?? []).find((c) => c.id === creativeId)?.brandId ?? null);
     void apiFetch(`/api/creatives/${creativeId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((c) => { if (c?.brandId) setBrandId(c.brandId); })
-      .catch(() => { /* the list fallback above already stands */ });
-  }, [creativeId, creatives]);
+      .catch(() => { /* the panel shows the fetched value or nothing */ });
+  }, [creativeId]);
 
   const stages: SpineStage[] = useMemo(
     () =>
@@ -243,7 +278,16 @@ export default function StudioV2() {
      */
     return (
       <Entrance
-        recent={(creatives?.data ?? []).slice(0, 12).map((c) => ({ id: c.id, name: c.name, status: c.status }))}
+        recent={recentRows
+          .filter((c) => c.studioTakeCount > 0)
+          .slice(0, 12)
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            previewImageUrl: c.previewImageUrl,
+            at: c.updatedAt ?? c.createdAt ?? null,
+          }))}
         onOpen={open}
       />
     );
@@ -353,6 +397,8 @@ export default function StudioV2() {
                     creativeId={creativeId}
                     stageId={activeStage.id}
                     mode={activeStage.mode}
+                    // The slot Refine is working on — stage state, not a pick.
+                    modeSlotKey={(activeStage as { modeSlotKey?: string | null }).modeSlotKey ?? null}
                     takes={spine.takes[activeStage.id] ?? []}
                     locked={activeStage.status === "locked"}
                     onChanged={() => void loadSpine(creativeId)}

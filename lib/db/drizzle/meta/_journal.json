@@ -295,6 +295,13 @@
       "when": 1786425014706,
       "tag": "0041_one_scale",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786428614706,
+      "tag": "0042_mode_is_not_a_pick",
+      "breakpoints": true
     }
   ]
 }

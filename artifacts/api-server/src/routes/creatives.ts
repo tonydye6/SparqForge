@@ -1,7 +1,7 @@
 import { str } from "../lib/http-params.js";
 import { Router, type IRouter } from "express";
-import { eq, and, gte, sql, desc } from "drizzle-orm";
-import { db, creativesTable, creativeVariantsTable, calendarEntriesTable, socialAccountsTable } from "@workspace/db";
+import { eq, and, gte, sql, desc, inArray } from "drizzle-orm";
+import { db, creativesTable, creativeVariantsTable, calendarEntriesTable, socialAccountsTable, stageStatesTable, stageTakesTable } from "@workspace/db";
 import { accountPlatformFor } from "../lib/platform-accounts.js";
 import {
   GetCreativesQueryParams,
@@ -77,6 +77,57 @@ router.get("/creatives", async (req, res): Promise<void> => {
   const results = baseCondition
     ? await db.select().from(creativesTable).where(baseCondition).orderBy(...orderBy).limit(limit).offset(offset)
     : await db.select().from(creativesTable).orderBy(...orderBy).limit(limit).offset(offset);
+
+  /*
+   * ?preview=1 — identity for list surfaces (doc 40 P1.7).
+   *
+   * Three posts named "new Crown U character reveal @crownu…", no pictures, no
+   * way to tell the finished one from two dead runs: every list in the product
+   * rendered creatives as bare names. `previewImageUrl` is the picked image
+   * (the current "selected" take on the asset stage, which since 0042 always
+   * carries one), and `studioTakeCount` says whether Studio v2 work exists at
+   * all — a legacy Co-pilot creative has none, and offering it to the v2 rail
+   * presents an empty spine over real session work. Opt-in per request so the
+   * plain list stays one query.
+   */
+  if (String(req.query.preview ?? "") === "1" && results.length > 0) {
+    const ids = results.map((c) => c.id);
+    const picks = await db
+      .select({
+        creativeId: stageStatesTable.creativeId,
+        payload: stageTakesTable.payload,
+      })
+      .from(stageTakesTable)
+      .innerJoin(stageStatesTable, eq(stageTakesTable.stageStateId, stageStatesTable.id))
+      .where(and(
+        inArray(stageStatesTable.creativeId, ids),
+        eq(stageStatesTable.stageKind, "asset"),
+        eq(stageTakesTable.slotKey, "selected"),
+        eq(stageTakesTable.isCurrent, true),
+      ));
+    const previewByCreative = new Map<string, string | null>();
+    for (const p of picks) {
+      const url = (p.payload as { imageUrl?: unknown } | null)?.imageUrl;
+      previewByCreative.set(p.creativeId, typeof url === "string" ? url : null);
+    }
+    const counts = await db
+      .select({
+        creativeId: stageStatesTable.creativeId,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(stageTakesTable)
+      .innerJoin(stageStatesTable, eq(stageTakesTable.stageStateId, stageStatesTable.id))
+      .where(inArray(stageStatesTable.creativeId, ids))
+      .groupBy(stageStatesTable.creativeId);
+    const countByCreative = new Map(counts.map((c) => [c.creativeId, c.n]));
+    const withPreview = results.map((c) => ({
+      ...c,
+      previewImageUrl: previewByCreative.get(c.id) ?? null,
+      studioTakeCount: countByCreative.get(c.id) ?? 0,
+    }));
+    res.json({ data: withPreview, total, limit, offset });
+    return;
+  }
 
   res.json({ data: results, total, limit, offset });
 });

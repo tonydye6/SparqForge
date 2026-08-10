@@ -173,6 +173,20 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
     : null;
   const chosenSubjects = chosen?.filter((s) => s.role === "subject").length ?? null;
   const directorFallback = material?.directorFallback === true;
+  /*
+   * A pinned subject (an `@` mention, or the pin inherited from the previous
+   * run) means the director was TOLD who is in the picture and correctly chose
+   * no second subject. Painting "0 as subject" pink on those sessions accused
+   * exactly the posts doing fidelity right — the same false positive the Smart
+   * Bar fixed at 17ae352, still alive here until now (doc 40 P2.10).
+   */
+  const m = material as (typeof material & {
+    subjectPin?: { assetId?: string } | null;
+    subjectPinnedFrom?: string | null;
+    droppedMentions?: Array<{ name?: string; reason?: string }>;
+  }) | null;
+  const subjectPinned = Boolean(m?.subjectPin && typeof m.subjectPin === "object");
+  const droppedMentions = Array.isArray(m?.droppedMentions) ? m.droppedMentions : [];
 
   return (
     <div className="px-3 py-2.5">
@@ -235,14 +249,27 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
                     {chosenSubjects !== null && (
                       <>
                         {" · "}
-                        <span className={chosenSubjects === 0 ? "text-rebel-pink" : undefined}>
-                          {chosenSubjects} as subject
-                        </span>
+                        {subjectPinned && chosenSubjects === 0 ? (
+                          <span>subject pinned{m?.subjectPinnedFrom === "mention" ? " by your @" : ""}</span>
+                        ) : (
+                          <span className={chosenSubjects === 0 && !subjectPinned ? "text-rebel-pink" : undefined}>
+                            {chosenSubjects} as subject
+                          </span>
+                        )}
                       </>
                     )}
                     {catalogSize !== null ? ` · saw ${catalogSize}` : ""}
                   </>
                 )}
+              </Line>
+            )}
+            {droppedMentions.length > 0 && (
+              <Line label="Not used">
+                <span className="text-victory-gold">
+                  {droppedMentions
+                    .map((d) => `${d.name ?? "an attachment"} — ${(d.reason ?? "not eligible").toLowerCase()}`)
+                    .join("; ")}
+                </span>
               </Line>
             )}
             {/*

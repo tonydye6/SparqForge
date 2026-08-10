@@ -82,19 +82,30 @@ function CopilotRedirect() {
   return <Redirect to={`/${search}`} />;
 }
 
+/** Session cache for FirstRunGuard: "do any brands exist" changes only in /setup. */
+let firstRunBrands: any[] | null = null;
+
 function FirstRunGuard({ children }: { children: React.ReactNode }) {
-  const [brands, setBrands] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [brands, setBrands] = useState<any[]>(() => firstRunBrands ?? []);
+  const [loading, setLoading] = useState(firstRunBrands === null);
   const [errored, setErrored] = useState(false);
 
   useEffect(() => {
+    /*
+     * Once per session, not once per route mount. This guard wraps four
+     * routes, and each mount used to spend a full serial round-trip
+     * re-answering "does any brand exist?" — a fact that changes only in
+     * /setup. Part of the doc 40 P1.5 dead window.
+     */
+    if (firstRunBrands !== null) return;
     apiFetch("/api/brands?limit=1", { credentials: "include" })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        setBrands(data.data || data || []);
+        firstRunBrands = data.data || data || [];
+        setBrands(firstRunBrands ?? []);
         setLoading(false);
       })
       .catch((err) => {

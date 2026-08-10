@@ -74,6 +74,16 @@ export const stageStatesTable = pgTable(
     stageNumber: integer("stage_number").notNull(),
     stageKind: text("stage_kind").$type<StageKind>().notNull(),
     mode: text("mode").$type<StageMode>().notNull().default("explore"),
+    /**
+     * Which Explore slot Refine is working on, when mode is "refine".
+     *
+     * This used to be recorded as a CURRENT take in the "selected" slot, which
+     * made entering a viewing mode indistinguishable from picking: the pointer
+     * take carried no imageUrl, so one click on "Refine" un-published a
+     * finished post (doc 40 P0.1). A mode target is stage state, not a
+     * decision, so it lives on the stage row; "selected" takes mean picks.
+     */
+    modeSlotKey: text("mode_slot_key"),
     status: text("status").$type<StageStatus>().notNull().default("empty"),
     lockedAt: timestamp("locked_at"),
     lockedBy: text("locked_by").references(() => usersTable.id, { onDelete: "set null" }),

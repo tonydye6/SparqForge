@@ -192,14 +192,22 @@ router.get("/approvals/awaiting", async (req: Request, res: Response): Promise<v
         requestedBy: approvalsTable.requestedBy,
         requestedAt: approvalsTable.requestedAt,
         requestedByName: usersTable.name,
+        // The Review Queue renders these rows as cards, and a card that only
+        // says an id is a card nobody can act on (doc 40 P0.2: the queue read
+        // creative.status and showed PENDING 0 while requests sat here).
+        creativeName: creativesTable.name,
+        brandId: creativesTable.brandId,
       })
       .from(approvalsTable)
       .leftJoin(usersTable, eq(approvalsTable.requestedBy, usersTable.id))
+      .leftJoin(creativesTable, eq(approvalsTable.creativeId, creativesTable.id))
       .where(isNull(approvalsTable.decidedAt));
 
     res.json({
       data: rows.map(r => ({
         creativeId: r.creativeId,
+        creativeName: r.creativeName,
+        brandId: r.brandId,
         requestedBy: r.requestedBy,
         requestedByName: r.requestedByName,
         requestedAt: r.requestedAt.toISOString(),
