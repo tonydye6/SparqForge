@@ -29,6 +29,7 @@ import {
   type Asset,
 } from "@workspace/db";
 import { str } from "../lib/http-params.js";
+import { constraintOf } from "../lib/db-errors.js";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { checkGenerationEligibility } from "../services/asset-policy.js";
 import { buildSequencePlan, type PlanClip } from "../services/sequence-plan.js";
@@ -47,15 +48,9 @@ const GENERATED_CLIP_MS = 6000;
  * matching the message both fails to identify the constraint AND risks putting
  * the query in a response body.
  */
-function constraintOf(err: unknown): string | null {
-  let cursor: unknown = err;
-  for (let depth = 0; depth < 4 && cursor; depth += 1) {
-    const name = (cursor as { constraint?: unknown }).constraint;
-    if (typeof name === "string") return name;
-    cursor = (cursor as { cause?: unknown }).cause;
-  }
-  return null;
-}
+// Moved to lib/db-errors.ts when a second route needed it. The comment above
+// stays next to the code that found the trap.
+export { constraintOf };
 
 // ── the read model the timeline draws ───────────────────────────────────────
 
