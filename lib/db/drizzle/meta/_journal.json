@@ -260,6 +260,13 @@
       "when": 1786316963483,
       "tag": "0036_shiny_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786335691293,
+      "tag": "0037_panoramic_the_executioner",
+      "breakpoints": true
     }
   ]
 }

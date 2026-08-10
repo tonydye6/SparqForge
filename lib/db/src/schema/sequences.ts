@@ -71,6 +71,26 @@ export const sequenceClipsTable = pgTable("sequence_clips", {
   trimStartMs: integer("trim_start_ms").notNull().default(0),
   trimEndMs: integer("trim_end_ms").notNull(),
   transitionIn: text("transition_in").$type<ClipTransition>().notNull().default("cut"),
+  /**
+   * Set when the thing this clip pointed at was deleted underneath it.
+   *
+   * **The decision this column records.** Before it, the CHECK below fired on
+   * the foreign key's SET NULL, so deleting a library asset that any sequence
+   * used FAILED with a raw constraint error that never mentioned sequences.
+   * Nothing was lost, but library hygiene was hostage to an old sequence and
+   * the message told nobody why.
+   *
+   * The three options were: refuse the delete (what happened, accidentally),
+   * cascade the clip away (silent loss of somebody's edit, and the sequence's
+   * duration changes underneath them), or keep the row and mark it. This is the
+   * third. The clip keeps its position and its trim, because that is the
+   * human's work and §2.4 says keep it safe; the timeline says the source is
+   * gone; the render refuses until somebody replaces or removes it.
+   *
+   * Stamped by a trigger rather than by application code, because the SET NULL
+   * is what causes it and no caller is in the loop when a cascade fires.
+   */
+  sourceMissingAt: timestamp("source_missing_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   /**
@@ -88,11 +108,19 @@ export const sequenceClipsTable = pgTable("sequence_clips", {
    * row ends up pointing nowhere, or pointing somewhere its kind says it does
    * not. Enforced here rather than trusted to every writer.
    */
+  /*
+   * A clip points at the thing its kind claims, OR it is explicitly marked as
+   * having lost it. The second branch is what lets a source be deleted without
+   * either refusing the delete or destroying somebody's edit, and it is
+   * deliberately narrow: a row may only lack a pointer while it is ALSO
+   * admitting to it. A silent null is still impossible.
+   */
   check(
     "sequence_clips_source_present_check",
     sql`(source_kind = 'generated'     AND source_variant_id IS NOT NULL)
      OR (source_kind = 'library_asset' AND source_asset_id   IS NOT NULL)
-     OR (source_kind = 'upload'        AND upload_url        IS NOT NULL)`,
+     OR (source_kind = 'upload'        AND upload_url        IS NOT NULL)
+     OR source_missing_at IS NOT NULL`,
   ),
   /** A clip that ends before it starts is not a short clip, it is a broken one. */
   check("sequence_clips_trim_order_check", sql`trim_end_ms > trim_start_ms`),

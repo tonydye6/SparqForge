@@ -101,6 +101,12 @@ router.get("/sequences/:id", async (req: Request, res: Response): Promise<void> 
       pending: t.durationMs === null,
     })),
     totalDurationMs: plan.totalDurationMs,
+    /*
+     * Kept distinct from `warnings` so a surface cannot offer Render on a
+     * sequence that is going to fail. A shortened dissolve warns and renders;
+     * a missing source does not.
+     */
+    renderable: plan.renderable,
     /** Both layers' refusals, in their own words. */
     warnings: [...plan.warnings, ...mix.warnings],
   });
