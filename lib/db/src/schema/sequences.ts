@@ -53,6 +53,21 @@ export const sequencesTable = pgTable("sequences", {
 }, (table) => [
   index("sequences_creative_idx").on(table.creativeId),
   check("sequences_render_status_check", oneOf("render_status", RENDER_STATUSES)),
+  /**
+   * A sequence that says it rendered has to have something to show for it.
+   *
+   * Same class of defect as a clip pointing at nothing: a row asserting a state
+   * it cannot back up. Without this, `renderStatus` could read `rendered` with
+   * a null `renderedUrl`, and every surface downstream would offer a video that
+   * does not exist. `totalDurationMs` is required too, because a rendered
+   * sequence whose length is unknown cannot be scheduled or fitted to a
+   * voiceover.
+   */
+  check(
+    "sequences_rendered_has_output_check",
+    sql`render_status <> 'rendered'
+        OR (rendered_url IS NOT NULL AND total_duration_ms IS NOT NULL)`,
+  ),
 ]);
 
 export const sequenceClipsTable = pgTable("sequence_clips", {

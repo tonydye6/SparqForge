@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
 import { RefineDeck, type StageTake } from "@/components/studio/RefineDeck";
+import { MotionPanel } from "@/components/studio/MotionPanel";
 
 /**
  * Stage 03 · Image · Explore.
@@ -96,7 +97,47 @@ interface PlanResponse {
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+/**
+ * Phase 9 item 9 · which medium this stage is showing.
+ *
+ * A toggle rather than a sixth stage: the spine's five stages are fixed display
+ * order, and a separate video stage would make one post read as two pipelines.
+ * Local state, not persisted, because it is a view of the stage rather than a
+ * property of it: the still and the motion both continue to exist whichever tab
+ * is open, which is the whole point of the lineage column.
+ */
+function MediumSwitch({
+  medium,
+  onChange,
+}: {
+  medium: "image" | "motion";
+  onChange: (m: "image" | "motion") => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-sm border border-border" role="group" aria-label="Medium">
+      {(["image", "motion"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          aria-pressed={medium === m}
+          onClick={() => onChange(m)}
+          className={cn(
+            "px-3 py-1 font-mono text-[9px] uppercase tracking-[0.09em] transition-colors",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyber-teal",
+            medium === m
+              ? "bg-primary text-primary-foreground"
+              : "text-dim hover:text-muted-foreground",
+          )}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged }: ImageStageProps) {
+  const [medium, setMedium] = useState<"image" | "motion">("image");
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -226,8 +267,30 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
   const outcomeFor = (takeId: string): TakeOutcome | null =>
     run?.outcomes.find((o) => o.takeId === takeId) ?? persisted.get(takeId) ?? null;
 
+  /*
+   * BEFORE every early return, deliberately. Refine is a MODE of stage 03, not
+   * a different stage, so a switch that only appeared in Explore would make the
+   * medium unreachable from half of its own stage. The same applies while the
+   * spread is planning or has failed: the motion that already exists does not
+   * stop existing because the image plan is loading.
+   */
+  if (medium === "motion") {
+    return (
+      <div>
+        <div className="mx-auto max-w-5xl px-6 pt-6">
+          <MediumSwitch medium={medium} onChange={setMedium} />
+        </div>
+        <MotionPanel creativeId={creativeId} />
+      </div>
+    );
+  }
+
   if (mode === "refine" && selectedSlotKey) {
     return (
+      <div className="space-y-4">
+        <div className="mx-auto max-w-5xl px-6 pt-6">
+          <MediumSwitch medium={medium} onChange={setMedium} />
+        </div>
       <RefineDeck
         creativeId={creativeId}
         stageId={stageId}
@@ -236,6 +299,7 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
         locked={locked}
         onChanged={onChanged}
       />
+      </div>
     );
   }
 
@@ -278,6 +342,7 @@ export function ImageStage({ creativeId, stageId, mode, takes, locked, onChanged
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
+      <MediumSwitch medium={medium} onChange={setMedium} />
       <div className="space-y-1.5">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
           Stage 03 · Image · Explore
