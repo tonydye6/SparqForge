@@ -34,6 +34,13 @@ export interface SpineStage {
   label: string;
   /** One line of what this stage decided, or what it is waiting for. */
   summary: string;
+  /**
+   * The stage's decision as pictures, when it has one (the pick, the clip).
+   * Rendered INSTEAD of the summary — the grid is pictures (doc 38 §3), and
+   * "13 takes" says effort was spent without saying what was decided
+   * (doc 41 item 16, Tony's pick A).
+   */
+  thumbs?: Array<{ url: string; video?: boolean }>;
   status: SpineStatus;
 }
 
@@ -157,14 +164,36 @@ export function StageSpine({
                 {stage.status === "stale" && <span className="ml-auto">Stale</span>}
                 {stage.status === "locked" && <span className="ml-auto">Locked</span>}
               </span>
-              <span
-                className={cn(
-                  "mt-0.5 block truncate text-[11.5px] leading-tight",
-                  stage.status === "empty" ? "text-dim" : "text-foreground",
-                )}
-              >
-                {stage.summary}
-              </span>
+              {stage.thumbs && stage.thumbs.length > 0 ? (
+                <span className="mt-1 flex items-center gap-1">
+                  {stage.thumbs.map((t, j) => (
+                    <span
+                      key={j}
+                      className="relative h-6 w-6 shrink-0 overflow-hidden rounded-sm border border-border/60"
+                    >
+                      <img src={t.url} alt="" className="h-full w-full object-cover" />
+                      {t.video && (
+                        <span
+                          aria-label="clip"
+                          className="absolute inset-0 flex items-center justify-center text-[9px] text-white"
+                          style={{ textShadow: "0 0 4px #000" }}
+                        >
+                          {"▸"}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    "mt-0.5 block truncate text-[11.5px] leading-tight",
+                    stage.status === "empty" ? "text-dim" : "text-foreground",
+                  )}
+                >
+                  {stage.summary}
+                </span>
+              )}
             </button>
             {i < stages.length - 1 && (
               <Connector direction={edgeBetween(stage.id, stages[i + 1].id)} />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ChevronsRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
 
@@ -50,7 +50,15 @@ export function SmartBar({
 }) {
   const [events, setEvents] = useState<BarEvent[]>([]);
   const [cards, setCards] = useState<BarCard[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
+  /*
+   * The feed leads and stays open (doc 41 items 14+15, Tony's pick A). A bar
+   * that was quiet all session because the session was healthy read as dead
+   * weight; the events feed is the part that always moves, so it is the
+   * resting face, with health shown as the dot. Cards, when they exist,
+   * appear INSIDE the feed as its urgent entries — and they force the
+   * section open, because advice behind a closed toggle helps nobody.
+   */
+  const [open, setOpen] = useState(true);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -68,89 +76,87 @@ export function SmartBar({
   useEffect(() => { void load(); }, [load, revision]);
 
   const visible = cards.filter((c) => !dismissed.has(c.id));
-
-  if (collapsed) {
-    return (
-      <button
-        onClick={() => setCollapsed(false)}
-        className="flex w-full items-center gap-2 border-t border-border/60 px-3 py-2 text-left hover:bg-muted/30"
-        data-testid="button-expand-smart-bar"
-      >
-        <span className={cn("h-1.5 w-1.5 rounded-full", visible.length ? "bg-cyber-teal" : "bg-border")} />
-        <span className="font-mono text-[9px] uppercase tracking-[0.11em] text-dim">
-          Smart bar{visible.length > 0 && ` · ${visible.length}`}
-        </span>
-      </button>
-    );
-  }
+  // Advice may not fold itself away.
+  const expanded = open || visible.length > 0;
 
   return (
-    <div className="flex min-h-0 flex-col border-t border-border/60" data-testid="smart-bar">
-      <div className="flex items-center gap-2 px-3 py-2">
-        <span className={cn("h-1.5 w-1.5 rounded-full", visible.length ? "animate-pulse bg-cyber-teal" : "bg-border")} />
-        <span className="flex-1 font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">Smart bar</span>
-        <button
-          onClick={() => setCollapsed(true)}
-          aria-label="Collapse the smart bar"
-          className="text-dim hover:text-muted-foreground"
-          data-testid="button-collapse-smart-bar"
-        >
-          <ChevronsRight size={11} />
-        </button>
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col border-t border-border/60" data-testid="smart-bar">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full shrink-0 items-center gap-1.5 px-3 py-2.5 text-left hover:bg-muted/20"
+        data-testid="button-toggle-smart-bar"
+      >
+        {expanded ? (
+          <ChevronDown size={9} className="shrink-0 text-dim" />
+        ) : (
+          <ChevronRight size={9} className="shrink-0 text-dim" />
+        )}
+        <span className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">What it saw</span>
+        {/* Health as a dot: teal is "watched everything, nothing to flag" —
+            visible proof of the quiet invariant instead of empty space. */}
+        <span
+          className={cn(
+            "ml-auto h-1.5 w-1.5 rounded-full",
+            visible.length ? "animate-pulse bg-victory-gold" : "bg-cyber-teal",
+          )}
+          title={visible.length ? `${visible.length} thing${visible.length === 1 ? "" : "s"} worth a look` : "Watching · nothing to flag"}
+        />
+      </button>
 
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-2">
-        {visible.map((card) => (
-          <div
-            key={card.id}
-            className={cn(
-              "rounded-sm border bg-raised px-2.5 py-2",
-              card.tone === "risk" ? "border-rebel-pink/40" : "border-border",
-            )}
-            data-testid={`smart-card-${card.id}`}
-          >
-            <p className="mb-1 font-mono text-[8px] uppercase tracking-[0.08em] text-dim">
-              saw{" "}
-              <span className={card.tone === "risk" ? "text-rebel-pink" : "text-grit-teal"}>{card.saw}</span>
-            </p>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">{card.text}</p>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              {card.action?.type === "open_stage" && (
-                <button
-                  onClick={() => onOpenStage(card.action!.type === "open_stage" ? card.action!.stageKind : "")}
-                  className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate"
-                >
-                  {card.action.label}
-                </button>
+      {expanded && (
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-2">
+          {visible.map((card) => (
+            <div
+              key={card.id}
+              className={cn(
+                "rounded-sm border bg-raised px-2.5 py-2",
+                card.tone === "risk" ? "border-rebel-pink/40" : "border-victory-gold/40",
               )}
-              {card.action?.type === "href" && (
-                <Link href={card.action.href}>
-                  <a className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate">
+              data-testid={`smart-card-${card.id}`}
+            >
+              <p className="mb-1 font-mono text-[8px] uppercase tracking-[0.08em] text-dim">
+                saw{" "}
+                <span className={card.tone === "risk" ? "text-rebel-pink" : "text-victory-gold"}>{card.saw}</span>
+              </p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">{card.text}</p>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {card.action?.type === "open_stage" && (
+                  <button
+                    onClick={() => onOpenStage(card.action!.type === "open_stage" ? card.action!.stageKind : "")}
+                    className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate"
+                  >
                     {card.action.label}
-                  </a>
-                </Link>
-              )}
-              <button
-                onClick={() => setDismissed((prev) => new Set(prev).add(card.id))}
-                className="px-1 font-mono text-[8px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground"
-              >
-                Not now
-              </button>
+                  </button>
+                )}
+                {card.action?.type === "href" && (
+                  <Link href={card.action.href}>
+                    <a className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate">
+                      {card.action.label}
+                    </a>
+                  </Link>
+                )}
+                <button
+                  onClick={() => setDismissed((prev) => new Set(prev).add(card.id))}
+                  className="px-1 font-mono text-[8px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground"
+                >
+                  Not now
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
 
-      {events.length > 0 && (
-        <div className="max-h-[110px] overflow-y-auto border-t border-border/40 px-3 py-2">
-          <p className="mb-1 font-mono text-[8px] uppercase tracking-[0.1em] text-dim">What it saw</p>
-          <ul>
-            {events.map((e, i) => (
-              <li key={i} className="font-mono text-[8.5px] leading-[1.9] text-dim">
-                {e.line}
-              </li>
-            ))}
-          </ul>
+          {events.length > 0 ? (
+            <ul>
+              {events.map((e, i) => (
+                <li key={i} className="font-mono text-[8.5px] leading-[1.9] text-dim">
+                  {e.line}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="font-mono text-[8.5px] text-dim">Nothing has happened on this post yet.</p>
+          )}
         </div>
       )}
     </div>

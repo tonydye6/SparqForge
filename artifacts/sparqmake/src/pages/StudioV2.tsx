@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "wouter";
 import { useGetCreatives } from "@workspace/api-client-react";
-import { ArrowDown, ArrowRight, Lock, Unlock } from "lucide-react";
+import { ArrowRight, Lock, Unlock } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
 import { StageSpine, ReopenBar, type SpineStage, type SpineEdge, type SpineStatus } from "@/components/studio/StageSpine";
@@ -17,6 +17,7 @@ import { ShipBar } from "@/components/studio/ShipBar";
 import { SaveRunButton } from "@/components/studio/SavedRuns";
 import { Entrance } from "@/components/studio/Entrance";
 import { SmartBar } from "@/components/studio/SmartBar";
+import { InfoDot } from "@/components/studio/InfoDot";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
@@ -78,18 +79,70 @@ const STAGE_LABELS: Record<StageRow["stageKind"], string> = {
   crops: "Channel crops",
 };
 
-/** One line of what a stage decided, or what it is waiting for. */
-function summarise(stage: StageRow, takes: SpineResponse["takes"]): string {
-  if (stage.status === "stale" && stage.supersededReason) return stage.supersededReason;
+interface StageDecision {
+  text: string;
+  thumbs?: Array<{ url: string; video?: boolean }>;
+}
+
+/**
+ * What a stage DECIDED, not how many tries it took (doc 41 item 16, pick A).
+ *
+ * "13 takes" said effort was spent; it never said what came of it. Each node
+ * now carries its outcome: the brief's own words, the director's name, the
+ * picked frame and clip as thumbnails, the hook once written, the framing
+ * once set. Take counts survive inside the stages, where the deck shows them.
+ */
+function decisionFor(stage: StageRow, takes: SpineResponse["takes"]): StageDecision {
+  if (stage.status === "stale" && stage.supersededReason) return { text: stage.supersededReason };
   const mine = takes[stage.id] ?? [];
-  const current = mine.find((t) => t.isCurrent);
-  if (current && typeof current.payload === "string" && current.payload.length > 0) return current.payload;
-  if (current && current.payload && typeof current.payload === "object") {
-    const p = current.payload as Record<string, unknown>;
-    if (typeof p.summary === "string") return p.summary;
+  const current = (slot: string) => mine.find((t) => t.isCurrent && t.slotKey === slot);
+  const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+  switch (stage.stageKind) {
+    case "brief": {
+      const p = current("brief")?.payload as { line?: unknown } | undefined;
+      if (typeof p?.line === "string" && p.line.trim()) return { text: `"${clip(p.line.trim(), 36)}"` };
+      break;
+    }
+    case "direction": {
+      const p = current("direction")?.payload as { name?: unknown; kind?: unknown } | undefined;
+      if (p?.kind === "house") return { text: "House style" };
+      if (typeof p?.name === "string" && p.name) return { text: p.name };
+      break;
+    }
+    case "asset": {
+      const sel = current("selected")?.payload as { imageUrl?: unknown } | undefined;
+      const mot = current("motion")?.payload as { sourceImageUrl?: unknown; videoUrl?: unknown } | undefined;
+      const thumbs: Array<{ url: string; video?: boolean }> = [];
+      if (typeof sel?.imageUrl === "string") thumbs.push({ url: sel.imageUrl });
+      // The clip's thumb is its source frame, because a <video> in the spine
+      // would be five autoloading players for one glance.
+      if (typeof mot?.videoUrl === "string" && typeof mot?.sourceImageUrl === "string") {
+        thumbs.push({ url: mot.sourceImageUrl, video: true });
+      }
+      if (thumbs.length > 0) return { text: "", thumbs };
+      const rendered = mine.filter((t) => {
+        const p = t.payload as { imageUrl?: unknown } | undefined;
+        return t.isCurrent && typeof p?.imageUrl === "string";
+      }).length;
+      if (rendered > 0) return { text: "No pick yet" };
+      break;
+    }
+    case "copy": {
+      const p = current("copy")?.payload as { hook?: unknown; base?: unknown } | undefined;
+      if (typeof p?.hook === "string" && p.hook.trim()) return { text: `"${clip(p.hook.trim(), 36)}"` };
+      if (typeof p?.base === "string" && p.base.trim()) return { text: clip(p.base.trim(), 36) };
+      break;
+    }
+    case "crops": {
+      const p = current("crops")?.payload as { focal?: unknown } | undefined;
+      if (p?.focal && typeof p.focal === "object") return { text: "Framing set" };
+      break;
+    }
   }
-  if (mine.length > 0) return `${mine.length} ${mine.length === 1 ? "take" : "takes"}`;
-  return "Not made yet";
+  // History without a readable decision — the count is the honest fallback.
+  if (mine.length > 0) return { text: `${mine.length} ${mine.length === 1 ? "take" : "takes"}` };
+  return { text: "Not made yet" };
 }
 
 export default function StudioV2() {
@@ -198,13 +251,17 @@ export default function StudioV2() {
 
   const stages: SpineStage[] = useMemo(
     () =>
-      (spine?.stages ?? []).map((s) => ({
-        id: s.id,
-        stageNumber: s.stageNumber,
-        label: STAGE_LABELS[s.stageKind],
-        summary: summarise(s, spine?.takes ?? {}),
-        status: s.status,
-      })),
+      (spine?.stages ?? []).map((s) => {
+        const decision = decisionFor(s, spine?.takes ?? {});
+        return {
+          id: s.id,
+          stageNumber: s.stageNumber,
+          label: STAGE_LABELS[s.stageKind],
+          summary: decision.text,
+          thumbs: decision.thumbs,
+          status: s.status,
+        };
+      }),
     [spine],
   );
 
@@ -214,16 +271,51 @@ export default function StudioV2() {
    * The one forward button (doc 41 items 7-11: five sightings of the same
    * missing affordance). Every stage header ends with the same control in the
    * same place: the next stage by display order, named. On the last stage the
-   * forward IS the publish bar below, so the button points at it instead —
-   * Tony walked crops and did not recognize "Make it publishable" as the way
-   * on, which is what the flash exists to teach.
+   * forward IS publishing, so the button opens the publish panel.
    */
   const nextStage = useMemo(() => {
     if (!spine || !activeStageId) return null;
     const i = spine.stages.findIndex((s) => s.id === activeStageId);
     return i >= 0 ? spine.stages[i + 1] ?? null : null;
   }, [spine, activeStageId]);
-  const [shipFlash, setShipFlash] = useState(false);
+
+  /*
+   * Item 13, Tony's pick B: NO standing bottom bar. The publish state lives as
+   * a chip in the stage header; clicking it (or the last stage's Finish) opens
+   * a panel holding the full publishing and review surfaces. The chip keeps
+   * its own tiny read of ship-preview so it can be honest without mounting
+   * the whole bar, and re-reads on the same counters the bar always did.
+   */
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [pub, setPub] = useState<{ blocked: number; variants: number; inSync: boolean; updates: boolean } | null>(null);
+  useEffect(() => {
+    if (!creativeId) { setPub(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/creatives/${creativeId}/ship-preview`);
+        if (!res.ok || cancelled) return;
+        const b = await res.json() as { blocked?: string[]; variants?: Array<{ updates?: boolean }>; inSync?: boolean };
+        if (cancelled) return;
+        setPub({
+          blocked: (b.blocked ?? []).length,
+          variants: (b.variants ?? []).length,
+          inSync: Boolean(b.inSync),
+          updates: (b.variants ?? []).some((v) => v.updates),
+        });
+      } catch { /* no chip is better than a guessed chip */ }
+    })();
+    return () => { cancelled = true; };
+  }, [creativeId, revision, teamRevision]);
+
+  /** The Why-this sentence, now carried by an InfoDot on the stage title. */
+  const whyThis = activeStage?.status === "stale" && activeStage.supersededReason
+    ? `${activeStage.supersededReason}. Stale means built on something you have since reopened, not wrong.`
+    : activeStage?.status === "locked"
+      ? "This stage is locked, so it is an input to every other stage and nothing upstream can overwrite it."
+      : activeStage?.consumedFrom.length
+        ? `Built on ${activeStage.consumedFrom.length} earlier ${activeStage.consumedFrom.length === 1 ? "stage" : "stages"}. Reopening any of them will mark this stale rather than regenerating it.`
+        : "Nothing was consumed here yet, so nothing upstream can invalidate it.";
 
   /**
    * Opening a stage previews the consequences before anything changes. The
@@ -348,14 +440,43 @@ export default function StudioV2() {
             />
           )}
 
-          <div className="flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
               <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2">
-                <span className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim">
+                <span className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim">
                   Stage {String(activeStage?.stageNumber ?? 0).padStart(2, "0")} ·{" "}
                   {activeStage ? STAGE_LABELS[activeStage.stageKind] : ""}
+                  {/* Why-this, off the floor and onto the title (13B). */}
+                  {activeStage && <InfoDot text={whyThis} />}
                 </span>
                 <div className="ml-auto flex items-center gap-2">
+                  {/*
+                    The publish state as a chip (13B): a dot and two words where
+                    three standing rows used to be. Clicking it opens the full
+                    publishing + review panel over the rail.
+                  */}
+                  {pub && (
+                    <button
+                      onClick={() => setPublishOpen((v) => !v)}
+                      className="flex items-center gap-1.5 rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                      data-testid="button-publish-chip"
+                      aria-expanded={publishOpen}
+                    >
+                      <span
+                        className={cn(
+                          "h-1.5 w-1.5 rounded-full",
+                          pub.blocked > 0 ? "bg-rebel-pink" : pub.inSync ? "bg-cyber-teal" : "bg-victory-gold",
+                        )}
+                      />
+                      {pub.blocked > 0
+                        ? "Cannot publish"
+                        : pub.inSync
+                          ? `Publishable · ${pub.variants}`
+                          : pub.updates
+                            ? "Update ready"
+                            : "Ready to ship"}
+                    </button>
+                  )}
                   {activeStage && (
                     <button
                       onClick={() => void toggleLock()}
@@ -396,15 +517,12 @@ export default function StudioV2() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => {
-                        setShipFlash(true);
-                        window.setTimeout(() => setShipFlash(false), 1600);
-                      }}
+                      onClick={() => setPublishOpen(true)}
                       className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
                       data-testid="button-stage-continue"
                     >
                       Finish {"·"} make it publishable
-                      <ArrowDown size={9} />
+                      <ArrowRight size={9} />
                     </button>
                   ))}
                 </div>
@@ -506,52 +624,57 @@ export default function StudioV2() {
               </div>
 
               {/*
-                The decision, directly under the thing being judged. The old
-                Review Queue was a separate page whose Approve button 400'd by
-                design; dissolving it meant the decision had to land here.
+                No standing bottom bar (doc 41 item 13, pick B). Publishing and
+                review live in the panel the header chip opens; Why-this rides
+                the stage title's InfoDot. The stage owns the full height.
               */}
-              {/*
-                Publishing sits ABOVE the decision, because that is the real
-                order: making the post publishable is what gives a reviewer
-                something to look at per channel. The phone's review screen
-                reads variants, so before this existed it had nothing to show
-                for a v2 post either.
-              */}
-              <div className={cn(shipFlash && "animate-pulse ring-2 ring-inset ring-grit-teal")}>
-                <ShipBar
-                  creativeId={creativeId}
-                  revision={revision}
-                  // Shipping can reset an approval, so the decision below has to
-                  // re-read. On its OWN counter, not the spine's: bumping the
-                  // spine here would clear the publishing bar's success message
-                  // the instant it appeared.
-                  onShipped={() => setTeamRevision((n) => n + 1)}
-                />
-              </div>
-
-              <ReviewBar
-                creativeId={creativeId}
-                activeStageId={activeStage?.id ?? null}
-                revision={revision + teamRevision}
-                onDecided={() => void loadSpine(creativeId)}
-              />
-
-              {/* Why this. Always says something, per the Ableton Info View idea. */}
-              <div className="flex shrink-0 items-start gap-3 border-t border-border/60 bg-card px-4 py-2.5">
-                <span className="whitespace-nowrap pt-0.5 font-mono text-[9.5px] uppercase tracking-[0.11em] text-grit-teal">
-                  Why this
-                </span>
-                <p className="max-w-[92ch] text-[12px] leading-relaxed text-muted-foreground">
-                  {activeStage?.status === "stale" && activeStage.supersededReason
-                    ? `${activeStage.supersededReason}. Stale means built on something you have since reopened, not wrong.`
-                    : activeStage?.status === "locked"
-                      ? "This stage is locked, so it is an input to every other stage and nothing upstream can overwrite it."
-                      : activeStage?.consumedFrom.length
-                        ? `Built on ${activeStage.consumedFrom.length} earlier ${activeStage.consumedFrom.length === 1 ? "stage" : "stages"}. Reopening any of them will mark this stale rather than regenerating it.`
-                        : "Nothing was consumed here yet, so nothing upstream can invalidate it."}
-                </p>
-              </div>
             </div>
+
+            {/*
+              The publish panel: the full publishing + review surfaces, over
+              the rail, one click from the chip. The components are the same
+              ones that used to stand at the bottom — the decision moved, its
+              machinery did not.
+            */}
+            {publishOpen && (
+              <div
+                className="absolute inset-y-0 right-0 z-30 flex w-[460px] max-w-full flex-col border-l border-border bg-background shadow-2xl"
+                role="dialog"
+                aria-label="Publishing and review"
+                data-testid="panel-publish"
+              >
+                <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2.5">
+                  <span className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-grit-teal">
+                    Publishing {"&"} review
+                  </span>
+                  <button
+                    onClick={() => setPublishOpen(false)}
+                    aria-label="Close the publish panel"
+                    className="ml-auto rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                    data-testid="button-close-publish"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <ShipBar
+                    creativeId={creativeId}
+                    revision={revision}
+                    // Shipping can reset an approval, so the decision below has
+                    // to re-read. On its OWN counter, not the spine's: bumping
+                    // the spine here would clear the publishing bar's success
+                    // message the instant it appeared.
+                    onShipped={() => setTeamRevision((n) => n + 1)}
+                  />
+                  <ReviewBar
+                    creativeId={creativeId}
+                    activeStageId={activeStage?.id ?? null}
+                    revision={revision + teamRevision}
+                    onDecided={() => void loadSpine(creativeId)}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* The brand contract, permanently locked, and the Material rail. */}
             <aside className="flex w-[196px] shrink-0 flex-col border-l border-border/60 bg-card">
