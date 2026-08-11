@@ -77,9 +77,23 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function CopilotRedirect() {
+/**
+ * "/" belongs to Studio v2 now — every retirement gate from doc 39 §3 is met
+ * (refine, motion, metering all live in v2) and Tony called the switch. The
+ * legacy Co-pilot stays reachable at /copilot until he approves removing it
+ * COMPLETELY; nothing here deletes it.
+ *
+ * One class of link must keep working: legacy session deep-links were minted
+ * as `/?session=…` (Slack messages, bookmarks, the continue-a-session cards).
+ * Those go where the session player lives rather than bouncing off the new
+ * default.
+ */
+function HomeRedirect() {
   const search = window.location.search;
-  return <Redirect to={`/${search}`} />;
+  if (new URLSearchParams(search).has("session")) {
+    return <Redirect to={`/copilot${search}`} />;
+  }
+  return <Redirect to={`/studio-v2${search}`} />;
 }
 
 /** Session cache for FirstRunGuard: "do any brands exist" changes only in /setup. */
@@ -143,7 +157,9 @@ function Router() {
           <SetupWizard />
         </Route>
         <Route path="/copilot">
-          <CopilotRedirect />
+          <FirstRunGuard>
+            <AppLayout><CopilotStudio /></AppLayout>
+          </FirstRunGuard>
         </Route>
         {/*
           Phase 10 item 5 · the phone. Principle 1.15: three capabilities, and
@@ -166,9 +182,7 @@ function Router() {
           </FirstRunGuard>
         </Route>
         <Route path="/">
-          <FirstRunGuard>
-            <AppLayout><CopilotStudio /></AppLayout>
-          </FirstRunGuard>
+          <HomeRedirect />
         </Route>
         <Route path="/brand">
           <FirstRunGuard>
