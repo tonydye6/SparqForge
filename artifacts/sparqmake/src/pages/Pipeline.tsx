@@ -455,7 +455,9 @@ export default function Pipeline() {
                     i < 2 && <Skeleton className="h-24 w-full rounded-sm" />}
 
                   {cards.map((c) => (
-                    <Link key={c.creativeId} href="/" className="block">
+                    // A scheduled card opens ITS post in the studio, not the
+                    // app root — which was the legacy Co-pilot until "/" moved.
+                    <Link key={c.creativeId} href={`/studio-v2?creative=${c.creativeId}`} className="block">
                       {/*
                         The waiting-on-a-decision edge. A left stripe rather
                         than another chip: the card already carries a state
@@ -490,7 +492,7 @@ export default function Pipeline() {
                   {/* No cell is ever empty. */}
                   {!loading && cards.length === 0 && (
                     <Link
-                      href="/"
+                      href="/studio-v2"
                       className="block rounded-sm border border-dashed border-border p-2.5 transition-colors hover:border-grit-teal/50 hover:bg-grit-teal/5"
                     >
                       <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
