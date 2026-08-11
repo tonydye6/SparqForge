@@ -1616,18 +1616,24 @@ router.post(
 
       const referenceSlots = [] as Array<{ imageBuffer: Buffer; mimeType: string; slot: "character" | "object" | "style"; description: string }>;
       let subjectRefName: string | null = null;
+      // Why the reference did NOT ride, when it did not — walked on the live
+      // build 2026-08-11: the demo post's pin is an owner-blocked asset
+      // (generation_allowed=false), the gate rightly refused it, and the take
+      // then said nothing. Silence about refused material is the lie the rail
+      // exists to prevent (§1.17), so the refusal is recorded by name.
+      let subjectRefDropped: string | null = null;
       if (subjectAssetId) {
         const [subjectAsset] = await loadBrandAssetsByIds(creative.brandId, [subjectAssetId]);
         // The same gate every other reference passes; a subject blocked since
         // the pick must not keep steering through the pin's memory.
-        if (
-          subjectAsset?.fileUrl &&
-          checkGenerationEligibility(
-            subjectAsset,
-            { channel: null, template: creative.templateId ?? null },
-            "generation_reference",
-          ).eligible
-        ) {
+        const verdict = subjectAsset
+          ? checkGenerationEligibility(
+              subjectAsset,
+              { channel: null, template: creative.templateId ?? null },
+              "generation_reference",
+            )
+          : null;
+        if (subjectAsset?.fileUrl && verdict?.eligible) {
           const buf = await readFileByUrl(subjectAsset.fileUrl);
           if (buf) {
             referenceSlots.push({
@@ -1637,7 +1643,11 @@ router.post(
               description: slotDescriptionForAsset(subjectAsset, "character"),
             });
             subjectRefName = subjectAsset.name;
+          } else {
+            subjectRefDropped = `${subjectAsset.name}: the reference image could not be read`;
           }
+        } else if (subjectAsset) {
+          subjectRefDropped = `${subjectAsset.name}: ${verdict?.reason ?? "not eligible for generation"}`;
         }
       }
 
@@ -1695,6 +1705,7 @@ router.post(
             material: {
               referenceCount: 1 + referenceSlots.length,
               subjectRef: subjectRefName,
+              subjectRefDropped,
               director: persona?.name ?? null,
               identityLock: true,
             },

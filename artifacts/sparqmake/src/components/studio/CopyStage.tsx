@@ -219,11 +219,15 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
   }, [creativeId, locked, drafting, hook, base]);
 
   // Fires at most once per open, only when the restore found nothing saved.
+  // Waits for the channel list too — walked on the live build: drafting before
+  // useChannels resolved filled hook and base but left every channel box
+  // empty, because the per-channel fill iterates platformOrder.
   useEffect(() => {
     if (!needsDraft || autoDrafted || locked || drafting || !selectedImageUrl) return;
+    if (resolved === null && !emptyReason) return;
     setAutoDrafted(true);
     void draft();
-  }, [needsDraft, autoDrafted, locked, drafting, selectedImageUrl, draft]);
+  }, [needsDraft, autoDrafted, locked, drafting, selectedImageUrl, draft, resolved, emptyReason]);
 
   async function save() {
     if (locked || saving) return;
