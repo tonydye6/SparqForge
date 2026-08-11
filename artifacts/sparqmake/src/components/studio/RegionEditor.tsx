@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { MentionChips, MentionPickerList, reconcile, useMentions, type AssetOption } from "@/components/studio/mentions";
 
 /**
  * Region editing, on the image.
@@ -44,6 +45,8 @@ interface RegionEditorProps {
   stageId: string;
   slotKey: string;
   imageUrl: string;
+  /** For the instruction's `@` picker — mentions are brand-scoped. */
+  brandId: string | null;
   /** Named regions derived from the take, so "the subject" needs no dragging. */
   namedRegions?: NamedRegion[];
   locked: boolean;
@@ -58,6 +61,7 @@ export function RegionEditor({
   stageId,
   slotKey,
   imageUrl,
+  brandId,
   namedRegions = [],
   locked,
   onEdited,
@@ -70,6 +74,28 @@ export function RegionEditor({
   const [error, setError] = useState<string | null>(null);
   const [drift, setDrift] = useState<DriftReport | null>(null);
   const [driftUnavailable, setDriftUnavailable] = useState<string | null>(null);
+  const [dropped, setDropped] = useState<Array<{ name?: string; reason?: string }>>([]);
+
+  /*
+   * The same `@` machinery the sentence composer above this editor has. The
+   * instruction here was the last composer without it (doc 41 item 3), which
+   * meant "replace the logo with @Crown U primary" worked one textarea up and
+   * silently did nothing in this one.
+   */
+  const instructionRef = useRef<HTMLTextAreaElement | null>(null);
+  const m = useMentions(brandId);
+
+  function chooseMention(asset: AssetOption) {
+    const el = instructionRef.current;
+    const caret = el ? el.selectionStart : instruction.length;
+    const r = m.choose(asset, instruction, caret);
+    if (!r) return;
+    setInstruction(r.line);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(r.caret, r.caret);
+    });
+  }
 
   /** Pointer position as a 0..1 fraction of the frame. */
   function pointAt(e: React.PointerEvent): { x: number; y: number } | null {
@@ -118,14 +144,16 @@ export function RegionEditor({
     setError(null);
     setDrift(null);
     setDriftUnavailable(null);
+    setDropped([]);
     try {
+      const text = instruction.trim();
       const res = await apiFetch(`/api/creatives/${creativeId}/stages/${stageId}/region-edit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotKey, region, instruction: instruction.trim() }),
+        body: JSON.stringify({ slotKey, region, instruction: text, mentions: reconcile(m.mentions, text) }),
       });
       const body = (await res.json().catch(() => null)) as
-        | { error?: string; drift?: DriftReport | null; driftUnavailable?: string | null }
+        | { error?: string; drift?: DriftReport | null; driftUnavailable?: string | null; droppedMentions?: Array<{ name?: string; reason?: string }> }
         | null;
       if (!res.ok) {
         // The server's copy already says whether anything was charged.
@@ -134,7 +162,9 @@ export function RegionEditor({
       }
       setDrift(body?.drift ?? null);
       setDriftUnavailable(body?.driftUnavailable ?? null);
+      if (Array.isArray(body?.droppedMentions) && body.droppedMentions.length > 0) setDropped(body.droppedMentions);
       setInstruction("");
+      m.setMentions([]);
       setRegion(null);
       onEdited();
     } catch {
@@ -197,15 +227,33 @@ export function RegionEditor({
       )}
 
       <div className="space-y-1.5">
-        <textarea
-          value={instruction}
-          onChange={(e) => setInstruction(e.target.value)}
-          disabled={locked || busy}
-          rows={2}
-          placeholder={region ? "What should change in the selection?" : "Drag a box on the image first"}
-          aria-label="What should change in the selected region"
-          className="w-full resize-none rounded-sm border border-border bg-raised px-2 py-1.5 text-[12px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal disabled:opacity-60"
-        />
+        <div className="relative">
+          <textarea
+            ref={instructionRef}
+            value={instruction}
+            onChange={(e) => { setInstruction(e.target.value); m.onLineChange(e.target.value, e.target.selectionStart); }}
+            onClick={(e) => m.onCaretMove(instruction, e.currentTarget.selectionStart)}
+            onBlur={m.onBlur}
+            onKeyDown={(e) => {
+              if (m.picker && m.matches.length > 0 && (e.key === "Enter" || e.key === "Tab")) {
+                e.preventDefault();
+                const pick = m.matches[m.highlight];
+                if (pick) chooseMention(pick);
+                return;
+              }
+              m.onKeyDown(e);
+            }}
+            disabled={locked || busy}
+            rows={2}
+            placeholder={region ? "What should change in the selection? @ attaches a reference" : "Drag a box on the image first"}
+            aria-label="What should change in the selected region. Type @ to attach a reference."
+            aria-expanded={m.picker !== null}
+            aria-controls={m.picker ? "region-mention-picker" : undefined}
+            className="w-full resize-none rounded-sm border border-border bg-raised px-2 py-1.5 text-[12px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal disabled:opacity-60"
+          />
+          <MentionPickerList m={m} pickerId="region-mention-picker" onChoose={chooseMention} />
+        </div>
+        <MentionChips mentions={m.mentions} />
         <div className="flex items-center gap-2">
           <p className="text-[10.5px] leading-snug text-dim">
             {region
@@ -225,6 +273,12 @@ export function RegionEditor({
       {error && (
         <p className="rounded-sm border border-rebel-pink/40 bg-card px-2.5 py-1.5 text-[11px] leading-relaxed text-rebel-pink">
           {error}
+        </p>
+      )}
+
+      {dropped.length > 0 && (
+        <p className="text-[10.5px] leading-relaxed text-victory-gold">
+          Not used: {dropped.map((d) => `${d.name ?? "an attachment"} — ${(d.reason ?? "not eligible").toLowerCase()}`).join("; ")}
         </p>
       )}
 

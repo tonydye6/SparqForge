@@ -110,6 +110,15 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
   const [error, setError] = useState<string | null>(null);
   /** The base as it stood when the channels were last derived from it. */
   const [derivedFrom, setDerivedFrom] = useState("");
+  /*
+   * Draft-first (doc 41 item 9). A stage that opens as an empty caption box
+   * with its actions at the bottom reads as "I don't even know where to
+   * start" — Tony's words from walking it. When nothing has been saved yet,
+   * the stage drafts from the picture on its own; typing over the draft stays
+   * primary, and a saved take is never overwritten by this.
+   */
+  const [needsDraft, setNeedsDraft] = useState(false);
+  const [autoDrafted, setAutoDrafted] = useState(false);
 
   const setChannel = (platform: string, patch: Partial<ChannelState>) => {
     setChannels((prev) => {
@@ -134,7 +143,11 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
         const takes = body?.takes?.[copy.id] ?? [];
         const cur = takes.find((t: { slotKey: string; isCurrent: boolean }) => t.slotKey === "copy" && t.isCurrent);
         const p = cur?.payload;
-        if (!p || typeof p !== "object" || cancelled) return;
+        if (!p || typeof p !== "object" || cancelled) {
+          // Nothing saved for this stage yet — the guided opening drafts it.
+          if (!cancelled) setNeedsDraft(true);
+          return;
+        }
         if (typeof p.hook === "string") setHook(p.hook);
         if (typeof p.base === "string") { setBase(p.base); setDerivedFrom(p.base); }
         if (p.channels && typeof p.channels === "object") setChannels(p.channels as Record<string, ChannelState>);
@@ -204,6 +217,13 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
       setDrafting(false);
     }
   }, [creativeId, locked, drafting, hook, base]);
+
+  // Fires at most once per open, only when the restore found nothing saved.
+  useEffect(() => {
+    if (!needsDraft || autoDrafted || locked || drafting || !selectedImageUrl) return;
+    setAutoDrafted(true);
+    void draft();
+  }, [needsDraft, autoDrafted, locked, drafting, selectedImageUrl, draft]);
 
   async function save() {
     if (locked || saving) return;

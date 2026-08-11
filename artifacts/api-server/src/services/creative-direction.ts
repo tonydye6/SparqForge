@@ -41,8 +41,58 @@ import { logger } from "../lib/logger.js";
 import type { ImageSlot } from "./interactions-client.js";
 
 // ============================================================================
+// Strict marks: a mark only ever enters generation as an attached image
+// ============================================================================
+
+/**
+ * Words that mean "a brand mark" wherever they appear in asset prose.
+ *
+ * Tony's 2026-08-11 walk found logos being REDRAWN ("flaming skull") instead of
+ * reproduced, and the leak was never the attached-image path — that one carries
+ * the verbatim reproduce-exactly instruction. It was every place a mark's
+ * appearance reached the model as WORDS: overflow descriptors, character
+ * identity notes, typed corrections. A described mark gets generated from the
+ * description, and a generated mark is a trademark problem, not a style one.
+ */
+const MARK_WORDS =
+  /\b(logos?|word ?marks?|brand ?marks?|emblems?|insignias?|crests?|badges?|swoosh(?:es)?|monograms?|watermarks?)\b/i;
+
+/** True when prose names a brand mark. */
+export function mentionsMark(text: string): boolean {
+  return MARK_WORDS.test(text);
+}
+
+/**
+ * Remove mark-describing sentences from asset prose.
+ *
+ * Deliberately coarse: the whole sentence goes, because "a red flaming skull
+ * logo prominently on her outfit" is exactly the freehand-redraw invitation the
+ * strict-marks rule exists to kill, and no clause-level surgery is worth the
+ * risk of leaving half of it. Identity that matters (face, hair, build,
+ * silhouette) lives in other sentences and survives; the mark itself is on the
+ * attached image, which is the only place the model is allowed to read it from.
+ */
+export function stripMarkProse(text: string): string {
+  if (!text || !MARK_WORDS.test(text)) return text;
+  const sentences = text.split(/(?<=[.!?;])\s+/);
+  return sentences.filter(s => !MARK_WORDS.test(s)).join(" ").trim();
+}
+
+// ============================================================================
 // Session style contract
 // ============================================================================
+
+/**
+ * Prohibitions every brand carries, merged into the "Never include" line ahead
+ * of the brand's own negativePrompt.
+ *
+ * Neon/glow is Tony's decree from the 2026-08-11 walk — "Do not allow neon or
+ * glowing to be included in any future images" — global, not per-brand, which
+ * is why it is hardcoded here rather than left to brand records that a prompt
+ * refactor might stop reading.
+ */
+const UNIVERSAL_NEGATIVES =
+  "neon colors, neon lighting or neon signage; glowing outlines, glow effects, or luminous halos and rim-glow around characters or objects";
 
 /**
  * Deterministic brand-constraint text (~150-250 tokens for a fully configured
@@ -110,9 +160,11 @@ export function buildSessionStyleContract(params: {
     parts.push(`Brand colors: ${colorBits.join(", ")}.`);
   }
 
-  if (brand.negativePrompt) {
-    parts.push(`Never include: ${brand.negativePrompt}`);
-  }
+  // Unconditional: the universal negatives apply to a brand-record-less brand
+  // too, so this line is always emitted rather than gated on negativePrompt.
+  parts.push(
+    `Never include: ${[brand.negativePrompt, UNIVERSAL_NEGATIVES].filter(Boolean).join("; ")}`,
+  );
 
   if (styleProfile) {
     const bits: string[] = [];
@@ -190,7 +242,17 @@ export function slotDescriptionForAsset(
   asset: Pick<Asset, "name" | "description" | "characterIdentityNote" | "assetClass" | "generationRole" | "brandLayer" | "franchise">,
   slotType: ImageSlot["slot"],
 ): string {
-  const base = `Brand asset "${asset.name}"${asset.description ? ` — ${asset.description}` : ""}`;
+  // For a mark (object slot) the description may say what the mark is — the
+  // attached image plus the reproduce-exactly sentence governs. For subjects
+  // and styles the description passes through stripMarkProse: a character
+  // description that narrates the logo on their kit is the redraw invitation.
+  const describedAs =
+    slotType === "object"
+      ? asset.description
+      : asset.description
+        ? stripMarkProse(asset.description)
+        : "";
+  const base = `Brand asset "${asset.name}"${describedAs ? ` — ${describedAs}` : ""}`;
   let description: string;
   if (slotType === "style") {
     description = `${base}. Match this asset's visual style, treatment, and mood.`;
@@ -216,9 +278,23 @@ export function slotDescriptionForAsset(
      * are not identity, so they are named as the exception instead of leaving
      * the model to reconcile two absolute instructions.
      */
-    const identity = asset.characterIdentityNote ? ` ${asset.characterIdentityNote}` : "";
+    /*
+     * The identity note passes through stripMarkProse before it rides along.
+     *
+     * Crown U's notes describe the mark in words ("a red flaming skull logo
+     * prominently on her outfit"), and words are how a mark gets REDRAWN
+     * instead of copied — the model renders the description, not the pixels.
+     * The image this description is attached to already shows the mark
+     * exactly; the sentence below tells the model to read it from there.
+     */
+    const strippedNote = asset.characterIdentityNote ? stripMarkProse(asset.characterIdentityNote) : "";
+    const noteHadMark = Boolean(asset.characterIdentityNote && strippedNote !== asset.characterIdentityNote);
+    const identity = strippedNote ? ` ${strippedNote}` : "";
     description =
       `${base}.${identity} Reproduce this subject's IDENTITY faithfully as shown — face, hair, skin tone, build, silhouette, outfit design and colors — and do not redesign, restyle, or invent a different version of them. ` +
+      (noteHadMark
+        ? `Any brand mark on their outfit is copied exactly as it appears in this attached image, never redrawn or reinterpreted. `
+        : "") +
       `The one exception is marks: omit any third-party, sponsor, or other-brand logo, wordmark, or swoosh visible on this reference, or replace it with this brand's own mark. Removing a foreign mark is not redesigning the subject.`;
   }
   return enrichSlotDescription(description, asset);
@@ -433,23 +509,74 @@ export async function buildAssetCatalog(params: {
 }
 
 /**
+ * The brand's best mark for a piece of text, or null when the brand has none.
+ *
+ * The other half of the strict-marks rule: when an instruction NAMES a mark
+ * ("add the chest logo", "missing the official Crown U logo") and no mark image
+ * is attached, the correction used to reach the model as prose alone — and the
+ * model obliged by inventing one. Callers use this to attach the real file
+ * instead. Ranking reuses the brief scorer so "the Crown U logo" finds the
+ * Crown U primary mark rather than an arbitrary compositing asset.
+ */
+export async function findBestMarkAsset(params: {
+  brandId: string;
+  text: string;
+  channel?: string | null;
+  template?: string | null;
+}): Promise<Asset | null> {
+  const context = { channel: params.channel ?? null, template: params.template ?? null };
+  const assets = await db.select().from(assetsTable).where(and(
+    eq(assetsTable.brandId, params.brandId),
+    ne(assetsTable.status, "archived"),
+  ));
+  const marks = assets.filter(a =>
+    (a.compositingOnly || a.assetClass === "compositing") &&
+    Boolean(a.fileUrl) &&
+    !(a.mimeType || "").includes("video") &&
+    checkGenerationEligibility(a, context, "compositing").eligible,
+  );
+  if (marks.length === 0) return null;
+  const tokens = buildBriefTokenSet(params.text);
+  return marks
+    .map(a => ({ a, score: scoreAssetAgainstBrief(a, tokens).score }))
+    .sort((x, y) => y.score - x.score)[0]!.a;
+}
+
+/**
  * Overflow text descriptors for selected assets that did not fit the image
  * slot budget — ported from the batch path (imagen.ts tiered injection) so
  * an asset past the cap still guides the scene instead of vanishing.
  */
 export function buildOverflowDescriptors(assets: Asset[]): string {
+  /*
+   * STRICT MARKS: a mark that lost its image slot does not get a prose seat.
+   *
+   * This block used to send overflowed logos as text ("flaming skull logo…
+   * incorporate their subjects and look"), which is an explicit instruction to
+   * freehand the one asset class that must never be freehanded (doc 41 item 4;
+   * marks are the trademark-risk class). A missing logo is a smaller loss than
+   * a redrawn one, so mark-class assets are dropped here outright — a mark may
+   * only enter generation as an attached image carrying the reproduce-exactly
+   * instruction. Mark sentences inside OTHER assets' prose are stripped for the
+   * same reason.
+   */
   const withText = assets.filter(a =>
-    a.description || a.styleNotes || (a.depictedEntities || []).length > 0,
+    !(a.compositingOnly || a.assetClass === "compositing") &&
+    (a.description || a.styleNotes || (a.depictedEntities || []).length > 0),
   );
   if (withText.length === 0) return "";
   const lines = withText.map(a => {
     const bits: string[] = [];
-    if (a.description) bits.push(a.description);
-    if ((a.depictedEntities || []).length > 0) bits.push(`Depicts: ${(a.depictedEntities || []).join(", ")}`);
-    if (a.styleNotes) bits.push(`Style: ${a.styleNotes}`);
+    const described = a.description ? stripMarkProse(a.description) : "";
+    if (described) bits.push(described);
+    const entities = (a.depictedEntities || []).filter(e => !mentionsMark(e));
+    if (entities.length > 0) bits.push(`Depicts: ${entities.join(", ")}`);
+    const style = a.styleNotes ? stripMarkProse(a.styleNotes) : "";
+    if (style) bits.push(`Style: ${style}`);
     if ((a.colors || []).length > 0) bits.push(`Colors: ${(a.colors || []).join(", ")}`);
-    return `- ${a.name}: ${bits.join(" ")}`;
-  });
+    return bits.length > 0 ? `- ${a.name}: ${bits.join(" ")}` : null;
+  }).filter((l): l is string => l !== null);
+  if (lines.length === 0) return "";
   return `\n\nADDITIONAL BRAND ASSET DESCRIPTORS (not attached as images; incorporate their subjects and look):\n${lines.join("\n")}`;
 }
 
@@ -549,6 +676,7 @@ Respond with ONLY a single JSON object — no preamble, no commentary, no markdo
 CRITICAL — DO NOT DESCRIBE THE APPEARANCE OF ANY ASSET YOU SELECT AS role "subject".
 The actual image of that asset is attached to the render request, so the renderer can see it and you cannot improve on it. Writing "a dark-skinned athlete with curly hair in a white kit" competes with the attached picture: the renderer follows your words, which are a lossy description of a person, instead of the photograph of that exact person, and the character comes out looking like a different individual. This is the single most common way this system fails.
 Refer to the subject only as "the character in <asset name>" or "the subject in attached image". Say nothing about their face, hair, skin, build, age, gender or uniform.
+THE SAME RULE APPLIES TO EVERY LOGO AND BRAND MARK. A mark you select as role "object" is attached as an image and copied from that image. Never describe a mark's appearance in your prompt — no "flaming skull logo", no colours, no shapes; a described mark gets redrawn from your words instead of reproduced from the file, and a redrawn mark is a trademark violation. Refer to a mark only as "the brand mark in <asset name>" and say only WHERE it sits in the composition.
 Spend your words on what the renderer CANNOT see: composition, framing, camera angle, pose and action, lighting, background, environment, mood, colour treatment.
 
 Selection rules:

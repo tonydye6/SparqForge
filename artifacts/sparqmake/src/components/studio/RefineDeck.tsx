@@ -207,6 +207,7 @@ export function RefineDeck({
                 stageId={stageId}
                 slotKey={slotKey}
                 imageUrl={currentPayload.imageUrl}
+                brandId={brandId}
                 locked={locked}
                 onEdited={onChanged}
               />

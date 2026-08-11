@@ -34,6 +34,8 @@ interface MotionTake {
   sourceImageUrl?: string;
   instruction?: string | null;
   durationSeconds?: number;
+  /** What the clip actually cost, written by the server at billing time. */
+  costUsd?: number;
 }
 
 export function MotionPanel({
@@ -45,6 +47,8 @@ export function MotionPanel({
   motionTake,
   locked,
   onChanged,
+  /** The shell's forward: same continue every stage has (doc 41 items 7/11). */
+  onContinue,
 }: {
   creativeId: string;
   stageId: string;
@@ -52,6 +56,7 @@ export function MotionPanel({
   motionTake: MotionTake | null;
   locked: boolean;
   onChanged: () => void;
+  onContinue?: () => void;
 }) {
   const [choices, setChoices] = useState<MediumChoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -139,17 +144,33 @@ export function MotionPanel({
             className="max-h-[420px] rounded-sm border border-border bg-card"
             data-testid="motion-clip"
           />
-          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-            {motionTake.durationSeconds ? `${motionTake.durationSeconds}s clip` : "Clip"}
-            {motionTake.instruction ? ` ${"·"} "${motionTake.instruction}"` : ""}
-            {motionIsStale ? (
-              <span className="text-victory-gold">
-                {" "}Animated from an earlier pick, so it will not ship. Animate again to carry it.
-              </span>
-            ) : (
-              <span className="text-dim"> {"·"} Ships with the still on every channel version.</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+              {motionTake.durationSeconds ? `${motionTake.durationSeconds}s clip` : "Clip"}
+              {typeof motionTake.costUsd === "number" ? ` ${"·"} $${motionTake.costUsd.toFixed(2)}` : ""}
+              {motionTake.instruction ? ` ${"·"} "${motionTake.instruction}"` : ""}
+              {motionIsStale && (
+                <span className="text-victory-gold">
+                  {" "}Animated from an earlier pick, so it will not ship. Animate again to carry it.
+                </span>
+              )}
+            </p>
+            {/*
+              The way on from a good clip. The clip already ships by itself —
+              nothing needs pressing to carry it — but a surface with no forward
+              reads as a dead end (doc 41 item 7), so the fact and the forward
+              are one button.
+            */}
+            {!motionIsStale && onContinue && (
+              <button
+                onClick={onContinue}
+                className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                data-testid="button-motion-continue"
+              >
+                Ships with every channel version {"·"} continue
+              </button>
             )}
-          </p>
+          </div>
         </div>
       )}
 
@@ -170,7 +191,10 @@ export function MotionPanel({
             />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
-                Animates the pick {"·"} billed per second of clip {"·"} recent clips {"≈"} $1.70
+                Animates the pick {"·"} billed per second of clip
+                {typeof motionTake?.costUsd === "number" && motionTake.durationSeconds
+                  ? ` ${"·"} last clip $${motionTake.costUsd.toFixed(2)} (${motionTake.durationSeconds}s)`
+                  : ""}
               </span>
               <div className="flex-1" />
               <button

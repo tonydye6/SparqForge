@@ -7,6 +7,8 @@ import {
   mergeReferenceSlots,
   parseDirectorOutput,
   buildOverflowDescriptors,
+  mentionsMark,
+  stripMarkProse,
   PERSONA_GUARANTEED_SLOTS,
 } from "./creative-direction.js";
 import type { ImageSlot } from "./interactions-client.js";
@@ -77,8 +79,18 @@ describe("buildSessionStyleContract", () => {
     const contract = buildSessionStyleContract({ brand: emptyBrand });
     expect(contract).not.toContain("Character/style rules");
     expect(contract).not.toContain("Brand colors");
-    expect(contract).not.toContain("Never include");
     expect(contract).toContain('Brand coherence: this image is for "Blank Co"');
+  });
+
+  it("carries the universal neon/glow ban even for an unconfigured brand", () => {
+    // Tony's 2026-08-11 decree: global, not per-brand, so it must not depend
+    // on negativePrompt being filled in.
+    const contract = buildSessionStyleContract({ brand: emptyBrand });
+    expect(contract).toContain("Never include:");
+    expect(contract).toContain("neon");
+    expect(contract).toContain("glow");
+    const configured = buildSessionStyleContract({ brand: baseBrand });
+    expect(configured).toContain("Never include: gore, gambling imagery; neon");
   });
 
   it("handles persona-only and profile-only configurations", () => {
@@ -134,6 +146,52 @@ describe("slotDescriptionForAsset", () => {
     const d = slotDescriptionForAsset(asset, "style");
     expect(d).toContain("Match this asset's visual style");
     expect(d).not.toContain("Reproduce this exact asset");
+  });
+
+  it("strips mark prose from a character's identity note and instructs copy-from-image", () => {
+    // The Crown U leak verbatim: a note that DESCRIBES the mark invites a
+    // freehand redraw of the one asset class that must never be freehanded.
+    const character = {
+      ...asset,
+      name: "Samantha",
+      description: "Crown U tennis character",
+      characterIdentityNote:
+        "Dark curly hair and a confident stance. A red flaming skull logo prominently on her outfit. Always athletic build.",
+      assetClass: "subject_reference",
+    };
+    const d = slotDescriptionForAsset(character, "character");
+    expect(d).not.toContain("flaming skull");
+    expect(d).toContain("Dark curly hair");
+    expect(d).toContain("Always athletic build");
+    expect(d).toContain("copied exactly as it appears in this attached image");
+  });
+
+  it("keeps mark words in an object slot's own description", () => {
+    // The mark IS the thing being reproduced; its description may say so.
+    const d = slotDescriptionForAsset(asset, "object");
+    expect(d).toContain("Gold crown mark");
+  });
+});
+
+describe("stripMarkProse", () => {
+  it("removes only the sentences that name a mark", () => {
+    expect(stripMarkProse("Tall athlete. Wears the team logo on the chest. Green eyes."))
+      .toBe("Tall athlete. Green eyes.");
+  });
+  it("returns text without mark words untouched", () => {
+    const text = "A night crowd shot with cool tones.";
+    expect(stripMarkProse(text)).toBe(text);
+  });
+  it("returns empty when every sentence describes the mark", () => {
+    expect(stripMarkProse("A flaming skull logo in red.")).toBe("");
+  });
+});
+
+describe("mentionsMark", () => {
+  it("recognises mark vocabulary in instructions", () => {
+    expect(mentionsMark("Add the official Crown U chest logo")).toBe(true);
+    expect(mentionsMark("Fix the missing wordmark")).toBe(true);
+    expect(mentionsMark("Make the sky darker")).toBe(false);
   });
 });
 
@@ -245,5 +303,24 @@ describe("buildOverflowDescriptors", () => {
   it("returns empty when nothing has text metadata", () => {
     const assets = [{ name: "Blank", description: "", styleNotes: null, depictedEntities: [], colors: [] }] as unknown as Asset[];
     expect(buildOverflowDescriptors(assets)).toBe("");
+  });
+
+  it("never gives a mark-class asset a prose seat", () => {
+    // Strict marks (doc 41 item 4): an overflowed logo used to arrive as
+    // "flaming skull logo ... incorporate their subjects and look".
+    const assets = [
+      { name: "Sparq skull", description: "Red flaming skull logo", styleNotes: null, depictedEntities: ["logo"], colors: ["red"], assetClass: "compositing", compositingOnly: true },
+    ] as unknown as Asset[];
+    expect(buildOverflowDescriptors(assets)).toBe("");
+  });
+
+  it("strips mark sentences from non-mark assets' prose", () => {
+    const assets = [
+      { name: "Samantha", description: "Tennis character mid-swing. Team logo on the chest.", styleNotes: "Wordmark treatment is bold.", depictedEntities: ["athlete", "crown logo"], colors: ["navy"], assetClass: "subject_reference", compositingOnly: false },
+    ] as unknown as Asset[];
+    const block = buildOverflowDescriptors(assets);
+    expect(block).toContain("Tennis character mid-swing.");
+    expect(block).not.toContain("logo");
+    expect(block).not.toContain("Wordmark");
   });
 });

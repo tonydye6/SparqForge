@@ -609,7 +609,7 @@ export function Entrance({
             </span>
             <div className="flex-1" />
             <button
-              onClick={() => brandId && void rollConcepts(brandId)}
+              onClick={() => brandId && void rollConcepts(brandId, true)}
               disabled={rolling}
               className="flex items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground disabled:opacity-40"
               data-testid="button-reroll"

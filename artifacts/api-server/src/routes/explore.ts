@@ -59,8 +59,11 @@ import {
   buildCreativeDirection,
   buildOverflowDescriptors,
   buildSessionStyleContract,
+  findBestMarkAsset,
   loadBrand,
+  mentionsMark,
   mergeReferenceSlots,
+  slotDescriptionForAsset,
   wrapEditInstruction,
 } from "../services/creative-direction.js";
 import { mentionsDirectiveBlock, normalizeMentions, pinnedSubjectFrom, type BriefMention } from "../services/brief-mentions.js";
@@ -192,10 +195,17 @@ router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Resp
      * price the code does not charge is the fossil problem again, one level up.
      */
     const { model: passModel, usdPerImage } = imagePass(DEFAULT_SPREAD_PASS);
+    /*
+     * Per-run size (doc 41 item 12: "I shouldn't be required to generate 8
+     * each time"). The query wins over the app setting; both pass through
+     * normaliseSpreadSize, so plan and run can only ever disagree with a
+     * caller that asked them different questions.
+     */
+    const requestedSize = typeof req.query.size === "string" ? req.query.size : null;
     const plan = buildExplorePlan({
       intent: effective,
       perImageUsd: usdPerImage,
-      spreadSize: await configuredSpreadSize(),
+      spreadSize: requestedSize !== null ? normaliseSpreadSize(requestedSize) : await configuredSpreadSize(),
     });
 
     /*
@@ -390,10 +400,15 @@ router.post(
       }
 
       const { intent, briefStageId, briefText, briefTakeId, mentions } = await intentFromBrief(creativeId);
+      // The size the run banner quoted (doc 41 item 12); same normalisation as
+      // the plan, so the price shown and the price charged agree.
+      const requestedSize = (req.body as { spreadSize?: unknown } | undefined)?.spreadSize;
       const fullPlan = buildExplorePlan({
         intent: intent ?? "awareness",
         perImageUsd,
-        spreadSize: await configuredSpreadSize(),
+        spreadSize: requestedSize !== undefined && requestedSize !== null
+          ? normaliseSpreadSize(requestedSize)
+          : await configuredSpreadSize(),
       });
 
       /*
@@ -1384,8 +1399,37 @@ router.post(
           imageBuffer: buf,
           mimeType: (row?.mimeType as string) || "image/png",
           slot: slotFor[mn.role],
-          description: `Brand asset "${mn.name}", attached by the user for this edit.`,
+          // The shared description carries the fidelity contract for the slot's
+          // class — reproduce-exactly for a mark, identity-faithful for a
+          // subject. The old flat "attached by the user" line said neither, so
+          // an @-attached logo arrived with no instruction to copy it.
+          description: `${slotDescriptionForAsset(row!, slotFor[mn.role])} Attached by the user for this edit.`,
         });
+      }
+
+      /*
+       * STRICT MARKS, correction half (doc 41 item 4c): an instruction that
+       * NAMES a mark ("add the chest logo") with no mark image attached used to
+       * reach the model as prose alone, and prose is how marks get invented.
+       * Attach the brand's real mark so the correction copies pixels.
+       */
+      let autoAttachedMark: string | null = null;
+      if (mentionsMark(instruction) && !referenceSlots.some(s => s.slot === "object")) {
+        const mark = await findBestMarkAsset({
+          brandId: creative.brandId,
+          text: instruction,
+          template: creative.templateId ?? null,
+        });
+        const markBuf = mark?.fileUrl ? await readFileByUrl(mark.fileUrl) : null;
+        if (mark && markBuf) {
+          referenceSlots.push({
+            imageBuffer: markBuf,
+            mimeType: (mark.mimeType as string) || "image/png",
+            slot: "object",
+            description: `${slotDescriptionForAsset(mark, "object")} Attached automatically because the instruction names a mark.`,
+          });
+          autoAttachedMark = mark.name;
+        }
       }
 
       const result = await runImageInteraction({
@@ -1423,7 +1467,13 @@ router.post(
             region: null,
             mentions: allowed,
             droppedMentions,
-            material: { referenceCount: 1 + referenceSlots.length, director: persona?.name ?? null },
+            material: {
+              referenceCount: 1 + referenceSlots.length,
+              director: persona?.name ?? null,
+              // Disclosed, because material that was sent without being shown
+              // is the exact lie the rail exists to prevent (doc 24 §2).
+              autoAttachedMark,
+            },
           },
           isCurrent: true,
           costCents: Math.round(estimateImagenCost(1) * 100),
@@ -1532,12 +1582,85 @@ router.post(
       }
       reservationId = budget.reservationId;
 
+      /*
+       * The identity lock, ported to motion (doc 41 item 6).
+       *
+       * The old prompt here was one generic sentence with no identity or style
+       * lock and no reference imagery, and Tony's walk showed exactly what that
+       * buys: the clip morphs the character off their stylized game design
+       * toward realism. Same failure class as the stage 03 spread before its
+       * lock — the last-mile prompt was lazy. So motion gets the same three
+       * protections the image path earned: the lock leads (position beats
+       * wording), the character reference rides along as an attached image, and
+       * the brand contract (which now carries the neon ban) closes the prompt.
+       */
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, creative.brandId));
+      const persona = await directorFor(creativeId, creative.brandId);
+      const contract = brand ? buildSessionStyleContract({ brand, persona }) : "";
+
+      // The pick's subject, via the pin the spread records on every take. The
+      // picked take's own material wins; any current take's pin is the fallback.
+      const pinFrom = (p: unknown): string | null => {
+        const pin = (p as { material?: { subjectPin?: { assetId?: unknown } } } | null | undefined)
+          ?.material?.subjectPin;
+        return pin && typeof pin.assetId === "string" && pin.assetId ? pin.assetId : null;
+      };
+      let subjectAssetId = pinFrom(picked?.payload);
+      if (!subjectAssetId) {
+        const currentTakes = await db
+          .select({ payload: stageTakesTable.payload })
+          .from(stageTakesTable)
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.isCurrent, true)));
+        subjectAssetId = currentTakes.map(t => pinFrom(t.payload)).find(Boolean) ?? null;
+      }
+
+      const referenceSlots = [] as Array<{ imageBuffer: Buffer; mimeType: string; slot: "character" | "object" | "style"; description: string }>;
+      let subjectRefName: string | null = null;
+      if (subjectAssetId) {
+        const [subjectAsset] = await loadBrandAssetsByIds(creative.brandId, [subjectAssetId]);
+        // The same gate every other reference passes; a subject blocked since
+        // the pick must not keep steering through the pin's memory.
+        if (
+          subjectAsset?.fileUrl &&
+          checkGenerationEligibility(
+            subjectAsset,
+            { channel: null, template: creative.templateId ?? null },
+            "generation_reference",
+          ).eligible
+        ) {
+          const buf = await readFileByUrl(subjectAsset.fileUrl);
+          if (buf) {
+            referenceSlots.push({
+              imageBuffer: buf,
+              mimeType: (subjectAsset.mimeType as string) || "image/png",
+              slot: "character",
+              description: slotDescriptionForAsset(subjectAsset, "character"),
+            });
+            subjectRefName = subjectAsset.name;
+          }
+        }
+      }
+
+      const motionLock =
+        "IDENTITY AND STYLE LOCK. This overrides everything below it. " +
+        "The attached source frame IS the picture being animated: its character, art style and rendering are final. " +
+        "The character's stylized game design — face, proportions, outfit, colours, and the way they are drawn — must remain EXACTLY as in the source frame in every frame of the clip. " +
+        "No realism shift, no redesign, no restyling, no morphing toward photorealism. " +
+        "Animate only pose, camera movement, lighting and the environment.";
+      const baseInstruction = instruction?.trim() ||
+        "Convert this image into a short, dynamic video clip. Animate the subject naturally with subtle movement, camera drift, and ambient motion. Keep the brand framing intact.";
+      const motionPrompt = [
+        motionLock,
+        baseInstruction,
+        contract ? `NON-NEGOTIABLE BRAND CONSTRAINTS:\n${contract}` : "",
+      ].filter(Boolean).join("\n\n");
+
       const videoResult = await runVideoInteraction({
-        prompt: instruction?.trim() ||
-          "Convert this image into a short, dynamic video clip. Animate the subject naturally with subtle movement, camera drift, and ambient motion. Keep the brand framing intact.",
+        prompt: motionPrompt,
         imageBuffer: stillBuffer,
         imageMimeType: "image/png",
         aspectRatio: "1:1",
+        slots: referenceSlots,
       });
 
       const videoFilename = `studio-motion-${crypto.randomUUID()}.mp4`;
@@ -1565,6 +1688,16 @@ router.post(
             sourceImageUrl: stillUrl,
             instruction: instruction?.trim() || null,
             durationSeconds,
+            // What THIS clip actually cost on THIS environment, so the panel's
+            // price hint reads the real rate instead of a stale hardcode (the
+            // old "≈$1.70" label came from $0.42/s rows and overstated 4x here).
+            costUsd,
+            material: {
+              referenceCount: 1 + referenceSlots.length,
+              subjectRef: subjectRefName,
+              director: persona?.name ?? null,
+              identityLock: true,
+            },
           },
           isCurrent: true,
           costCents: Math.round(costUsd * 100),
@@ -1598,6 +1731,16 @@ const RegionEditBody = z.object({
   slotKey: z.string().min(1).max(64),
   region: z.unknown(),
   instruction: z.string().min(1).max(1000),
+  // Same shape and same gate as refine-edit: the region editor's composer
+  // gained `@` too (doc 41 item 3), and a mention is a mention wherever typed.
+  mentions: z
+    .array(z.object({
+      assetId: z.string().min(1),
+      name: z.string().min(1),
+      role: z.enum(["subject", "style", "object"]),
+    }))
+    .max(4)
+    .optional(),
 });
 
 router.post(
@@ -1608,7 +1751,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
     const stageId = String(req.params.stageId);
-    const { slotKey, region: rawRegion, instruction } = req.body as z.infer<typeof RegionEditBody>;
+    const { slotKey, region: rawRegion, instruction, mentions = [] } = req.body as z.infer<typeof RegionEditBody>;
     let reservationId: string | null = null;
 
     try {
@@ -1665,6 +1808,29 @@ router.post(
         return;
       }
 
+      // The same gate the spread's and refine's mentions pass, refusals named
+      // the same way (doc 41 item 3: the region editor's @ tags assets too).
+      const mentionRows = await loadBrandAssetsByIds(creative.brandId, mentions.map(m => m.assetId));
+      const mentionRowById = new Map(mentionRows.map(a => [a.id, a]));
+      const droppedMentions: Array<{ name: string; reason: string }> = [];
+      const allowed = mentions.filter((mn) => {
+        const row = mentionRowById.get(mn.assetId);
+        if (!row) {
+          droppedMentions.push({ name: mn.name, reason: "No longer in this brand's library" });
+          return false;
+        }
+        const verdict = checkGenerationEligibility(
+          row,
+          { channel: null, template: creative.templateId ?? null },
+          mn.role === "object" ? "compositing" : "generation_reference",
+        );
+        if (!verdict.eligible) {
+          droppedMentions.push({ name: mn.name, reason: verdict.reason ?? "Not eligible" });
+          return false;
+        }
+        return true;
+      });
+
       const budget = await reserveBudget(creativeId, estimateImagenCost(1));
       if (!budget.ok) {
         res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
@@ -1676,12 +1842,55 @@ router.post(
       const persona = await directorFor(creativeId, creative.brandId);
       const contract = brand ? buildSessionStyleContract({ brand, persona }) : "";
 
+      const slotFor = { subject: "character", object: "object", style: "style" } as const;
+      const referenceSlots = [] as Array<{ imageBuffer: Buffer; mimeType: string; slot: "character" | "object" | "style"; description: string }>;
+      for (const mn of allowed) {
+        const row = mentionRowById.get(mn.assetId);
+        const url = row?.fileUrl;
+        if (typeof url !== "string") continue;
+        const buf = await readFileByUrl(url);
+        if (!buf) {
+          droppedMentions.push({ name: mn.name, reason: "The reference image could not be read" });
+          continue;
+        }
+        referenceSlots.push({
+          imageBuffer: buf,
+          mimeType: (row?.mimeType as string) || "image/png",
+          slot: slotFor[mn.role],
+          description: `${slotDescriptionForAsset(row!, slotFor[mn.role])} Attached by the user for this edit.`,
+        });
+      }
+
+      // Strict marks, same as refine-edit: a typed "add the logo" correction
+      // attaches the real mark instead of letting prose invent one.
+      let autoAttachedMark: string | null = null;
+      if (mentionsMark(instruction) && !referenceSlots.some(s => s.slot === "object")) {
+        const mark = await findBestMarkAsset({
+          brandId: creative.brandId,
+          text: instruction,
+          template: creative.templateId ?? null,
+        });
+        const markBuf = mark?.fileUrl ? await readFileByUrl(mark.fileUrl) : null;
+        if (mark && markBuf) {
+          referenceSlots.push({
+            imageBuffer: markBuf,
+            mimeType: (mark.mimeType as string) || "image/png",
+            slot: "object",
+            description: `${slotDescriptionForAsset(mark, "object")} Attached automatically because the instruction names a mark.`,
+          });
+          autoAttachedMark = mark.name;
+        }
+      }
+
       const scoped = `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
       const prompt = wrapEditInstruction(contract, scoped);
 
       const result = await runImageInteraction({
         prompt,
-        slots: [{ imageBuffer: beforeBuffer, mimeType: "image/png", slot: "object", description: "The image being edited." }],
+        slots: [
+          { imageBuffer: beforeBuffer, mimeType: "image/png", slot: "object", description: "The image being edited." },
+          ...referenceSlots,
+        ],
       });
 
       const filename = takeFilename(creativeId, `${slotKey}_edit`, crypto.randomUUID().slice(0, 8));
@@ -1717,7 +1926,13 @@ router.post(
             instruction: instruction.trim(),
             region,
             drift,
-            material: { referenceCount: 1, director: persona?.name ?? null },
+            mentions: allowed,
+            droppedMentions,
+            material: {
+              referenceCount: 1 + referenceSlots.length,
+              director: persona?.name ?? null,
+              autoAttachedMark,
+            },
           },
           isCurrent: true,
           costCents: Math.round(estimateImagenCost(1) * 100),
@@ -1737,6 +1952,7 @@ router.post(
 
       res.json({
         imageUrl: afterUrl,
+        droppedMentions,
         drift: drift
           ? {
               ...drift,
