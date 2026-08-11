@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 /**
  * The Material rail.
@@ -55,6 +56,13 @@ const Line = ({ label, children }: { label: string; children: React.ReactNode })
 
 export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRailProps) {
   const [assetCount, setAssetCount] = useState<number | null>(null);
+  /*
+   * Collapsed by default (doc 41 item 14, pick A) — the closed header carries a
+   * one-line summary. A warning is NEVER collapsed away: a disclosure panel
+   * whose warnings hide behind a toggle is the lie §1.17 exists to prevent,
+   * so any pink/gold line forces the section open.
+   */
+  const [open, setOpen] = useState(false);
 
   // How much material exists at all, so the rail can contrast what is available
   // with what was actually used. That gap is the point.
@@ -188,10 +196,58 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
   const subjectPinned = Boolean(m?.subjectPin && typeof m.subjectPin === "object");
   const droppedMentions = Array.isArray(m?.droppedMentions) ? m.droppedMentions : [];
 
+  /*
+   * A pink or gold line anywhere below means the section may not fold: what a
+   * warning discloses must stay on screen without a click.
+   */
+  const hasWarning =
+    activeStage.stageKind === "asset" &&
+    (sentReferences === 0 ||
+      (chosen !== null && chosen.length === 0) ||
+      (chosen !== null && chosen.length > 0 && chosenSubjects === 0 && !subjectPinned) ||
+      droppedMentions.length > 0 ||
+      directorFallback);
+  const expanded = open || hasWarning;
+
+  /** The closed header's one-line summary of what was used. */
+  const headline =
+    activeStage.stageKind === "asset"
+      ? chosen !== null
+        ? `${chosen.length} asset${chosen.length === 1 ? "" : "s"}${
+            subjectPinned && chosenSubjects === 0
+              ? " · subject pinned"
+              : chosenSubjects !== null
+                ? ` · ${chosenSubjects} as subject`
+                : ""
+          }`
+        : sentReferences !== null
+          ? `${sentReferences} sent`
+          : "nothing generated yet"
+      : consumed.length > 0
+        ? `from ${consumed.map((s) => STAGE_LABELS[s.stageKind]).join(", ")}`
+        : "nothing consumed";
+
   return (
-    <div className="px-3 py-2.5">
-      <p className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</p>
-      <p className="mt-0.5 text-[10px] leading-snug text-dim">
+    <div className="border-b border-border/60">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-1.5 px-3 py-2.5 text-left hover:bg-muted/20"
+        data-testid="button-toggle-material"
+      >
+        {expanded ? (
+          <ChevronDown size={9} className="shrink-0 text-dim" />
+        ) : (
+          <ChevronRight size={9} className="shrink-0 text-dim" />
+        )}
+        <span className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</span>
+        <span className="ml-auto min-w-0 truncate text-[9.5px] text-dim">{headline}</span>
+      </button>
+
+      {expanded && (
+      <div className="px-3 pb-2.5">
+      <p className="text-[10px] leading-snug text-dim">
         What {STAGE_LABELS[activeStage.stageKind]} reached for.
       </p>
 
@@ -297,6 +353,8 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
           </>
         )}
       </div>
+      </div>
+      )}
     </div>
   );
 }

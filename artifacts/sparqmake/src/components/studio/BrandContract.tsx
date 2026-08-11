@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, Lock } from "lucide-react";
 
 import { apiFetch } from "@/lib/utils";
 
@@ -52,6 +52,13 @@ const Unset = ({ what }: { what: string }) => (
 export function BrandContract({ brandId }: BrandContractProps) {
   const [brand, setBrand] = useState<BrandRecord | null>(null);
   const [failed, setFailed] = useState(false);
+  /*
+   * Collapsed by default (doc 41 item 14, Tony's pick A): the contract states
+   * facts that rarely change mid-post, so its resting form is one line — the
+   * name and the palette. A failed read forces it open, because "may be
+   * incomplete" must never hide behind a closed toggle.
+   */
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,65 +84,77 @@ export function BrandContract({ brandId }: BrandContractProps) {
     };
   }, [brandId]);
 
+  const expanded = open || failed;
+
   return (
-    <div className="border-b border-border/60 bg-grit-teal/[0.05] px-3 py-2.5">
-      <div className="flex items-center gap-1.5">
-        <Lock size={9} className="text-cyber-teal" />
-        <span className="font-display text-[13px] uppercase tracking-[0.08em] text-foreground">
+    <div className="border-b border-border/60 bg-grit-teal/[0.05]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-1.5 px-3 py-2.5 text-left hover:bg-muted/20"
+        data-testid="button-toggle-contract"
+      >
+        {expanded ? (
+          <ChevronDown size={9} className="shrink-0 text-dim" />
+        ) : (
+          <ChevronRight size={9} className="shrink-0 text-dim" />
+        )}
+        <Lock size={9} className="shrink-0 text-cyber-teal" />
+        <span className="min-w-0 truncate font-display text-[13px] uppercase tracking-[0.08em] text-foreground">
           {brand?.name ?? "Brand"}
         </span>
-        <span className="ml-auto font-mono text-[8px] tracking-[0.07em] text-grit-teal">
-          NON-NEGOTIABLE
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {/* The palette rides the closed header: it is the one contract fact
+              worth a permanent glance. §1.6 still holds — swatches are content
+              identity, never applied to the UI. */}
+          {brand &&
+            [brand.colorPrimary, brand.colorSecondary, brand.colorAccent].filter(Boolean).map((c) => (
+              <span
+                key={c}
+                className="h-3 w-3 rounded-sm border border-border/60"
+                style={{ backgroundColor: c }}
+                title={c}
+              />
+            ))}
         </span>
-      </div>
+      </button>
 
-      {failed && (
-        <p className="mt-1.5 font-mono text-[8px] leading-relaxed tracking-[0.07em] text-rebel-pink">
-          THE BRAND RECORD COULD NOT BE READ. WHAT IS BELOW MAY BE INCOMPLETE.
-        </p>
-      )}
+      {expanded && (
+        <div className="px-3 pb-2.5">
+          {failed && (
+            <p className="font-mono text-[8px] leading-relaxed tracking-[0.07em] text-rebel-pink">
+              THE BRAND RECORD COULD NOT BE READ. WHAT IS BELOW MAY BE INCOMPLETE.
+            </p>
+          )}
 
-      {brand ? (
-        <div className="mt-1.5">
-          <Row label="Palette">
-            <div className="flex items-center gap-1">
-              {[brand.colorPrimary, brand.colorSecondary, brand.colorAccent]
-                .filter(Boolean)
-                .map((c) => (
-                  <span
-                    key={c}
-                    className="h-3.5 w-3.5 rounded-sm border border-border/60"
-                    style={{ backgroundColor: c }}
-                    title={c}
-                  />
-                ))}
-              {/* §1.6: client brand colours are content identity, never chrome.
-                  They are shown as swatches here, and never applied to the UI. */}
+          {brand ? (
+            <div>
+              <Row label="Voice">
+                {brand.voiceDescription?.trim() ? brand.voiceDescription : <Unset what="voice" />}
+              </Row>
+              <Row label="Sound">
+                {brand.soundDirection?.trim() ? brand.soundDirection : <Unset what="sound direction" />}
+              </Row>
+              <Row label="Narrator">
+                {brand.narratorDescription?.trim() ? (
+                  brand.narratorDescription
+                ) : brand.narratorVoiceId ? (
+                  <span className="font-mono text-[9.5px]">{brand.narratorVoiceId}</span>
+                ) : (
+                  <Unset what="narrator" />
+                )}
+              </Row>
+              <p className="mt-1.5 font-mono text-[7.5px] leading-relaxed tracking-[0.07em] text-dim">
+                CANNOT BE REMOVED HERE · CHANGING BRAND IS A DIFFERENT POST · NON-NEGOTIABLE
+              </p>
             </div>
-          </Row>
-          <Row label="Voice">
-            {brand.voiceDescription?.trim() ? brand.voiceDescription : <Unset what="voice" />}
-          </Row>
-          <Row label="Sound">
-            {brand.soundDirection?.trim() ? brand.soundDirection : <Unset what="sound direction" />}
-          </Row>
-          <Row label="Narrator">
-            {brand.narratorDescription?.trim() ? (
-              brand.narratorDescription
-            ) : brand.narratorVoiceId ? (
-              <span className="font-mono text-[9.5px]">{brand.narratorVoiceId}</span>
-            ) : (
-              <Unset what="narrator" />
-            )}
-          </Row>
-          <p className="mt-1.5 font-mono text-[7.5px] leading-relaxed tracking-[0.07em] text-dim">
-            CANNOT BE REMOVED HERE · CHANGING BRAND IS A DIFFERENT POST
-          </p>
+          ) : (
+            <p className="font-mono text-[8px] leading-relaxed tracking-[0.07em] text-dim">
+              {brandId ? "READING THE BRAND RECORD" : "NO BRAND ON THIS CREATIVE"}
+            </p>
+          )}
         </div>
-      ) : (
-        <p className="mt-1.5 font-mono text-[8px] leading-relaxed tracking-[0.07em] text-dim">
-          {brandId ? "READING THE BRAND RECORD" : "NO BRAND ON THIS CREATIVE"}
-        </p>
       )}
     </div>
   );
