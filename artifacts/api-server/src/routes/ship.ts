@@ -62,7 +62,18 @@ interface Loaded {
   image: ShipImage | null;
   copy: ShipCopy | null;
   crops: ShipCrops | null;
-  existingVariants: Array<{ id: string; platform: string }>;
+  /** Stage 03's motion clip, when one exists; stale means it was animated from an earlier pick. */
+  motion: { videoUrl: string; stale: boolean } | null;
+  existingVariants: Array<{
+    id: string;
+    platform: string;
+    caption: string | null;
+    hookText: string | null;
+    compositedImageUrl: string | null;
+    videoUrl: string | null;
+    focalX: number | null;
+    focalY: number | null;
+  }>;
   entries: Array<{ platform: string; publishStatus: string }>;
 }
 

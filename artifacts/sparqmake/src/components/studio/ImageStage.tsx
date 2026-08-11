@@ -48,6 +48,8 @@ interface ImageStageProps {
   takes: StageTake[];
   locked: boolean;
   onChanged: () => void;
+  /** The shell's forward to the next stage, surfaced inside Motion (doc 41 item 7). */
+  onContinue?: () => void;
 }
 
 interface TakeOutcome {
@@ -145,7 +147,7 @@ function MediumSwitch({
   );
 }
 
-export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, takes, locked, onChanged }: ImageStageProps) {
+export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, takes, locked, onChanged, onContinue }: ImageStageProps) {
   const [medium, setMedium] = useState<"image" | "motion">("image");
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,12 +157,20 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
   const [switching, setSwitching] = useState(false);
   const [run, setRun] = useState<RunResponse | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  /*
+   * The spread size for THIS run (doc 41 item 12). Null means the app default;
+   * choosing re-plans (a free GET) so the quoted price always describes what
+   * the button will actually charge.
+   */
+  const [spreadSize, setSpreadSize] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`/api/creatives/${creativeId}/explore-plan`);
+      const res = await apiFetch(
+        `/api/creatives/${creativeId}/explore-plan${spreadSize ? `?size=${spreadSize}` : ""}`,
+      );
       if (!res.ok) throw new Error(String(res.status));
       setPlan((await res.json()) as PlanResponse);
     } catch {
@@ -168,7 +178,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
     } finally {
       setLoading(false);
     }
-  }, [creativeId]);
+  }, [creativeId, spreadSize]);
 
   useEffect(() => {
     void load();
@@ -210,7 +220,13 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
     setRunning(true);
     setRunError(null);
     try {
-      const res = await apiFetch(`/api/creatives/${creativeId}/explore-run`, { method: "POST" });
+      const res = await apiFetch(`/api/creatives/${creativeId}/explore-run`, {
+        method: "POST",
+        // The size the banner quoted rides along, so plan and charge agree.
+        ...(spreadSize
+          ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadSize }) }
+          : {}),
+      });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         // The server's copy already says what it affects and whether anything was
@@ -289,7 +305,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
       | { imageUrl?: string }
       | undefined;
     const motionPayload = takes.find((t) => t.slotKey === "motion" && t.isCurrent)?.payload as
-      | { videoUrl?: string; sourceImageUrl?: string; instruction?: string | null; durationSeconds?: number }
+      | { videoUrl?: string; sourceImageUrl?: string; instruction?: string | null; durationSeconds?: number; costUsd?: number }
       | undefined;
     return (
       <div>
@@ -303,6 +319,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
           motionTake={motionPayload?.videoUrl ? motionPayload : null}
           locked={locked}
           onChanged={onChanged}
+          onContinue={onContinue}
         />
       </div>
     );
@@ -492,6 +509,31 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {/*
+            How many to make this run (doc 41 item 12). The choice re-plans,
+            so the price to the left is always the price of what runs. Smaller
+            spreads keep at least one departure by construction (SPREAD_SIZES),
+            so choosing 4 never quietly deletes the off-brief takes.
+          */}
+          {!locked && (
+            <div className="flex items-center gap-0.5 rounded-sm border border-border p-0.5" role="group" aria-label="How many takes to generate">
+              {[4, 6, 8].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setSpreadSize(n)}
+                  disabled={running}
+                  aria-pressed={plan.takes.length === n}
+                  className={cn(
+                    "rounded-sm px-2 py-1 font-mono text-[9.5px] hover-elevate disabled:opacity-40",
+                    plan.takes.length === n ? "bg-grit-teal/15 text-cyber-teal" : "text-muted-foreground",
+                  )}
+                  data-testid={`button-spread-size-${n}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          )}
           {/*
             The picked take's path into Refine, standing beside the run button
             instead of hidden in the hover inspector — doc 40 P0.3's second

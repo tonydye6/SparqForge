@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "wouter";
 import { useGetCreatives } from "@workspace/api-client-react";
-import { Lock, Unlock } from "lucide-react";
+import { ArrowDown, ArrowRight, Lock, Unlock } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
 import { StageSpine, ReopenBar, type SpineStage, type SpineEdge, type SpineStatus } from "@/components/studio/StageSpine";
@@ -210,6 +210,21 @@ export default function StudioV2() {
 
   const activeStage = spine?.stages.find((s) => s.id === activeStageId) ?? null;
 
+  /*
+   * The one forward button (doc 41 items 7-11: five sightings of the same
+   * missing affordance). Every stage header ends with the same control in the
+   * same place: the next stage by display order, named. On the last stage the
+   * forward IS the publish bar below, so the button points at it instead —
+   * Tony walked crops and did not recognize "Make it publishable" as the way
+   * on, which is what the flash exists to teach.
+   */
+  const nextStage = useMemo(() => {
+    if (!spine || !activeStageId) return null;
+    const i = spine.stages.findIndex((s) => s.id === activeStageId);
+    return i >= 0 ? spine.stages[i + 1] ?? null : null;
+  }, [spine, activeStageId]);
+  const [shipFlash, setShipFlash] = useState(false);
+
   /**
    * Opening a stage previews the consequences before anything changes. The
    * preview is a safe GET, so this runs freely on navigation; nothing is marked
@@ -370,6 +385,28 @@ export default function StudioV2() {
                     brandId={brandId}
                     stages={spine.stages}
                   />
+                  {activeStage && (nextStage ? (
+                    <button
+                      onClick={() => void openStage(nextStage.id)}
+                      className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                      data-testid="button-stage-continue"
+                    >
+                      Continue {"·"} {String(nextStage.stageNumber).padStart(2, "0")} {STAGE_LABELS[nextStage.stageKind]}
+                      <ArrowRight size={9} />
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setShipFlash(true);
+                        window.setTimeout(() => setShipFlash(false), 1600);
+                      }}
+                      className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                      data-testid="button-stage-continue"
+                    >
+                      Finish {"·"} make it publishable
+                      <ArrowDown size={9} />
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -390,7 +427,14 @@ export default function StudioV2() {
                     // record that edge. Null is handled rather than assumed away.
                     briefStageId={spine.stages.find((s) => s.stageKind === "brief")?.id ?? null}
                     locked={activeStage.status === "locked"}
-                    onSaved={() => void loadSpine(creativeId)}
+                    // Choosing a director IS moving on: the decision has no
+                    // residue worth staring at, so land on the picture stage it
+                    // was made for (doc 41 item 2).
+                    onSaved={() => {
+                      const img = spine.stages.find((s) => s.stageKind === "asset");
+                      if (img) setActiveStageId(img.id);
+                      void loadSpine(creativeId);
+                    }}
                   />
                 ) : activeStage?.stageKind === "asset" ? (
                   <ImageStage
@@ -403,6 +447,7 @@ export default function StudioV2() {
                     takes={spine.takes[activeStage.id] ?? []}
                     locked={activeStage.status === "locked"}
                     onChanged={() => void loadSpine(creativeId)}
+                    onContinue={nextStage ? () => void openStage(nextStage.id) : undefined}
                   />
                 ) : activeStage?.stageKind === "copy" ? (
                   <CopyStage
@@ -472,15 +517,17 @@ export default function StudioV2() {
                 reads variants, so before this existed it had nothing to show
                 for a v2 post either.
               */}
-              <ShipBar
-                creativeId={creativeId}
-                revision={revision}
-                // Shipping can reset an approval, so the decision below has to
-                // re-read. On its OWN counter, not the spine's: bumping the
-                // spine here would clear the publishing bar's success message
-                // the instant it appeared.
-                onShipped={() => setTeamRevision((n) => n + 1)}
-              />
+              <div className={cn(shipFlash && "animate-pulse ring-2 ring-inset ring-grit-teal")}>
+                <ShipBar
+                  creativeId={creativeId}
+                  revision={revision}
+                  // Shipping can reset an approval, so the decision below has to
+                  // re-read. On its OWN counter, not the spine's: bumping the
+                  // spine here would clear the publishing bar's success message
+                  // the instant it appeared.
+                  onShipped={() => setTeamRevision((n) => n + 1)}
+                />
+              </div>
 
               <ReviewBar
                 creativeId={creativeId}
