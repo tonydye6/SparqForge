@@ -1,4 +1,5 @@
 import { extractLastFrame } from "../services/cut-render.js";
+import { VEO_MODEL, runVeoVideo } from "../services/veo.js";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
@@ -1621,6 +1622,15 @@ const MotionConvertBody = z.object({
    * instead of seeding, and the take says which it did.
    */
   chainFromPreviousBeat: z.boolean().optional(),
+  /**
+   * End this shot on the NEXT beat's picked still (step 5).
+   *
+   * This is the one control that ROUTES. Omni cannot pin an end frame — probed,
+   * see services/veo.ts — so a shot that asks for one is rendered by Veo 3.1
+   * Fast instead, and the take says which engine and why. There is no model
+   * dropdown: the shot declares what it needs and the router obeys.
+   */
+  endOnNextBeat: z.boolean().optional(),
 });
 
 router.post(
@@ -1631,7 +1641,7 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
     const stageId = String(req.params.stageId);
-    const { instruction, slotKey, sequenceId, beat, chainFromPreviousBeat } =
+    const { instruction, slotKey, sequenceId, beat, chainFromPreviousBeat, endOnNextBeat } =
       req.body as z.infer<typeof MotionConvertBody>;
     let reservationId: string | null = null;
 
@@ -1754,6 +1764,38 @@ router.post(
         return;
       }
       reservationId = budget.reservationId;
+
+      /*
+       * THE PINNED END FRAME (step 5), and the routing decision it makes.
+       *
+       * "End on the next moment" is what an end-frame pin is FOR in a story, so
+       * the pin is the NEXT beat's picked still rather than a free-floating take
+       * picker: it needs no new surface, and it is the shot travelling from this
+       * moment to the one after it. No pick on the next beat means no pin, said
+       * by name rather than silently ignored.
+       */
+      let endFrameBuffer: Buffer | null = null;
+      let endPinRefused: string | null = null;
+      if (endOnNextBeat && typeof beat === "number") {
+        const [nextPick] = await db
+          .select({ payload: stageTakesTable.payload })
+          .from(stageTakesTable)
+          .where(and(
+            eq(stageTakesTable.stageStateId, stageId),
+            eq(stageTakesTable.slotKey, beatPickSlotKey(beat + 1)),
+            eq(stageTakesTable.isCurrent, true),
+          ));
+        const nextUrl = (nextPick?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
+        const nextBytes = typeof nextUrl === "string" ? await readFileByUrl(nextUrl) : null;
+        if (nextBytes) endFrameBuffer = nextBytes;
+        else {
+          endPinRefused = typeof nextUrl === "string"
+            ? `beat ${beat + 1}'s still could not be read`
+            : `beat ${beat + 1} has no picked still to end on`;
+        }
+      } else if (endOnNextBeat) {
+        endPinRefused = "only a beat of a story can end on the next moment";
+      }
 
       /*
        * The identity lock, ported to motion (doc 41 item 6).
@@ -1903,19 +1945,76 @@ router.post(
         });
       }
 
-      const videoResult = await runVideoInteraction({
-        prompt: motionPrompt,
-        imageBuffer: seedBuffer,
-        imageMimeType: "image/png",
-        aspectRatio: "1:1",
-        slots: referenceSlots,
-      });
+      /*
+       * THE ROUTE. One decision, taken from what the shot declared rather than
+       * from a menu: a pinned end frame needs a model that accepts one, and
+       * Omni does not (probed — services/veo.ts). Everything else — the lock,
+       * the marks rule, the style decree, the brand contract, the references —
+       * is identical on both engines, because it is all in the prompt and the
+       * attachments rather than in the vendor.
+       */
+      let engine: "omni" | "veo-3.1-fast" = endFrameBuffer ? "veo-3.1-fast" : "omni";
+      let veoReferencesDropped = false;
+      let routeFellBack: string | null = null;
+
+      let videoResult: { videoBuffer: Buffer };
+      let veoCostUsd: number | null = null;
+      let veoDurationSeconds: number | null = null;
+
+      if (endFrameBuffer) {
+        try {
+          const veo = await runVeoVideo({
+            prompt: motionPrompt,
+            firstFrame: { buffer: seedBuffer, mimeType: "image/png" },
+            lastFrame: { buffer: endFrameBuffer, mimeType: "image/png" },
+            references: referenceSlots.map(r => ({ buffer: r.imageBuffer, mimeType: r.mimeType })),
+            durationSeconds: 6,
+          });
+          videoResult = { videoBuffer: veo.videoBuffer };
+          veoCostUsd = veo.costUsd;
+          veoDurationSeconds = veo.durationSeconds;
+          veoReferencesDropped = veo.referencesDropped;
+        } catch (veoErr) {
+          /*
+           * Routing FAILS OVER rather than failing. A pinned shot that cannot
+           * be rendered by the pinning model is still a shot worth having, so
+           * it falls back to Omni WITHOUT the pin and says exactly that — the
+           * alternative is a person losing the whole animation to a preview
+           * model's outage.
+           */
+          routeFellBack = veoErr instanceof Error ? veoErr.message : "the pinning model could not be reached";
+          console.warn("Veo route failed; falling back to Omni without the end pin", veoErr);
+          engine = "omni";
+          endFrameBuffer = null;
+          videoResult = await runVideoInteraction({
+            prompt: motionPrompt,
+            imageBuffer: seedBuffer,
+            imageMimeType: "image/png",
+            aspectRatio: "1:1",
+            slots: referenceSlots,
+          });
+        }
+      } else {
+        videoResult = await runVideoInteraction({
+          prompt: motionPrompt,
+          imageBuffer: seedBuffer,
+          imageMimeType: "image/png",
+          aspectRatio: "1:1",
+          slots: referenceSlots,
+        });
+      }
 
       const videoFilename = `studio-motion-${crypto.randomUUID()}.mp4`;
       await writeBuffer("generated", videoFilename, videoResult.videoBuffer);
       const videoUrl = `/api/files/generated/${videoFilename}`;
-      const durationSeconds = estimateVideoDurationSeconds(videoResult.videoBuffer.length);
-      const costUsd = durationSeconds * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
+      /*
+       * Veo states its own duration and bills at its own rate, so its clip is
+       * not measured by the byte-length estimate Omni's is. Two engines, two
+       * honest numbers, rather than one estimate stretched over both.
+       */
+      const durationSeconds = veoDurationSeconds
+        ?? estimateVideoDurationSeconds(videoResult.videoBuffer.length);
+      const costUsd = veoCostUsd ?? durationSeconds * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
 
       const payload = {
         videoUrl,
@@ -1943,9 +2042,16 @@ router.post(
            * is Omni, and when end-frame pinning routes to Veo 3.1 this is the
            * field that will say so.
            */
-          engine: "omni",
+          engine,
           chainedFromClip,
           chainRefused,
+          /** Set when the shot was pinned to end on the next moment. */
+          endPinned: engine === "veo-3.1-fast",
+          endPinRefused,
+          /** Set when the pinning model was asked for and could not deliver. */
+          routeFellBack,
+          /** Set when the pinning model would not take the identity references. */
+          veoReferencesDropped,
         },
       };
 
@@ -2012,14 +2118,26 @@ router.post(
           brandId: creative.brandId,
           service: "gemini",
           operation: "convert_video",
-          model: COPILOT_MODELS.OMNI_VIDEO_MODEL,
+          // The engine that was actually billed. Recording Omni for a Veo clip
+          // would make the ledger disagree with the invoice.
+          model: engine === "veo-3.1-fast" ? VEO_MODEL : COPILOT_MODELS.OMNI_VIDEO_MODEL,
           costUsd,
           costDerivedFromUsage: true,
         }));
       });
       reservationId = null;
 
-      res.json({ videoUrl, durationSeconds, costUsd, clipTakeId });
+      res.json({
+        videoUrl,
+        durationSeconds,
+        costUsd,
+        clipTakeId,
+        /** Routing, disclosed in the response as well as on the take. */
+        engine,
+        endPinned: engine === "veo-3.1-fast",
+        endPinRefused,
+        routeFellBack,
+      });
     } catch (err) {
       if (reservationId) {
         try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }

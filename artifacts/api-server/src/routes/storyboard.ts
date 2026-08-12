@@ -140,7 +140,14 @@ router.get("/creatives/:creativeId/storyboard", async (req: Request, res: Respon
       videoUrl?: unknown;
       durationSeconds?: unknown;
       costUsd?: unknown;
-      material?: { engine?: unknown; chainedFromClip?: unknown; chainRefused?: unknown };
+      material?: {
+        engine?: unknown;
+        chainedFromClip?: unknown;
+        chainRefused?: unknown;
+        endPinned?: unknown;
+        endPinRefused?: unknown;
+        routeFellBack?: unknown;
+      };
     } | undefined;
     const clip = cp && typeof cp.videoUrl === "string"
       ? {
@@ -150,6 +157,9 @@ router.get("/creatives/:creativeId/storyboard", async (req: Request, res: Respon
           engine: typeof cp.material?.engine === "string" ? cp.material.engine : "omni",
           chainedFrom: typeof cp.material?.chainedFromClip === "string" ? cp.material.chainedFromClip : null,
           chainRefused: typeof cp.material?.chainRefused === "string" ? cp.material.chainRefused : null,
+          endPinned: cp.material?.endPinned === true,
+          endPinRefused: typeof cp.material?.endPinRefused === "string" ? cp.material.endPinRefused : null,
+          routeFellBack: typeof cp.material?.routeFellBack === "string" ? cp.material.routeFellBack : null,
         }
       : null;
 

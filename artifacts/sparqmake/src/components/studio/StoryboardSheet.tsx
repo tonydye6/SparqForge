@@ -39,6 +39,11 @@ interface BeatClip {
   chainedFrom: string | null;
   /** Set when a chain was asked for and could not be made, with the reason. */
   chainRefused: string | null;
+  /** Set when this shot was pinned to end on the next moment (routed to Veo). */
+  endPinned: boolean;
+  endPinRefused: string | null;
+  /** Set when the pinning model was asked for and could not deliver. */
+  routeFellBack: string | null;
 }
 
 interface Beat {
@@ -97,6 +102,15 @@ export function StoryboardSheet({
    * off is one press and the take records which it did.
    */
   const [chain, setChain] = useState<Record<number, boolean>>({});
+  /**
+   * Whether each beat ends on the NEXT beat's picked still.
+   *
+   * OFF by default, and the one control that routes: a pinned end frame needs a
+   * model that accepts one, so asking for it changes the engine. Off by default
+   * because it is a stronger claim about the shot than continuity is, and it is
+   * only offered when the next beat actually has a pick to end on.
+   */
+  const [endPin, setEndPin] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     try {
@@ -199,14 +213,27 @@ export function StoryboardSheet({
           beat: n,
           sequenceId,
           chainFromPreviousBeat: n > 1 && (chain[n] ?? true),
+          endOnNextBeat: endPin[n] === true,
         }),
       });
-      const out = (await res.json().catch(() => null)) as { error?: string; costUsd?: number } | null;
+      const out = (await res.json().catch(() => null)) as {
+        error?: string;
+        costUsd?: number;
+        engine?: string;
+        endPinRefused?: string | null;
+        routeFellBack?: string | null;
+      } | null;
       if (!res.ok) {
         setError(out?.error ?? "That shot could not be animated.");
         return;
       }
-      if (typeof out?.costUsd === "number") setNote(`Beat ${n} animated · $${out.costUsd.toFixed(2)}`);
+      if (typeof out?.costUsd === "number") {
+        setNote(`Beat ${n} animated · $${out.costUsd.toFixed(2)} · ${out.engine ?? "omni"}`);
+      }
+      // Said out loud rather than left to be noticed: a pin that could not be
+      // honoured, and a route that had to fall back.
+      if (out?.endPinRefused) setError(`Did not pin the end: ${out.endPinRefused}.`);
+      else if (out?.routeFellBack) setError(`The pinning model could not render this shot, so it was made without the end pin. ${out.routeFellBack}`);
       await load();
       onChanged();
     } catch {
@@ -333,10 +360,21 @@ export function StoryboardSheet({
                         {beat.clip.costUsd !== null ? ` ${"·"} $${beat.clip.costUsd.toFixed(2)}` : ""}
                         {" · "}{beat.clip.engine}
                         {beat.clip.chainedFrom ? ` ${"·"} starts on beat ${beat.n - 1}'s final frame` : ""}
+                        {beat.clip.endPinned ? ` ${"·"} ends on beat ${beat.n + 1}'s still` : ""}
                       </p>
                       {beat.clip.chainRefused && (
                         <p className="text-[10px] leading-relaxed text-victory-gold">
                           Did not chain: {beat.clip.chainRefused}.
+                        </p>
+                      )}
+                      {beat.clip.endPinRefused && (
+                        <p className="text-[10px] leading-relaxed text-victory-gold">
+                          Did not pin the end: {beat.clip.endPinRefused}.
+                        </p>
+                      )}
+                      {beat.clip.routeFellBack && (
+                        <p className="text-[10px] leading-relaxed text-victory-gold">
+                          Made without the end pin {"—"} the pinning model could not render it.
                         </p>
                       )}
                     </>
@@ -355,6 +393,21 @@ export function StoryboardSheet({
                           data-testid={`button-chain-beat-${beat.n}`}
                         >
                           Start from beat {beat.n - 1}{"'"}s final frame
+                        </button>
+                      )}
+                      {board.beats.some((b) => b.n === beat.n + 1 && b.locked) && (
+                        <button
+                          onClick={() => setEndPin((c) => ({ ...c, [beat.n]: !c[beat.n] }))}
+                          aria-pressed={endPin[beat.n] === true}
+                          className={cn(
+                            "w-full rounded-sm border px-1.5 py-1 font-mono text-[8px] uppercase tracking-[0.05em] hover-elevate",
+                            endPin[beat.n]
+                              ? "border-victory-gold bg-victory-gold/10 text-victory-gold"
+                              : "border-border text-muted-foreground",
+                          )}
+                          data-testid={`button-endpin-beat-${beat.n}`}
+                        >
+                          End on beat {beat.n + 1}{"'"}s still
                         </button>
                       )}
                       <button
