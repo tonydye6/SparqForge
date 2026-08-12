@@ -247,7 +247,7 @@ export function RefineDeck({
                 imageUrl={currentPayload.imageUrl}
                 brandId={brandId}
                 layers={layers.located.map((l) => ({ key: l.key, name: l.name, bbox: l.bbox }))}
-                layerEditCostUsd={layers.data?.layerEditCostUsd ?? 0}
+                layerEditCostUsd={layers.data?.editCostUsd ?? 0}
                 hoveredLayer={hoveredLayer}
                 selectedLayer={selectedLayer}
                 onHoverLayer={setHoveredLayer}
@@ -305,7 +305,10 @@ export function RefineDeck({
                 <MentionChips mentions={m.mentions} />
                 <div className="mt-1.5 flex items-center gap-2">
                   <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
-                    Whole image {"·"} @ attaches a reference {"·"} one full-quality image, about $0.13
+                    {/* The same server-owned price the layer composer reads. This
+                        label is where the invented-price habit started (doc 41 §5,
+                        still open in doc 42) and the new components copied it. */}
+                    Whole image {"·"} @ attaches a reference {"·"} one full-quality image, about ${(layers.data?.editCostUsd ?? 0).toFixed(3)}
                   </span>
                   <div className="flex-1" />
                   <button

@@ -180,7 +180,13 @@ router.get(
        * `beatCostUsd`, so it owns these too.
        */
       detectCostUsd: estimateGeminiTextCost(),
-      layerEditCostUsd: estimateImagenCost(1),
+      /*
+       * ONE image edit, whatever scoped it — a layer, a drawn box, or the whole
+       * picture all charge `estimateImagenCost(1)`. Named for the charge rather
+       * than for the button so the whole-image composer can read it too, which
+       * is what finally closes doc 41 §5's "$0.13" label.
+       */
+      editCostUsd: estimateImagenCost(1),
     });
   },
 );
