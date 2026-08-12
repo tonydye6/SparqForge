@@ -50,6 +50,8 @@ export function MotionPanel({
   onChanged,
   /** The shell's forward: same continue every stage has (doc 41 items 7/11). */
   onContinue,
+  /** Switch to the Sequence tab beside this one (build step 1: it exists now). */
+  onOpenSequence,
 }: {
   creativeId: string;
   stageId: string;
@@ -58,6 +60,7 @@ export function MotionPanel({
   locked: boolean;
   onChanged: () => void;
   onContinue?: () => void;
+  onOpenSequence?: () => void;
 }) {
   const [choices, setChoices] = useState<MediumChoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +89,11 @@ export function MotionPanel({
 
   async function openSequence() {
     if (sequenceBusy) return;
+    // The Sequence tab exists now (build step 1): switching to it is the
+    // doorway, and it creates the sequence itself when there is none. The
+    // standalone /sequence/:id route stays as the fallback for surfaces
+    // without the tab.
+    if (onOpenSequence) { onOpenSequence(); return; }
     if (sequenceId) { navigate(`/sequence/${sequenceId}`); return; }
     setSequenceBusy(true);
     try {

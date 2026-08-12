@@ -4,6 +4,7 @@ import { apiFetch, cn } from "@/lib/utils";
 import { InfoDot } from "@/components/studio/InfoDot";
 import { RefineDeck, type StageTake } from "@/components/studio/RefineDeck";
 import { MotionPanel } from "@/components/studio/MotionPanel";
+import { SequencePanel } from "@/components/studio/SequencePanel";
 
 /**
  * Stage 03 · Image · Explore.
@@ -121,12 +122,12 @@ function MediumSwitch({
   medium,
   onChange,
 }: {
-  medium: "image" | "motion";
-  onChange: (m: "image" | "motion") => void;
+  medium: "image" | "motion" | "sequence";
+  onChange: (m: "image" | "motion" | "sequence") => void;
 }) {
   return (
     <div className="inline-flex overflow-hidden rounded-sm border border-border" role="group" aria-label="Medium">
-      {(["image", "motion"] as const).map((m) => (
+      {(["image", "motion", "sequence"] as const).map((m) => (
         <button
           key={m}
           type="button"
@@ -148,7 +149,7 @@ function MediumSwitch({
 }
 
 export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, takes, locked, onChanged, onContinue }: ImageStageProps) {
-  const [medium, setMedium] = useState<"image" | "motion">("image");
+  const [medium, setMedium] = useState<"image" | "motion" | "sequence">("image");
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -320,6 +321,25 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
           locked={locked}
           onChanged={onChanged}
           onContinue={onContinue}
+          // The doorway now leads to the tab beside it, not out of the Studio.
+          onOpenSequence={() => setMedium("sequence")}
+        />
+      </div>
+    );
+  }
+
+  if (medium === "sequence") {
+    return (
+      <div>
+        <div className="mx-auto max-w-5xl px-6 pt-6">
+          <MediumSwitch medium={medium} onChange={setMedium} />
+        </div>
+        <SequencePanel
+          creativeId={creativeId}
+          stageId={stageId}
+          takes={takes}
+          locked={locked}
+          onChanged={onChanged}
         />
       </div>
     );

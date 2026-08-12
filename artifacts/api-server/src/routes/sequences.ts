@@ -26,6 +26,8 @@ import {
   creativesTable,
   sequenceClipsTable,
   sequencesTable,
+  stageStatesTable,
+  stageTakesTable,
   type Asset,
 } from "@workspace/db";
 import { str } from "../lib/http-params.js";
@@ -142,7 +144,7 @@ router.post(
 // ── adding a clip ───────────────────────────────────────────────────────────
 
 export interface ClipCandidate {
-  sourceKind: "generated" | "library_asset";
+  sourceKind: "generated" | "library_asset" | "studio_take";
   id: string;
   name: string;
   durationMs: number | null;
@@ -179,6 +181,40 @@ router.get("/creatives/:creativeId/clip-candidates", async (req: Request, res: R
     thumbnailUrl: v.compositedImageUrl ?? v.rawImageUrl ?? null,
   }));
 
+  /*
+   * Studio v2's own clips: current takes on this creative's Media stage whose
+   * payload carries a videoUrl (the motion slot's quick-path clip, and every
+   * clip_* take the Sequence tab has animated). These are the clips the v2
+   * flow actually produces — the variants block above is the legacy world's.
+   */
+  const v2Takes = await db
+    .select({
+      id: stageTakesTable.id,
+      slotKey: stageTakesTable.slotKey,
+      payload: stageTakesTable.payload,
+    })
+    .from(stageTakesTable)
+    .innerJoin(stageStatesTable, eq(stageTakesTable.stageStateId, stageStatesTable.id))
+    .where(and(
+      eq(stageStatesTable.creativeId, creativeId),
+      eq(stageStatesTable.stageKind, "asset"),
+      eq(stageTakesTable.isCurrent, true),
+    ));
+  const studioClips: ClipCandidate[] = [];
+  for (const t of v2Takes) {
+    const p = t.payload as { videoUrl?: unknown; sourceImageUrl?: unknown; instruction?: unknown; durationSeconds?: unknown } | null;
+    if (typeof p?.videoUrl !== "string") continue;
+    studioClips.push({
+      sourceKind: "studio_take",
+      id: t.id,
+      name: typeof p.instruction === "string" && p.instruction
+        ? p.instruction
+        : t.slotKey === "motion" ? "The animated pick" : "Studio clip",
+      durationMs: typeof p.durationSeconds === "number" ? Math.round(p.durationSeconds * 1000) : null,
+      thumbnailUrl: typeof p.sourceImageUrl === "string" ? p.sourceImageUrl : null,
+    });
+  }
+
   // From the library: video assets for this brand, gated by the real policy.
   const assets = await db.select().from(assetsTable)
     .where(and(
@@ -210,6 +246,7 @@ router.get("/creatives/:creativeId/clip-candidates", async (req: Request, res: R
 
   res.json({
     generated,
+    studio: studioClips,
     library: libraryAssets,
     hidden: {
       count: Object.values(hiddenReasons).reduce((a, b) => a + b, 0),
@@ -233,6 +270,7 @@ router.post(
       sourceKind?: string;
       sourceVariantId?: string;
       sourceAssetId?: string;
+      sourceTakeId?: string;
       uploadUrl?: string;
       trimStartMs?: number;
       trimEndMs?: number;
@@ -245,8 +283,32 @@ router.post(
       return;
     }
 
+    /*
+     * Containment for the take-backed kind: the take must belong to the same
+     * creative this sequence does, and must actually carry a video. Scoped in
+     * the query, same rule as loadBrandAssetsByIds — a stale id from another
+     * post cannot pull a foreign clip into this cut.
+     */
+    let takeDurationMs: number | null = null;
+    if (body.sourceKind === "studio_take") {
+      const [take] = await db
+        .select({ payload: stageTakesTable.payload })
+        .from(stageTakesTable)
+        .innerJoin(stageStatesTable, eq(stageTakesTable.stageStateId, stageStatesTable.id))
+        .where(and(
+          eq(stageTakesTable.id, body.sourceTakeId ?? ""),
+          eq(stageStatesTable.creativeId, sequence.creativeId),
+        ));
+      const p = take?.payload as { videoUrl?: unknown; durationSeconds?: unknown } | undefined;
+      if (typeof p?.videoUrl !== "string") {
+        res.status(400).json({ error: "That take is not one of this post's clips, so it cannot be a shot." });
+        return;
+      }
+      if (typeof p.durationSeconds === "number") takeDurationMs = Math.round(p.durationSeconds * 1000);
+    }
+
     const trimStartMs = typeof body.trimStartMs === "number" ? body.trimStartMs : 0;
-    const trimEndMs = typeof body.trimEndMs === "number" ? body.trimEndMs : GENERATED_CLIP_MS;
+    const trimEndMs = typeof body.trimEndMs === "number" ? body.trimEndMs : (takeDurationMs ?? GENERATED_CLIP_MS);
     if (trimEndMs <= trimStartMs) {
       res.status(400).json({ error: "A clip has to end after it starts." });
       return;
@@ -268,9 +330,10 @@ router.post(
       const [created] = await db.insert(sequenceClipsTable).values({
         sequenceId: id,
         position,
-        sourceKind: body.sourceKind as "generated" | "library_asset" | "upload",
+        sourceKind: body.sourceKind as "generated" | "library_asset" | "upload" | "studio_take",
         sourceVariantId: body.sourceVariantId ?? null,
         sourceAssetId: body.sourceAssetId ?? null,
+        sourceTakeId: body.sourceTakeId ?? null,
         uploadUrl: body.uploadUrl ?? null,
         trimStartMs,
         trimEndMs,
