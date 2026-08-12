@@ -10,10 +10,13 @@
 import {
   castLayers,
   castOf,
+  castOfLineage,
   isMarkAsset,
   isSubjectAsset,
   layerName,
   layersSummary,
+  lineagePayloads,
+  MAX_LINEAGE_DEPTH,
   type CastAsset,
 } from "./take-layers.js";
 
@@ -167,6 +170,102 @@ export function runCases(): Result[] {
     castLayers({ cast, assets: [SUBJECT], brandName: "Crown U" }).length === 2,
   );
 
+  // ---- lineage: an edit must not lose the cast ----
+  /** What a refine or region edit actually records: no cast of its own. */
+  const EDIT_PAYLOAD = {
+    imageUrl: "/api/files/generated/refined.png",
+    instruction: "reposition the subject",
+    material: { referenceCount: 1, director: null, autoAttachedMark: null },
+  };
+  check("an edit take records no cast of its own", castOf(EDIT_PAYLOAD).length === 0);
+
+  const chain = [
+    { id: "t3", takeIndex: 3, payload: { ...EDIT_PAYLOAD, sourceTakeId: "t2" } },
+    { id: "t2", takeIndex: 2, payload: { ...EDIT_PAYLOAD, sourceTakeId: "t1" } },
+    { id: "t1", takeIndex: 1, payload: LIVE_PAYLOAD },
+  ];
+  check("the lineage of the newest take reaches the generated one", lineagePayloads(chain, "t3").length === 3);
+  const inherited = castOfLineage(lineagePayloads(chain, "t3"));
+  check("two edits deep, the cast survives", inherited.length === 4, inherited.length);
+  check("everything carried is marked inherited", inherited.every(c => c.inherited));
+  check("the pin survives the edits", inherited.find(c => c.assetId === "839b59b9")?.pinned === true);
+
+  const ownAndInherited = castOfLineage(lineagePayloads(
+    [
+      {
+        id: "t4",
+        takeIndex: 4,
+        payload: {
+          ...EDIT_PAYLOAD,
+          sourceTakeId: "t1",
+          material: { ...EDIT_PAYLOAD.material, directorSelections: [{ role: "object", assetId: "b44b41f8" }] },
+        },
+      },
+      { id: "t1", takeIndex: 1, payload: LIVE_PAYLOAD },
+    ],
+    "t4",
+  ));
+  check(
+    "an asset this edit re-attached is its own, not inherited",
+    ownAndInherited.find(c => c.assetId === "b44b41f8")?.inherited === false,
+  );
+  check(
+    "everything else in that take is still inherited",
+    ownAndInherited.filter(c => c.assetId !== "b44b41f8").every(c => c.inherited),
+  );
+
+  /*
+   * The case sourceTakeId exists for: restore take 1, then refine. Take 4's
+   * parent is take 1, not take 3, so following the index alone would inherit
+   * from a take that is not in this picture's history at all.
+   */
+  const restored = [
+    { id: "t4", takeIndex: 4, payload: { ...EDIT_PAYLOAD, sourceTakeId: "t1" } },
+    { id: "t3", takeIndex: 3, payload: { material: { directorSelections: [{ role: "subject", assetId: "wrong" }] } } },
+    { id: "t1", takeIndex: 1, payload: LIVE_PAYLOAD },
+  ];
+  check(
+    "a restore-then-refine follows its real parent, not the higher index",
+    !castOfLineage(lineagePayloads(restored, "t4")).some(c => c.assetId === "wrong"),
+    castOfLineage(lineagePayloads(restored, "t4")).map(c => c.assetId),
+  );
+  check(
+    "a take with no recorded parent still falls back to the index below it",
+    lineagePayloads(
+      [
+        { id: "b", takeIndex: 2, payload: EDIT_PAYLOAD },
+        { id: "a", takeIndex: 1, payload: LIVE_PAYLOAD },
+      ],
+      "b",
+    ).length === 2,
+  );
+  check(
+    "a chain that points at itself terminates",
+    lineagePayloads([{ id: "loop", takeIndex: 1, payload: { sourceTakeId: "loop" } }], "loop").length === 1,
+  );
+  check(
+    "a long slot is walked only to the cap",
+    lineagePayloads(
+      Array.from({ length: 40 }, (_, i) => ({ id: `x${i}`, takeIndex: 40 - i, payload: EDIT_PAYLOAD })),
+      "x0",
+    ).length === MAX_LINEAGE_DEPTH,
+  );
+
+  const inheritedLayers = castLayers({
+    cast: inherited,
+    assets: [SUBJECT, MARK, BACKDROP, SWATCH],
+    brandName: "Crown U",
+  });
+  check(
+    "an inherited element is its own class, not presented as known",
+    inheritedLayers.filter(l => l.kind !== "base").every(l => l.origin === "inherited_cast"),
+    inheritedLayers.map(l => l.origin),
+  );
+  check(
+    "an inherited row admits an edit since could have changed it",
+    (inheritedLayers[1].note ?? "").includes("could have changed it"),
+  );
+
   // ---- the sentence ----
   check(
     "the summary counts elements on a base and admits they are unlocated",
@@ -183,6 +282,17 @@ export function runCases(): Result[] {
     layersSummary(castLayers({ cast: [cast[1]], assets: [MARK], brandName: "Crown U" }))
       === "1 known element on a base, not yet located in the picture.",
     layersSummary(castLayers({ cast: [cast[1]], assets: [MARK], brandName: "Crown U" })),
+  );
+  check(
+    "an all-inherited list says carried, never known",
+    layersSummary(inheritedLayers) === "2 elements carried from the take this was edited from, not yet located.",
+    layersSummary(inheritedLayers),
+  );
+  check(
+    "a mixed list counts the two classes apart",
+    layersSummary(castLayers({ cast: ownAndInherited, assets: [SUBJECT, MARK, BACKDROP], brandName: "Crown U" }))
+      === "1 known element and 1 carried forward, on a base, not yet located.",
+    layersSummary(castLayers({ cast: ownAndInherited, assets: [SUBJECT, MARK, BACKDROP], brandName: "Crown U" })),
   );
 
   return results;

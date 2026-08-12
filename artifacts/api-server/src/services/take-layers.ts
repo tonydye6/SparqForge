@@ -38,8 +38,20 @@
  * ---------------------------------------------------------------------------
  */
 
-/** Where a layer came from, which is the two-class design made explicit. */
-export type LayerOrigin = "known_cast" | "detected";
+/**
+ * Where a layer came from, which is the two-class design made explicit.
+ *
+ * `inherited_cast` is the third state the first walk of this feature forced.
+ * Refine's own takes — a refine sentence or a region edit — attach the BEFORE
+ * IMAGE to the model, not the character file, so they record no cast at all and
+ * a refined take listed nothing but its base. Inheriting the cast of the take
+ * an edit was made from fixes that, but it is a claim about lineage rather than
+ * a record of what this render was handed: the demo post's own history contains
+ * the take "remove the crown logo", and an inherited mark layer would assert a
+ * mark is in a picture somebody removed it from. So it is a different class,
+ * labelled, and detection is what settles it.
+ */
+export type LayerOrigin = "known_cast" | "inherited_cast" | "detected";
 
 export type LayerKind = "base" | "subject" | "mark" | "element";
 
@@ -87,6 +99,8 @@ export interface CastMember {
   assetId: string;
   role: "subject" | "object" | "style";
   pinned: boolean;
+  /** True when this came from an ancestor take rather than from this one. */
+  inherited: boolean;
 }
 
 /**
@@ -116,7 +130,7 @@ export function castOf(payload: unknown): CastMember[] {
     if (r.role !== "subject" && r.role !== "object" && r.role !== "style") continue;
     if (seen.has(r.assetId)) continue;
     seen.add(r.assetId);
-    out.push({ assetId: r.assetId, role: r.role, pinned: r.assetId === pinnedId });
+    out.push({ assetId: r.assetId, role: r.role, pinned: r.assetId === pinnedId, inherited: false });
   }
 
   /*
@@ -126,7 +140,76 @@ export function castOf(payload: unknown): CastMember[] {
    * constant.
    */
   if (pinnedId && !seen.has(pinnedId)) {
-    out.unshift({ assetId: pinnedId, role: "subject", pinned: true });
+    out.unshift({ assetId: pinnedId, role: "subject", pinned: true, inherited: false });
+  }
+  return out;
+}
+
+/**
+ * The cast of a take AND of the takes it was edited from, newest first.
+ *
+ * A refine or a region edit hands the model the previous PICTURE, so its own
+ * record names only what that edit added. The character and the mark are still
+ * in the frame; only the paperwork stopped mentioning them. Walking the lineage
+ * is what makes the layer list survive an edit — see `LayerOrigin` for why the
+ * inherited half is a separate class rather than folded into the first.
+ *
+ * The take's own cast wins on a collision, so an asset this edit genuinely
+ * re-attached is reported as its own rather than as inherited.
+ */
+export function castOfLineage(payloadsNewestFirst: unknown[]): CastMember[] {
+  const out: CastMember[] = [];
+  const seen = new Set<string>();
+  for (const [depth, payload] of payloadsNewestFirst.entries()) {
+    for (const member of castOf(payload)) {
+      if (seen.has(member.assetId)) continue;
+      seen.add(member.assetId);
+      out.push(depth === 0 ? member : { ...member, inherited: true });
+    }
+  }
+  return out;
+}
+
+/** The take rows this module needs to walk a slot's lineage. */
+export interface LineageTake {
+  id: string;
+  takeIndex: number;
+  payload: unknown;
+}
+
+/**
+ * How far back a lineage is followed. A slot can hold dozens of takes and the
+ * cast stops changing long before that; the cap is a guard against a malformed
+ * chain, not a product rule.
+ */
+export const MAX_LINEAGE_DEPTH = 12;
+
+/**
+ * The payloads that produced this take, newest first, starting with its own.
+ *
+ * Follows `sourceTakeId` when the take records one, because that is the take an
+ * edit was actually made from — and after somebody restores an earlier take and
+ * refines it, the previous take by INDEX is not its parent. Where no
+ * `sourceTakeId` is recorded (every take written before this existed) it falls
+ * back to the next-lower index in the same slot, which is what the chain was
+ * before restores were possible.
+ */
+export function lineagePayloads(takes: LineageTake[], currentId: string): unknown[] {
+  const byId = new Map(takes.map(t => [t.id, t]));
+  const descending = [...takes].sort((a, b) => b.takeIndex - a.takeIndex);
+
+  const out: unknown[] = [];
+  const seen = new Set<string>();
+  let cursor = byId.get(currentId) ?? null;
+
+  while (cursor && !seen.has(cursor.id) && out.length < MAX_LINEAGE_DEPTH) {
+    seen.add(cursor.id);
+    out.push(cursor.payload);
+    const sourceId = (cursor.payload as { sourceTakeId?: unknown } | null)?.sourceTakeId;
+    const parent = typeof sourceId === "string" ? byId.get(sourceId) : undefined;
+    cursor = parent
+      ?? descending.find(t => t.takeIndex < cursor!.takeIndex && !seen.has(t.id))
+      ?? null;
   }
   return out;
 }
@@ -231,19 +314,23 @@ export function castLayers({ cast, assets, brandName }: CastLayersInput): TakeLa
       key: `cast:${a.id}`,
       name: layerName(a, kind === "element" ? "subject" : kind, brandName),
       kind,
-      origin: "known_cast",
+      origin: member.inherited ? "inherited_cast" : "known_cast",
       assetId: a.id,
       assetName: a.name,
       thumbnailUrl: a.thumbnailUrl ?? a.fileUrl ?? null,
       bbox: null,
       pinned: member.pinned,
-      note: kind === "mark"
-        // The marks rule (doc 45 §4): a mark layer is the real file, never a
-        // redraw, so the row can say where it came from without hedging.
-        ? "The real mark file, attached to this render."
-        : member.pinned
-          ? "Held across every run of this brief."
-          : null,
+      note: member.inherited
+        // Never stated as fact. An edit since could have painted it out, and
+        // saying so is cheaper than being caught claiming otherwise.
+        ? "Carried from the take this was edited from. An edit since could have changed it."
+        : kind === "mark"
+          // The marks rule (doc 45 §4): a mark layer is the real file, never a
+          // redraw, so the row can say where it came from without hedging.
+          ? "The real mark file, attached to this render."
+          : member.pinned
+            ? "Held across every run of this brief."
+            : null,
     };
     (kind === "mark" ? marks : subjects).push(layer);
   }
@@ -259,16 +346,23 @@ export function castLayers({ cast, assets, brandName }: CastLayersInput): TakeLa
  * each other across a client refactor.
  */
 export function layersSummary(layers: TakeLayer[]): string {
-  const known = layers.filter(l => l.origin === "known_cast").length;
   const detected = layers.filter(l => l.origin === "detected").length;
-  const unlocated = layers.filter(l => l.bbox === null).length;
-
-  if (detected === 0) {
-    if (known <= 1) return "Nothing was attached to this take, so only its base is known.";
-    const cast = known - 1;
-    return unlocated === 0
-      ? `${cast} known ${cast === 1 ? "element" : "elements"} on a base.`
-      : `${cast} known ${cast === 1 ? "element" : "elements"} on a base, not yet located in the picture.`;
+  if (detected > 0) {
+    const unlocated = layers.filter(l => l.bbox === null).length;
+    return `${layers.length} layers${unlocated > 0 ? `, ${unlocated} not located` : ""}.`;
   }
-  return `${layers.length} layers${unlocated > 0 ? `, ${unlocated} not located` : ""}.`;
+
+  // Base is always present and is not an element, so it never counts here.
+  const own = layers.filter(l => l.origin === "known_cast" && l.kind !== "base").length;
+  const inherited = layers.filter(l => l.origin === "inherited_cast").length;
+  if (own + inherited === 0) return "Nothing was attached to this take, so only its base is known.";
+
+  const noun = (n: number) => (n === 1 ? "element" : "elements");
+  if (inherited === 0) {
+    return `${own} known ${noun(own)} on a base, not yet located in the picture.`;
+  }
+  if (own === 0) {
+    return `${inherited} ${noun(inherited)} carried from the take this was edited from, not yet located.`;
+  }
+  return `${own} known ${noun(own)} and ${inherited} carried forward, on a base, not yet located.`;
 }

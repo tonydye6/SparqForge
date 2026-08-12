@@ -20,7 +20,13 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, assetsTable, brandsTable, creativesTable, stageStatesTable, stageTakesTable } from "@workspace/db";
 import { str } from "../lib/http-params.js";
-import { castLayers, castOf, layersSummary, type CastAsset } from "../services/take-layers.js";
+import {
+  castLayers,
+  castOfLineage,
+  layersSummary,
+  lineagePayloads,
+  type CastAsset,
+} from "../services/take-layers.js";
 
 const router: IRouter = Router();
 
@@ -54,21 +60,34 @@ router.get(
       return;
     }
 
-    const [take] = await db
-      .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
+    /*
+     * The whole slot, not just the current take. A refine or a region edit
+     * hands the model the previous PICTURE rather than the character file, so
+     * its own record names no cast at all — the first walk of this feature
+     * found a refined take listing nothing but its base. The lineage is what
+     * carries the cast across an edit.
+     */
+    const slotTakes = await db
+      .select({
+        id: stageTakesTable.id,
+        takeIndex: stageTakesTable.takeIndex,
+        payload: stageTakesTable.payload,
+        isCurrent: stageTakesTable.isCurrent,
+      })
       .from(stageTakesTable)
       .where(and(
         eq(stageTakesTable.stageStateId, stageId),
         eq(stageTakesTable.slotKey, slotKey),
-        eq(stageTakesTable.isCurrent, true),
       ));
+
+    const take = slotTakes.find(t => t.isCurrent);
     if (!take) {
       res.status(404).json({ error: "That slot has no current take, so there is nothing to take apart." });
       return;
     }
 
     const imageUrl = (take.payload as { imageUrl?: unknown } | null)?.imageUrl;
-    const cast = castOf(take.payload);
+    const cast = castOfLineage(lineagePayloads(slotTakes, take.id));
 
     /*
      * Scoped to the creative's own brand, not looked up by id alone. An asset
@@ -118,6 +137,8 @@ router.get(
        */
       decomposed: layers.some(l => l.origin === "detected"),
       knownCount: layers.filter(l => l.origin === "known_cast").length,
+      /** Carried across an edit rather than recorded on this take. */
+      inheritedCount: layers.filter(l => l.origin === "inherited_cast").length,
       locatedCount: layers.filter(l => l.bbox !== null).length,
       summary: layersSummary(layers),
     });
