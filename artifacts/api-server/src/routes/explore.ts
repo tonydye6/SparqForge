@@ -80,8 +80,8 @@ import {
   orderReferences,
   type DirectedPromptInput,
 } from "../services/explore-direction.js";
-import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
-import { layerScopeSentence } from "../services/layer-detection.js";
+import { normalizeRegion, driftMessage, driftVerdict, DRIFT_TOLERANCE } from "../services/region-edit.js";
+import { layerScopeSentence, shouldCarryLayers } from "../services/layer-detection.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
 import { beatPickSlotKey, buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
@@ -2495,7 +2495,7 @@ router.post(
           .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
           .from(stageTakesTable)
           .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, slotKey)));
-        await tx.insert(stageTakesTable).values({
+        const [inserted] = await tx.insert(stageTakesTable).values({
           stageStateId: stageId,
           slotKey,
           takeIndex: nextTakeIndex(prior, slotKey),
@@ -2533,7 +2533,41 @@ router.post(
           },
           isCurrent: true,
           costCents: Math.round(estimateImagenCost(1) * 100),
-        });
+        }).returning({ id: stageTakesTable.id });
+
+        /*
+         * THE DECOMPOSITION SURVIVES A CLEAN LAYER EDIT.
+         *
+         * `take_layers` hangs off a take, so without this a layer edit silently
+         * threw the decomposition away and the panel went back to NOT LOCATED —
+         * changing two layers would have meant paying for detection twice, the
+         * second time to re-learn something nothing had invalidated. The drift
+         * report is the evidence: clean means measured proof that nothing
+         * outside the edited layer's own area moved, so every other box is
+         * still as true as it was. See shouldCarryLayers for the three cases
+         * where that claim cannot be made.
+         */
+        if (
+          inserted && current?.id &&
+          shouldCarryLayers(layer !== null, drift?.driftPercent ?? null, DRIFT_TOLERANCE)
+        ) {
+          const carried = await tx
+            .select()
+            .from(takeLayersTable)
+            .where(and(eq(takeLayersTable.stageTakeId, current.id), eq(takeLayersTable.isCurrent, true)));
+          if (carried.length > 0) {
+            await tx.insert(takeLayersTable).values(carried.map(l => ({
+              stageTakeId: inserted.id,
+              layerIndex: l.layerIndex,
+              name: l.name,
+              kind: l.kind,
+              origin: l.origin,
+              assetId: l.assetId,
+              bbox: l.bbox,
+              isCurrent: true,
+            })));
+          }
+        }
 
         if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
         await tx.insert(costLogsTable).values(buildCostRow({

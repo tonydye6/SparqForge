@@ -12,6 +12,7 @@ import {
   layerScopeSentence,
   nameOverlap,
   normalizeDetected,
+  shouldCarryLayers,
   BROAD_AREA,
   FULL_FRAME_AREA,
   MAX_LAYERS,
@@ -182,6 +183,15 @@ export function runCases(): Result[] {
     "ragged whitespace in a typed instruction is collapsed",
     layerScopeSentence("X", "there", "make   it\n  red").includes("make it red."),
   );
+
+  // ---- does the decomposition survive the edit? (found by walking 5c) ----
+  const TOL = 8;
+  check("a clean layer edit keeps the decomposition", shouldCarryLayers(true, 0.4, TOL));
+  check("drift exactly at tolerance still counts as clean", shouldCarryLayers(true, TOL, TOL));
+  check("a repaint does not", !shouldCarryLayers(true, 41.2, TOL));
+  check("notable drift does not either", !shouldCarryLayers(true, 12, TOL));
+  check("UNMEASURED is not clean", !shouldCarryLayers(true, null, TOL));
+  check("a whole-image refine never carries, however clean", !shouldCarryLayers(false, 0, TOL));
 
   // ---- the sentence ----
   /*
