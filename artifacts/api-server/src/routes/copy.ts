@@ -264,7 +264,81 @@ router.post(
             .update(stageStatesTable)
             .set({ status: "done", decidedAt: new Date(), updatedAt: new Date() })
             .where(eq(stageStatesTable.id, image.id));
-        } else if (image.status === "empty") {
+          /*
+           * A STORY STILL NEEDS ONE PICTURE, and this is the line that lets a
+           * story leave stage 03 at all.
+           *
+           * Found by walking step 5: everything downstream — Copy's guard, the
+           * crops stage, ship's `image`, the spine's "what did this decide" —
+           * reads the `selected` slot, and a story never writes one. It writes
+           * beat1, beat2, beat3. So a three-moment post was complete on the
+           * storyboard and stage 04 still said "Choose a picture in stage 03
+           * first". It could never have published.
+           *
+           * The representative still is BEAT 1's pick: the opening frame is the
+           * post's picture, and the rendered cut is the motion that ships beside
+           * it (which is exactly how the single-picture path already works). So
+           * `selected` mirrors beat 1 — written here rather than invented
+           * downstream, and re-pointed whenever beat 1 is re-picked, so the two
+           * can never disagree.
+           */
+          const [beatOne] = await tx
+            .select({ payload: stageTakesTable.payload })
+            .from(stageTakesTable)
+            .where(and(
+              eq(stageTakesTable.stageStateId, image.id),
+              eq(stageTakesTable.slotKey, beatPickSlotKey(1)),
+              eq(stageTakesTable.isCurrent, true),
+            ));
+          const openingUrl = (beatOne?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
+          const openingSlot = (beatOne?.payload as { slotKey?: unknown } | undefined)?.slotKey;
+          if (typeof openingUrl === "string") {
+            const [currentSelected] = await tx
+              .select({ payload: stageTakesTable.payload })
+              .from(stageTakesTable)
+              .where(and(
+                eq(stageTakesTable.stageStateId, image.id),
+                eq(stageTakesTable.slotKey, "selected"),
+                eq(stageTakesTable.isCurrent, true),
+              ));
+            const alreadyRight =
+              (currentSelected?.payload as { imageUrl?: unknown } | undefined)?.imageUrl === openingUrl;
+            // Only supersede when it would actually change, so re-picking a
+            // LATER beat does not pile up identical pointer takes.
+            if (!alreadyRight) {
+              await tx
+                .update(stageTakesTable)
+                .set({ isCurrent: false })
+                .where(and(
+                  eq(stageTakesTable.stageStateId, image.id),
+                  eq(stageTakesTable.slotKey, "selected"),
+                ));
+              const priorSelected = await tx
+                .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
+                .from(stageTakesTable)
+                .where(and(
+                  eq(stageTakesTable.stageStateId, image.id),
+                  eq(stageTakesTable.slotKey, "selected"),
+                ));
+              await tx.insert(stageTakesTable).values({
+                stageStateId: image.id,
+                slotKey: "selected",
+                takeIndex: nextTakeIndex(priorSelected, "selected"),
+                origin: "swapped_in",
+                payload: {
+                  slotKey: typeof openingSlot === "string" ? openingSlot : beatPickSlotKey(1),
+                  imageUrl: openingUrl,
+                  // Said on the row: this picture is the story's opening moment,
+                  // not somebody's choice from a spread.
+                  fromBeat: 1,
+                },
+                isCurrent: true,
+              });
+            }
+          }
+        }
+
+        if (!decided && image.status === "empty") {
           /*
            * A story mid-way is ACTIVE, not empty.
            *
