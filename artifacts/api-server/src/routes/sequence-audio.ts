@@ -214,8 +214,9 @@ router.post(
         res.status(400).json({ error: "The cut has no shots yet, so there is no length to score." });
         return;
       }
-      // ElevenLabs music takes seconds; clamp to a sane request.
-      const seconds = Math.min(60, Math.max(3, Math.round(plan.totalDurationMs / 1000)));
+      // The Music API's floor is 10s; a shorter cut gets a 10s bed the render
+      // trims to length.
+      const seconds = Math.min(60, Math.max(10, Math.round(plan.totalDurationMs / 1000)));
 
       const direction = (prompt ?? "").trim() || (ctx.brand?.soundDirection ?? "").trim();
       if (!direction) {
