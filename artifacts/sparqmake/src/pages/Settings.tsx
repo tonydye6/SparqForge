@@ -788,16 +788,9 @@ function ConnectedAccountsTab() {
   const { toast } = useToast();
   const { data: accounts, isLoading } = useGetSocialAccounts();
   const { data: brands } = useGetBrands();
-  const [connectBrandId, setConnectBrandId] = useState<string>("");
   const [disconnectAccount, setDisconnectAccount] = useState<{ id: string; accountName: string } | null>(null);
   const [platformStatus, setPlatformStatus] = useState<Map<string, PlatformConfigStatus> | null>(null);
   const baseUrl = import.meta.env.VITE_API_URL || "";
-
-  useEffect(() => {
-    if (brands && brands.length > 0 && !connectBrandId) {
-      setConnectBrandId(brands[0].id);
-    }
-  }, [brands, connectBrandId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -877,11 +870,14 @@ function ConnectedAccountsTab() {
   });
 
   const handleConnect = (platform: string) => {
-    if (!connectBrandId) {
-      toast({ variant: "destructive", title: "Select a brand", description: "Choose which brand to connect this account to." });
-      return;
-    }
-    const authUrl = `${baseUrl}/api/auth/${platform}?brandId=${encodeURIComponent(connectBrandId)}`;
+    /*
+     * No brand is chosen or sent. Accounts are workspace-wide (doc 38 §3) and
+     * the server attaches every one to the house brand, so asking which
+     * sub-brand to connect for was offering a choice that did not exist — and
+     * because re-connecting overwrites the row's brand, making that choice
+     * twice moved the same account between sub-brands.
+     */
+    const authUrl = `${baseUrl}/api/auth/${platform}`;
     // OAuth providers (Facebook, Google, etc.) refuse to render inside an
     // iframe (X-Frame-Options), and this app is often viewed in an embedded
     // preview. Open the flow in a top-level tab instead.
@@ -898,9 +894,9 @@ function ConnectedAccountsTab() {
   };
 
   const brandNameById = new Map((brands || []).map(b => [b.id, b.name]));
-  const connectedPlatforms = new Set(
-    (accounts || []).filter(a => a.brandId === connectBrandId).map(a => a.platform),
-  );
+  // Every connected account, not the ones belonging to a selected brand: one
+  // Instagram connection serves Crown U, Rumble U and Mascot Mayhem alike.
+  const connectedPlatforms = new Set((accounts || []).map(a => a.platform));
 
   if (isLoading) {
     return (
@@ -1044,19 +1040,6 @@ function ConnectedAccountsTab() {
           <div className="flex items-center gap-2">
             <Plus className="text-primary" size={20} />
             <h2 className="text-xl font-bold">Connect a Platform</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Connect to brand:</span>
-            <Select value={connectBrandId} onValueChange={setConnectBrandId}>
-              <SelectTrigger className="w-[200px]" data-testid="select-connect-brand">
-                <SelectValue placeholder="Select a brand" />
-              </SelectTrigger>
-              <SelectContent>
-                {(brands || []).map(brand => (
-                  <SelectItem key={brand.id} value={brand.id}>{brand.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

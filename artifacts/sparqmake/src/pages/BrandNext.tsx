@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useGetBrands, getGetBrandsQueryKey, useGetAssets, useGetTemplates, useGetSocialAccounts } from "@workspace/api-client-react";
 import { apiFetch } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { InfoDot } from "@/components/studio/InfoDot";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Palette, Save, Loader2, Plus, X, Wand2, Sparkles, Check, Link2, Trash2, LayoutTemplate, Brain, RefreshCw } from "lucide-react";
+import { Palette, Save, Loader2, Plus, X, Wand2, Sparkles, Check, LayoutTemplate, Brain, RefreshCw } from "lucide-react";
 import { FaInstagram, FaXTwitter, FaTiktok, FaLinkedin, FaYoutube } from "react-icons/fa6";
 import type { IconType } from "react-icons";
 
@@ -35,14 +36,6 @@ const PLATFORM_ICONS: Record<string, IconType> = {
   linkedin: FaLinkedin,
   youtube: FaYoutube,
 };
-
-const CONNECTABLE_PLATFORMS: { key: string; label: string }[] = [
-  { key: "instagram", label: "Instagram" },
-  { key: "twitter", label: "X" },
-  { key: "tiktok", label: "TikTok" },
-  { key: "linkedin", label: "LinkedIn" },
-  { key: "youtube", label: "YouTube" },
-];
 
 // The transparent, editable brand spec (N3). Mirrors the brands table; the Brand
 // page edits it as structured fields and saves via PUT /brands/:id (full update).
@@ -206,25 +199,6 @@ export default function BrandNext() {
       toast({ variant: "destructive", title: "Approve failed", description: err instanceof Error ? err.message : "Please try again." });
     } finally {
       setBusyAssetId(null);
-    }
-  }
-
-  function connectPlatform(platform: string) {
-    if (!activeBrandId) return;
-    window.location.href = `${API_BASE}/api/auth/${platform}?brandId=${activeBrandId}`;
-  }
-
-  async function disconnectAccount(id: string) {
-    try {
-      const resp = await apiFetch(`${API_BASE}/api/social-accounts/${id}`, { method: "DELETE" });
-      if (!resp.ok) {
-        const e = await resp.json().catch(() => ({}));
-        throw new Error(e.error || e.message || `Failed (${resp.status})`);
-      }
-      await refetchSocial();
-      toast({ title: "Disconnected" });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Disconnect failed", description: err instanceof Error ? err.message : "Please try again." });
     }
   }
 
@@ -466,12 +440,24 @@ export default function BrandNext() {
                 )}
               </TabsContent>
 
-              {/* Platforms — connected social accounts (OAuth) */}
+              {/*
+                * Platforms - the accounts this brand posts THROUGH, read only.
+                *
+                * Connecting moved to Settings {"·"} Connected Accounts. Accounts are
+                * workspace-wide (doc 38 §3): every sub-brand publishes through the
+                * parent's accounts, so a Connect button per sub-brand offered a
+                * choice that did not exist, and pressing it again re-stamped the
+                * same account onto whichever brand you were looking at. One
+                * Instagram, one LinkedIn, one TikTok - connected once.
+                */}
               <TabsContent value="platforms" className="space-y-5 pt-4">
                 <div className="space-y-2">
-                  <Label>Connected accounts</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label>Posts through</Label>
+                    <InfoDot text="Connected once for the whole workspace, in Settings · Connected Accounts. Every brand publishes through these." />
+                  </div>
                   {accounts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No accounts connected for this brand.</p>
+                    <p className="text-sm text-muted-foreground">Nothing connected yet.</p>
                   ) : (
                     accounts.map((acc) => {
                       const Icon = PLATFORM_ICONS[acc.platform];
@@ -483,28 +469,10 @@ export default function BrandNext() {
                             <p className="text-sm text-foreground truncate">{acc.accountName || acc.platform}</p>
                             <Badge variant={st === "connected" ? "default" : "secondary"} className="text-[10px] mt-0.5">{st}</Badge>
                           </div>
-                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => disconnectAccount(acc.id)}>
-                            <Trash2 size={13} className="mr-1" /> Disconnect
-                          </Button>
                         </div>
                       );
                     })
                   )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Connect a platform</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {CONNECTABLE_PLATFORMS.map((p) => {
-                      const Icon = PLATFORM_ICONS[p.key];
-                      return (
-                        <Button key={p.key} size="sm" variant="outline" onClick={() => connectPlatform(p.key)} disabled={!activeBrandId}>
-                          {Icon && <Icon size={14} className="mr-1.5" />}
-                          {p.label}
-                          <Link2 size={12} className="ml-1.5 text-muted-foreground" />
-                        </Button>
-                      );
-                    })}
-                  </div>
                 </div>
               </TabsContent>
 
