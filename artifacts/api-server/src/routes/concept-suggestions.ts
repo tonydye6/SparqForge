@@ -6,7 +6,7 @@ import { AI_MODELS, estimateClaudeTextCost } from "../lib/ai-config.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 import { INTENTS, INTENT_LABELS, intentPromptCatalog, type Intent } from "../lib/intents.js";
 
 // Beat 1 (Home): brand-aware concept ideation. Stateless — returns ephemeral
@@ -30,7 +30,7 @@ const router: IRouter = Router();
 
 router.post(
   "/concept-suggestions",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: ConceptSuggestionsBody }),
   async (req: Request, res: Response): Promise<void> => {
     const { brandId, briefText, count = 3 } = req.body as z.infer<typeof ConceptSuggestionsBody>;

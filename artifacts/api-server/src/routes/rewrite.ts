@@ -3,7 +3,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { AI_MODELS } from "../lib/ai-config.js";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 
 const RewriteBody = z.object({
   text: z.string().min(1).max(5000),
@@ -12,7 +12,7 @@ const RewriteBody = z.object({
 
 const router: IRouter = Router();
 
-router.post("/rewrite", generationLimiter, validateRequest({ body: RewriteBody }), async (req: Request, res: Response): Promise<void> => {
+router.post("/rewrite", assistLimiter, validateRequest({ body: RewriteBody }), async (req: Request, res: Response): Promise<void> => {
   const { text, instruction } = req.body;
 
   try {

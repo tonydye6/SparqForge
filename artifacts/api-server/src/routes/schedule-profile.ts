@@ -5,7 +5,7 @@ import { db, brandsTable, brandScheduleProfilesTable, costLogsTable } from "@wor
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { AI_MODELS } from "../lib/ai-config.js";
 import { extractJSON } from "../lib/extract-json.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 import { buildCostRow } from "../services/cost-recording.js";
 
 const router: IRouter = Router();
@@ -132,7 +132,7 @@ router.put("/brands/:brandId/schedule-profile", async (req, res): Promise<void> 
   res.json({ message: "Schedule profile updated", count: slots.length });
 });
 
-router.post("/brands/:brandId/schedule-profile/generate", generationLimiter, async (req, res): Promise<void> => {
+router.post("/brands/:brandId/schedule-profile/generate", assistLimiter, async (req, res): Promise<void> => {
   const brandId = str(req.params.brandId);
   const { platform } = req.body as { platform?: string };
 

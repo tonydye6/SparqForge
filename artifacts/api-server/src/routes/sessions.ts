@@ -12,7 +12,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { str } from "../lib/http-params.js";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 import { requireAuth, requireEditorForWrites } from "../middleware/auth.js";
 import { recordAudit, actorFromRequest } from "../lib/audit.js";
 import {
@@ -176,7 +176,7 @@ router.post(
   "/sessions/:id/turns",
   requireAuth,
   requireEditorForWrites,
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: CreateTurnBody }),
   async (req: Request, res: Response): Promise<void> => {
     const sessionId = str(req.params.id);
