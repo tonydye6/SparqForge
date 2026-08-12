@@ -389,7 +389,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
       <MediumSwitch medium={medium} onChange={setMedium} />
       <div className="space-y-1.5">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
-          Stage 03 · Image · Explore
+          Stage 03 · Media · Explore
         </p>
         <h2 className="flex items-center gap-2 font-display text-xl tracking-wide text-foreground">
           Eight takes on <span className="text-cyber-teal">{plan.axes.a.name}</span> ×{" "}

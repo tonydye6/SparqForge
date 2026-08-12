@@ -107,6 +107,23 @@ router.get("/sequences/:id", async (req: Request, res: Response): Promise<void> 
   });
 });
 
+/**
+ * This creative's sequences, so a doorway can open an existing one instead of
+ * minting a duplicate. Phase 9 built the whole timeline and nothing in the
+ * Studio ever linked to it (Tony, 2026-08-11: "how come the ux/ui/flow for
+ * video/sound/voice editing and sequencing was never added?") — the Motion
+ * tab's button reads this first.
+ */
+router.get("/creatives/:creativeId/sequences", async (req: Request, res: Response): Promise<void> => {
+  const creativeId = str(req.params.creativeId);
+  const rows = await db
+    .select()
+    .from(sequencesTable)
+    .where(eq(sequencesTable.creativeId, creativeId))
+    .orderBy(asc(sequencesTable.createdAt));
+  res.json({ sequences: rows });
+});
+
 router.post(
   "/creatives/:creativeId/sequences",
   requireStandardWrite,

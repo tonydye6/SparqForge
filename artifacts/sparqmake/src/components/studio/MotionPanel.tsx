@@ -17,7 +17,8 @@
  * different ideas.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/utils";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
@@ -60,6 +61,44 @@ export function MotionPanel({
 }) {
   const [choices, setChoices] = useState<MediumChoice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [, navigate] = useLocation();
+
+  /*
+   * The doorway to the Phase 9 timeline — sequences, multi-clip, multi-track
+   * audio and voiceover — which was fully built and never linked from any
+   * Studio surface (Tony asked where it went, 2026-08-11). One button: open
+   * the creative's sequence if it has one, start one if it does not.
+   */
+  const [sequenceId, setSequenceId] = useState<string | null>(null);
+  const [sequenceBusy, setSequenceBusy] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/sequences`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json() as { sequences?: Array<{ id: string }> };
+        if (!cancelled) setSequenceId(body.sequences?.[0]?.id ?? null);
+      } catch { /* the button falls back to "start", which creates one */ }
+    })();
+    return () => { cancelled = true; };
+  }, [creativeId]);
+
+  async function openSequence() {
+    if (sequenceBusy) return;
+    if (sequenceId) { navigate(`/sequence/${sequenceId}`); return; }
+    setSequenceBusy(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/sequences`, { method: "POST" });
+      const body = (await res.json().catch(() => null)) as { sequence?: { id: string }; error?: string } | null;
+      if (res.ok && body?.sequence?.id) navigate(`/sequence/${body.sequence.id}`);
+      else setError(body?.error ?? "The sequence could not be started.");
+    } catch {
+      setError("The sequence could not be started.");
+    } finally {
+      setSequenceBusy(false);
+    }
+  }
 
   /*
    * Animate the pick, from HERE. This tab used to hold one paragraph sending
@@ -116,17 +155,34 @@ export function MotionPanel({
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
-      <div className="space-y-1.5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
-          Stage 03 · Motion
-        </p>
-        <h2 className="font-display text-xl tracking-wide text-foreground">
-          The same stage, moving
-        </h2>
-        <p className="max-w-[80ch] text-[12.5px] leading-relaxed text-muted-foreground">
-          Motion is a medium of this stage, not a stage of its own. Whatever is here was animated
-          from a still that is still sitting under the Image tab, so switching back costs nothing.
-        </p>
+      <div className="flex items-start gap-3">
+        <div className="space-y-1.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+            Stage 03 · Motion
+          </p>
+          <h2 className="font-display text-xl tracking-wide text-foreground">
+            The same stage, moving
+          </h2>
+          <p className="max-w-[80ch] text-[12.5px] leading-relaxed text-muted-foreground">
+            Motion is a medium of this stage, not a stage of its own. Whatever is here was animated
+            from a still that is still sitting under the Image tab, so switching back costs nothing.
+          </p>
+        </div>
+        <button
+          onClick={() => void openSequence()}
+          disabled={sequenceBusy}
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+          data-testid="button-open-sequence"
+        >
+          {sequenceBusy ? (
+            <Loader2 size={10} className="animate-spin" />
+          ) : (
+            <>
+              {sequenceId ? "Open the sequence" : "Start a sequence"}
+              <ArrowRight size={9} />
+            </>
+          )}
+        </button>
       </div>
 
       {error && (

@@ -155,11 +155,11 @@ export function suggestStage(
 }
 
 const STAGE_LABELS: Record<StageKind, string> = {
-  brief: "Brief",
-  direction: "Direction",
-  asset: "Image",
+  brief: "Spark",
+  direction: "Director",
+  asset: "Media",
   copy: "Copy",
-  crops: "Channel crops",
+  crops: "Launch pad",
 };
 
 export function labelForStage(kind: StageKind): string {

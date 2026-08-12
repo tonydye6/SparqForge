@@ -101,7 +101,7 @@ export async function collectApprovalsCases(): Promise<CaseResult[]> {
     const ok = assignableStages(s);
     check("only stages that ran are assignable", ok.length === 3, ok.map(x => x.stageKind));
     check("and they come back in spine order", ok.map(x => x.stageKind).join(",") === "brief,direction,asset");
-    check("stage labels are words", labelForStage("asset") === "Image" && labelForStage("crops") === "Channel crops");
+    check("stage labels are words", labelForStage("asset") === "Media" && labelForStage("crops") === "Launch pad");
   }
 
   // ---- who may do what ----

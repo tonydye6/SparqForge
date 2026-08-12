@@ -40,11 +40,11 @@ interface MaterialRailProps {
 }
 
 const STAGE_LABELS: Record<RailStage["stageKind"], string> = {
-  brief: "Brief",
-  direction: "Direction",
-  asset: "Image",
+  brief: "Spark",
+  direction: "Director",
+  asset: "Media",
   copy: "Copy",
-  crops: "Channel crops",
+  crops: "Launch pad",
 };
 
 const Line = ({ label, children }: { label: string; children: React.ReactNode }) => (

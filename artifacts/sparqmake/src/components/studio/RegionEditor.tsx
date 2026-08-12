@@ -20,13 +20,27 @@ import { MentionChips, MentionPickerList, reconcile, useMentions, type AssetOpti
  * verdict may still be the picture you wanted.
  */
 
-interface Region {
+interface BoxRegion {
   shape: "box";
   x: number;
   y: number;
   w: number;
   h: number;
 }
+
+interface LassoRegion {
+  shape: "lasso";
+  points: Array<{ x: number; y: number }>;
+}
+
+/*
+ * Both shapes the server already accepts (region-edit.ts normalizeRegion has
+ * spoken box, lasso and point since Phase 4) — the client just never offered
+ * the lasso until Tony asked for it (2026-08-11). WHERE is the one part of an
+ * image edit a person states precisely, and a box is a blunt way to say it
+ * around a character's silhouette.
+ */
+type Region = BoxRegion | LassoRegion;
 
 interface NamedRegion {
   key: string;
@@ -55,6 +69,30 @@ interface RegionEditorProps {
 
 /** Below this a drag is a click, not a selection. */
 const MIN_DRAG = 0.02;
+/** Mirrors the server's MIN_LASSO_POINTS / MIN_REGION_AREA so a doomed lasso
+    is cleared here instead of bouncing off a 400. */
+const MIN_LASSO_POINTS = 3;
+const MIN_REGION_AREA = 0.0004;
+/** A new lasso point is only recorded after this much movement, which keeps a
+    slow careful trace from becoming a thousand-point payload. */
+const LASSO_STEP = 0.008;
+
+/** Shoelace area of a normalised polygon — same arithmetic as the server. */
+function polygonArea(points: Array<{ x: number; y: number }>): number {
+  if (points.length < MIN_LASSO_POINTS) return 0;
+  let sum = 0;
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+/** SVG path (0..100 space) for a polygon, closed. */
+function lassoPath(points: Array<{ x: number; y: number }>): string {
+  return points.map((p, i) => `${i === 0 ? "M" : "L"}${(p.x * 100).toFixed(2)} ${(p.y * 100).toFixed(2)}`).join(" ") + " Z";
+}
 
 export function RegionEditor({
   creativeId,
@@ -69,6 +107,9 @@ export function RegionEditor({
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
   const [dragFrom, setDragFrom] = useState<{ x: number; y: number } | null>(null);
+  /** Which way WHERE is being said: a corner-to-corner box, or a traced outline. */
+  const [tool, setTool] = useState<"box" | "lasso">("box");
+  const [tracing, setTracing] = useState(false);
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,14 +155,30 @@ export function RegionEditor({
     // Capture the pointer so a drag that leaves the image still tracks, rather
     // than freezing the selection at the edge.
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    if (tool === "lasso") {
+      setTracing(true);
+      setRegion({ shape: "lasso", points: [p] });
+      return;
+    }
     setDragFrom(p);
     setRegion(null);
   }
 
   function onPointerMove(e: React.PointerEvent) {
-    if (!dragFrom) return;
     const p = pointAt(e);
     if (!p) return;
+    if (tool === "lasso") {
+      if (!tracing) return;
+      setRegion((r) => {
+        if (!r || r.shape !== "lasso") return r;
+        const last = r.points[r.points.length - 1];
+        // Only record real movement, so a slow trace stays a reasonable payload.
+        if (Math.hypot(p.x - last.x, p.y - last.y) < LASSO_STEP) return r;
+        return { shape: "lasso", points: [...r.points, p] };
+      });
+      return;
+    }
+    if (!dragFrom) return;
     setRegion({
       shape: "box",
       x: Math.min(dragFrom.x, p.x),
@@ -133,9 +190,14 @@ export function RegionEditor({
 
   function onPointerUp() {
     setDragFrom(null);
+    setTracing(false);
     // A stray click should clear the selection rather than leave a sliver the
     // server will reject with an error the user cannot connect to their action.
-    setRegion((r) => (r && (r.w < MIN_DRAG || r.h < MIN_DRAG) ? null : r));
+    setRegion((r) => {
+      if (!r) return null;
+      if (r.shape === "box") return r.w < MIN_DRAG || r.h < MIN_DRAG ? null : r;
+      return r.points.length < MIN_LASSO_POINTS || polygonArea(r.points) < MIN_REGION_AREA ? null : r;
+    });
   }
 
   async function submit() {
@@ -190,25 +252,75 @@ export function RegionEditor({
       >
         <img src={imageUrl} alt="" draggable={false} className="block w-full" />
 
-        {region && (
-          <div
-            className="pointer-events-none absolute border border-grit-teal bg-grit-teal/10"
-            style={{ left: pct(region.x), top: pct(region.y), width: pct(region.w), height: pct(region.h) }}
-          />
+        {region?.shape === "box" && (
+          <>
+            <div
+              className="pointer-events-none absolute border border-grit-teal bg-grit-teal/10"
+              style={{ left: pct(region.x), top: pct(region.y), width: pct(region.w), height: pct(region.h) }}
+            />
+            {/* Everything outside the selection dims, so the mask is legible on
+                a busy image without drawing a shape on top of the subject. */}
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background: "rgba(0,0,0,0.45)",
+                clipPath: `polygon(0% 0%, 0% 100%, ${pct(region.x)} 100%, ${pct(region.x)} ${pct(region.y)}, ${pct(region.x + region.w)} ${pct(region.y)}, ${pct(region.x + region.w)} ${pct(region.y + region.h)}, ${pct(region.x)} ${pct(region.y + region.h)}, ${pct(region.x)} 100%, 100% 100%, 100% 0%)`,
+              }}
+            />
+          </>
         )}
 
-        {/* Everything outside the selection dims, so the mask is legible on a
-            busy image without drawing a shape on top of the subject. */}
-        {region && (
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background: "rgba(0,0,0,0.45)",
-              clipPath: `polygon(0% 0%, 0% 100%, ${pct(region.x)} 100%, ${pct(region.x)} ${pct(region.y)}, ${pct(region.x + region.w)} ${pct(region.y)}, ${pct(region.x + region.w)} ${pct(region.y + region.h)}, ${pct(region.x)} ${pct(region.y + region.h)}, ${pct(region.x)} 100%, 100% 100%, 100% 0%)`,
-            }}
-          />
+        {region?.shape === "lasso" && region.points.length >= 2 && (
+          /* The same dim-outside idea, drawn as one evenodd path: the frame
+             with the traced outline cut out of it. */
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            {region.points.length >= MIN_LASSO_POINTS && (
+              <path
+                d={`M0 0 H100 V100 H0 Z ${lassoPath(region.points)}`}
+                fill="rgba(0,0,0,0.45)"
+                fillRule="evenodd"
+              />
+            )}
+            <path
+              d={lassoPath(region.points)}
+              fill="rgba(0,161,156,0.1)"
+              stroke="#00A19C"
+              strokeWidth="1.5"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
         )}
       </div>
+
+      {/* How WHERE gets said: corner-to-corner, or traced around. */}
+      {!locked && (
+        <div className="inline-flex items-center gap-0.5 rounded-sm border border-border p-0.5" role="group" aria-label="Selection tool">
+          {(["box", "lasso"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              aria-pressed={tool === t}
+              disabled={busy}
+              onClick={() => {
+                setTool(t);
+                setRegion(null);
+              }}
+              className={cn(
+                "rounded-sm px-2 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.06em] hover-elevate disabled:opacity-40",
+                tool === t ? "bg-grit-teal/15 text-cyber-teal" : "text-muted-foreground",
+              )}
+              data-testid={`button-region-tool-${t}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
 
       {namedRegions.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
@@ -245,7 +357,13 @@ export function RegionEditor({
             }}
             disabled={locked || busy}
             rows={2}
-            placeholder={region ? "What should change in the selection? @ attaches a reference" : "Drag a box on the image first"}
+            placeholder={
+              region
+                ? "What should change in the selection? @ attaches a reference"
+                : tool === "box"
+                  ? "Drag a box on the image first"
+                  : "Trace around the area on the image first"
+            }
             aria-label="What should change in the selected region. Type @ to attach a reference."
             aria-expanded={m.picker !== null}
             aria-controls={m.picker ? "region-mention-picker" : undefined}

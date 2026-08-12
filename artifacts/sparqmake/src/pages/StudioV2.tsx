@@ -72,11 +72,11 @@ interface ReopenPreview {
 }
 
 const STAGE_LABELS: Record<StageRow["stageKind"], string> = {
-  brief: "Brief",
-  direction: "Direction",
-  asset: "Image",
+  brief: "Spark",
+  direction: "Director",
+  asset: "Media",
   copy: "Copy",
-  crops: "Channel crops",
+  crops: "Launch pad",
 };
 
 interface StageDecision {
