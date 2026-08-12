@@ -17,15 +17,19 @@
  * Free: no model call, no writes, nothing derived that is not already recorded.
  */
 import { Router, type IRouter, type Request, type Response } from "express";
-import { and, eq, inArray } from "drizzle-orm";
-import { db, assetsTable, brandsTable, creativesTable, stageStatesTable, stageTakesTable } from "@workspace/db";
+import { and, asc, eq, inArray } from "drizzle-orm";
+import {
+  db, assetsTable, brandsTable, creativesTable, stageStatesTable, stageTakesTable, takeLayersTable,
+} from "@workspace/db";
 import { str } from "../lib/http-params.js";
 import {
   castLayers,
   castOfLineage,
   layersSummary,
   lineagePayloads,
+  mergeLayers,
   type CastAsset,
+  type DetectedRow,
 } from "../services/take-layers.js";
 
 const router: IRouter = Router();
@@ -119,11 +123,33 @@ router.get(
       .from(brandsTable)
       .where(eq(brandsTable.id, creative.brandId));
 
-    const layers = castLayers({
+    const known = castLayers({
       cast,
       assets: assetRows as CastAsset[],
       brandName: brand?.name ?? null,
     });
+
+    /*
+     * The detected set, when one has been run. Only the CURRENT set: a
+     * re-detect supersedes rather than deletes, so the superseded rows are
+     * still on the record and must not appear twice in the list.
+     */
+    const detectedRows = await db
+      .select({
+        id: takeLayersTable.id,
+        layerIndex: takeLayersTable.layerIndex,
+        name: takeLayersTable.name,
+        kind: takeLayersTable.kind,
+        assetId: takeLayersTable.assetId,
+        bbox: takeLayersTable.bbox,
+      })
+      .from(takeLayersTable)
+      .where(and(eq(takeLayersTable.stageTakeId, take.id), eq(takeLayersTable.isCurrent, true)))
+      .orderBy(asc(takeLayersTable.layerIndex));
+
+    const layers = detectedRows.length > 0
+      ? mergeLayers(known, detectedRows as DetectedRow[])
+      : known;
 
     res.json({
       slotKey,
