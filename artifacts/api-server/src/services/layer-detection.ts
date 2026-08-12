@@ -338,9 +338,19 @@ export function detectionSummary(layers: AttributedLayer[]): string {
   }
   const attributed = layers.filter(l => l.assetId).length;
   const broad = layers.filter(l => l.broad).length;
-  const noun = layers.length === 1 ? "layer" : "layers";
-  let s = `${layers.length} ${noun} found`;
-  if (attributed > 0) s += `, ${attributed} matched to a file you attached`;
+  /*
+   * ELEMENTS, not layers. The panel's own heading counts the base as a layer
+   * and detection never finds the base, so "2 layers found" under "Layers · 3"
+   * read as a contradiction the first time it was seen on screen. Detection
+   * reports what it found in the picture; the heading counts what the list holds.
+   */
+  const noun = layers.length === 1 ? "element" : "elements";
+  let s = `Found ${layers.length} ${noun} in the picture`;
+  if (attributed > 0) {
+    s += attributed === layers.length
+      ? `, ${layers.length === 1 ? "matched" : "all matched"} to a file you attached`
+      : `, ${attributed} matched to a file you attached`;
+  }
   s += ".";
   if (broad > 0) {
     s += ` ${broad === 1 ? "One covers" : `${broad} cover`} most of the frame, so editing ` +
