@@ -41,6 +41,27 @@ interface Concept {
   intentLabel?: string;
 }
 
+/** One MOMENT of the post. See BriefStage: a shot is a moment, not a framing. */
+interface Shot {
+  n: number;
+  text: string;
+  provenance: "you" | "inferred" | "brand";
+}
+
+type PostShape = "single" | "sequence";
+
+/** Mirrors the server's cap. Past this it is a film, not a post. */
+const MAX_SHOTS = 6;
+
+/** Contiguous from 1 always — the storyboard's slot families are named off these. */
+const renumberShots = (rows: Shot[]): Shot[] =>
+  rows.slice(0, MAX_SHOTS).map((s, i) => ({ ...s, n: i + 1 }));
+
+/** Long enough not to bill a model call on every keystroke. Same as stage 01's. */
+const INTAKE_DEBOUNCE_MS = 900;
+/** Below this there is nothing to read for moments. */
+const MIN_WORDS_TO_READ = 5;
+
 interface CollabMsg {
   role: "you" | "director";
   text: string;
@@ -127,6 +148,28 @@ export function Entrance({
   // ---- concepts ----
   const [concepts, setConcepts] = useState<Concept[] | null>(null);
   const [rolling, setRolling] = useState(false);
+
+  /* ---- the story path, step 4a (the mockup's screen 1) ----------------------
+   *
+   * This screen IS stage 01, so the shot list belongs here: the decision has to
+   * be visible BEFORE Start, because Start is what saves the brief and a
+   * hand-typed brief locks its own stage.
+   *
+   * The intake behind it is the SAME call `start()` already makes. It is cached
+   * against the exact line it read, and `start()` reuses a fresh cache instead
+   * of asking again — so showing the shot list is cost-neutral for anyone who
+   * pauses once before starting, rather than a second billed call per post.
+   */
+  const [shape, setShape] = useState<PostShape>("single");
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [suggested, setSuggested] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const shapeChosenRef = useRef(false);
+  /** The intake result and the exact line it was read from. */
+  const intakeRef = useRef<{ line: string; derived: unknown[]; intentId: string | null } | null>(null);
+  const intakeAbort = useRef<AbortController | null>(null);
+  const intakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void apiFetch("/api/brands")
@@ -260,6 +303,95 @@ export function Entrance({
     ? thread.filter((m) => m.role === "you").map((m) => m.text).join(" ") || line
     : line;
 
+  /**
+   * Read the line for moments, once it has settled.
+   *
+   * The result is cached against the exact text it read, which is what lets
+   * `start()` reuse it. An abandoned request is aborted rather than left to land
+   * late — both because it would overwrite newer rows and because nobody should
+   * be billed for an answer to a line they have already replaced.
+   */
+  const readForShots = useCallback(async (text: string) => {
+    intakeAbort.current?.abort();
+    const controller = new AbortController();
+    intakeAbort.current = controller;
+    setReading(true);
+    try {
+      const res = await apiFetch("/api/brief-intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ briefText: text, ...(brandId ? { brandId } : {}) }),
+        signal: controller.signal,
+      });
+      if (!res.ok || controller.signal.aborted) return;
+      const intake = (await res.json()) as {
+        derived?: unknown[];
+        intent?: { id?: string } | null;
+        shots?: Shot[];
+        readsAsStory?: boolean;
+      };
+      if (controller.signal.aborted) return;
+      intakeRef.current = {
+        line: text,
+        derived: intake.derived ?? [],
+        intentId: intake.intent?.id ?? null,
+      };
+      setSuggested(Boolean(intake.readsAsStory));
+      // Never overwrite shots somebody has edited, and never override a chosen
+      // shape — the same rule stage 01 holds.
+      setShots((current) => (current.some((s) => s.provenance === "you") ? current : intake.shots ?? []));
+      if (!shapeChosenRef.current) setShape(intake.readsAsStory ? "sequence" : "single");
+    } catch {
+      // A failed read leaves the entrance exactly as it was. Start still works,
+      // and pays for its own intake as it always did.
+    } finally {
+      if (!controller.signal.aborted) setReading(false);
+    }
+  }, [brandId]);
+
+  useEffect(() => {
+    if (intakeTimer.current) clearTimeout(intakeTimer.current);
+    const text = yours.trim();
+    if (!canWrite || text.split(/\s+/).filter(Boolean).length < MIN_WORDS_TO_READ) {
+      intakeAbort.current?.abort();
+      setReading(false);
+      return;
+    }
+    if (intakeRef.current?.line === text) return;
+    intakeTimer.current = setTimeout(() => void readForShots(text), INTAKE_DEBOUNCE_MS);
+    return () => { if (intakeTimer.current) clearTimeout(intakeTimer.current); };
+  }, [yours, canWrite, readForShots]);
+
+  useEffect(() => () => intakeAbort.current?.abort(), []);
+
+  /* ---- shot list edits. All free. ---- */
+  function chooseShape(next: PostShape) {
+    shapeChosenRef.current = true;
+    setShape(next);
+  }
+  function editShot(n: number, text: string) {
+    setShots((rows) => rows.map((s) => (s.n === n ? { ...s, text, provenance: "you" } : s)));
+  }
+  function addShot() {
+    setShots((rows) => (rows.length >= MAX_SHOTS ? rows : renumberShots([...rows, { n: rows.length + 1, text: "", provenance: "you" }])));
+  }
+  function removeShot(n: number) {
+    setShots((rows) => renumberShots(rows.filter((s) => s.n !== n)));
+  }
+  function dropShot(targetN: number) {
+    if (dragging === null || dragging === targetN) return;
+    setShots((rows) => {
+      const moved = rows.find((s) => s.n === dragging);
+      if (!moved) return rows;
+      const rest = rows.filter((s) => s.n !== dragging);
+      const at = rest.findIndex((s) => s.n === targetN);
+      rest.splice(at < 0 ? rest.length : at, 0, moved);
+      return renumberShots(rest);
+    });
+    setDragging(null);
+  }
+  const usableShots = shots.filter((s) => s.text.trim().length > 0);
+
   async function start() {
     if (!brandId || !yours.trim() || starting) return;
     setStarting(true);
@@ -290,21 +422,32 @@ export function Entrance({
 
       let derived: unknown[] = [];
       let intentId: string | null = null;
-      try {
-        const intakeRes = await apiFetch("/api/brief-intake", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ briefText: yours.trim(), brandId }),
-        });
-        if (intakeRes.ok) {
-          const intake = await intakeRes.json();
-          derived = intake.derived ?? [];
-          // The goal, in the same payload field stage 01 writes. Without it a
-          // post born here planned its spread on default axes forever.
-          intentId = intake.intent?.id ?? null;
+      /*
+       * Reuse the read the shot list already paid for, when it was read from
+       * exactly this line. Asking again would bill a second identical Sonnet
+       * call and could return a different goal than the one on screen.
+       */
+      const cached = intakeRef.current;
+      if (cached && cached.line === yours.trim()) {
+        derived = cached.derived;
+        intentId = cached.intentId;
+      } else {
+        try {
+          const intakeRes = await apiFetch("/api/brief-intake", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ briefText: yours.trim(), brandId }),
+          });
+          if (intakeRes.ok) {
+            const intake = await intakeRes.json();
+            derived = intake.derived ?? [];
+            // The goal, in the same payload field stage 01 writes. Without it a
+            // post born here planned its spread on default axes forever.
+            intentId = intake.intent?.id ?? null;
+          }
+        } catch {
+          // Derivation degrading never blocks a save; stage 01's own rule.
         }
-      } catch {
-        // Derivation degrading never blocks a save; stage 01's own rule.
       }
 
       if (briefStage) {
@@ -326,6 +469,16 @@ export function Entrance({
               intentId,
               derived,
               answers: [],
+              /*
+               * The story decision, born with the post (step 4a). Only shots
+               * with words are saved, so an abandoned "+ Add a shot" cannot
+               * become a beat somebody pays to generate; and a "sequence" of
+               * fewer than two moments is saved as what it actually is.
+               */
+              shape: usableShots.length >= 2 && shape === "sequence" ? "sequence" : "single",
+              shots: shape === "sequence"
+                ? renumberShots(usableShots).map((s) => ({ n: s.n, text: s.text.trim(), provenance: s.provenance }))
+                : [],
               // The director's framing rides beside the line, attributed, so
               // stage 03's planner can read it and stage 01 can render whose
               // words are whose.
@@ -444,6 +597,107 @@ export function Entrance({
                   <div className="px-5">
                     <MentionChips mentions={m.mentions} />
                   </div>
+                </div>
+              )}
+
+              {/*
+                The story choice and its shot list (step 4a, the mockup's
+                screen 1). A shot is a MOMENT, not a framing — the spread
+                already handles framings. Every edit here is free.
+              */}
+              {(suggested || shape === "sequence" || shots.length > 0) && (
+                <div className="border-t border-border/60 px-3.5 py-2.5" data-testid="story-shape">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">This post is</span>
+                    {([
+                      ["single", "One picture"],
+                      ["sequence", "A sequence of shots"],
+                    ] as Array<[PostShape, string]>).map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => chooseShape(key)}
+                        aria-pressed={shape === key}
+                        className={cn(
+                          "rounded-sm border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.05em] hover-elevate",
+                          shape === key
+                            ? "border-grit-teal bg-grit-teal/15 text-cyber-teal"
+                            : "border-border text-muted-foreground",
+                        )}
+                        data-testid={`button-shape-${key}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div className="flex-1" />
+                    {reading && <Loader2 size={9} className="animate-spin text-cyber-teal" />}
+                    {suggested && !reading && (
+                      <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                        suggested {"·"} your line describes more than one moment
+                      </span>
+                    )}
+                  </div>
+
+                  {shape === "sequence" && (
+                    <div className="mt-2 space-y-1.5">
+                      <p className="font-mono text-[8px] uppercase tracking-[0.09em] text-victory-gold">
+                        Shot list {"·"} derived, yours to edit
+                      </p>
+                      {shots.map((s) => (
+                        <div
+                          key={s.n}
+                          draggable
+                          onDragStart={() => setDragging(s.n)}
+                          onDragEnd={() => setDragging(null)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => { e.preventDefault(); dropShot(s.n); }}
+                          className={cn(
+                            "flex cursor-grab items-center gap-2 rounded-sm border bg-background/50 px-2 py-1.5 active:cursor-grabbing",
+                            dragging === s.n ? "border-grit-teal opacity-50" : "border-border",
+                          )}
+                          data-testid={`row-shot-${s.n}`}
+                        >
+                          <span className="font-mono text-[8.5px] text-victory-gold" data-numeric>{s.n}</span>
+                          <input
+                            value={s.text}
+                            onChange={(e) => editShot(s.n, e.target.value)}
+                            placeholder="what happens at this moment"
+                            aria-label={`Shot ${s.n}`}
+                            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[11.5px] text-foreground outline-none placeholder:text-dim"
+                          />
+                          <span
+                            className={cn(
+                              "whitespace-nowrap rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em]",
+                              s.provenance === "you" ? "border-border text-foreground" : "border-grit-teal/40 text-cyber-teal",
+                            )}
+                          >
+                            {s.provenance === "you" ? "You" : "Inferred"}
+                          </span>
+                          <button
+                            onClick={() => removeShot(s.n)}
+                            aria-label={`Remove shot ${s.n}`}
+                            className="font-mono text-[10px] text-dim hover:text-rebel-pink"
+                          >
+                            {"×"}
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={addShot}
+                          disabled={shots.length >= MAX_SHOTS}
+                          className="rounded-sm border border-border px-2 py-1 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                          data-testid="button-add-shot"
+                        >
+                          + Add a shot
+                        </button>
+                        <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                          {usableShots.length < 2
+                            ? `two moments make a sequence · ${usableShots.length} so far`
+                            : `${usableShots.length} moments · each generates and animates on its own`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
