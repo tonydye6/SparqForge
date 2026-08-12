@@ -22,6 +22,7 @@ import {
   db, assetsTable, brandsTable, creativesTable, stageStatesTable, stageTakesTable, takeLayersTable,
 } from "@workspace/db";
 import { str } from "../lib/http-params.js";
+import { estimateGeminiTextCost, estimateImagenCost } from "../lib/ai-config.js";
 import {
   castLayers,
   castOfLineage,
@@ -167,6 +168,19 @@ router.get(
       inheritedCount: layers.filter(l => l.origin === "inherited_cast").length,
       locatedCount: layers.filter(l => l.bbox !== null).length,
       summary: layersSummary(layers),
+      /*
+       * THE PRICES, FROM THE SERVER THAT CHARGES THEM.
+       *
+       * Both buttons shipped with numbers typed into the component — "about
+       * $0.005" against an actual $0.004, "$0.13" against $0.134 — and both
+       * estimates are env-overridable, so the labels were wrong on day one and
+       * would drift further (doc 46 §5; doc 41 §5 flagged the same class for the
+       * clip price and doc 42 left it open). The read model already owns every
+       * other judgement on this surface, exactly as `routes/storyboard.ts` owns
+       * `beatCostUsd`, so it owns these too.
+       */
+      detectCostUsd: estimateGeminiTextCost(),
+      layerEditCostUsd: estimateImagenCost(1),
     });
   },
 );

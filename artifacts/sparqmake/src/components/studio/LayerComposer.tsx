@@ -41,6 +41,11 @@ interface LayerComposerProps {
   layerName: string;
   /** Dragged destination, when the layer has been pulled somewhere new. */
   moveTo: { x: number; y: number } | null;
+  /**
+   * What this costs, from the read model that charges it. Hand-typed here as
+   * "$0.13" against an actual, env-overridable $0.134 (doc 46 §5).
+   */
+  costUsd: number;
   /** Anchored above its layer instead of below, near the bottom of the frame. */
   flipped: boolean;
   onCancelMove: () => void;
@@ -56,6 +61,7 @@ export function LayerComposer({
   layerId,
   layerName,
   moveTo,
+  costUsd,
   flipped,
   onCancelMove,
   onDone,
@@ -97,9 +103,13 @@ export function LayerComposer({
           slotKey,
           layerId,
           ...(moveTo ? { moveTo } : {}),
-          // A move with no words still needs an instruction the server accepts;
-          // the server composes the real sentence and treats this as the extra.
-          instruction: text || `move the ${layerName}`,
+          /*
+           * Only what was actually typed. This used to fall back to
+           * `move the <layerName>` so the field could stay required, which put
+           * words in the history deck nobody typed and pushed the layer's name
+           * into a prompt that composes its own sentence (doc 46 §7.1).
+           */
+          ...(text ? { instruction: text } : {}),
           mentions: reconcile(m.mentions, text),
         }),
       });
@@ -190,7 +200,9 @@ export function LayerComposer({
 
       <div className="mt-1.5 flex items-center gap-2">
         <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
-          {moveTo ? <>Moves it {"·"} fills the gap {"·"} $0.13</> : <>This layer only {"·"} @ attaches {"·"} $0.13</>}
+          {moveTo
+            ? <>Moves it {"·"} fills the gap {"·"} ${costUsd.toFixed(3)}</>
+            : <>This layer only {"·"} @ attaches {"·"} ${costUsd.toFixed(3)}</>}
         </span>
         <div className="flex-1" />
         {moveTo && (

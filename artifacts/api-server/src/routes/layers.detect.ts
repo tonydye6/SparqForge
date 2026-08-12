@@ -57,6 +57,10 @@ router.post(
     const stageId = str(req.params.stageId);
     const { slotKey } = req.body as z.infer<typeof DetectBody>;
     let reservationId: string | null = null;
+    /** Whether the paid vision call was made — from here, money has moved. */
+    let visionCalled = false;
+    /** Whether the cost row actually committed, not whether it was attempted. */
+    let costSettled = false;
 
     try {
       const [creative] = await db
@@ -122,6 +126,7 @@ router.post(
        * hint suppresses discovery while adding nothing the pixels do not
        * already say. The cast is applied AFTER, as attribution.
        */
+      visionCalled = true;
       const response = await ai.models.generateContent({
         model: AI_MODELS.GEMINI_FLASH_TEXT,
         contents: [{
@@ -133,6 +138,42 @@ router.post(
         }],
       });
 
+      /*
+       * SETTLE THE SPEND BEFORE WRITING ANYTHING, exactly as explore-run does.
+       *
+       * The vendor has billed the moment that call returned, so the cost is a
+       * fact from here on. This route used to put the cost row in the SAME
+       * transaction that supersedes and rewrites the layer set, so any failure
+       * there — the partial unique index, a dropped connection — rolled the cost
+       * row back too and the catch went on to say "Nothing was charged" about
+       * money that had already left. Doc 44 §6 named this ordering as debt and
+       * doc 46 §3 found it still here.
+       *
+       * `costSettled` is reported rather than assumed, for the reason
+       * explore-run learned the hard way: a throw inside the settle itself would
+       * otherwise have this claim promising rows that rolled back.
+       */
+      await db.transaction(async (tx) => {
+        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
+        await tx.insert(costLogsTable).values(buildCostRow({
+          creativeId,
+          brandId: creative.brandId,
+          service: "gemini",
+          operation: "layer_detection",
+          model: AI_MODELS.GEMINI_FLASH_TEXT,
+          costUsd: estimateGeminiTextCost(),
+          stageTakeId: take.id,
+          inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+          // Thinking tokens are billed as output, so a report that left them
+          // out would understate what this call actually cost.
+          outputTokens:
+            (response.usageMetadata?.candidatesTokenCount ?? 0) +
+            (response.usageMetadata?.thoughtsTokenCount ?? 0) || null,
+        }));
+      });
+      costSettled = true;
+      reservationId = null;
+
       const text = (response.candidates?.[0]?.content?.parts ?? [])
         .map((p: { text?: string }) => p.text ?? "")
         .join("");
@@ -142,8 +183,8 @@ router.post(
       } catch {
         /*
          * An unreadable answer is not repaired into layers. The call happened
-         * and is billed upstream either way, so the cost row still goes in —
-         * hiding a real spend would be the worse lie.
+         * and has already been settled above, so an empty decomposition is
+         * reported as what it is rather than as a free failure.
          */
         detected = [];
       }
@@ -197,25 +238,7 @@ router.post(
             isCurrent: true,
           })));
         }
-
-        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
-        await tx.insert(costLogsTable).values(buildCostRow({
-          creativeId,
-          brandId: creative.brandId,
-          service: "gemini",
-          operation: "layer_detection",
-          model: AI_MODELS.GEMINI_FLASH_TEXT,
-          costUsd: estimateGeminiTextCost(),
-          stageTakeId: take.id,
-          inputTokens: response.usageMetadata?.promptTokenCount ?? null,
-          // Thinking tokens are billed as output, so a report that left them
-          // out would understate what this call actually cost.
-          outputTokens:
-            (response.usageMetadata?.candidatesTokenCount ?? 0) +
-            (response.usageMetadata?.thoughtsTokenCount ?? 0) || null,
-        }));
       });
-      reservationId = null;
 
       const rows = await db
         .select()
@@ -234,7 +257,22 @@ router.post(
         try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
       }
       console.error("Layer detection failed", err);
-      res.status(500).json({ error: "This picture could not be taken apart. Nothing was charged." });
+      /*
+       * Three outcomes, three different truths — the same distinction
+       * explore-run's catch draws. Saying "nothing was charged" after the vision
+       * call returned would be the one thing worse than the failure.
+       */
+      res.status(500).json({
+        costSettled,
+        error: !visionCalled
+          ? "This picture could not be taken apart. Nothing was charged."
+          : costSettled
+            ? "The picture was looked at, but the layers could not be saved. That look was billed and the cost has been recorded. Nothing else changed."
+            // `visionCalled` is set BEFORE the call, the same conservative order
+            // explore-run uses, so this case covers a call that may or may not
+            // have reached the vendor. It says "may" because that is the truth.
+            : "This picture could not be taken apart. The look at it had already been requested, so it may still have been billed, and no cost could be recorded for it.",
+      });
     }
   },
 );

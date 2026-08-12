@@ -9,8 +9,11 @@
 import {
   attributeToCast,
   detectionSummary,
+  layerEditRefusal,
   layerMoveSentence,
+  layerPromptReference,
   layerScopeSentence,
+  markLayerSlotDescription,
   nameOverlap,
   normalizeDetected,
   shouldCarryLayers,
@@ -219,6 +222,75 @@ export function runCases(): Result[] {
     layerMoveSentence("X", "here", "there", "make it smaller").includes("make it smaller."),
   );
 
+  /*
+   * ---- STRICT MARKS ON THE LAYER PATH (doc 46 §1) ----
+   *
+   * These are the rule, not a preference. `creative-direction.ts:679` allows
+   * prose to say "the brand mark in <asset name>" and nothing else about a mark,
+   * because a mark described in words is a mark redrawn from words. The layer
+   * path shipped naming the mark with no file attached, so the model copied it
+   * out of the previous render — compounding, and one walked move came back at
+   * 54% of the mark's width.
+   */
+  const MARK_LAYER = { name: "Crown U Mark", kind: "mark" };
+  check(
+    "a mark layer is referred to by its FILE, never by the layer's name",
+    layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" })
+      === "brand mark in Crown-U_Mark_Gold.png",
+    layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" }),
+  );
+  check(
+    "the mark's own name never reaches the prompt",
+    !layerScopeSentence(
+      layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" }),
+      "a small area in the upper left",
+      "make it bronze",
+    ).includes("Crown U Mark"),
+  );
+  check(
+    "a MOVE obeys the same rule — it is the sentence that asks for a redraw",
+    layerMoveSentence(
+      layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" }),
+      "here", "there",
+    ).startsWith("Move the brand mark in Crown-U_Mark_Gold.png out of"),
+  );
+  check(
+    "anything that is not a mark keeps its own name — the naming is the feature",
+    layerPromptReference({ name: "Crown U Tennis Athlete", kind: "character", markAssetName: "x.png" })
+      === "Crown U Tennis Athlete",
+  );
+  check(
+    "a mark with no file to attach is REFUSED rather than described",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false })?.includes("redrawing a trademark") === true,
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false }),
+  );
+  check(
+    "the refusal says which layer, so it is actionable",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false })?.startsWith("Crown U Mark is a brand mark") === true,
+  );
+  check(
+    "and it says nothing was charged, because nothing was",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false })?.includes("Nothing was changed or charged") === true,
+  );
+  check(
+    "a mark WITH its artwork proceeds",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true }) === null,
+  );
+  check(
+    "only marks are gated — an unattributed sparkle is nobody's trademark",
+    layerEditRefusal({ name: "Sparkle FX", kind: "element", hasMarkArtwork: false }) === null,
+  );
+  check(
+    "the attached mark's description says to copy from the FILE, not from the render",
+    markLayerSlotDescription("Crown-U_Mark_Gold.png").includes("from THIS file rather than from the image"),
+    markLayerSlotDescription("Crown-U_Mark_Gold.png"),
+  );
+  check(
+    "and it does NOT forbid the recolour the user just asked for",
+    !/do not (redesign|restyle|recolor)/i.test(markLayerSlotDescription("Crown-U_Mark_Gold.png")),
+    markLayerSlotDescription("Crown-U_Mark_Gold.png"),
+  );
+
   // ---- does the decomposition survive the edit? (found by walking 5c) ----
   const TOL = 8;
   check("a clean layer edit keeps the decomposition", shouldCarryLayers(true, 0.4, TOL));
@@ -226,7 +298,15 @@ export function runCases(): Result[] {
   check("a repaint does not", !shouldCarryLayers(true, 41.2, TOL));
   check("notable drift does not either", !shouldCarryLayers(true, 12, TOL));
   check("UNMEASURED is not clean", !shouldCarryLayers(true, null, TOL));
-  check("a whole-image refine never carries, however clean", !shouldCarryLayers(false, 0, TOL));
+  check("an UNSCOPED edit never carries, however clean", !shouldCarryLayers(false, 0, TOL));
+  /*
+   * The fourth gate doc 46 §6 found. A hand-drawn box is a real scope measured
+   * by the same `measureDrift(before, after, region)` call, so the containment
+   * argument holds and the decomposition survives. Refusing it threw away
+   * something the user had paid for, and blamed a case that had not happened.
+   */
+  check("a clean HAND-DRAWN box edit carries too — a scope is a scope", shouldCarryLayers(true, 0.4, TOL));
+  check("but a dirty box edit still does not", !shouldCarryLayers(true, 30, TOL));
   check(
     "a MOVE never carries, however clean, because the row no longer knows where the layer is",
     !shouldCarryLayers(true, 0, TOL, true),

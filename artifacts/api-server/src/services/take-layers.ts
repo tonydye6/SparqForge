@@ -29,12 +29,20 @@
  *   · KNOWN CAST      — identity, provenance and name, free and true by
  *                       construction, read straight off the take.
  *   · INFERRED        — geometry, and every element nobody attached. One vision
- *                       pass, and the cast STEERS it: a detector told the
- *                       picture contains this specific character and this
- *                       specific mark returns "Crown U Mark", not "logo".
+ *                       pass, run BLIND, with the cast applied afterwards as
+ *                       attribution.
  *
- * Knowing the cast before detecting is the whole advantage over decomposing a
- * stranger's flat file, and it survives the premise being wrong.
+ * THIS HEADER USED TO SAY THE CAST STEERS DETECTION — that telling the detector
+ * the picture holds this specific mark is what makes it answer "Crown U Mark"
+ * rather than "logo". A controlled A/B disproved it: the mark is legible in the
+ * picture, so the model reads the brand off it unaided, and the hint acts as a
+ * checklist that STOPS it looking (3 elements steered against 4 and 5 blind).
+ * See `layer-detection.ts`'s header for the numbers. Detection therefore runs
+ * blind and the cast supplies the authoritative file and name afterwards, where
+ * the match is auditable instead of baked into a prompt.
+ *
+ * Knowing the cast is still the whole advantage over decomposing a stranger's
+ * flat file — it is just provenance rather than steering.
  * ---------------------------------------------------------------------------
  */
 
@@ -246,9 +254,14 @@ export function isSubjectAsset(a: CastAsset): boolean {
 export function layerName(a: CastAsset, kind: LayerKind, brandName: string | null): string {
   const holder = a.franchise ?? brandName;
   if (kind === "mark") return holder ? `${holder} Mark` : "Brand Mark";
-  if (kind === "subject") {
+  if (kind === "subject" || kind === "element") {
     const entity = (a.depictedEntities ?? []).find(e => typeof e === "string" && e.trim() && !NOT_A_SUBJECT.test(e));
-    const noun = entity ? titleCase(entity) : "Subject";
+    /*
+     * "Subject" only for something actually attached as one. An `element` that
+     * names nothing depictable is called what it is — a prop is not the subject
+     * of the picture, and saying so was actively misleading (doc 46 §7.4).
+     */
+    const noun = entity ? titleCase(entity) : kind === "subject" ? "Subject" : "Element";
     /*
      * The entity often already names the franchise — the tennis character's
      * first entity is literally "Crown U tennis athlete" — and prefixing it
@@ -319,7 +332,11 @@ export function castLayers({ cast, assets, brandName }: CastLayersInput): TakeLa
     const kind: LayerKind = isMarkAsset(a) ? "mark" : isSubjectAsset(a) ? "subject" : "element";
     const layer: TakeLayer = {
       key: `cast:${a.id}`,
-      name: layerName(a, kind === "element" ? "subject" : kind, brandName),
+      // Its own kind, `element` included. It used to be laundered through the
+      // subject branch because `layerName` had no element case and fell through
+      // to "Base", which could surface a prop as "Crown U Subject" in a feature
+      // whose whole premise is that the name is trustworthy (doc 46 §7.4).
+      name: layerName(a, kind, brandName),
       kind,
       origin: member.inherited ? "inherited_cast" : "known_cast",
       assetId: a.id,
