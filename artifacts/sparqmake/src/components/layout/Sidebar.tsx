@@ -140,15 +140,18 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       )}
     >
       <div className="h-16 flex items-center px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
-        <img 
-          src={`${import.meta.env.BASE_URL}images/sparq-logo.png`} 
-          alt="SparqMake Logo" 
-          className="w-8 h-8 rounded shrink-0 object-cover"
-        />
-        {(mode === "mobile" || !collapsed) && (
-          <span className="ml-3 font-display font-bold text-xl text-foreground whitespace-nowrap">
-            SPARQ<span className="text-primary">MAKE</span>
-          </span>
+        {mode === "mobile" || !collapsed ? (
+          <img
+            src={`${import.meta.env.BASE_URL}images/sparqmake-horizontal.svg`}
+            alt="SparqMake"
+            className="h-9 w-auto shrink-0"
+          />
+        ) : (
+          <img
+            src={`${import.meta.env.BASE_URL}images/sparq-logo.png`}
+            alt="SparqMake"
+            className="w-8 h-8 rounded shrink-0 object-cover"
+          />
         )}
         {mode === "mobile" && (
           <button
