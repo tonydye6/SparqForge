@@ -113,11 +113,19 @@ export function LayerPanel({ creativeId, stageId, slotKey, revision }: LayerPane
               {l.pinned && <Pin size={9} className="shrink-0 text-victory-gold" />}
               {l.note && <InfoDot text={l.note} />}
             </p>
-            <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
-              {l.kind}
-              {l.origin === "inherited_cast" && <> {"·"} carried forward</>}
-              {!l.bbox && <> {"·"} not located</>}
-            </p>
+            {/*
+              * State, not classification. The kind is already in the name and
+              * the thumbnail, and spelling it out here pushed "not located" —
+              * the one claim this panel must not swallow — off the end of a
+              * 220px column. A row with nothing to disclose says nothing.
+              */}
+            {(!l.bbox || l.origin === "inherited_cast") && (
+              <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                {!l.bbox && <>not located</>}
+                {!l.bbox && l.origin === "inherited_cast" && <> {"·"} </>}
+                {l.origin === "inherited_cast" && <>carried forward</>}
+              </p>
+            )}
           </div>
         </div>
       ))}
