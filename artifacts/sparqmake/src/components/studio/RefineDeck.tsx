@@ -296,7 +296,9 @@ export function RefineDeck({
               creativeId={creativeId}
               stageId={stageId}
               slotKey={slotKey}
+              locked={locked}
               revision={history.length}
+              onEdited={onChanged}
             />
 
             {/* The deck. Every take for this slot, newest first. */}

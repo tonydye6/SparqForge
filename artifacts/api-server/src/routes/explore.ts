@@ -1,7 +1,7 @@
 import { extractLastFrame } from "../services/cut-render.js";
 import { VEO_MODEL, runVeoVideo } from "../services/veo.js";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
+import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, takeLayersTable, type DesignerPersona } from "@workspace/db";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, DEFAULT_SPREAD_PASS, estimateGeminiTextCost, estimateImagenCost, estimateVideoDurationSeconds, imagePass, type ImagePassType } from "../lib/ai-config.js";
 
@@ -81,6 +81,7 @@ import {
   type DirectedPromptInput,
 } from "../services/explore-direction.js";
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
+import { layerScopeSentence } from "../services/layer-detection.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
 import { beatPickSlotKey, buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
@@ -2251,7 +2252,18 @@ router.post(
 
 const RegionEditBody = z.object({
   slotKey: z.string().min(1).max(64),
-  region: z.unknown(),
+  /** A drawn area. Omitted when `layerId` names one instead. */
+  region: z.unknown().optional(),
+  /**
+   * A DETECTED LAYER to scope to, instead of a drawn area (increment 5c).
+   *
+   * The same endpoint rather than a new one, deliberately: everything below
+   * here — the lock gate, the mentions eligibility gate, the strict-marks
+   * rule, the budget reservation, the drift measurement and the take history —
+   * is already right and already walked. A layer is a region that came with a
+   * NAME, so it enters the path that already scopes an instruction to a region.
+   */
+  layerId: z.string().min(1).optional(),
   instruction: z.string().min(1).max(1000),
   // Same shape and same gate as refine-edit: the region editor's composer
   // gained `@` too (doc 41 item 3), and a mention is a mention wherever typed.
@@ -2273,16 +2285,50 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
     const stageId = String(req.params.stageId);
-    const { slotKey, region: rawRegion, instruction, mentions = [] } = req.body as z.infer<typeof RegionEditBody>;
+    const { slotKey, region: rawRegion, layerId, instruction, mentions = [] } = req.body as z.infer<typeof RegionEditBody>;
     let reservationId: string | null = null;
 
     try {
+      if (!layerId && rawRegion === undefined) {
+        res.status(400).json({ error: "Say where to change: draw an area or pick a layer. Nothing was charged." });
+        return;
+      }
+
+      /*
+       * A named layer, when one was picked. Loaded BEFORE anything is reserved,
+       * and joined back through the take so a layer id from another post cannot
+       * scope an edit here.
+       */
+      let layer: { id: string; name: string; bbox: { x: number; y: number; w: number; h: number } } | null = null;
+      if (layerId) {
+        const [row] = await db
+          .select({ id: takeLayersTable.id, name: takeLayersTable.name, bbox: takeLayersTable.bbox })
+          .from(takeLayersTable)
+          .innerJoin(stageTakesTable, eq(takeLayersTable.stageTakeId, stageTakesTable.id))
+          .where(and(
+            eq(takeLayersTable.id, layerId),
+            eq(takeLayersTable.isCurrent, true),
+            eq(stageTakesTable.stageStateId, stageId),
+            eq(stageTakesTable.slotKey, slotKey),
+            eq(stageTakesTable.isCurrent, true),
+          ));
+        if (!row) {
+          res.status(404).json({
+            error: "That layer is not part of this take any more, so nothing was changed or charged. Take the picture apart again.",
+          });
+          return;
+        }
+        layer = row;
+      }
+
       // Reject a bad region BEFORE reserving anything. A silently widened mask
       // would edit pixels nobody selected, and the drift report cannot undo that.
-      const region = normalizeRegion(rawRegion);
+      const region = normalizeRegion(layer ? { shape: "box", ...layer.bbox } : rawRegion);
       if (!region) {
         res.status(400).json({
-          error: "That selection could not be read as an area, so nothing was changed or charged.",
+          error: layer
+            ? "That layer's area could not be read, so nothing was changed or charged."
+            : "That selection could not be read as an area, so nothing was changed or charged.",
         });
         return;
       }
@@ -2408,7 +2454,15 @@ router.post(
         }
       }
 
-      const scoped = `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
+      /*
+       * A NAME beats coordinates. The Interactions API masks semantically, so
+       * the geometry has to become words either way — and "the Crown U Mark, a
+       * small area in the upper left" tells the model which thing to change,
+       * where a rectangle only tells it where to look.
+       */
+      const scoped = layer
+        ? layerScopeSentence(layer.name, describeRegion(region), instruction)
+        : `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
       const prompt = wrapEditInstruction(contract, scoped);
 
       const result = await runImageInteraction({
@@ -2454,6 +2508,14 @@ router.post(
             sourceTakeId: current?.id ?? null,
             instruction: instruction.trim(),
             region,
+            /*
+             * Which layer this was scoped to, by id AND by name. The id can go
+             * stale — a re-detect supersedes the set — so the name is kept
+             * alongside it, or the deck's transcript would lose the ability to
+             * say what an old edit was aimed at.
+             */
+            layerId: layer?.id ?? null,
+            layerName: layer?.name ?? null,
             drift,
             mentions: allowed,
             droppedMentions,
@@ -2478,7 +2540,7 @@ router.post(
           creativeId,
           brandId: creative.brandId,
           service: "gemini",
-          operation: "region_edit",
+          operation: layer ? "layer_edit" : "region_edit",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: estimateImagenCost(1),
         }));
@@ -2488,6 +2550,7 @@ router.post(
       res.json({
         imageUrl: afterUrl,
         droppedMentions,
+        layerName: layer?.name ?? null,
         drift: drift
           ? {
               ...drift,

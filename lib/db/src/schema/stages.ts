@@ -4,6 +4,7 @@ import {
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { assetsTable } from "./assets";
 import { creativesTable } from "./creatives";
 import { usersTable } from "./users";
 
@@ -190,6 +191,93 @@ export const stageTakesTable = pgTable(
     check("stage_takes_index_positive_check", sql`${table.takeIndex} >= 1`),
   ],
 );
+
+/**
+ * Where a detected layer's geometry came from. Only DETECTED rows are stored:
+ * the cast (who is in a picture, from which real file) is derived free from the
+ * take payload at read time, and storing a copy of something derivable is how
+ * two sources of truth start disagreeing.
+ */
+export const LAYER_ORIGINS = ["detected", "user_named"] as const;
+export type LayerOrigin = (typeof LAYER_ORIGINS)[number];
+
+/** What kind of thing a layer is. `element` is the honest default. */
+export const LAYER_KINDS = ["background", "character", "mark", "typography", "device", "element"] as const;
+export type LayerKind = (typeof LAYER_KINDS)[number];
+
+export const takeLayersTable = pgTable(
+  "take_layers",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    stageTakeId: text("stage_take_id").notNull()
+      .references(() => stageTakesTable.id, { onDelete: "cascade" }),
+    /**
+     * Back to front, 1-based. 1 is the backmost layer.
+     *
+     * 1-based to match `stage_takes.take_index`, whose 0-based mistake once
+     * rolled back a paid clip. One convention across the schema.
+     */
+    layerIndex: integer("layer_index").notNull(),
+    /** The human-readable semantic name. A filename is never a name. */
+    name: text("name").notNull(),
+    kind: text("kind").$type<LayerKind>().notNull(),
+    origin: text("origin").$type<LayerOrigin>().notNull().default("detected"),
+    /**
+     * The authoritative source file, when a detected layer was matched back to
+     * a cast member. Null means nothing in the take's own record accounts for
+     * this element — which is normal and is not a fault.
+     */
+    assetId: text("asset_id").references(() => assetsTable.id, { onDelete: "set null" }),
+    /**
+     * Normalised 0..1 `{x, y, w, h}`, never pixels, so a layer survives the
+     * same take being re-rendered at another size — the same rule
+     * `services/region-edit.ts` states for a region, because this box IS handed
+     * to that path.
+     */
+    bbox: jsonb("bbox").$type<{ x: number; y: number; w: number; h: number }>().notNull(),
+    /**
+     * A set at a time, superseded rather than deleted, exactly like takes:
+     * re-detecting must not destroy the decomposition somebody has been
+     * editing against.
+     */
+    isCurrent: boolean("is_current").notNull().default(true),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    // One row per position per take within the current set. Detection writes a
+    // whole set in one transaction, so this turns a double-run into a
+    // constraint violation rather than two interleaved decompositions.
+    uniqueIndex("take_layers_current_position_uq")
+      .on(table.stageTakeId, table.layerIndex)
+      .where(sql`${table.isCurrent}`),
+    index("take_layers_take_idx").on(table.stageTakeId),
+    check("take_layers_kind_check", oneOf("kind", LAYER_KINDS)),
+    check("take_layers_origin_check", oneOf("origin", LAYER_ORIGINS)),
+    check("take_layers_index_positive_check", sql`${table.layerIndex} >= 1`),
+    /*
+     * The box must be a usable region. A zero-area or out-of-frame box would
+     * reach region-edit and scope an edit to nothing, or to pixels outside the
+     * picture, and the drift report cannot undo either.
+     */
+    check(
+      "take_layers_bbox_in_frame_check",
+      sql`(${table.bbox}->>'x')::numeric >= 0 and (${table.bbox}->>'y')::numeric >= 0
+        and (${table.bbox}->>'w')::numeric > 0 and (${table.bbox}->>'h')::numeric > 0
+        and (${table.bbox}->>'x')::numeric + (${table.bbox}->>'w')::numeric <= 1.0001
+        and (${table.bbox}->>'y')::numeric + (${table.bbox}->>'h')::numeric <= 1.0001`,
+    ),
+  ],
+);
+
+export const insertTakeLayerSchema = createInsertSchema(takeLayersTable, {
+  kind: z.enum(LAYER_KINDS),
+  origin: z.enum(LAYER_ORIGINS),
+  layerIndex: z.int().min(1),
+  bbox: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+}).omit({ id: true, createdAt: true });
+
+export type InsertTakeLayer = z.infer<typeof insertTakeLayerSchema>;
+export type TakeLayerRow = typeof takeLayersTable.$inferSelect;
 
 export const insertStageStateSchema = createInsertSchema(stageStatesTable, {
   // drizzle-zod infers jsonb as a permissive Json type, which would accept

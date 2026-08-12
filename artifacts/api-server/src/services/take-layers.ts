@@ -345,6 +345,66 @@ export function castLayers({ cast, assets, brandName }: CastLayersInput): TakeLa
   return [...layers, ...subjects, ...marks];
 }
 
+/** A persisted `take_layers` row, as the merge needs it. */
+export interface DetectedRow {
+  id: string;
+  layerIndex: number;
+  name: string;
+  kind: string;
+  assetId: string | null;
+  bbox: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * The cast and the detected set, as one list.
+ *
+ * Ordering is the detected set's, because that ordering was MEASURED — it is
+ * back-to-front as read off the picture, where the cast's order is only a
+ * convention. Base stays first because everything sits on it.
+ *
+ * A cast member the detection did not account for is kept, still unlocated. It
+ * is not evidence of a bug: a mark can be attached to a render and end up too
+ * small to separate, or painted out by a later edit. Dropping it would hide
+ * provenance the take genuinely records; promoting it would invent a position.
+ * So it stays, and it still says NOT LOCATED.
+ */
+export function mergeLayers(cast: TakeLayer[], detected: DetectedRow[]): TakeLayer[] {
+  const base = cast.find(l => l.kind === "base");
+  const castByAsset = new Map(cast.filter(l => l.assetId && l.kind !== "base").map(l => [l.assetId!, l]));
+
+  const out: TakeLayer[] = base ? [base] : [];
+  const claimed = new Set<string>();
+
+  for (const row of [...detected].sort((a, b) => a.layerIndex - b.layerIndex)) {
+    const matched = row.assetId ? castByAsset.get(row.assetId) : undefined;
+    if (matched?.assetId) claimed.add(matched.assetId);
+    out.push({
+      key: `layer:${row.id}`,
+      name: row.name,
+      kind: (matched?.kind ?? (row.kind === "character" ? "subject" : row.kind === "mark" ? "mark" : "element")) as LayerKind,
+      origin: "detected",
+      assetId: row.assetId,
+      assetName: matched?.assetName ?? null,
+      // The matched cast member's real file is the better thumbnail: it is the
+      // element on its own, where a crop of the take carries its neighbours.
+      thumbnailUrl: matched?.thumbnailUrl ?? null,
+      bbox: row.bbox,
+      pinned: matched?.pinned ?? false,
+      note: matched
+        ? "Found in the picture, and it is the file you attached."
+        : "Found in the picture. Nothing you attached accounts for it.",
+    });
+  }
+
+  for (const l of cast) {
+    if (l.kind === "base") continue;
+    if (l.assetId && claimed.has(l.assetId)) continue;
+    out.push(l);
+  }
+
+  return out;
+}
+
 /**
  * The inspector's sentence.
  *
