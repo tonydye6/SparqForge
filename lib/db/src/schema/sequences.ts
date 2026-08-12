@@ -21,8 +21,13 @@ const oneOf = (column: string, values: readonly string[]): ReturnType<typeof sql
  * special case, not the normal one (doc 24 §3).
  */
 
-export type ClipSourceKind = "generated" | "library_asset" | "upload";
-export const CLIP_SOURCE_KINDS = ["generated", "library_asset", "upload"] as const;
+/**
+ * "studio_take" (0043): a clip whose video is a Studio v2 stage take (payload
+ * {videoUrl, sourceImageUrl, ...}), not a creative_variant. Real lineage is
+ * the point — cut staleness reads which take a clip came from.
+ */
+export type ClipSourceKind = "generated" | "library_asset" | "upload" | "studio_take";
+export const CLIP_SOURCE_KINDS = ["generated", "library_asset", "upload", "studio_take"] as const;
 
 export type ClipTransition = "cut" | "dissolve";
 export const CLIP_TRANSITIONS = ["cut", "dissolve"] as const;
@@ -81,6 +86,8 @@ export const sequenceClipsTable = pgTable("sequence_clips", {
     .references(() => creativeVariantsTable.id, { onDelete: "set null" }),
   /** Set when the clip came from the asset library. */
   sourceAssetId: text("source_asset_id").references(() => assetsTable.id, { onDelete: "set null" }),
+  /** Set when the clip is a Studio v2 take (its payload carries the videoUrl). */
+  sourceTakeId: text("source_take_id").references(() => stageTakesTable.id, { onDelete: "set null" }),
   /** Set when the clip was uploaded. */
   uploadUrl: text("upload_url"),
   trimStartMs: integer("trim_start_ms").notNull().default(0),
@@ -135,6 +142,7 @@ export const sequenceClipsTable = pgTable("sequence_clips", {
     sql`(source_kind = 'generated'     AND source_variant_id IS NOT NULL)
      OR (source_kind = 'library_asset' AND source_asset_id   IS NOT NULL)
      OR (source_kind = 'upload'        AND upload_url        IS NOT NULL)
+     OR (source_kind = 'studio_take'   AND source_take_id    IS NOT NULL)
      OR source_missing_at IS NOT NULL`,
   ),
   /** A clip that ends before it starts is not a short clip, it is a broken one. */

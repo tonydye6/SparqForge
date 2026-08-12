@@ -30,7 +30,7 @@ export interface TimelineClip {
   timelineStartMs: number;
   overlapMs: number;
   transitionIn: "cut" | "dissolve";
-  sourceKind: "generated" | "library_asset" | "upload";
+  sourceKind: "generated" | "library_asset" | "upload" | "studio_take";
   /** The file this clip pointed at was deleted underneath it. */
   sourceMissing: boolean;
 }
@@ -67,6 +67,7 @@ const SOURCE_LABEL: Record<TimelineClip["sourceKind"], string> = {
   generated: "generated",
   library_asset: "library",
   upload: "uploaded",
+  studio_take: "studio",
 };
 
 const secs = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;

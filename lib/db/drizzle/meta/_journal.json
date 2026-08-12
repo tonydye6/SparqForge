@@ -302,6 +302,13 @@
       "when": 1786428614706,
       "tag": "0042_mode_is_not_a_pick",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786432214706,
+      "tag": "0043_a_take_can_be_a_shot",
+      "breakpoints": true
     }
   ]
 }
