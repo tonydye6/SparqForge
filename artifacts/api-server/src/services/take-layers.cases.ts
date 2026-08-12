@@ -141,6 +141,19 @@ export function runCases(): Result[] {
     !layerName(SUBJECT, "subject", "Crown U").toLowerCase().includes("logo"),
   );
   check(
+    "the franchise is not repeated when the entity already names it",
+    layerName(
+      asset({ id: "t", name: "crownu_char_female_blue_tennis_default.jpeg", franchise: "Crown U", depictedEntities: ["Crown U tennis athlete"] }),
+      "subject",
+      "Crown U",
+    ) === "Crown U Tennis Athlete",
+    layerName(
+      asset({ id: "t", name: "x.jpeg", franchise: "Crown U", depictedEntities: ["Crown U tennis athlete"] }),
+      "subject",
+      "Crown U",
+    ),
+  );
+  check(
     "a subject with no usable entity is still named something readable",
     layerName(asset({ id: "s", name: "x.png", franchise: "Crown U", depictedEntities: ["SPARQ GAMES logo"] }), "subject", null)
       === "Crown U Subject",

@@ -249,7 +249,14 @@ export function layerName(a: CastAsset, kind: LayerKind, brandName: string | nul
   if (kind === "subject") {
     const entity = (a.depictedEntities ?? []).find(e => typeof e === "string" && e.trim() && !NOT_A_SUBJECT.test(e));
     const noun = entity ? titleCase(entity) : "Subject";
-    return holder ? `${holder} ${noun}` : noun;
+    /*
+     * The entity often already names the franchise — the tennis character's
+     * first entity is literally "Crown U tennis athlete" — and prefixing it
+     * again produced "Crown U Crown U Tennis Athlete" on the first live read.
+     * Caught by walking; a filename would never have shown it.
+     */
+    if (!holder || noun.toLowerCase().includes(holder.toLowerCase())) return noun;
+    return `${holder} ${noun}`;
   }
   return "Base";
 }
