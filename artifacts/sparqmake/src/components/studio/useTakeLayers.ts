@@ -57,7 +57,8 @@ export interface LayersResponse {
    * env-overridable, so a typed label cannot stay true (doc 46 §5).
    */
   detectCostUsd: number;
-  layerEditCostUsd: number;
+  /** One image edit, whatever scoped it: a layer, a drawn box, or the whole take. */
+  editCostUsd: number;
 }
 
 /** The layer id behind the read model's `layer:<id>` key, or null for the cast. */
