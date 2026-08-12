@@ -2,7 +2,7 @@ import { extractLastFrame } from "../services/cut-render.js";
 import { VEO_MODEL, runVeoVideo } from "../services/veo.js";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, DEFAULT_SPREAD_PASS, estimateGeminiTextCost, estimateImagenCost, estimateVideoDurationSeconds, imagePass, type ImagePassType } from "../lib/ai-config.js";
 
 /**
@@ -2064,7 +2064,61 @@ router.post(
            * end of the cut. The unique (sequenceId, position) index turns a
            * concurrent append into a constraint failure instead of two shots
            * silently claiming one slot.
+           *
+           * **RE-ANIMATING A BEAT REPLACES ITS SHOT, IT DOES NOT ADD ONE.**
+           * Found by walking step 5: re-animating beat 2 appended, so the cut
+           * held three clips for two animated beats and played the mid-race
+           * moment twice — 9s of video for a 6s story, with one clip take
+           * silently orphaned. A beat is ONE shot; two clips for it is not a
+           * choice, it is a duplicate. So the beat's previous clip goes to
+           * history (isCurrent=false, restorable like every other take) and its
+           * row in the cut is RE-POINTED in place, keeping the position the
+           * story gave it. Only beats replace: the Sequence tab's
+           * animate-any-take still appends, because there the shot genuinely is
+           * a new one and the panel says it lands at the end.
            */
+          let replacedClipRowId: string | null = null;
+          if (typeof beat === "number") {
+            const priorClips = await tx
+              .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
+              .from(stageTakesTable)
+              .where(and(
+                eq(stageTakesTable.stageStateId, stageId),
+                eq(stageTakesTable.isCurrent, true),
+              ));
+            const priorIds = priorClips
+              .filter(t => {
+                const pl = t.payload as { videoUrl?: unknown; beat?: unknown } | null;
+                return typeof pl?.videoUrl === "string" && pl?.beat === beat;
+              })
+              .map(t => t.id);
+
+            if (priorIds.length > 0) {
+              await tx
+                .update(stageTakesTable)
+                .set({ isCurrent: false })
+                .where(inArray(stageTakesTable.id, priorIds));
+
+              // The rows in the cut those takes were playing. The first keeps
+              // its slot; any others are duplicates from before this rule and
+              // are removed rather than left to play the same beat twice.
+              const rows = await tx
+                .select({ id: sequenceClipsTable.id, position: sequenceClipsTable.position })
+                .from(sequenceClipsTable)
+                .where(and(
+                  eq(sequenceClipsTable.sequenceId, sequenceId),
+                  inArray(sequenceClipsTable.sourceTakeId, priorIds),
+                ))
+                .orderBy(asc(sequenceClipsTable.position));
+              if (rows.length > 0) {
+                replacedClipRowId = rows[0].id;
+                for (const extra of rows.slice(1)) {
+                  await tx.delete(sequenceClipsTable).where(eq(sequenceClipsTable.id, extra.id));
+                }
+              }
+            }
+          }
+
           const [take] = await tx.insert(stageTakesTable).values({
             stageStateId: stageId,
             slotKey: `clip_${crypto.randomUUID().slice(0, 8)}`,
@@ -2079,19 +2133,45 @@ router.post(
           }).returning({ id: stageTakesTable.id });
           clipTakeId = take?.id ?? null;
 
-          const [last] = await tx
-            .select({ max: sql<number>`COALESCE(MAX(${sequenceClipsTable.position}), -1)` })
-            .from(sequenceClipsTable)
-            .where(eq(sequenceClipsTable.sequenceId, sequenceId));
-          await tx.insert(sequenceClipsTable).values({
-            sequenceId,
-            position: (last?.max ?? -1) + 1,
-            sourceKind: "studio_take",
-            sourceTakeId: clipTakeId,
-            trimStartMs: 0,
-            trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
-            transitionIn: "cut",
-          });
+          if (replacedClipRowId) {
+            // In place: the story decided where this moment sits, and a
+            // re-animate is a better take of the same moment, not a new one.
+            await tx.update(sequenceClipsTable).set({
+              sourceTakeId: clipTakeId,
+              trimStartMs: 0,
+              trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
+              sourceMissingAt: null,
+            }).where(eq(sequenceClipsTable.id, replacedClipRowId));
+
+            /*
+             * Compact, because removing a duplicate above can leave a hole and
+             * position IS the ordering model — "position 3" has to mean the
+             * same thing before and after.
+             */
+            const rest = await tx.select().from(sequenceClipsTable)
+              .where(eq(sequenceClipsTable.sequenceId, sequenceId))
+              .orderBy(asc(sequenceClipsTable.position));
+            for (const [i, row] of rest.entries()) {
+              if (row.position !== i) {
+                await tx.update(sequenceClipsTable).set({ position: i })
+                  .where(eq(sequenceClipsTable.id, row.id));
+              }
+            }
+          } else {
+            const [last] = await tx
+              .select({ max: sql<number>`COALESCE(MAX(${sequenceClipsTable.position}), -1)` })
+              .from(sequenceClipsTable)
+              .where(eq(sequenceClipsTable.sequenceId, sequenceId));
+            await tx.insert(sequenceClipsTable).values({
+              sequenceId,
+              position: (last?.max ?? -1) + 1,
+              sourceKind: "studio_take",
+              sourceTakeId: clipTakeId,
+              trimStartMs: 0,
+              trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
+              transitionIn: "cut",
+            });
+          }
         } else {
           await tx
             .update(stageTakesTable)
