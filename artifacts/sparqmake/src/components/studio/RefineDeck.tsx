@@ -93,6 +93,13 @@ export function RefineDeck({
    */
   const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
+  /** What the composer on the picture last reported, shown in the inspector. */
+  const [lastLayerEdit, setLastLayerEdit] = useState<{
+    layerName: string;
+    drift: { driftPercent: number; verdict: "clean" | "notable" | "repainted"; message: string } | null;
+    unavailable: string | null;
+    caveat: string | null;
+  } | null>(null);
 
   function chooseMention(asset: AssetOption) {
     const el = instructionRef.current;
@@ -226,6 +233,7 @@ export function RefineDeck({
                 selectedLayer={selectedLayer}
                 onHoverLayer={setHoveredLayer}
                 onSelectLayer={setSelectedLayer}
+                onLayerEdited={(r) => { setLastLayerEdit(r); layers.reload(); }}
                 locked={locked}
                 onEdited={() => { layers.reload(); onChanged(); }}
               />
@@ -321,7 +329,7 @@ export function RefineDeck({
               selected={selectedLayer}
               onHover={setHoveredLayer}
               onSelect={setSelectedLayer}
-              onEdited={onChanged}
+              lastEdit={lastLayerEdit}
             />
 
             {/* The deck. Every take for this slot, newest first. */}

@@ -9,10 +9,12 @@
 import {
   attributeToCast,
   detectionSummary,
+  layerMoveSentence,
   layerScopeSentence,
   nameOverlap,
   normalizeDetected,
   shouldCarryLayers,
+  unionBox,
   BROAD_AREA,
   FULL_FRAME_AREA,
   MAX_LAYERS,
@@ -184,6 +186,39 @@ export function runCases(): Result[] {
     layerScopeSentence("X", "there", "make   it\n  red").includes("make it red."),
   );
 
+  // ---- moving a layer ----
+  const u = unionBox({ x: 0.093, y: 0.088, w: 0.163, h: 0.116 }, { x: 0.7, y: 0.8, w: 0.163, h: 0.116 });
+  check("the union spans both places", Math.abs(u.x - 0.093) < 1e-9 && Math.abs(u.y - 0.088) < 1e-9);
+  check(
+    "the union reaches the far corner of the destination",
+    Math.abs(u.x + u.w - 0.863) < 1e-9 && Math.abs(u.y + u.h - 0.916) < 1e-9,
+    u,
+  );
+  check(
+    "a union is clamped into the frame",
+    (() => {
+      const c = unionBox({ x: 0, y: 0, w: 0.2, h: 0.2 }, { x: 0.9, y: 0.9, w: 0.3, h: 0.3 });
+      return c.x === 0 && c.y === 0 && Math.abs(c.w - 1) < 1e-9 && Math.abs(c.h - 1) < 1e-9;
+    })(),
+  );
+  check(
+    "moving a layer onto itself is still a valid box",
+    (() => {
+      const same = unionBox({ x: 0.1, y: 0.1, w: 0.2, h: 0.2 }, { x: 0.1, y: 0.1, w: 0.2, h: 0.2 });
+      return same.w > 0 && same.h > 0;
+    })(),
+  );
+
+  const moved = layerMoveSentence("Crown U Mark", "a small area in the upper left", "a small area in the lower right");
+  check("a move names the layer and both places", moved.includes("Move the Crown U Mark out of a small area in the upper left") && moved.includes("place it in a small area in the lower right"), moved);
+  check("a move asks for the hole to be closed, or the model draws two copies", moved.includes("reconstruct whatever belongs behind it"));
+  check("a move forbids a leftover duplicate by name", moved.includes("no trace or duplicate of it remains"));
+  check("a move holds the size and everything else", moved.includes("at the same size"));
+  check(
+    "a typed extra rides along, punctuated",
+    layerMoveSentence("X", "here", "there", "make it smaller").includes("make it smaller."),
+  );
+
   // ---- does the decomposition survive the edit? (found by walking 5c) ----
   const TOL = 8;
   check("a clean layer edit keeps the decomposition", shouldCarryLayers(true, 0.4, TOL));
@@ -192,6 +227,10 @@ export function runCases(): Result[] {
   check("notable drift does not either", !shouldCarryLayers(true, 12, TOL));
   check("UNMEASURED is not clean", !shouldCarryLayers(true, null, TOL));
   check("a whole-image refine never carries, however clean", !shouldCarryLayers(false, 0, TOL));
+  check(
+    "a MOVE never carries, however clean, because the row no longer knows where the layer is",
+    !shouldCarryLayers(true, 0, TOL, true),
+  );
 
   // ---- the sentence ----
   /*

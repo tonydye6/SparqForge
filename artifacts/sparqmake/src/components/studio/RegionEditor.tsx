@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { LayerComposer, type Drift } from "@/components/studio/LayerComposer";
 import { MentionChips, MentionPickerList, reconcile, useMentions, type AssetOption } from "@/components/studio/mentions";
 
 /**
@@ -85,7 +86,9 @@ interface RegionEditorProps {
   hoveredLayer?: string | null;
   selectedLayer?: string | null;
   onHoverLayer?: (key: string | null) => void;
-  onSelectLayer?: (key: string) => void;
+  onSelectLayer?: (key: string | null) => void;
+  /** For the attached composer's `@` picker and its edits. */
+  onLayerEdited?: (result: { layerName: string; drift: Drift | null; unavailable: string | null; caveat: string | null }) => void;
   locked: boolean;
   onEdited: () => void;
 }
@@ -129,6 +132,7 @@ export function RegionEditor({
   selectedLayer = null,
   onHoverLayer,
   onSelectLayer,
+  onLayerEdited,
   locked,
   onEdited,
 }: RegionEditorProps) {
@@ -144,6 +148,27 @@ export function RegionEditor({
   const [drift, setDrift] = useState<DriftReport | null>(null);
   const [driftUnavailable, setDriftUnavailable] = useState<string | null>(null);
   const [dropped, setDropped] = useState<Array<{ name?: string; reason?: string }>>([]);
+
+  /*
+   * DRAGGING A LAYER. `moveTo` is the pending destination's top-left, and it
+   * survives the pointer coming up: the drag says WHERE, and the move is only
+   * spent when the attached composer's button is pressed. A drag that committed
+   * on release would charge for a generation on a slip of the hand.
+   */
+  const [moveTo, setMoveTo] = useState<{ x: number; y: number } | null>(null);
+  const [moveGrab, setMoveGrab] = useState<{ dx: number; dy: number } | null>(null);
+
+  const selected = layers.find((l) => l.key === selectedLayer) ?? null;
+  /** Where the selected layer currently sits — its own box, or the drag. */
+  const selectedAt = selected
+    ? { x: moveTo?.x ?? selected.bbox.x, y: moveTo?.y ?? selected.bbox.y, w: selected.bbox.w, h: selected.bbox.h }
+    : null;
+
+  function clearSelection() {
+    setMoveTo(null);
+    setMoveGrab(null);
+    onSelectLayer?.(null);
+  }
 
   /*
    * The same `@` machinery the sentence composer above this editor has. The
@@ -183,6 +208,18 @@ export function RegionEditor({
     // Capture the pointer so a drag that leaves the image still tracks, rather
     // than freezing the selection at the edge.
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    /*
+     * Pressing inside the SELECTED layer drags it, and that beats drawing a new
+     * box: the selection is the thing under the cursor, so a drag there can only
+     * mean "take this somewhere".
+     */
+    if (selectedAt &&
+        p.x >= selectedAt.x && p.x <= selectedAt.x + selectedAt.w &&
+        p.y >= selectedAt.y && p.y <= selectedAt.y + selectedAt.h) {
+      setMoveGrab({ dx: p.x - selectedAt.x, dy: p.y - selectedAt.y });
+      setRegion(null);
+      return;
+    }
     if (tool === "lasso") {
       setTracing(true);
       setRegion({ shape: "lasso", points: [p] });
@@ -195,6 +232,14 @@ export function RegionEditor({
   function onPointerMove(e: React.PointerEvent) {
     const p = pointAt(e);
     if (!p) return;
+    if (moveGrab && selected) {
+      // Clamped so a layer cannot be dragged out of its own picture.
+      setMoveTo({
+        x: Math.min(1 - selected.bbox.w, Math.max(0, p.x - moveGrab.dx)),
+        y: Math.min(1 - selected.bbox.h, Math.max(0, p.y - moveGrab.dy)),
+      });
+      return;
+    }
     if (tool === "lasso") {
       if (!tracing) return;
       setRegion((r) => {
@@ -219,6 +264,21 @@ export function RegionEditor({
   function onPointerUp() {
     setDragFrom(null);
     setTracing(false);
+    /*
+     * Releasing a layer drag does NOT spend anything. The destination stays
+     * pending until the attached composer's button is pressed, because a
+     * generation charged on a slip of the hand is not undoable.
+     */
+    if (moveGrab) {
+      setMoveGrab(null);
+      // A drag that never really moved is a click, not a relocation.
+      setMoveTo((t) => {
+        if (!t || !selected) return null;
+        const shifted = Math.abs(t.x - selected.bbox.x) > MIN_DRAG || Math.abs(t.y - selected.bbox.y) > MIN_DRAG;
+        return shifted ? t : null;
+      });
+      return;
+    }
     // A stray click should clear the selection rather than leave a sliver the
     // server will reject with an error the user cannot connect to their action.
     setRegion((r) => {
@@ -293,6 +353,7 @@ export function RegionEditor({
         {!region && layers.length > 0 && (
           <>
             {[...layers]
+              .filter((l) => l.key !== selectedLayer)
               .sort((a, b) => b.bbox.w * b.bbox.h - a.bbox.w * a.bbox.h)
               .map((l) => {
                 const active = hoveredLayer === l.key || selectedLayer === l.key;
@@ -328,6 +389,72 @@ export function RegionEditor({
                   </button>
                 );
               })}
+          </>
+        )}
+
+        {/*
+          * The SELECTED layer: where it is now, where it came from if it has been
+          * dragged, and the composer attached under it. Higgsfield puts the box
+          * on the element; so does this, because that is what makes the scope
+          * obvious without a sentence explaining it (doc 45 §1.2).
+          */}
+        {!region && selected && selectedAt && (
+          <>
+            {moveTo && (
+              /* Where it started, left visible so the move is legible as a move
+                 rather than as the element mysteriously appearing elsewhere. */
+              <div
+                className="pointer-events-none absolute rounded-sm border border-dashed border-white/30"
+                style={{ left: pct(selected.bbox.x), top: pct(selected.bbox.y), width: pct(selected.bbox.w), height: pct(selected.bbox.h) }}
+              />
+            )}
+            <div
+              className={cn(
+                "absolute rounded-sm border-2 border-grit-teal bg-grit-teal/10",
+                locked ? "cursor-default" : moveGrab ? "cursor-grabbing" : "cursor-grab",
+              )}
+              style={{ left: pct(selectedAt.x), top: pct(selectedAt.y), width: pct(selectedAt.w), height: pct(selectedAt.h) }}
+              data-testid="overlay-layer-selected"
+            >
+              <span className="pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-br-sm bg-grit-teal px-1 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-black">
+                {selected.name}
+              </span>
+            </div>
+
+            {/*
+              * Anchored under the layer, flipped above it when the layer sits low
+              * enough that below would fall off the picture.
+              */}
+            {(() => {
+              const low = selectedAt.y + selectedAt.h > 0.62;
+              const id = selected.key.startsWith("layer:") ? selected.key.slice("layer:".length) : null;
+              if (!id) return null;
+              return (
+                <div
+                  className="absolute z-10 flex"
+                  style={{
+                    left: pct(Math.min(selectedAt.x, 0.98)),
+                    ...(low
+                      ? { bottom: pct(Math.max(0, 1 - selectedAt.y)) }
+                      : { top: pct(selectedAt.y + selectedAt.h) }),
+                  }}
+                >
+                  <LayerComposer
+                    creativeId={creativeId}
+                    stageId={stageId}
+                    slotKey={slotKey}
+                    brandId={brandId}
+                    layerId={id}
+                    layerName={selected.name}
+                    moveTo={moveTo}
+                    flipped={low}
+                    onCancelMove={() => setMoveTo(null)}
+                    onDone={(r) => { onLayerEdited?.(r); onEdited(); }}
+                    onClose={clearSelection}
+                  />
+                </div>
+              );
+            })()}
           </>
         )}
 

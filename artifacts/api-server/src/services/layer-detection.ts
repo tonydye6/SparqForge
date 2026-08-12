@@ -295,6 +295,46 @@ export function layerScopeSentence(layerName: string, where: string, instruction
     "Everything else in the image, including every other element and the background, stays exactly as it is.";
 }
 
+/** The smallest box containing both — a move changes pixels in two places. */
+export function unionBox(
+  a: { x: number; y: number; w: number; h: number },
+  b: { x: number; y: number; w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  const right = Math.max(a.x + a.w, b.x + b.w);
+  const bottom = Math.max(a.y + a.h, b.y + b.h);
+  return {
+    x: Math.max(0, x),
+    y: Math.max(0, y),
+    w: Math.min(1, right) - Math.max(0, x),
+    h: Math.min(1, bottom) - Math.max(0, y),
+  };
+}
+
+/**
+ * How a layer MOVE is described to the model.
+ *
+ * A move is two jobs in one pass and both have to be asked for, or the model
+ * cheerfully draws a second copy: put the element in the new place, AND close
+ * the hole it left with what belongs behind it. The second half is invention —
+ * those pixels never existed — which is why the response says so rather than
+ * implying the layer was lifted and set down.
+ *
+ * There is no compositing here and the wording does not pretend otherwise. A
+ * true lift-and-place needs a cut-out mask and a separate inpaint; this is one
+ * generative pass over the union of the two places, and the drift report bounds
+ * what it was allowed to touch.
+ */
+export function layerMoveSentence(layerName: string, fromWhere: string, toWhere: string, extra?: string): string {
+  const said = (extra ?? "").trim().replace(/\s+/g, " ");
+  return `Move the ${layerName} out of ${fromWhere} and place it in ${toWhere}, at the same size and ` +
+    `unchanged in every other way. Where it used to be, reconstruct whatever belongs behind it so no ` +
+    `trace or duplicate of it remains there.` +
+    (said ? ` ${/[.!?]$/.test(said) ? said : `${said}.`}` : "") +
+    " Nothing else in the image changes.";
+}
+
 /**
  * Does the decomposition survive this edit?
  *
@@ -319,8 +359,17 @@ export function shouldCarryLayers(
   wasLayerScoped: boolean,
   driftPercent: number | null,
   driftTolerance: number,
+  wasMove = false,
 ): boolean {
   if (!wasLayerScoped) return false;
+  /*
+   * A MOVE never carries, however clean the drift. The moved layer is no longer
+   * where its row says it is, and how faithfully the model honoured the
+   * destination is not something the drift number can answer — drift measures
+   * outside the union of both places and is silent about what happened inside
+   * it. Re-detecting is the only honest way to learn where things ended up.
+   */
+  if (wasMove) return false;
   if (driftPercent === null) return false;
   return driftPercent <= driftTolerance;
 }
