@@ -1794,7 +1794,10 @@ router.post(
           const [take] = await tx.insert(stageTakesTable).values({
             stageStateId: stageId,
             slotKey: `clip_${crypto.randomUUID().slice(0, 8)}`,
-            takeIndex: 0,
+            // Take indexes are 1-based (stage_takes_index_positive_check) —
+            // walked into on the live build: 0 rolled the whole insert back
+            // AFTER the video was paid for.
+            takeIndex: 1,
             origin: "generated",
             payload,
             isCurrent: true,
