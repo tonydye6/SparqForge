@@ -337,6 +337,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
         <SequencePanel
           creativeId={creativeId}
           stageId={stageId}
+          brandId={brandId}
           takes={takes}
           locked={locked}
           onChanged={onChanged}
