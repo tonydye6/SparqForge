@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { apiFetch, cn } from "@/lib/utils";
 import { LayerPanel } from "@/components/studio/LayerPanel";
 import { RegionEditor } from "@/components/studio/RegionEditor";
+import { useTakeLayers } from "@/components/studio/useTakeLayers";
 import { MentionChips, MentionPickerList, reconcile, useMentions, type AssetOption } from "@/components/studio/mentions";
 
 /**
@@ -84,6 +85,15 @@ export function RefineDeck({
   const instructionRef = useRef<HTMLTextAreaElement | null>(null);
   const m = useMentions(brandId);
 
+  /*
+   * The layers, fetched once and shown twice: as rows in the inspector and as
+   * boxes on the picture. Hover and selection live here rather than in either
+   * view, because the two of them pointing at different layers would be worse
+   * than neither of them pointing at all.
+   */
+  const [hoveredLayer, setHoveredLayer] = useState<string | null>(null);
+  const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
+
   function chooseMention(asset: AssetOption) {
     const el = instructionRef.current;
     const caret = el ? el.selectionStart : instruction.length;
@@ -130,6 +140,8 @@ export function RefineDeck({
     .sort((a, b) => b.takeIndex - a.takeIndex);
   const current = history.find((t) => t.isCurrent) ?? history[0] ?? null;
   const currentPayload = current ? payloadOf(current) : {};
+
+  const layers = useTakeLayers(creativeId, stageId, slotKey, history.length);
 
   async function post(url: string, body?: unknown) {
     setBusy(true);
@@ -209,8 +221,13 @@ export function RefineDeck({
                 slotKey={slotKey}
                 imageUrl={currentPayload.imageUrl}
                 brandId={brandId}
+                layers={layers.located.map((l) => ({ key: l.key, name: l.name, bbox: l.bbox }))}
+                hoveredLayer={hoveredLayer}
+                selectedLayer={selectedLayer}
+                onHoverLayer={setHoveredLayer}
+                onSelectLayer={setSelectedLayer}
                 locked={locked}
-                onEdited={onChanged}
+                onEdited={() => { layers.reload(); onChanged(); }}
               />
             ) : (
               <div className="flex aspect-[4/3] items-center justify-center rounded-sm border border-border bg-card">
@@ -297,7 +314,13 @@ export function RefineDeck({
               stageId={stageId}
               slotKey={slotKey}
               locked={locked}
-              revision={history.length}
+              data={layers.data}
+              error={layers.error}
+              reload={layers.reload}
+              hovered={hoveredLayer}
+              selected={selectedLayer}
+              onHover={setHoveredLayer}
+              onSelect={setSelectedLayer}
               onEdited={onChanged}
             />
 
