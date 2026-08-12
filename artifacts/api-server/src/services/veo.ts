@@ -143,6 +143,23 @@ export async function runVeoVideo(params: {
         instances: [instance(withRefs)],
         parameters: {
           durationSeconds,
+          /*
+           * `personGeneration` IS NOT OPTIONAL HERE, and leaving it out is what
+           * made the first live render fail.
+           *
+           * The valid value set depends on the MODE, which is the trap: for
+           * image-to-video Veo accepts `allow_adult`/`allow_all` and rejects
+           * `dont_allow` ("currently not supported"), while for text-to-video it
+           * is the other way round. Our request omitted the field, so the
+           * default applied and the API answered "Your use case is currently
+           * not supported" — a message that reads like an account problem and
+           * is actually a missing parameter. Probed both ways before setting it.
+           *
+           * Every SparqMake clip is a brand character, so a video path that
+           * cannot render people is no use to this product at all: this value is
+           * the honest declaration of what the product does, not a loosening.
+           */
+          personGeneration: "allow_adult",
           ...(params.aspectRatio ? { aspectRatio: params.aspectRatio } : {}),
         },
       }),
