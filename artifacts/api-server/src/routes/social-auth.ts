@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db, socialAccountsTable, brandsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { encryptToken } from "../services/token-encryption";
 import { logger } from "../lib/logger";
 import type {
@@ -100,15 +100,51 @@ function consumeOAuthState(
   return { userId: data.userId, brandId: data.brandId };
 }
 
-// Resolve the brand a social account is being connected for. Social accounts are
-// brand-scoped, so connect requests must carry a valid brandId query param.
-async function resolveConnectBrandId(brandId: unknown): Promise<string | null> {
-  if (typeof brandId !== "string" || !brandId) return null;
-  const [brand] = await db
+/**
+ * Every social account belongs to the HOUSE brand, whatever page you connect from.
+ *
+ * Tony's call, doc 38 §3: "Accounts: Workspace-wide; any post through any
+ * configured account; brand only sets the default." `resolveChannels` has always
+ * honoured that — it takes every account and uses `brandId` only to rank the
+ * post's own brand first. The connect path did not: it stamped the row with
+ * whichever brand you happened to press Connect from, and because re-connecting
+ * an existing account overwrites `brand_id` (see `upsertSocialAccount`), the SAME
+ * Instagram account changed owner depending on the page. That is what made
+ * scheduling, approvals and posting behave differently per sub-brand.
+ *
+ * Sparq is the parent; Crown U, Rumble U and Mascot Mayhem all publish through
+ * its accounts. So the connect flow ignores any incoming brandId and resolves the
+ * house brand instead. From a sub-brand's point of view these are then exactly
+ * what `channels.ts` already calls them: house accounts, not own-brand ones.
+ *
+ * `brand_id` is NOT NULL, so the house brand's id is the honest way to say
+ * "belongs to the workspace" without a migration. `AccountRef.brandId` is typed
+ * `string | null` for the day that column becomes nullable.
+ */
+const HOUSE_BRAND_SLUG = (process.env.HOUSE_BRAND_SLUG || "sparq").toLowerCase();
+
+async function resolveConnectBrandId(_brandId: unknown): Promise<string | null> {
+  const [bySlug] = await db
     .select({ id: brandsTable.id })
     .from(brandsTable)
-    .where(eq(brandsTable.id, brandId));
-  return brand ? brand.id : null;
+    .where(eq(brandsTable.slug, HOUSE_BRAND_SLUG));
+  if (bySlug) return bySlug.id;
+  // No brand with that slug: fall back to the oldest brand rather than refusing
+  // the connection, and say so, because a silent refusal here reads as an OAuth
+  // failure and sends people hunting in the wrong place.
+  const [oldest] = await db
+    .select({ id: brandsTable.id, name: brandsTable.name })
+    .from(brandsTable)
+    .orderBy(asc(brandsTable.createdAt))
+    .limit(1);
+  if (oldest) {
+    logger.warn(
+      { houseBrandSlug: HOUSE_BRAND_SLUG, fellBackTo: oldest.name },
+      "No brand matches HOUSE_BRAND_SLUG; connecting the account to the oldest brand instead",
+    );
+    return oldest.id;
+  }
+  return null;
 }
 
 // Re-connecting an already-linked account updates it in place rather than inserting
