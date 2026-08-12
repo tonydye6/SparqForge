@@ -81,7 +81,7 @@ import {
   type DirectedPromptInput,
 } from "../services/explore-direction.js";
 import { normalizeRegion, driftMessage, driftVerdict, DRIFT_TOLERANCE } from "../services/region-edit.js";
-import { layerScopeSentence, shouldCarryLayers } from "../services/layer-detection.js";
+import { layerMoveSentence, layerScopeSentence, shouldCarryLayers, unionBox } from "../services/layer-detection.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
 import { beatPickSlotKey, buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
@@ -2264,6 +2264,19 @@ const RegionEditBody = z.object({
    * NAME, so it enters the path that already scopes an instruction to a region.
    */
   layerId: z.string().min(1).optional(),
+  /**
+   * Where the selected layer should end up, dragged on the image.
+   *
+   * Present only with `layerId`. A move is two jobs in one generative pass —
+   * draw it in the new place, close the hole in the old one — so the instruction
+   * is composed by the server and the typed text is an EXTRA rather than the
+   * whole ask. Same size as the layer's own box by construction: the drag says
+   * where, never how big.
+   */
+  moveTo: z.object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+  }).optional(),
   instruction: z.string().min(1).max(1000),
   // Same shape and same gate as refine-edit: the region editor's composer
   // gained `@` too (doc 41 item 3), and a mention is a mention wherever typed.
@@ -2285,12 +2298,16 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
     const stageId = String(req.params.stageId);
-    const { slotKey, region: rawRegion, layerId, instruction, mentions = [] } = req.body as z.infer<typeof RegionEditBody>;
+    const { slotKey, region: rawRegion, layerId, moveTo, instruction, mentions = [] } = req.body as z.infer<typeof RegionEditBody>;
     let reservationId: string | null = null;
 
     try {
       if (!layerId && rawRegion === undefined) {
         res.status(400).json({ error: "Say where to change: draw an area or pick a layer. Nothing was charged." });
+        return;
+      }
+      if (moveTo && !layerId) {
+        res.status(400).json({ error: "Only a layer can be moved, and no layer was named. Nothing was charged." });
         return;
       }
 
@@ -2321,9 +2338,21 @@ router.post(
         layer = row;
       }
 
+      /*
+       * A MOVE is scoped to the union of where the layer is and where it is
+       * going: both places change, so measuring drift against either one alone
+       * would report the other half of the edit as damage.
+       */
+      const destination = moveTo && layer
+        ? { x: moveTo.x, y: moveTo.y, w: layer.bbox.w, h: layer.bbox.h }
+        : null;
+      const scopeBox = layer
+        ? (destination ? unionBox(layer.bbox, destination) : layer.bbox)
+        : null;
+
       // Reject a bad region BEFORE reserving anything. A silently widened mask
       // would edit pixels nobody selected, and the drift report cannot undo that.
-      const region = normalizeRegion(layer ? { shape: "box", ...layer.bbox } : rawRegion);
+      const region = normalizeRegion(scopeBox ? { shape: "box", ...scopeBox } : rawRegion);
       if (!region) {
         res.status(400).json({
           error: layer
@@ -2460,9 +2489,16 @@ router.post(
        * small area in the upper left" tells the model which thing to change,
        * where a rectangle only tells it where to look.
        */
-      const scoped = layer
-        ? layerScopeSentence(layer.name, describeRegion(region), instruction)
-        : `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
+      const scoped = layer && destination
+        ? layerMoveSentence(
+            layer.name,
+            describeRegion({ shape: "box", ...layer.bbox }),
+            describeRegion({ shape: "box", ...destination }),
+            instruction,
+          )
+        : layer
+          ? layerScopeSentence(layer.name, describeRegion(region), instruction)
+          : `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
       const prompt = wrapEditInstruction(contract, scoped);
 
       const result = await runImageInteraction({
@@ -2516,6 +2552,8 @@ router.post(
              */
             layerId: layer?.id ?? null,
             layerName: layer?.name ?? null,
+            /** Where it was asked to go, so the deck can say a move happened. */
+            movedTo: destination,
             drift,
             mentions: allowed,
             droppedMentions,
@@ -2549,7 +2587,7 @@ router.post(
          */
         if (
           inserted && current?.id &&
-          shouldCarryLayers(layer !== null, drift?.driftPercent ?? null, DRIFT_TOLERANCE)
+          shouldCarryLayers(layer !== null, drift?.driftPercent ?? null, DRIFT_TOLERANCE, destination !== null)
         ) {
           const carried = await tx
             .select()
@@ -2574,7 +2612,7 @@ router.post(
           creativeId,
           brandId: creative.brandId,
           service: "gemini",
-          operation: layer ? "layer_edit" : "region_edit",
+          operation: destination ? "layer_move" : layer ? "layer_edit" : "region_edit",
           model: AI_MODELS.GEMINI_FLASH_IMAGE,
           costUsd: estimateImagenCost(1),
         }));
@@ -2585,6 +2623,15 @@ router.post(
         imageUrl: afterUrl,
         droppedMentions,
         layerName: layer?.name ?? null,
+        moved: destination !== null,
+        /*
+         * Said out loud, because a move INVENTS the pixels it leaves behind and
+         * a caller that treated this like a recolour would be trusting a
+         * reconstruction it never asked about.
+         */
+        moveCaveat: destination
+          ? "What was behind it had to be invented, and the layers are stale until you take the picture apart again."
+          : null,
         drift: drift
           ? {
               ...drift,

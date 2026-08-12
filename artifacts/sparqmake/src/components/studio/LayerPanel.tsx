@@ -46,8 +46,12 @@ interface LayerPanelProps {
   selected: string | null;
   onHover: (key: string | null) => void;
   onSelect: (key: string | null) => void;
-  /** A layer edit makes a new take, so the deck has to reload too. */
-  onEdited: () => void;
+  /**
+   * What the composer ON THE PICTURE last reported. The composer lives there now
+   * (Tony: the box belongs right below the layer), so the panel shows the result
+   * rather than owning the action.
+   */
+  lastEdit: { layerName: string; drift: Drift | null; unavailable: string | null; caveat: string | null } | null;
 }
 
 /**
@@ -84,21 +88,17 @@ export function LayerPanel({
   selected,
   onHover,
   onSelect,
-  onEdited,
+  lastEdit,
 }: LayerPanelProps) {
   const [busyError, setBusyError] = useState<string | null>(null);
   const [finding, setFinding] = useState(false);
-  const [instruction, setInstruction] = useState("");
-  const [sending, setSending] = useState(false);
   /** What the last press actually did, so pressing a button says something. */
   const [result, setResult] = useState<string | null>(null);
-  const [drift, setDrift] = useState<{ layerName: string; drift: Drift | null; unavailable: string | null } | null>(null);
 
   async function findLayers() {
     if (finding || locked) return;
     setFinding(true);
     setBusyError(null);
-    setDrift(null);
     setResult(null);
     try {
       const res = await apiFetch(`/api/creatives/${creativeId}/stages/${stageId}/detect-layers`, {
@@ -122,45 +122,6 @@ export function LayerPanel({
       setBusyError("That could not be reached. Nothing was charged.");
     } finally {
       setFinding(false);
-    }
-  }
-
-  async function editLayer(layerId: string) {
-    const text = instruction.trim();
-    if (!text || sending || locked) return;
-    setSending(true);
-    setBusyError(null);
-    setDrift(null);
-    setResult(null);
-    try {
-      const res = await apiFetch(`/api/creatives/${creativeId}/stages/${stageId}/region-edit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slotKey, layerId, instruction: text }),
-      });
-      const body = (await res.json().catch(() => null)) as {
-        error?: string;
-        layerName?: string;
-        drift?: Drift | null;
-        driftUnavailable?: string | null;
-      } | null;
-      if (!res.ok) {
-        setBusyError(body?.error ?? "That change could not be made.");
-        return;
-      }
-      setInstruction("");
-      onSelect(null);
-      setDrift({
-        layerName: body?.layerName ?? "that layer",
-        drift: body?.drift ?? null,
-        unavailable: body?.driftUnavailable ?? null,
-      });
-      reload();
-      onEdited();
-    } catch {
-      setBusyError("That change could not be reached. Nothing was charged.");
-    } finally {
-      setSending(false);
     }
   }
 
@@ -238,37 +199,6 @@ export function LayerPanel({
               </div>
             </button>
 
-            {isSelected && id && (
-              <div className="mt-1 rounded-sm border border-grit-teal/50 bg-card px-2 py-1.5">
-                <input
-                  value={instruction}
-                  onChange={(e) => setInstruction(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") { e.preventDefault(); void editLayer(id); }
-                    if (e.key === "Escape") { onSelect(null); setInstruction(""); }
-                  }}
-                  autoFocus
-                  placeholder={`change only ${l.name.toLowerCase()}`}
-                  aria-label={`Change ${l.name} and nothing else`}
-                  className="w-full border-0 bg-transparent p-0 text-[12px] leading-snug text-foreground outline-none placeholder:text-dim"
-                  data-testid="input-layer-instruction"
-                />
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
-                    This layer only {"·"} about $0.13
-                  </span>
-                  <div className="flex-1" />
-                  <button
-                    onClick={() => void editLayer(id)}
-                    disabled={!instruction.trim() || sending}
-                    className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
-                    data-testid="button-layer-edit"
-                  >
-                    {sending ? <Loader2 size={10} className="animate-spin" /> : "Change it"}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         );
       })}
@@ -287,16 +217,23 @@ export function LayerPanel({
         * a model that repainted the frame while claiming to touch one corner is
         * caught by the number instead of by somebody noticing later.
         */}
-      {drift && (
-        <p
-          className={cn(
-            "text-[10.5px] leading-relaxed",
-            drift.drift?.verdict === "clean" ? "text-cyber-teal" : "text-victory-gold",
+      {lastEdit && (
+        <>
+          <p
+            className={cn(
+              "text-[10.5px] leading-relaxed",
+              lastEdit.drift?.verdict === "clean" ? "text-cyber-teal" : "text-victory-gold",
+            )}
+            data-testid="text-layer-drift"
+          >
+            {lastEdit.layerName}: {lastEdit.unavailable ?? lastEdit.drift?.message}
+          </p>
+          {lastEdit.caveat && (
+            <p className="text-[10.5px] leading-relaxed text-victory-gold" data-testid="text-layer-move-caveat">
+              {lastEdit.caveat}
+            </p>
           )}
-          data-testid="text-layer-drift"
-        >
-          {drift.layerName}: {drift.unavailable ?? drift.drift?.message}
-        </p>
+        </>
       )}
 
       {!result && (
