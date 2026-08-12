@@ -5,6 +5,7 @@ import { InfoDot } from "@/components/studio/InfoDot";
 import { RefineDeck, type StageTake } from "@/components/studio/RefineDeck";
 import { MotionPanel } from "@/components/studio/MotionPanel";
 import { SequencePanel } from "@/components/studio/SequencePanel";
+import { StoryboardSheet } from "@/components/studio/StoryboardSheet";
 
 /**
  * Stage 03 · Image · Explore.
@@ -164,6 +165,30 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
    * the button will actually charge.
    */
   const [spreadSize, setSpreadSize] = useState<number | null>(null);
+  /*
+   * Whether this post is a STORY (the story path, step 4b). A free read, and
+   * the Image tab's whole content depends on it: a spread explores one moment
+   * along two axes, and a story has different moments, so the two cannot share
+   * a surface. Null while unknown — drawing the spread first and swapping it
+   * for a storyboard would flash a screen that was never true for this post.
+   */
+  const [shape, setShape] = useState<"single" | "sequence" | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/creatives/${creativeId}/storyboard`);
+        if (!res.ok) { if (!cancelled) setShape("single"); return; }
+        const body = (await res.json()) as { shape?: "single" | "sequence" };
+        if (!cancelled) setShape(body.shape === "sequence" ? "sequence" : "single");
+      } catch {
+        // A failed read falls back to the spread, which is what every post
+        // before the story path was.
+        if (!cancelled) setShape("single");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [creativeId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -301,6 +326,29 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
    * spread is planning or has failed: the motion that already exists does not
    * stop existing because the image plan is loading.
    */
+  /*
+   * A STORY's Image tab is the storyboard sheet, not the spread. Placed before
+   * the medium branches below but after them in priority order: Motion and
+   * Sequence still work on a story post, because a story still animates and
+   * still gets cut together — it is only the still-making surface that differs.
+   */
+  if (medium === "image" && shape === "sequence") {
+    return (
+      <div>
+        <div className="mx-auto max-w-5xl px-6 pt-6">
+          <MediumSwitch medium={medium} onChange={setMedium} />
+        </div>
+        <StoryboardSheet
+          creativeId={creativeId}
+          stageId={stageId}
+          locked={locked}
+          onChanged={onChanged}
+          onContinue={onContinue}
+        />
+      </div>
+    );
+  }
+
   if (medium === "motion") {
     const pickPayload = takes.find((t) => t.slotKey === "selected" && t.isCurrent)?.payload as
       | { imageUrl?: string }

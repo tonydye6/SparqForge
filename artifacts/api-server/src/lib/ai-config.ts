@@ -122,6 +122,17 @@ export function imagePass(pass: ImagePassType): { model: string; usdPerImage: nu
 }
 
 /**
+ * Which pass a spread — or one beat of a storyboard — renders at.
+ *
+ * Lived as a private const inside routes/explore.ts until the storyboard's read
+ * model needed to QUOTE the same price the run endpoint would CHARGE. Two
+ * copies of this constant is exactly how a button priced at one number bills
+ * another, so it lives with the pass table it selects from. The full reasoning
+ * for `preview` is in explore.ts, above the run endpoint that spends it.
+ */
+export const DEFAULT_SPREAD_PASS: ImagePassType = "preview";
+
+/**
  * Estimate video clip duration in seconds from compressed buffer size.
  * Uses ~500 KB/s as a conservative compressed video bitrate.
  * Clamps to a minimum of 3s (shortest meaningful clip).
