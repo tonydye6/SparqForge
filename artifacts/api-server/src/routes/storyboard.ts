@@ -124,11 +124,41 @@ router.get("/creatives/:creativeId/storyboard", async (req: Request, res: Respon
         }
       : null;
 
+    /*
+     * This beat's clip, when it has been animated (step 4c). Found by the `beat`
+     * its payload records rather than by slot name, because a beat's clip lands
+     * in a `clip_*` slot of its own so the Motion tab's quick path stays free.
+     * The chain fields are the disclosure: an animation that silently did not
+     * chain looks identical to one that did until somebody watches the cut.
+     */
+    const clipRow = takes.find(t => {
+      if (!t.isCurrent) return false;
+      const p = t.payload as { videoUrl?: unknown; beat?: unknown } | null;
+      return typeof p?.videoUrl === "string" && p?.beat === shot.n;
+    });
+    const cp = clipRow?.payload as {
+      videoUrl?: unknown;
+      durationSeconds?: unknown;
+      costUsd?: unknown;
+      material?: { engine?: unknown; chainedFromClip?: unknown; chainRefused?: unknown };
+    } | undefined;
+    const clip = cp && typeof cp.videoUrl === "string"
+      ? {
+          videoUrl: cp.videoUrl,
+          durationSeconds: typeof cp.durationSeconds === "number" ? cp.durationSeconds : null,
+          costUsd: typeof cp.costUsd === "number" ? cp.costUsd : null,
+          engine: typeof cp.material?.engine === "string" ? cp.material.engine : "omni",
+          chainedFrom: typeof cp.material?.chainedFromClip === "string" ? cp.material.chainedFromClip : null,
+          chainRefused: typeof cp.material?.chainRefused === "string" ? cp.material.chainRefused : null,
+        }
+      : null;
+
     return {
       n: shot.n,
       text: shot.text,
       takes: beatTakes,
       picked,
+      clip,
       /** A picked beat is locked: no run touches it. */
       locked: picked !== null,
       /** True when this beat has never been run, so the sheet can say so. */
@@ -137,6 +167,7 @@ router.get("/creatives/:creativeId/storyboard", async (req: Request, res: Respon
   });
 
   const pickedCount = beats.filter(b => b.locked).length;
+  const animatedCount = beats.filter(b => b.clip !== null).length;
   const unrunCount = beats.filter(b => b.empty && !b.locked).length;
   const unpickedCount = beats.filter(b => !b.locked).length;
 
@@ -149,8 +180,17 @@ router.get("/creatives/:creativeId/storyboard", async (req: Request, res: Respon
     /** What ONE beat costs to run, at the pass this environment is configured for. */
     beatCostUsd: beatCostCents / 100,
     pickedCount,
+    animatedCount,
     unpickedCount,
     unrunCount,
+    /**
+     * Which engine rendered the beats, and why — the Material rail's
+     * routing-without-a-dropdown disclosure. Today every clip is Omni; when
+     * end-frame pinning routes to Veo 3.1 this sentence is where it will say so.
+     */
+    renderedBy: animatedCount === 0
+      ? null
+      : [...new Set(beats.filter(b => b.clip).map(b => b.clip!.engine))].join(", "),
     /**
      * The sentence the sheet's footer shows. Assembled here so the count, the
      * price and the refusal cannot disagree with the run endpoint.

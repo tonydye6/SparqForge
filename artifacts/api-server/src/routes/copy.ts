@@ -264,6 +264,21 @@ router.post(
             .update(stageStatesTable)
             .set({ status: "done", decidedAt: new Date(), updatedAt: new Date() })
             .where(eq(stageStatesTable.id, image.id));
+        } else if (image.status === "empty") {
+          /*
+           * A story mid-way is ACTIVE, not empty.
+           *
+           * Found by walking 4b: with `done` correctly gated on every beat
+           * being picked, a three-beat post that had run a beat and picked it
+           * still read `empty` — which is the exact dishonesty the comment
+           * above objects to, just arrived at from the other direction.
+           * "Started and not finished" is a real state and the schema has a
+           * word for it.
+           */
+          await tx
+            .update(stageStatesTable)
+            .set({ status: "active", updatedAt: new Date() })
+            .where(eq(stageStatesTable.id, image.id));
         }
 
         // The dependency edge, recorded rather than assumed (§1.3). Merged, so a

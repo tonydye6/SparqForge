@@ -1,3 +1,4 @@
+import { extractLastFrame } from "../services/cut-render.js";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
@@ -81,7 +82,7 @@ import {
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
-import { buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
+import { beatPickSlotKey, buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import {
   RUN_CONCURRENCY,
@@ -1606,6 +1607,20 @@ const MotionConvertBody = z.object({
    * studio_take clip at the end of the sequence.
    */
   sequenceId: z.string().min(1).max(64).optional(),
+  /**
+   * Which BEAT of the story this animates (step 4c). Its picked still is the
+   * source, so a beat animates the frame somebody actually kept.
+   */
+  beat: z.number().int().min(1).max(12).optional(),
+  /**
+   * Seed this beat with the FINAL FRAME of the previous beat's clip.
+   *
+   * Frame chaining, and it needs no new model: the story literally begins where
+   * the previous shot ended. The beat's own picked still still rides along as a
+   * reference, so the composition somebody chose is not thrown away — it guides
+   * instead of seeding, and the take says which it did.
+   */
+  chainFromPreviousBeat: z.boolean().optional(),
 });
 
 router.post(
@@ -1616,7 +1631,8 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
     const stageId = String(req.params.stageId);
-    const { instruction, slotKey, sequenceId } = req.body as z.infer<typeof MotionConvertBody>;
+    const { instruction, slotKey, sequenceId, beat, chainFromPreviousBeat } =
+      req.body as z.infer<typeof MotionConvertBody>;
     let reservationId: string | null = null;
 
     try {
@@ -1641,9 +1657,14 @@ router.post(
         return;
       }
 
-      // Which still to animate: the pick by default, any slot's current take
-      // when the Sequence tab says so.
-      const sourceSlot = slotKey ?? "selected";
+      /*
+       * Which still to animate: the pick by default, any slot's current take
+       * when the Sequence tab says so, and a BEAT's own pick when the
+       * storyboard says so. A beat's pointer take lives in `beat{n}` exactly
+       * as the single-picture pick lives in `selected`, so this is the same
+       * lookup with a different slot name.
+       */
+      const sourceSlot = typeof beat === "number" ? beatPickSlotKey(beat) : (slotKey ?? "selected");
       const [picked] = await db
         .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
         .from(stageTakesTable)
@@ -1657,9 +1678,11 @@ router.post(
       const stillUrl = (picked?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
       if (typeof stillUrl !== "string") {
         res.status(400).json({
-          error: sourceSlot === "selected"
-            ? "Pick a take first. Motion animates the picked still, so there is nothing to animate yet."
-            : "That take has no image, so there is nothing to animate.",
+          error: typeof beat === "number"
+            ? `Beat ${beat} has no picked still yet, so there is nothing to animate. Pick one on the storyboard first.`
+            : sourceSlot === "selected"
+              ? "Pick a take first. Motion animates the picked still, so there is nothing to animate yet."
+              : "That take has no image, so there is nothing to animate.",
         });
         return;
       }
@@ -1679,6 +1702,47 @@ router.post(
       if (!stillBuffer) {
         res.status(400).json({ error: "The picked image could not be read, so nothing was charged." });
         return;
+      }
+
+      /*
+       * FRAME CHAINING (step 4c). The seed becomes the final frame of the
+       * previous beat's clip, so this shot literally begins where that one
+       * ended — no new model needed, because Omni already takes a first frame.
+       *
+       * Degrades rather than refuses. A chain that cannot be made (no previous
+       * clip, unreadable bytes, ffmpeg absent) falls back to the beat's own
+       * still and RECORDS WHY, because an animation that silently did not chain
+       * looks identical to one that did until somebody watches the cut.
+       */
+      let seedBuffer = stillBuffer;
+      let chainedFromClip: string | null = null;
+      let chainRefused: string | null = null;
+      if (chainFromPreviousBeat && typeof beat === "number") {
+        if (beat <= 1) {
+          chainRefused = "beat 1 has nothing before it to continue from";
+        } else {
+          const previousClip = await db
+            .select({ payload: stageTakesTable.payload })
+            .from(stageTakesTable)
+            .where(and(
+              eq(stageTakesTable.stageStateId, stageId),
+              eq(stageTakesTable.isCurrent, true),
+            ));
+          const prior = previousClip
+            .map(t => t.payload as { videoUrl?: unknown; beat?: unknown } | null)
+            .find(pl => typeof pl?.videoUrl === "string" && pl?.beat === beat - 1);
+          const priorUrl = typeof prior?.videoUrl === "string" ? prior.videoUrl : null;
+          const priorBytes = priorUrl ? await readFileByUrl(priorUrl) : null;
+          const frame = priorBytes ? await extractLastFrame(priorBytes) : null;
+          if (frame) {
+            seedBuffer = frame;
+            chainedFromClip = priorUrl;
+          } else {
+            chainRefused = priorUrl
+              ? `beat ${beat - 1}'s clip could not be read for its last frame`
+              : `beat ${beat - 1} has not been animated yet`;
+          }
+        }
       }
 
       // Reserved at the longest clip the model produces; the final row bills
@@ -1823,9 +1887,25 @@ router.post(
         contract ? `NON-NEGOTIABLE BRAND CONSTRAINTS:\n${contract}` : "",
       ].filter(Boolean).join("\n\n");
 
+      /*
+       * When the chain replaced the seed, the beat's own picked still rides as a
+       * reference instead: it is the composition somebody chose, and throwing it
+       * away to gain continuity would trade one fidelity for another.
+       */
+      if (chainedFromClip) {
+        referenceSlots.push({
+          imageBuffer: stillBuffer,
+          mimeType: "image/png",
+          slot: "style",
+          description:
+            "This is the still chosen for this moment. The clip starts from the previous shot's final frame and "
+            + "moves TOWARDS this composition: match its staging, framing and action.",
+        });
+      }
+
       const videoResult = await runVideoInteraction({
         prompt: motionPrompt,
-        imageBuffer: stillBuffer,
+        imageBuffer: seedBuffer,
         imageMimeType: "image/png",
         aspectRatio: "1:1",
         slots: referenceSlots,
@@ -1845,6 +1925,7 @@ router.post(
         sourceStillTakeId: picked?.id ?? null,
         instruction: instruction?.trim() || null,
         durationSeconds,
+        ...(typeof beat === "number" ? { beat } : {}),
         // What THIS clip actually cost on THIS environment, so the panel's
         // price hint reads the real rate instead of a stale hardcode (the
         // old "≈$1.70" label came from $0.42/s rows and overstated 4x here).
@@ -1856,6 +1937,15 @@ router.post(
           autoAttachedMark,
           director: persona?.name ?? null,
           identityLock: true,
+          /*
+           * Which engine rendered this, and how it was seeded. The Material
+           * rail's disclosure for routing-without-a-dropdown: today every clip
+           * is Omni, and when end-frame pinning routes to Veo 3.1 this is the
+           * field that will say so.
+           */
+          engine: "omni",
+          chainedFromClip,
+          chainRefused,
         },
       };
 
