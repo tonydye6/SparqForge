@@ -178,6 +178,46 @@ export async function listVoices(signal?: AbortSignal): Promise<Voice[]> {
     }));
 }
 
+/**
+ * @deprecated The flat figure the legacy video path reserves with. The
+ * per-unit estimators below replace it — a flat price is the same stale-label
+ * class the motion "≈$1.70" was (doc 41 §5).
+ */
 export function estimateElevenLabsCost(): number {
   return 0.15;
+}
+
+/*
+ * Per-unit estimates, stated as estimates.
+ *
+ * These are ballpark rates for the creator tier, written down so the ledger
+ * meters by what a call actually used (characters, seconds) instead of one
+ * flat number for a 40-character hook and a 2000-character caption alike.
+ * Like VIDEO_COST_PER_SECOND_USD before them, they should be corrected from a
+ * live probe of the account's real plan — the shape is what matters here.
+ */
+const TTS_USD_PER_1K_CHARS = 0.15;
+const MUSIC_USD_PER_SECOND = 0.02;
+const SFX_USD_PER_GENERATION = 0.08;
+
+export function estimateTtsCost(characters: number): number {
+  return Math.max(0.01, (characters / 1000) * TTS_USD_PER_1K_CHARS);
+}
+
+export function estimateMusicCost(seconds: number): number {
+  return Math.max(0.1, seconds * MUSIC_USD_PER_SECOND);
+}
+
+export function estimateSfxCost(): number {
+  return SFX_USD_PER_GENERATION;
+}
+
+/**
+ * Duration from bytes, assuming the 128kbps CBR mp3 ElevenLabs returns by
+ * default (16000 bytes per second). An estimate — the mixer treats a null
+ * duration as "cannot duck yet", so a close estimate beats a refusal, and the
+ * render measures the real file.
+ */
+export function estimateMp3DurationSeconds(bytes: number): number {
+  return Math.max(0.1, bytes / 16000);
 }

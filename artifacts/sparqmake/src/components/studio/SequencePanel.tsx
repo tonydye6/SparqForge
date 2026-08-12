@@ -41,9 +41,18 @@ interface Candidates {
 
 type HubSource = "animate" | "clips" | "library";
 
+interface Voice {
+  voiceId: string;
+  name: string;
+  description: string | null;
+  previewUrl: string | null;
+}
+
 export function SequencePanel({
   creativeId,
   stageId,
+  /** For the narrator: the voice is a brand-record field. */
+  brandId,
   /** Every take on this stage — the stills the Animate source offers. */
   takes,
   locked,
@@ -51,6 +60,7 @@ export function SequencePanel({
 }: {
   creativeId: string;
   stageId: string;
+  brandId: string | null;
   takes: StageTake[];
   locked: boolean;
   onChanged: () => void;
@@ -64,6 +74,95 @@ export function SequencePanel({
   /** The slot currently being animated, so its tile can say so. */
   const [animating, setAnimating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /*
+   * Step 2: the sound rack. The narrator is a brand-record field — the voice
+   * is part of the brand contract (doc 24 §3), so choosing one writes
+   * narratorVoiceId through the same PATCH the record screen uses.
+   */
+  const [narratorVoiceId, setNarratorVoiceId] = useState<string | null>(null);
+  const [voices, setVoices] = useState<Voice[] | null>(null);
+  const [pickingVoice, setPickingVoice] = useState(false);
+  const [soundBusy, setSoundBusy] = useState<"voice" | "music" | "sfx" | null>(null);
+  const [musicPrompt, setMusicPrompt] = useState("");
+  const [voiceScript, setVoiceScript] = useState("");
+  const [sfxPrompt, setSfxPrompt] = useState("");
+  const [sfxAt, setSfxAt] = useState("0");
+  const [soundNote, setSoundNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!brandId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`${API_BASE}/api/brands/${brandId}`);
+        if (!res.ok || cancelled) return;
+        const b = await res.json() as { narratorVoiceId?: string | null };
+        if (!cancelled) setNarratorVoiceId(b.narratorVoiceId ?? null);
+      } catch { /* the rack shows "choose a narrator" either way */ }
+    })();
+    return () => { cancelled = true; };
+  }, [brandId]);
+
+  async function openVoicePicker() {
+    setPickingVoice(true);
+    if (voices) return;
+    try {
+      const res = await apiFetch(`${API_BASE}/api/voices`);
+      const body = (await res.json().catch(() => null)) as { voices?: Voice[]; error?: string } | null;
+      if (!res.ok) { setError(body?.error ?? "The voice list could not be read."); return; }
+      setVoices(body?.voices ?? []);
+    } catch {
+      setError("The voice list could not be reached.");
+    }
+  }
+
+  async function chooseNarrator(v: Voice) {
+    if (!brandId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/brands/${brandId}/record`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: { narratorVoiceId: v.voiceId }, source: "user" }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(b?.error ?? "The narrator could not be saved.");
+        return;
+      }
+      setNarratorVoiceId(v.voiceId);
+      setPickingVoice(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateSound(kind: "voice" | "music" | "sfx", body: Record<string, unknown>) {
+    if (!sequenceId || soundBusy || locked) return;
+    setSoundBusy(kind);
+    setError(null);
+    setSoundNote(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/sequences/${sequenceId}/${kind}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const out = (await res.json().catch(() => null)) as { error?: string; costUsd?: number } | null;
+      if (!res.ok) {
+        setError(out?.error ?? "That could not be generated.");
+        return;
+      }
+      if (typeof out?.costUsd === "number") setSoundNote(`Generated · $${out.costUsd.toFixed(2)}`);
+      await loadTimeline();
+    } catch {
+      setError("That could not be reached. Nothing was charged.");
+    } finally {
+      setSoundBusy(null);
+    }
+  }
 
   // Whether this post already has a sequence. One row per post for now — the
   // list endpoint exists so this never mints duplicates.
@@ -346,6 +445,160 @@ export function SequencePanel({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/*
+        The sound rack (build step 2): voice, music, SFX generated INTO tracks.
+        Each row is one line — what it is, where it comes from, one priced
+        action — and the result lands on the lanes above, duck span included.
+      */}
+      {!locked && (
+        <div className="rounded-sm border border-border bg-card px-3 py-2.5" data-testid="sound-rack">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">Sound</span>
+            {soundNote && <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal">{soundNote}</span>}
+          </div>
+
+          {/* Voice */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+            <span className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-victory-gold">Voice</span>
+            {narratorVoiceId ? (
+              <>
+                <span className="text-[11px] text-muted-foreground">Reads in the brand's narrator</span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => void generateSound("voice", { source: "hook" })}
+                  disabled={soundBusy !== null}
+                  className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                  data-testid="button-voice-hook"
+                >
+                  {soundBusy === "voice" ? <Loader2 size={9} className="animate-spin" /> : "Read the hook"}
+                </button>
+                <button
+                  onClick={() => void generateSound("voice", { source: "base" })}
+                  disabled={soundBusy !== null}
+                  className="rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                  data-testid="button-voice-base"
+                >
+                  Read the caption
+                </button>
+                <input
+                  value={voiceScript}
+                  onChange={(e) => setVoiceScript(e.target.value)}
+                  placeholder="or type a script"
+                  aria-label="Custom voiceover script"
+                  className="w-44 rounded-sm border border-border bg-raised px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal"
+                />
+                <button
+                  onClick={() => void generateSound("voice", { source: "custom", script: voiceScript })}
+                  disabled={soundBusy !== null || !voiceScript.trim()}
+                  className="rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                  data-testid="button-voice-custom"
+                >
+                  Speak it
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="text-[11px] text-muted-foreground">No narrator on the brand record</span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => void openVoicePicker()}
+                  className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate"
+                  data-testid="button-choose-narrator"
+                >
+                  Choose a narrator
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* The narrator picker: the account's voices, heard before chosen. */}
+          {pickingVoice && !narratorVoiceId && (
+            <div className="mt-2 max-h-56 space-y-1 overflow-y-auto rounded-sm border border-border/60 bg-raised p-2">
+              {voices === null && <p className="text-[11px] text-dim">Reading the account's voices…</p>}
+              {voices?.map((v) => (
+                <div key={v.voiceId} className="flex items-center gap-2 border-b border-border/40 pb-1 last:border-b-0">
+                  <span className="min-w-0 flex-1 truncate text-[11.5px] text-foreground" title={v.description ?? undefined}>
+                    {v.name}
+                  </span>
+                  {v.previewUrl && (
+                    <button
+                      onClick={() => { new Audio(v.previewUrl!).play().catch(() => undefined); }}
+                      className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                    >
+                      Hear it
+                    </button>
+                  )}
+                  <button
+                    onClick={() => void chooseNarrator(v)}
+                    disabled={busy}
+                    className="rounded-sm border border-grit-teal px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                    data-testid={`button-narrator-${v.voiceId}`}
+                  >
+                    This one
+                  </button>
+                </div>
+              ))}
+              {voices?.length === 0 && <p className="text-[11px] text-dim">The account has no voices.</p>}
+            </div>
+          )}
+
+          {/* Music */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+            <span className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">Music</span>
+            <input
+              value={musicPrompt}
+              onChange={(e) => setMusicPrompt(e.target.value)}
+              placeholder="empty = the brand's sound direction"
+              aria-label="What the music should be"
+              className="w-56 rounded-sm border border-border bg-raised px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal"
+            />
+            <div className="flex-1" />
+            <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">scored at the cut's length {"·"} steps back under the voice</span>
+            <button
+              onClick={() => void generateSound("music", musicPrompt.trim() ? { prompt: musicPrompt.trim() } : {})}
+              disabled={soundBusy !== null}
+              className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+              data-testid="button-score-cut"
+            >
+              {soundBusy === "music" ? <Loader2 size={9} className="animate-spin" /> : "Score the cut"}
+            </button>
+          </div>
+
+          {/* SFX */}
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+            <span className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">SFX</span>
+            <input
+              value={sfxPrompt}
+              onChange={(e) => setSfxPrompt(e.target.value)}
+              placeholder="starting gun, crowd swell…"
+              aria-label="What the effect is"
+              className="w-44 rounded-sm border border-border bg-raised px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal"
+            />
+            <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">at</span>
+            <input
+              value={sfxAt}
+              onChange={(e) => setSfxAt(e.target.value)}
+              inputMode="decimal"
+              aria-label="Seconds into the cut"
+              className="w-12 rounded-sm border border-border bg-raised px-2 py-1 text-right text-[11px] text-foreground outline-none focus:border-grit-teal"
+            />
+            <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">s</span>
+            <div className="flex-1" />
+            <button
+              onClick={() => {
+                const at = Math.max(0, Math.round((Number.parseFloat(sfxAt) || 0) * 1000));
+                void generateSound("sfx", { prompt: sfxPrompt.trim(), atMs: at });
+              }}
+              disabled={soundBusy !== null || !sfxPrompt.trim()}
+              className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+              data-testid="button-add-sfx"
+            >
+              {soundBusy === "sfx" ? <Loader2 size={9} className="animate-spin" /> : "Add the hit"}
+            </button>
+          </div>
         </div>
       )}
     </div>
