@@ -17,20 +17,28 @@ export interface AudioGenerationResult {
   type: AudioType;
 }
 
-export async function generateMusic(prompt: string, durationSeconds: number = 8, signal?: AbortSignal): Promise<AudioGenerationResult> {
+export async function generateMusic(prompt: string, durationSeconds: number = 10, signal?: AbortSignal): Promise<AudioGenerationResult> {
   if (!ELEVENLABS_API_KEY) {
     throw new Error("ElevenLabs API key not configured");
   }
 
-  const response = await fetch(`${BASE_URL}/text-to-music`, {
+  /*
+   * POST /v1/music with music_length_ms — the real Music API. The original
+   * Phase 9 code guessed "/text-to-music" with duration_seconds and 404'd on
+   * its first live call (2026-08-12): the dead API key had hidden that this
+   * function never worked. The API's floor is 10 seconds, so shorter cuts get
+   * a 10s bed the render trims.
+   */
+  const lengthMs = Math.min(300_000, Math.max(10_000, Math.round(durationSeconds * 1000)));
+  const response = await fetch(`${BASE_URL}/music`, {
     method: "POST",
     headers: {
       "xi-api-key": ELEVENLABS_API_KEY,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      text: prompt,
-      duration_seconds: durationSeconds,
+      prompt,
+      music_length_ms: lengthMs,
     }),
     signal,
   });
