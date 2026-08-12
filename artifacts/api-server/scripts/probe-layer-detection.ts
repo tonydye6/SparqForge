@@ -31,6 +31,7 @@ import { db, assetsTable, brandsTable, creativesTable, stageStatesTable, stageTa
 import { AI_MODELS } from "../src/lib/ai-config.js";
 import { extractJSON } from "../src/lib/extract-json.js";
 import { readFileByUrl } from "../src/services/reference-images.js";
+import { writeBuffer } from "../src/services/storage.js";
 import {
   castLayers,
   castOfLineage,
@@ -217,6 +218,16 @@ Anything else you find gets a name of your own.`;
   await writeFile(`${stem}.png`, drawn);
   await writeFile(`${stem}.json`, JSON.stringify({ usage, elapsedMs: elapsed, detected }, null, 2));
   console.log(`\nwrote ${stem}.png and ${stem}.json`);
+
+  /*
+   * Also written through the app's own storage, so the drawn boxes can be
+   * LOOKED AT over http from anywhere. The whole value of this probe is in
+   * seeing whether the box is on the mark or on the shoulder beside it, and a
+   * file on the container that nobody opens proves nothing.
+   */
+  const published = `probe-layers-${SLOT}${BLIND ? "-blind" : "-steered"}.png`;
+  await writeBuffer("generated", published, drawn);
+  console.log(`look at it: /api/files/generated/${published}`);
 }
 
 await main().catch(err => {
