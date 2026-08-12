@@ -13,11 +13,15 @@
 
 import {
   MAX_QUESTIONS,
+  MAX_SHOTS,
   buildDerivedRows,
   deriveChannels,
   deriveGoal,
   deriveMustNot,
   normalizeQuestions,
+  normalizeShots,
+  readsAsStory,
+  renumberShots,
 } from "./brief-intake.js";
 
 export interface Case {
@@ -252,6 +256,66 @@ export function collectBriefIntakeCases(): Case[] {
       brand: {},
     });
     check("no derived row is authored by 'you' before any edit", rows.every(r => r.provenance !== "you"), rows);
+  }
+
+  // ---- the shot list (story path, step 4a) ----
+  {
+    const shots = normalizeShots([
+      "At the starting line — coiled, focused",
+      "Mid-race — wheel to wheel down the straight",
+      "The win — chest through the tape",
+    ]);
+    check("plain strings become shots", shots.length === 3, shots);
+    check("shots are numbered from 1, never 0", shots.map(s => s.n).join() === "1,2,3", shots);
+    check("a derived shot is inferred, not authored", shots.every(s => s.provenance === "inferred"), shots);
+    check("three moments read as a story", readsAsStory(shots));
+  }
+  {
+    const shots = normalizeShots([{ text: "The start" }, { text: "The finish" }]);
+    check("objects with text become shots too", shots.length === 2, shots);
+  }
+  {
+    /*
+     * The failure this exists to stop: a model asked for MOMENTS returning the
+     * same beat twice in different words. Paying twice to generate one moment
+     * is precisely what the shot list is meant to prevent.
+     */
+    const shots = normalizeShots(["The win, arms up", "the WIN arms up!", "The start"]);
+    check("the same moment twice is one shot", shots.length === 2, shots);
+    check("and the survivors renumber contiguously", shots.map(s => s.n).join() === "1,2", shots);
+  }
+  {
+    const shots = normalizeShots(["Only one moment"]);
+    check("one moment is NOT a story", !readsAsStory(shots), shots);
+  }
+  check("nothing at all is not a story", !readsAsStory(normalizeShots(null)));
+  check("a non-array returns no shots rather than throwing", normalizeShots("a story").length === 0);
+  {
+    const shots = normalizeShots(["", "   ", null, 42, { text: "" }, { nope: 1 }, "A real moment"]);
+    check("malformed rows are dropped, not repaired", shots.length === 1, shots);
+    check("and the one real row is shot 1", shots[0]?.n === 1, shots);
+  }
+  {
+    const many = normalizeShots(Array.from({ length: 12 }, (_, i) => `Moment number ${i + 1}`));
+    check(`the cap holds at ${MAX_SHOTS}`, many.length === MAX_SHOTS, many.length);
+    check("and the cap does not break the numbering", many[many.length - 1]?.n === MAX_SHOTS, many);
+  }
+  {
+    const long = normalizeShots(["x".repeat(400)]);
+    check("an essay is truncated rather than dropped", (long[0]?.text.length ?? 0) <= 180, long[0]?.text.length);
+  }
+  {
+    // What a delete and a reorder do. A gap or a duplicate would make "beat 2"
+    // mean two things, and the storyboard's slot families are named off these.
+    const edited = renumberShots([
+      { n: 3, text: "Third", provenance: "you" },
+      { n: 1, text: "  ", provenance: "inferred" },
+      { n: 2, text: "Second", provenance: "inferred" },
+    ]);
+    check("renumbering drops an emptied row", edited.length === 2, edited);
+    check("renumbering is contiguous from 1", edited.map(s => s.n).join() === "1,2", edited);
+    check("renumbering keeps the given order, not the old numbers", edited[0]?.text === "Third", edited);
+    check("and it does not relabel who wrote a row", edited[0]?.provenance === "you", edited);
   }
 
   return cases;
