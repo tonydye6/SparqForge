@@ -48,6 +48,22 @@ interface NamedRegion {
   region: { shape: "box"; x: number; y: number; w: number; h: number };
 }
 
+/**
+ * A located layer, drawn ON the image.
+ *
+ * Tony, walking 5c: "no indication that there are now clickable layers when I
+ * hover the cursor over them in the image." He was right, and the reasoning
+ * that left them out was bad — doc 38 §3 says the grid is pictures and the
+ * inspector is words, which is about where EXPLANATION goes, not about hiding
+ * where a thing is. Once a layer has a position, the picture is the only honest
+ * place to show it.
+ */
+export interface LayerOverlay {
+  key: string;
+  name: string;
+  bbox: { x: number; y: number; w: number; h: number };
+}
+
 interface DriftReport {
   driftPercent: number;
   verdict: "clean" | "notable" | "repainted";
@@ -63,6 +79,13 @@ interface RegionEditorProps {
   brandId: string | null;
   /** Named regions derived from the take, so "the subject" needs no dragging. */
   namedRegions?: NamedRegion[];
+  /** Located layers, drawn on the image and selectable there. */
+  layers?: LayerOverlay[];
+  /** Which layer the inspector is pointing at, so the two views agree. */
+  hoveredLayer?: string | null;
+  selectedLayer?: string | null;
+  onHoverLayer?: (key: string | null) => void;
+  onSelectLayer?: (key: string) => void;
   locked: boolean;
   onEdited: () => void;
 }
@@ -101,6 +124,11 @@ export function RegionEditor({
   imageUrl,
   brandId,
   namedRegions = [],
+  layers = [],
+  hoveredLayer = null,
+  selectedLayer = null,
+  onHoverLayer,
+  onSelectLayer,
   locked,
   onEdited,
 }: RegionEditorProps) {
@@ -251,6 +279,57 @@ export function RegionEditor({
         )}
       >
         <img src={imageUrl} alt="" draggable={false} className="block w-full" />
+
+        {/*
+          * The layers, on the picture. Painted smallest LAST so a small layer
+          * sitting inside a big one is still the thing you hit — a mark inside a
+          * keyline frame is the common case, and the frame would otherwise
+          * swallow every click.
+          *
+          * Suppressed while a box or lasso is being drawn: two selection models
+          * live on this frame, and a layer outline under a drag reads as though
+          * the drag had snapped to it.
+          */}
+        {!region && layers.length > 0 && (
+          <>
+            {[...layers]
+              .sort((a, b) => b.bbox.w * b.bbox.h - a.bbox.w * a.bbox.h)
+              .map((l) => {
+                const active = hoveredLayer === l.key || selectedLayer === l.key;
+                return (
+                  <button
+                    key={l.key}
+                    type="button"
+                    aria-label={`Change ${l.name} and nothing else`}
+                    onPointerEnter={() => onHoverLayer?.(l.key)}
+                    onPointerLeave={() => onHoverLayer?.(null)}
+                    /* Stop the frame's drag from starting, or clicking a layer
+                       would also begin a box nobody asked for. */
+                    onPointerDown={(e) => { e.stopPropagation(); }}
+                    onClick={(e) => { e.stopPropagation(); if (!locked) onSelectLayer?.(l.key); }}
+                    disabled={locked}
+                    className={cn(
+                      "absolute cursor-pointer rounded-sm border transition-colors",
+                      active
+                        ? "border-grit-teal bg-grit-teal/15"
+                        : "border-dashed border-white/25 bg-transparent hover:border-grit-teal hover:bg-grit-teal/10",
+                    )}
+                    style={{ left: pct(l.bbox.x), top: pct(l.bbox.y), width: pct(l.bbox.w), height: pct(l.bbox.h) }}
+                    data-testid={`overlay-layer-${l.key}`}
+                  >
+                    <span
+                      className={cn(
+                        "pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-br-sm bg-grit-teal px-1 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-black transition-opacity",
+                        active ? "opacity-100" : "opacity-0",
+                      )}
+                    >
+                      {l.name}
+                    </span>
+                  </button>
+                );
+              })}
+          </>
+        )}
 
         {region?.shape === "box" && (
           <>
