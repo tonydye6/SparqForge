@@ -50,6 +50,28 @@ interface LayerPanelProps {
   onEdited: () => void;
 }
 
+/**
+ * The swatch for a layer with no attached file behind it.
+ *
+ * A detected element nobody attached — a sparkle burst, a divider line — has no
+ * asset to show, and an empty grey square is a worse answer than the pixels
+ * themselves. So the take is used as the thumbnail, scaled and offset so the
+ * layer's own box fills the swatch. The cast keeps its real file, because that
+ * file IS the element on its own where a crop carries its neighbours.
+ */
+function boxCropStyle(imageUrl: string, bbox: { x: number; y: number; w: number; h: number }) {
+  const w = Math.max(bbox.w, 0.01);
+  const h = Math.max(bbox.h, 0.01);
+  return {
+    backgroundImage: `url(${imageUrl})`,
+    backgroundSize: `${(100 / w).toFixed(2)}% ${(100 / h).toFixed(2)}%`,
+    // A full-width box has no room to pan; the division would be by zero.
+    backgroundPosition:
+      `${w >= 1 ? 50 : (bbox.x / (1 - w)) * 100}% ${h >= 1 ? 50 : (bbox.y / (1 - h)) * 100}%`,
+    backgroundRepeat: "no-repeat",
+  };
+}
+
 export function LayerPanel({
   creativeId,
   stageId,
@@ -186,7 +208,10 @@ export function LayerPanel({
               )}
               data-testid={`row-layer-${l.kind}`}
             >
-              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-border/60 bg-card">
+              <div
+                className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-border/60 bg-card"
+                style={!l.thumbnailUrl && l.bbox && data.imageUrl ? boxCropStyle(data.imageUrl, l.bbox) : undefined}
+              >
                 {l.thumbnailUrl ? (
                   <img src={l.thumbnailUrl} alt="" className="h-full w-full object-cover" />
                 ) : null}
