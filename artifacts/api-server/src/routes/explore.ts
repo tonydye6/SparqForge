@@ -1410,7 +1410,7 @@ router.post(
       }
 
       const [current] = await db
-        .select({ payload: stageTakesTable.payload })
+        .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
         .from(stageTakesTable)
         .where(
           and(
@@ -1494,6 +1494,9 @@ router.post(
        * Attach the brand's real mark so the correction copies pixels.
        */
       let autoAttachedMark: string | null = null;
+      // The id as well as the name: the name is what the rail SHOWS, the id is
+      // what makes the mark a cast member the layer list can resolve to a file.
+      let autoAttachedMarkId: string | null = null;
       if (mentionsMark(instruction) && !referenceSlots.some(s => s.slot === "object")) {
         const mark = await findBestMarkAsset({
           brandId: creative.brandId,
@@ -1509,6 +1512,7 @@ router.post(
             description: `${slotDescriptionForAsset(mark, "object")} Attached automatically because the instruction names a mark.`,
           });
           autoAttachedMark = mark.name;
+          autoAttachedMarkId = mark.id;
         }
       }
 
@@ -1541,6 +1545,13 @@ router.post(
           payload: {
             imageUrl: afterUrl,
             sourceImageUrl: beforeUrl,
+            /*
+             * WHICH take this was made from, not just which picture. The layer
+             * read model walks this to carry the cast across an edit, and after
+             * somebody restores an earlier take and refines it, the previous
+             * take by INDEX is not this one's parent.
+             */
+            sourceTakeId: current?.id ?? null,
             instruction: instruction.trim(),
             // The whole image was fair game; the null region is how the deck
             // tells a prose refine from a boxed edit.
@@ -1553,6 +1564,16 @@ router.post(
               // Disclosed, because material that was sent without being shown
               // is the exact lie the rail exists to prevent (doc 24 §2).
               autoAttachedMark,
+              /*
+               * What THIS edit attached, in the shape the spread records, so
+               * the layer list treats an @-mentioned character or an
+               * auto-attached mark as this take's own cast rather than as
+               * something carried forward from before it.
+               */
+              directorSelections: [
+                ...allowed.map(mn => ({ role: mn.role, assetId: mn.assetId })),
+                ...(autoAttachedMarkId ? [{ role: "object" as const, assetId: autoAttachedMarkId }] : []),
+              ],
             },
           },
           isCurrent: true,
@@ -2289,7 +2310,7 @@ router.post(
       }
 
       const [current] = await db
-        .select({ payload: stageTakesTable.payload, takeIndex: stageTakesTable.takeIndex })
+        .select({ id: stageTakesTable.id, payload: stageTakesTable.payload, takeIndex: stageTakesTable.takeIndex })
         .from(stageTakesTable)
         .where(
           and(
@@ -2365,6 +2386,9 @@ router.post(
       // Strict marks, same as refine-edit: a typed "add the logo" correction
       // attaches the real mark instead of letting prose invent one.
       let autoAttachedMark: string | null = null;
+      // The id as well as the name: the name is what the rail SHOWS, the id is
+      // what makes the mark a cast member the layer list can resolve to a file.
+      let autoAttachedMarkId: string | null = null;
       if (mentionsMark(instruction) && !referenceSlots.some(s => s.slot === "object")) {
         const mark = await findBestMarkAsset({
           brandId: creative.brandId,
@@ -2380,6 +2404,7 @@ router.post(
             description: `${slotDescriptionForAsset(mark, "object")} Attached automatically because the instruction names a mark.`,
           });
           autoAttachedMark = mark.name;
+          autoAttachedMarkId = mark.id;
         }
       }
 
@@ -2424,6 +2449,9 @@ router.post(
           payload: {
             imageUrl: afterUrl,
             sourceImageUrl: beforeUrl,
+            // Which take, not just which picture — same reason as refine-edit:
+            // the layer read model walks this to carry the cast across an edit.
+            sourceTakeId: current?.id ?? null,
             instruction: instruction.trim(),
             region,
             drift,
@@ -2433,6 +2461,12 @@ router.post(
               referenceCount: 1 + referenceSlots.length,
               director: persona?.name ?? null,
               autoAttachedMark,
+              // What THIS edit attached, so it reads as this take's own cast
+              // rather than as something inherited from before it.
+              directorSelections: [
+                ...allowed.map(mn => ({ role: mn.role, assetId: mn.assetId })),
+                ...(autoAttachedMarkId ? [{ role: "object" as const, assetId: autoAttachedMarkId }] : []),
+              ],
             },
           },
           isCurrent: true,

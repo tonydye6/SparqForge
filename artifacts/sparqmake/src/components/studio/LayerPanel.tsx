@@ -22,7 +22,7 @@ interface Layer {
   key: string;
   name: string;
   kind: "base" | "subject" | "mark" | "element";
-  origin: "known_cast" | "detected";
+  origin: "known_cast" | "inherited_cast" | "detected";
   assetId: string | null;
   assetName: string | null;
   thumbnailUrl: string | null;
@@ -38,6 +38,7 @@ interface LayersResponse {
   layers: Layer[];
   decomposed: boolean;
   knownCount: number;
+  inheritedCount: number;
   locatedCount: number;
   summary: string;
 }
@@ -89,7 +90,7 @@ export function LayerPanel({ creativeId, stageId, slotKey, revision }: LayerPane
         <p className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
           Layers {"·"} {data.layers.length}
         </p>
-        <InfoDot text="These are read off the take itself: the real files this picture was rendered from, in the order they sit. Rows marked NOT LOCATED are known to be in the frame but have not been measured into a position yet, so nothing selects them." />
+        <InfoDot text="Read off the take itself: the real files this picture was rendered from, back to front. NOT LOCATED means a layer is known to be in the frame but has not been measured into a position, so nothing selects it yet. CARRIED FORWARD means it came from the take this one was edited from, since an edit is handed the previous picture rather than the original files." />
       </div>
 
       {data.layers.map((l) => (
@@ -107,12 +108,14 @@ export function LayerPanel({ creativeId, stageId, slotKey, revision }: LayerPane
             ) : null}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1 truncate text-[11.5px] leading-tight text-foreground">
-              {l.name}
+            <p className="flex items-center gap-1 text-[11.5px] leading-tight text-foreground">
+              <span className="truncate">{l.name}</span>
               {l.pinned && <Pin size={9} className="shrink-0 text-victory-gold" />}
+              {l.note && <InfoDot text={l.note} />}
             </p>
             <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
               {l.kind}
+              {l.origin === "inherited_cast" && <> {"·"} carried forward</>}
               {!l.bbox && <> {"·"} not located</>}
             </p>
           </div>
