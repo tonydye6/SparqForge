@@ -200,10 +200,31 @@ export function runCases(): Result[] {
    * clause and the code was right: the disclosure belongs here.
    */
   check(
-    "the summary counts the layers, the matches, and discloses the broad one",
+    "the summary counts what was FOUND, the matches, and discloses the broad one",
     detectionSummary(attributed)
-      === "3 layers found, 2 matched to a file you attached. One covers most of the frame, so editing it will not stay in a corner.",
+      === "Found 3 elements in the picture, 2 matched to a file you attached. One covers most of the frame, so editing it will not stay in a corner.",
     detectionSummary(attributed),
+  );
+  /*
+   * "2 layers found" under a heading reading "Layers · 3" read as a
+   * contradiction on screen: the heading counts the base, detection never finds
+   * it. So detection reports ELEMENTS found in the picture.
+   */
+  check(
+    "detection never calls its findings layers, because the base is a layer and it is not found",
+    !detectionSummary(attributed).toLowerCase().includes("layer"),
+    detectionSummary(attributed),
+  );
+  check(
+    "a fully matched set says so rather than repeating the count",
+    detectionSummary(attributeToCast(
+      normalizeDetected([row("Crown U Mark", "mark", [88, 93, 204, 256]), row("Female Tennis Player", "character", [160, 417, 953, 952])]),
+      CAST,
+    )) === "Found 2 elements in the picture, all matched to a file you attached.",
+    detectionSummary(attributeToCast(
+      normalizeDetected([row("Crown U Mark", "mark", [88, 93, 204, 256]), row("Female Tennis Player", "character", [160, 417, 953, 952])]),
+      CAST,
+    )),
   );
   check(
     "finding nothing is said plainly, not as a failure",
@@ -212,7 +233,7 @@ export function runCases(): Result[] {
   check(
     "a broad layer is disclosed in the sentence",
     detectionSummary(attributeToCast(normalizeDetected([row("Diagonal Slash Device", "device", [114, 0, 1000, 1000])]), CAST))
-      === "1 layer found. One covers most of the frame, so editing it will not stay in a corner.",
+      === "Found 1 element in the picture. One covers most of the frame, so editing it will not stay in a corner.",
     detectionSummary(attributeToCast(normalizeDetected([row("Diagonal Slash Device", "device", [114, 0, 1000, 1000])]), CAST)),
   );
 
