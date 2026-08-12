@@ -97,15 +97,24 @@ export function SequencePanel({
   const [rendering, setRendering] = useState(false);
   const [renderWarnings, setRenderWarnings] = useState<string[]>([]);
 
+  /*
+   * The narrator comes from the BRAND RECORD, which is where the picker writes
+   * it. Found by walking step 3: `GET /brands/:id` runs its row through a
+   * response schema that has no `narratorVoiceId`, so the field was silently
+   * dropped and the rack said "No narrator on the brand record" about a brand
+   * that had one saved — which also hid the Read-the-hook buttons entirely
+   * after any reload. Reading from the same endpoint the PATCH writes to means
+   * the two can no longer disagree.
+   */
   useEffect(() => {
     if (!brandId) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch(`${API_BASE}/api/brands/${brandId}`);
+        const res = await apiFetch(`${API_BASE}/api/brands/${brandId}/record`);
         if (!res.ok || cancelled) return;
-        const b = await res.json() as { narratorVoiceId?: string | null };
-        if (!cancelled) setNarratorVoiceId(b.narratorVoiceId ?? null);
+        const body = await res.json() as { brand?: { narratorVoiceId?: string | null } };
+        if (!cancelled) setNarratorVoiceId(body.brand?.narratorVoiceId ?? null);
       } catch { /* the rack shows "choose a narrator" either way */ }
     })();
     return () => { cancelled = true; };
