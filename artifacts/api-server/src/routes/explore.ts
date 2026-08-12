@@ -1651,16 +1651,65 @@ router.post(
         }
       }
 
+      /*
+       * The brand's own mark rides as a reference image (strict marks, extended
+       * to video). Tony's 2026-08-11 clip ADDED Nike swooshes and REDREW the
+       * Crown U mark: the video model treats a mark in the frame as paintable
+       * pixels unless it is handed the real file and told the rules. Same
+       * findBestMarkAsset the correction paths use, ranked against the brand
+       * name so it finds the primary mark.
+       */
+      let autoAttachedMark: string | null = null;
+      if (brand) {
+        const mark = await findBestMarkAsset({
+          brandId: creative.brandId,
+          text: `${brand.name} logo primary mark`,
+          template: creative.templateId ?? null,
+        });
+        const markBuf = mark?.fileUrl ? await readFileByUrl(mark.fileUrl) : null;
+        if (mark && markBuf) {
+          referenceSlots.push({
+            imageBuffer: markBuf,
+            mimeType: (mark.mimeType as string) || "image/png",
+            slot: "object",
+            description: `${slotDescriptionForAsset(mark, "object")} This is the brand's real mark: wherever a mark appears in the clip, it is THIS one, kept faithful in every frame.`,
+          });
+          autoAttachedMark = mark.name;
+        }
+      }
+
       const motionLock =
         "IDENTITY AND STYLE LOCK. This overrides everything below it. " +
         "The attached source frame IS the picture being animated: its character, art style and rendering are final. " +
         "The character's stylized game design — face, proportions, outfit, colours, and the way they are drawn — must remain EXACTLY as in the source frame in every frame of the clip. " +
         "No realism shift, no redesign, no restyling, no morphing toward photorealism. " +
         "Animate only pose, camera movement, lighting and the environment.";
+      /*
+       * Marks, said separately from identity, because the video model failed
+       * them separately: it added third-party swooshes and redrew the brand
+       * mark while the character held. The rule is the image path's
+       * constraintTrailer translated to frames.
+       */
+      const motionMarks =
+        "MARKS. The only marks permitted in the clip are the ones already visible in the source frame, kept pixel-faithful to the attached brand mark reference in every frame. " +
+        "Never add, invent, redraw, restyle or substitute any logo, wordmark, swoosh or watermark. " +
+        "No third-party or sponsor marks of any kind, in any frame, on any surface — clothing, equipment, signage or background.";
+      /*
+       * How these characters MOVE — Tony's decree from watching the first
+       * locked clip (2026-08-11): "extremely fast/snappy, with big poses in
+       * between... NOT real human physics... much closer to Dragon Ball Z."
+       * Standing style for the product's game characters; a typed instruction
+       * refines within it rather than replacing it.
+       */
+      const motionStyle =
+        "MOTION STYLE. These are stylized game characters, and they move like it: extremely fast, snappy movements that cut between big, exaggerated poses held for a beat — anime-fight pacing in the spirit of Dragon Ball Z. " +
+        "Never realistic human physics, never soft motion-captured weight, never slow naturalistic drift of the character.";
       const baseInstruction = instruction?.trim() ||
-        "Convert this image into a short, dynamic video clip. Animate the subject naturally with subtle movement, camera drift, and ambient motion. Keep the brand framing intact.";
+        "Convert this image into a short, dynamic video clip: the character snaps between big poses with fast, punchy motion while the camera whips or cuts rather than drifts. Keep the brand framing intact.";
       const motionPrompt = [
         motionLock,
+        motionMarks,
+        motionStyle,
         baseInstruction,
         contract ? `NON-NEGOTIABLE BRAND CONSTRAINTS:\n${contract}` : "",
       ].filter(Boolean).join("\n\n");
@@ -1706,6 +1755,7 @@ router.post(
               referenceCount: 1 + referenceSlots.length,
               subjectRef: subjectRefName,
               subjectRefDropped,
+              autoAttachedMark,
               director: persona?.name ?? null,
               identityLock: true,
             },

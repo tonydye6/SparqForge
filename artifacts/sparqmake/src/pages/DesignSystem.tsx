@@ -39,11 +39,11 @@ const ALL_STATES = Object.keys(CREATIVE_STATES) as CreativeState[];
 
 /** A post being worked normally: each stage consumed the one before it. */
 const SPINE_NORMAL: SpineStage[] = [
-  { id: "a", stageNumber: 1, label: "Brief", summary: "Hype post, championship run", status: "done" },
-  { id: "b", stageNumber: 2, label: "Direction", summary: "Arena night · Ava K panels", status: "done" },
-  { id: "c", stageNumber: 3, label: "Image", summary: "8 takes · 2 kept", status: "active" },
+  { id: "a", stageNumber: 1, label: "Spark", summary: "Hype post, championship run", status: "done" },
+  { id: "b", stageNumber: 2, label: "Director", summary: "Arena night · Ava K panels", status: "done" },
+  { id: "c", stageNumber: 3, label: "Media", summary: "8 takes · 2 kept", status: "active" },
   { id: "d", stageNumber: 4, label: "Copy", summary: "Hook, caption, hashtags", status: "empty" },
-  { id: "e", stageNumber: 5, label: "Channel crops", summary: "IG · Story · X · TikTok", status: "empty" },
+  { id: "e", stageNumber: 5, label: "Launch pad", summary: "IG · Story · X · TikTok", status: "empty" },
 ];
 const SPINE_NORMAL_EDGES: SpineEdge[] = [
   { from: "a", to: "b", direction: "forward" },
@@ -54,11 +54,11 @@ const SPINE_NORMAL_EDGES: SpineEdge[] = [
 
 /** The copy-led case: stage 03 consumed stage 04, so that edge is inverted. */
 const SPINE_COPY_LED: SpineStage[] = [
-  { id: "a", stageNumber: 1, label: "Brief", summary: "Hype post, championship run", status: "done" },
-  { id: "b", stageNumber: 2, label: "Direction", summary: "Arena night · Ava K panels", status: "done" },
-  { id: "c", stageNumber: 3, label: "Image", summary: "Fitting the locked line", status: "active" },
+  { id: "a", stageNumber: 1, label: "Spark", summary: "Hype post, championship run", status: "done" },
+  { id: "b", stageNumber: 2, label: "Director", summary: "Arena night · Ava K panels", status: "done" },
+  { id: "c", stageNumber: 3, label: "Media", summary: "Fitting the locked line", status: "active" },
   { id: "d", stageNumber: 4, label: "Copy", summary: "The Floor Is Yours. Clear It.", status: "locked" },
-  { id: "e", stageNumber: 5, label: "Channel crops", summary: "IG · Story · X · TikTok", status: "empty" },
+  { id: "e", stageNumber: 5, label: "Launch pad", summary: "IG · Story · X · TikTok", status: "empty" },
 ];
 const SPINE_COPY_LED_EDGES: SpineEdge[] = [
   { from: "a", to: "b", direction: "forward" },
@@ -69,11 +69,11 @@ const SPINE_COPY_LED_EDGES: SpineEdge[] = [
 
 /** After reopening Direction: what it fed is stale, the locked stage is not. */
 const SPINE_STALE: SpineStage[] = [
-  { id: "a", stageNumber: 1, label: "Brief", summary: "Hype post, championship run", status: "done" },
-  { id: "b", stageNumber: 2, label: "Direction", summary: "Choosing the designer", status: "active" },
-  { id: "c", stageNumber: 3, label: "Image", summary: "Built on the old direction", status: "stale" },
+  { id: "a", stageNumber: 1, label: "Spark", summary: "Hype post, championship run", status: "done" },
+  { id: "b", stageNumber: 2, label: "Director", summary: "Choosing the designer", status: "active" },
+  { id: "c", stageNumber: 3, label: "Media", summary: "Built on the old direction", status: "stale" },
   { id: "d", stageNumber: 4, label: "Copy", summary: "Built on the old direction", status: "stale" },
-  { id: "e", stageNumber: 5, label: "Channel crops", summary: "Not made yet", status: "empty" },
+  { id: "e", stageNumber: 5, label: "Launch pad", summary: "Not made yet", status: "empty" },
 ];
 
 /** A stand-in image so tiles have something to desaturate and frame. */

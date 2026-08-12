@@ -182,7 +182,7 @@ export function DirectionStage({
     <div className="mx-auto max-w-4xl space-y-4 p-6">
       <div className="space-y-1.5">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
-          Stage 02 · Direction
+          Stage 02 · Director
         </p>
         <h2 className="flex items-center gap-2 font-display text-xl tracking-wide text-foreground">
           Who directs this one

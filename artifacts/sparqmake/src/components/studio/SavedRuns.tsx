@@ -56,11 +56,11 @@ interface Preview {
 }
 
 const STAGE_LABELS: Record<string, string> = {
-  brief: "Brief",
-  direction: "Direction",
-  asset: "Image",
+  brief: "Spark",
+  direction: "Director",
+  asset: "Media",
   copy: "Copy",
-  crops: "Channel crops",
+  crops: "Launch pad",
 };
 
 /** The five stages, so "what did not carry" can be drawn as absence. */

@@ -172,7 +172,7 @@ export function RefineDeck({
         </button>
         <div className="space-y-1">
           <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
-            Stage 03 · Image · Refine
+            Stage 03 · Media · Refine
           </p>
           <h2 className="font-display text-xl tracking-wide text-foreground">
             {currentPayload.axisA?.label && currentPayload.axisB?.label
