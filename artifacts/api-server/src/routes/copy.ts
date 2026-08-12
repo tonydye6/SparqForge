@@ -13,6 +13,8 @@ import { imagePass, AI_MODELS, estimateClaudeCost } from "../lib/ai-config.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { buildImageAwareCaption } from "../services/session-service.js";
 import { splitTrailingHashtags } from "../services/copy-stage.js";
+import { MAX_SHOTS } from "../services/brief-intake.js";
+import { beatOfPickSlotKey, beatPickSlotKey } from "../services/explore-plan.js";
 
 /**
  * Stage 03 → 04 · the handoff, and stage 04 Copy's model call.
@@ -37,6 +39,21 @@ const router: IRouter = Router();
 const UseTakeBody = z.object({
   /** The Explore slot being promoted, e.g. "as_briefed__raw". */
   slotKey: z.string().min(1).max(64),
+  /**
+   * Which BEAT this pick belongs to (the story path, step 4b).
+   *
+   * Omitted for a single-picture post, where the pick is the stage's one output
+   * and lands in "selected". For a story there is no single output — there is
+   * one picked still per moment — so the pointer lands in that beat's own slot
+   * and the stage is only decided once every beat has one.
+   *
+   * Routed through THIS endpoint rather than a new one because picking is not
+   * just recording a pointer: it is also the second pass that re-renders the
+   * kept preview at full fidelity, and a beat's still is about to be animated,
+   * so a preview-quality frame would poison the clip. One implementation of
+   * picking, or the two drift.
+   */
+  beat: z.number().int().min(1).max(MAX_SHOTS).optional(),
 });
 
 router.post(
@@ -45,7 +62,9 @@ router.post(
   validateRequest({ body: UseTakeBody }),
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
-    const { slotKey } = req.body as z.infer<typeof UseTakeBody>;
+    const { slotKey, beat } = req.body as z.infer<typeof UseTakeBody>;
+    /** Where the pointer lands: this beat's slot, or the stage's single output. */
+    const pickSlot = typeof beat === "number" ? beatPickSlotKey(beat) : "selected";
 
     try {
       const stages = await db
@@ -69,6 +88,38 @@ router.post(
       if (image.status === "locked") {
         res.status(409).json({ error: "The Image stage is locked, so its output cannot be changed. Unlock it first." });
         return;
+      }
+
+      /*
+       * The shot list, when this post is a story. Read here because "is the
+       * stage decided" is a question about ALL the beats, and the answer lives
+       * on the brief rather than on stage 03.
+       */
+      let storyShots: Array<{ n: number }> = [];
+      if (typeof beat === "number") {
+        const briefStage = stages.find(st => st.stageKind === "brief");
+        if (briefStage) {
+          const [briefTake] = await db
+            .select({ payload: stageTakesTable.payload })
+            .from(stageTakesTable)
+            .where(and(
+              eq(stageTakesTable.stageStateId, briefStage.id),
+              eq(stageTakesTable.slotKey, "brief"),
+              eq(stageTakesTable.isCurrent, true),
+            ));
+          const bp = briefTake?.payload as { shots?: unknown } | undefined;
+          const raw = Array.isArray(bp?.shots) ? bp.shots : [];
+          storyShots = raw
+            .map(sh => (sh as { text?: unknown })?.text)
+            .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+            .map((_t, i) => ({ n: i + 1 }));
+        }
+        if (!storyShots.some(sh => sh.n === beat)) {
+          res.status(400).json({
+            error: `This post has no beat ${beat} on its shot list, so that pick has nowhere to go.`,
+          });
+          return;
+        }
       }
 
       // The take being promoted must exist and must have produced an image.
@@ -170,26 +221,50 @@ router.post(
         await tx
           .update(stageTakesTable)
           .set({ isCurrent: false })
-          .where(and(eq(stageTakesTable.stageStateId, image.id), eq(stageTakesTable.slotKey, "selected")));
+          .where(and(eq(stageTakesTable.stageStateId, image.id), eq(stageTakesTable.slotKey, pickSlot)));
         const existing = await tx
           .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
           .from(stageTakesTable)
-          .where(and(eq(stageTakesTable.stageStateId, image.id), eq(stageTakesTable.slotKey, "selected")));
+          .where(and(eq(stageTakesTable.stageStateId, image.id), eq(stageTakesTable.slotKey, pickSlot)));
         await tx.insert(stageTakesTable).values({
           stageStateId: image.id,
-          slotKey: "selected",
-          takeIndex: nextTakeIndex(existing, "selected"),
+          slotKey: pickSlot,
+          takeIndex: nextTakeIndex(existing, pickSlot),
           origin: "swapped_in",
-          payload: { slotKey, imageUrl },
+          payload: { slotKey, imageUrl, ...(typeof beat === "number" ? { beat } : {}) },
           isCurrent: true,
         });
 
-        // Stage 03 is decided. It was reporting "empty" while holding dozens of
-        // takes, which made the spine describe finished work as never started.
-        await tx
-          .update(stageStatesTable)
-          .set({ status: "done", decidedAt: new Date(), updatedAt: new Date() })
-          .where(eq(stageStatesTable.id, image.id));
+        /*
+         * Stage 03 is decided. It was reporting "empty" while holding dozens of
+         * takes, which made the spine describe finished work as never started.
+         *
+         * For a STORY it is decided only when every beat has a pick. Marking it
+         * done on the first beat would tell the spine — and the publish chip —
+         * that a three-moment post was finished when two of its moments did not
+         * exist yet. Counted inside the transaction, after this pointer landed,
+         * so the count includes the pick being made.
+         */
+        let decided = true;
+        if (typeof beat === "number") {
+          const picks = await tx
+            .select({ slotKey: stageTakesTable.slotKey })
+            .from(stageTakesTable)
+            .where(and(
+              eq(stageTakesTable.stageStateId, image.id),
+              eq(stageTakesTable.isCurrent, true),
+            ));
+          const picked = new Set(
+            picks.map(r => beatOfPickSlotKey(r.slotKey)).filter((n): n is number => n !== null),
+          );
+          decided = storyShots.length > 0 && storyShots.every(sh => picked.has(sh.n));
+        }
+        if (decided) {
+          await tx
+            .update(stageStatesTable)
+            .set({ status: "done", decidedAt: new Date(), updatedAt: new Date() })
+            .where(eq(stageStatesTable.id, image.id));
+        }
 
         // The dependency edge, recorded rather than assumed (§1.3). Merged, so a
         // Copy stage that also consumed the brief keeps both edges.

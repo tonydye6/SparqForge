@@ -16,6 +16,10 @@ import {
   AXIS_B_POSITIONS,
   FALLBACK_AXES,
   SPREAD_SIZE,
+  TAKES_PER_BEAT,
+  beatOfSlotKey,
+  beatSlotKey,
+  buildBeatPlan,
   buildExploreGrid,
   buildExplorePlan,
   spreadCostCents,
@@ -258,6 +262,78 @@ export function collectExplorePlanCases(): Case[] {
     const axes: { a: Axis; b: Axis } = FALLBACK_AXES.awareness;
     const plan = buildExplorePlan({ intent: "awareness", proposedAxes: axes, perImageUsd: 0.06 });
     check("the fallback pair itself passes validation", plan.fallback === false, plan.fallback);
+  }
+
+  // ---- one beat's plan (the story path, step 4b) ----
+  {
+    const plan = buildBeatPlan({
+      beat: 2,
+      text: "Mid-race: the battle for position",
+      totalBeats: 3,
+      perImageUsd: 0.0325,
+    });
+    check(`a beat offers ${TAKES_PER_BEAT} takes`, plan.takes.length === TAKES_PER_BEAT, plan.takes.length);
+    check(
+      "and their slots are the beat's own family",
+      plan.takes.map(t => t.id).join() === "beat2__a,beat2__b",
+      plan.takes.map(t => t.id),
+    );
+    check(
+      "both takes name the moment, so neither can drift to another one",
+      plan.takes.every(t => t.directive.includes("Mid-race: the battle for position")),
+      plan.takes.map(t => t.directive),
+    );
+    check(
+      "and both lead by saying this is ONE moment of a sequence",
+      plan.takes.every(t => /ONE MOMENT OF A 3-MOMENT SEQUENCE/.test(t.directive)),
+      plan.takes.map(t => t.directive.slice(0, 80)),
+    );
+    check(
+      "the two takes differ — otherwise there is nothing to choose between",
+      plan.takes[0].directive !== plan.takes[1].directive,
+    );
+    check(
+      "a beat is never off-brief: it has no axes to depart along",
+      plan.takes.every(t => t.offBrief === null) && plan.offBriefCount === 0,
+      plan.offBriefCount,
+    );
+    check(
+      "and it says it has no axes rather than synthesising a pair",
+      plan.axes.a.positions.length === 0 && plan.axes.b.positions.length === 0,
+    );
+    check("a beat is not a fallback spread", plan.fallback === false);
+    check(
+      "two preview takes price at about seven cents",
+      plan.costCents === 7,
+      plan.costCents,
+    );
+  }
+  {
+    const steered = buildBeatPlan({
+      beat: 1,
+      text: "The start",
+      totalBeats: 2,
+      steering: "tighter on the two leaders",
+      perImageUsd: 0.0325,
+    });
+    check(
+      "a steering sentence reaches both takes",
+      steered.takes.every(t => t.directive.includes("tighter on the two leaders")),
+      steered.takes.map(t => t.directive),
+    );
+    const unsteered = buildBeatPlan({ beat: 1, text: "The start", totalBeats: 2, perImageUsd: 0.0325 });
+    check(
+      "and no steering leaves no trace of one",
+      unsteered.takes.every(t => !/Also:/.test(t.directive)),
+      unsteered.takes.map(t => t.directive),
+    );
+  }
+  {
+    check("a beat slot key is readable back", beatOfSlotKey(beatSlotKey(4, "a")) === 4);
+    check("a spread's slot key is not a beat", beatOfSlotKey("aftermath__raw") === null);
+    check("nor is the pick", beatOfSlotKey("selected") === null);
+    check("nor is the motion slot", beatOfSlotKey("motion") === null);
+    check("beat0 is not a beat — the shot list is 1-based", beatOfSlotKey("beat0__a") === null);
   }
 
   return cases;

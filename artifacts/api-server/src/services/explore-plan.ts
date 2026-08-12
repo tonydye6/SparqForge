@@ -302,6 +302,150 @@ export function buildExploreGrid(axes: { a: Axis; b: Axis }, spreadSize?: number
  * departure is not an axis, it is four ways of saying the same thing, and the
  * spread would stop exploring anything.
  */
+/* ------------------------------------------------------------------------- *
+ * The story path · step 4b · one beat's plan.
+ *
+ * A spread explores ONE moment along two axes. A story is different moments, so
+ * a beat is not a cell of that grid — it is its own tiny spread of a single
+ * moment, and this builds it.
+ *
+ * **Why this reuses ExplorePlan rather than inventing a shape.** Everything
+ * downstream of the plan in explore-run — the director call, the identity lock,
+ * the marks rule, the subject pin, the budget reservation, the per-take cost
+ * rows, the slot-per-take history — is already correct and already walked.
+ * Handing it a two-take plan whose ids are `beat1__a`/`beat1__b` means a beat
+ * gets all of that for free, and take history, restore and staleness come from
+ * the existing engine exactly as the design said they would.
+ *
+ * **The two takes vary FRAMING, not moment.** Both are the same instant. That
+ * is the one thing a beat may not explore, because exploring it would turn a
+ * story back into a spread — which is the distinction the whole story path
+ * exists to draw (doc 42: a spread is variations of one moment, a story is
+ * different moments).
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Two per beat.
+ *
+ * Enough to choose between — the spread's own argument is that seeing
+ * alternatives together is what makes choosing possible — and cheap enough that
+ * re-running one beat of a three-beat story is a decision somebody makes
+ * casually rather than budgets for.
+ */
+export const TAKES_PER_BEAT = 2;
+
+/** Slot keys for a beat, in the `a__b` shape every other slot key already uses. */
+export function beatSlotKey(beat: number, variant: string): string {
+  return `beat${beat}__${variant}`;
+}
+
+/**
+ * Where a beat's PICK lands: `beat2`, distinct from its takes `beat2__a`/`beat2__b`.
+ *
+ * A story has no single "selected" slot, because it has no single output — it
+ * has one picked still per moment. The pick is a pointer take exactly as the
+ * spread's is, so history, restore and the second pass all behave identically.
+ */
+export function beatPickSlotKey(beat: number): string {
+  return `beat${beat}`;
+}
+
+/** Which beat a PICK slot is for, or null. `beat2__a` is a take, not a pick. */
+export function beatOfPickSlotKey(slotKey: string): number | null {
+  const m = /^beat(\d+)$/.exec(slotKey);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+/** Which beat a slot key belongs to, or null when it is not a beat slot at all. */
+export function beatOfSlotKey(slotKey: string): number | null {
+  const m = /^beat(\d+)__/.exec(slotKey);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isInteger(n) && n >= 1 ? n : null;
+}
+
+/**
+ * How the two takes of a beat differ.
+ *
+ * Deterministic, like FALLBACK_AXES, and deliberately about the camera rather
+ * than the content: position 0 is the moment read plainly, position 1 is the
+ * same instant from a more dynamic angle. Neither one may move the moment.
+ */
+const BEAT_VARIANTS: ReadonlyArray<{ key: string; label: string; directive: string }> = [
+  {
+    key: "a",
+    label: "Read plainly",
+    directive: "Frame this moment plainly and legibly: the clearest possible read of what is happening",
+  },
+  {
+    key: "b",
+    label: "More dynamic",
+    directive:
+      "Frame the SAME instant more dynamically — closer, lower, or harder-angled, with more energy in the composition. "
+      + "The moment itself does not change",
+  },
+];
+
+export interface BeatPlanInput {
+  /** 1-based, matching the shot list's numbering. */
+  beat: number;
+  /** The moment, in the brief's own words. */
+  text: string;
+  /** How many beats the story has, so a take can say where it sits. */
+  totalBeats: number;
+  /** An optional steering sentence typed at the sheet. */
+  steering?: string | null;
+  perImageUsd: number;
+}
+
+/**
+ * Build one beat's two takes.
+ *
+ * The directive LEADS with the fact that this frame is one moment of a sequence.
+ * Without that the model reads the brief line — which describes the whole arc —
+ * and tries to put the entire story in one frame, which is exactly what the shot
+ * list exists to stop.
+ */
+export function buildBeatPlan(input: BeatPlanInput): ExplorePlan {
+  const moment = input.text.trim();
+  const steering = (input.steering ?? "").trim();
+
+  const takes: ExploreTake[] = BEAT_VARIANTS.map((v, i) => ({
+    id: beatSlotKey(input.beat, v.key),
+    col: i,
+    row: 0,
+    axisA: { name: "Beat", label: `${input.beat} of ${input.totalBeats}` },
+    axisB: { name: "Framing", label: v.label },
+    directive: [
+      `THIS IMAGE IS ONE MOMENT OF A ${input.totalBeats}-MOMENT SEQUENCE, not the whole story. `
+      + `It shows moment ${input.beat} and nothing else: ${moment}`,
+      v.directive,
+      steering ? `Also: ${steering}` : "",
+    ].filter(Boolean).join(". "),
+    /*
+     * Never off-brief. A departure is a property of an AXIS position pushing
+     * past what was asked for, and a beat has no axes — it is a moment the
+     * person wrote down. Reporting one would be inventing a warning.
+     */
+    offBrief: null,
+  }));
+
+  return {
+    // A beat has no axes. Stating that honestly rather than synthesising a pair
+    // keeps "which axes made this" answerable: the answer is none, a shot list did.
+    axes: {
+      a: { id: "a", name: "Beat", positions: [] },
+      b: { id: "b", name: "Framing", positions: [] },
+    },
+    takes,
+    costCents: spreadCostCents(input.perImageUsd, takes.length),
+    offBriefCount: 0,
+    fallback: false,
+  };
+}
+
 export function validateAxes(raw: unknown): { a: Axis; b: Axis } | null {
   if (!raw || typeof raw !== "object") return null;
   const obj = raw as Record<string, unknown>;

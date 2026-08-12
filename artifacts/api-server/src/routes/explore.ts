@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, type DesignerPersona } from "@workspace/db";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
-import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, estimateGeminiTextCost, estimateImagenCost, estimateVideoDurationSeconds, imagePass, type ImagePassType } from "../lib/ai-config.js";
+import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, DEFAULT_SPREAD_PASS, estimateGeminiTextCost, estimateImagenCost, estimateVideoDurationSeconds, imagePass, type ImagePassType } from "../lib/ai-config.js";
 
 /**
  * The pass a spread renders at when the caller does not say. Phase 7 item 2.
@@ -22,7 +22,9 @@ import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, estimateGeminiTextCost, esti
  *
  * A spread of 8 previews plus one full render is **$0.40 against $1.07**.
  */
-const DEFAULT_SPREAD_PASS: ImagePassType = "preview";
+// Moved to lib/ai-config.ts when the storyboard's read model had to quote the
+// same price this endpoint charges. The reasoning above stays next to the code
+// that spends the money.
 
 /**
  * How many takes a spread renders. Phase 7 item 4's "spread size control".
@@ -79,7 +81,7 @@ import {
 import { normalizeRegion, driftMessage, driftVerdict } from "../services/region-edit.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
-import { buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
+import { buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import {
   RUN_CONCURRENCY,
@@ -119,12 +121,20 @@ async function intentFromBrief(creativeId: string): Promise<{
   briefText: string | null;
   briefTakeId: string | null;
   mentions: BriefMention[];
+  /** The story path's decision, saved on the brief (step 4a). */
+  shape: "single" | "sequence";
+  shots: Array<{ n: number; text: string }>;
 }> {
   const [brief] = await db
     .select({ id: stageStatesTable.id })
     .from(stageStatesTable)
     .where(and(eq(stageStatesTable.creativeId, creativeId), eq(stageStatesTable.stageKind, "brief")));
-  if (!brief) return { intent: null, briefStageId: null, briefText: null, briefTakeId: null, mentions: [] };
+  if (!brief) {
+    return {
+      intent: null, briefStageId: null, briefText: null, briefTakeId: null,
+      mentions: [], shape: "single", shots: [],
+    };
+  }
 
   const [take] = await db
     .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
@@ -137,7 +147,10 @@ async function intentFromBrief(creativeId: string): Promise<{
       ),
     );
 
-  const payload = take?.payload as { intentId?: unknown; line?: unknown; derived?: unknown; mentions?: unknown } | null | undefined;
+  const payload = take?.payload as {
+    intentId?: unknown; line?: unknown; derived?: unknown; mentions?: unknown;
+    shape?: unknown; shots?: unknown;
+  } | null | undefined;
   const raw = payload && typeof payload === "object" ? payload.intentId : null;
   /*
    * The typed line, and the derived rows the user saw and could edit. This is
@@ -171,7 +184,27 @@ async function intentFromBrief(creativeId: string): Promise<{
    * whatever ids it is handed.
    */
   const mentions = normalizeMentions(payload && typeof payload === "object" ? payload.mentions : null);
-  return { intent: isIntent(raw) ? raw : null, briefStageId: brief.id, briefText, briefTakeId: take?.id ?? null, mentions };
+  /*
+   * The shot list, re-validated at the boundary for the same reason mentions
+   * are: the takes route stores payload as z.unknown(), so a brief could carry
+   * anything. A shot with no text is not a shot, and the numbering is rebuilt
+   * here rather than trusted — beat slot keys are named off it.
+   */
+  const rawShots = payload && typeof payload === "object" && Array.isArray(payload.shots) ? payload.shots : [];
+  const shots = rawShots
+    .map(sh => (sh as { text?: unknown })?.text)
+    .filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    .map((t, i) => ({ n: i + 1, text: t.trim() }));
+  const shape = payload?.shape === "sequence" && shots.length >= 2 ? "sequence" as const : "single" as const;
+  return {
+    intent: isIntent(raw) ? raw : null,
+    briefStageId: brief.id,
+    briefText,
+    briefTakeId: take?.id ?? null,
+    mentions,
+    shape,
+    shots,
+  };
 }
 
 router.get("/creatives/:creativeId/explore-plan", async (req: Request, res: Response): Promise<void> => {
@@ -399,17 +432,62 @@ router.post(
         return;
       }
 
-      const { intent, briefStageId, briefText, briefTakeId, mentions } = await intentFromBrief(creativeId);
+      const { intent, briefStageId, briefText, briefTakeId, mentions, shape, shots } =
+        await intentFromBrief(creativeId);
+
+      /*
+       * ONE BEAT, or the whole spread (the story path, step 4b).
+       *
+       * A beat runs through this same endpoint on purpose. Everything below the
+       * plan — the Director call, the identity lock, the marks rule, the subject
+       * pin, the budget reservation, the per-take cost rows, the slot-per-take
+       * history — is already correct and already walked, and a second route
+       * would be a second copy of it to keep in agreement. So a beat is simply
+       * a two-take plan whose ids are its own slot family.
+       */
+      const requestedBeat = (req.body as { beat?: unknown } | undefined)?.beat;
+      const beat = typeof requestedBeat === "number" && Number.isInteger(requestedBeat) ? requestedBeat : null;
+      const steering = typeof (req.body as { steering?: unknown } | undefined)?.steering === "string"
+        ? ((req.body as { steering?: string }).steering ?? "").slice(0, 400)
+        : null;
+
+      if (beat !== null) {
+        // Refused BEFORE the reservation, and by name. A beat that is not on the
+        // shot list would otherwise generate two images of nothing in
+        // particular and bill for them.
+        if (shape !== "sequence") {
+          res.status(400).json({
+            error: "This post is one picture, not a sequence, so it has no beats. Nothing was charged.",
+          });
+          return;
+        }
+        const shot = shots.find(sh => sh.n === beat);
+        if (!shot) {
+          res.status(400).json({
+            error: `This story has ${shots.length} shot${shots.length === 1 ? "" : "s"}, so there is no beat ${beat}. Nothing was charged.`,
+          });
+          return;
+        }
+      }
+
       // The size the run banner quoted (doc 41 item 12); same normalisation as
       // the plan, so the price shown and the price charged agree.
       const requestedSize = (req.body as { spreadSize?: unknown } | undefined)?.spreadSize;
-      const fullPlan = buildExplorePlan({
-        intent: intent ?? "awareness",
-        perImageUsd,
-        spreadSize: requestedSize !== undefined && requestedSize !== null
-          ? normaliseSpreadSize(requestedSize)
-          : await configuredSpreadSize(),
-      });
+      const fullPlan = beat !== null
+        ? buildBeatPlan({
+            beat,
+            text: shots.find(sh => sh.n === beat)!.text,
+            totalBeats: shots.length,
+            steering,
+            perImageUsd,
+          })
+        : buildExplorePlan({
+            intent: intent ?? "awareness",
+            perImageUsd,
+            spreadSize: requestedSize !== undefined && requestedSize !== null
+              ? normaliseSpreadSize(requestedSize)
+              : await configuredSpreadSize(),
+          });
 
       /*
        * Debug override: run a subset of the spread.
