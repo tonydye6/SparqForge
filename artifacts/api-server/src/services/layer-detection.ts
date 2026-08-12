@@ -296,6 +296,36 @@ export function layerScopeSentence(layerName: string, where: string, instruction
 }
 
 /**
+ * Does the decomposition survive this edit?
+ *
+ * Found by walking 5c: a layer edit makes a new take, `take_layers` hangs off a
+ * take, so changing the mark silently cost the whole decomposition and the
+ * panel went back to "not located". Changing two layers would have meant paying
+ * for detection twice, and the second detection would have been buying
+ * information nobody had invalidated.
+ *
+ * The drift report already answers it. An edit scoped to ONE layer that came
+ * back CLEAN is measured proof that nothing outside that layer's area moved —
+ * so every other layer's geometry is still exactly as true as it was a moment
+ * ago, and the edited layer's own box still contains it by construction.
+ *
+ * Refused in the three cases where the claim cannot be made: a whole-image
+ * refine (the picture changed everywhere by design), a drift the measurement
+ * could not produce (unmeasured is not clean), and a drift that came back
+ * notable or repainted (the model went outside the lines, so the boxes are
+ * suspect and a re-detect is the honest answer).
+ */
+export function shouldCarryLayers(
+  wasLayerScoped: boolean,
+  driftPercent: number | null,
+  driftTolerance: number,
+): boolean {
+  if (!wasLayerScoped) return false;
+  if (driftPercent === null) return false;
+  return driftPercent <= driftTolerance;
+}
+
+/**
  * The sentence the panel shows after a decomposition.
  *
  * Assembled here so the count, the attribution and the broad-box caveat cannot
