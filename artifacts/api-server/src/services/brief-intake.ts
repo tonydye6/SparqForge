@@ -198,6 +198,109 @@ export function buildDerivedRows(input: DerivationInput): DerivedRow[] {
   return rows;
 }
 
+/* ------------------------------------------------------------------------- *
+ * The story path · step 4a · the shot list.
+ *
+ * Tony's race example broke the take-pool framing (doc 42): a spread is
+ * variations of ONE moment, and a story is DIFFERENT moments. So a brief that
+ * narrates gets a SHOT LIST — one row per moment, derived here and editable
+ * before anything is generated or paid for.
+ *
+ * The rules mirror the questions' rules above, deliberately:
+ *
+ *   1. A SHOT IS A MOMENT, NOT A COMPOSITION. Two shots that describe the same
+ *      instant are a spread, and the spread already exists.
+ *   2. ONE SHOT IS NOT A STORY. Below two moments there is nothing to sequence,
+ *      so the sequence is not suggested — the brief is one picture.
+ *   3. MALFORMED ROWS ARE DROPPED, NEVER REPAIRED. Inventing the text of a shot
+ *      would attribute a moment to the brief that nobody wrote, and the user is
+ *      about to pay per beat.
+ *   4. THE SUGGESTION IS NEVER THE DECISION. This returns whether the brief
+ *      reads as a story; the person chooses. A derived shot list on a post
+ *      somebody wanted as one picture costs nothing, because nothing runs until
+ *      they say so.
+ * ------------------------------------------------------------------------- */
+
+export interface Shot {
+  /** 1-based, assigned here so no caller can produce a shot 0. */
+  n: number;
+  /** The moment, in the brief's own terms. */
+  text: string;
+  /** Who wrote this row. An edited row is the user's. */
+  provenance: Provenance;
+}
+
+/**
+ * Hard ceiling on shots.
+ *
+ * Six is already ~$0.50 of preview takes plus six clips before a word of copy;
+ * past that this is a film rather than a post, and the honest place to say so
+ * is the cap rather than an invoice.
+ */
+export const MAX_SHOTS = 6;
+
+/** Below this a brief is one moment, however it is phrased. See rule 2. */
+export const MIN_SHOTS_FOR_STORY = 2;
+
+/** How long one shot's description may be before it stops being a shot. */
+const MAX_SHOT_CHARS = 180;
+
+/**
+ * Normalise whatever the model returned into shots, or into nothing.
+ *
+ * Deduplicated case-insensitively: a model asked for moments will sometimes
+ * return the same beat twice in different words, and paying twice to generate
+ * one moment is exactly the failure the shot list exists to prevent.
+ */
+export function normalizeShots(raw: unknown): Shot[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Shot[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    const text =
+      typeof item === "string"
+        ? item.trim()
+        : item && typeof item === "object" && typeof (item as { text?: unknown }).text === "string"
+          ? (item as { text: string }).text.trim()
+          : "";
+    if (!text) continue;
+
+    const key = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      n: out.length + 1,
+      text: text.length > MAX_SHOT_CHARS ? `${text.slice(0, MAX_SHOT_CHARS - 3)}...` : text,
+      provenance: "inferred",
+    });
+    if (out.length === MAX_SHOTS) break;
+  }
+
+  return out;
+}
+
+/** Does this brief read as a story? A suggestion, never a decision. */
+export function readsAsStory(shots: readonly Shot[]): boolean {
+  return shots.length >= MIN_SHOTS_FOR_STORY;
+}
+
+/**
+ * Renumber after an edit, a delete or a reorder.
+ *
+ * Positions are the whole ordering model here, exactly as they are for sequence
+ * clips, so a list is never allowed to carry a gap or a duplicate: "beat 2"
+ * has to mean one thing, and the slot families the storyboard generates from
+ * (`beat1__a`…) are named off these numbers.
+ */
+export function renumberShots(shots: readonly Shot[]): Shot[] {
+  return shots
+    .filter(s => s.text.trim().length > 0)
+    .slice(0, MAX_SHOTS)
+    .map((s, i) => ({ ...s, n: i + 1 }));
+}
+
 /** Hard ceiling on questions. Past this it stops being an interview. */
 export const MAX_QUESTIONS = 3;
 

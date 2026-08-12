@@ -76,10 +76,28 @@ interface OpenQuestion {
   assumption: string;
 }
 
+/**
+ * One MOMENT of the post, not one framing of it (the story path, step 4a).
+ *
+ * Tony's race example is the distinction: a spread is variations of one moment,
+ * a story is different moments. The rows are derived and then yours — editing
+ * one flips its label exactly as it does for every other derived row.
+ */
+interface Shot {
+  n: number;
+  text: string;
+  provenance: Provenance;
+}
+
+/** One picture, or several. The brief suggests; the person decides. */
+type PostShape = "single" | "sequence";
+
 interface IntakeResponse {
   intent: { id: string; label: string; confidence: number; reasoning: string | null } | null;
   derived: DerivedRow[];
   questions: OpenQuestion[];
+  shots?: Shot[];
+  readsAsStory?: boolean;
   degraded: boolean;
   degradedReason?: string;
 }
@@ -97,6 +115,13 @@ const DEBOUNCE_MS = 800;
 
 const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 
+/** Mirrors the server's cap. Past this it is a film, not a post. */
+const MAX_SHOTS = 6;
+
+/** Contiguous from 1, always — the storyboard's slot families are named off these. */
+const renumber = (shots: Shot[]): Shot[] =>
+  shots.filter((s) => s.text.trim() || s.provenance === "you").slice(0, MAX_SHOTS).map((s, i) => ({ ...s, n: i + 1 }));
+
 export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: BriefStageProps) {
   const [line, setLine] = useState("");
   const [saving, setSaving] = useState(false);
@@ -113,6 +138,23 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
   const [derivedFrom, setDerivedFrom] = useState("");
 
   const [editingKey, setEditingKey] = useState<string | null>(null);
+
+  /*
+   * The story path (step 4a). `shape` is the DECISION and `suggested` is only
+   * what the brief was read as — kept apart so a re-derivation can update the
+   * suggestion without ever overriding a choice somebody made.
+   */
+  const [shape, setShape] = useState<PostShape>("single");
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [suggested, setSuggested] = useState(false);
+  const [dragging, setDragging] = useState<number | null>(null);
+  /*
+   * A REF, not state, and the reason is money: `derive` closes over this, so as
+   * state it would land in the callback's deps, rebuild the callback, re-run the
+   * debounce effect and fire a fresh billed Sonnet call every time somebody
+   * pressed the toggle. Nothing about choosing a shape should cost anything.
+   */
+  const shapeChosenRef = useRef(false);
 
   // ---- @ mentions (shared machinery; see ./mentions) ---------------------
   const m = useMentions(brandId);
@@ -143,6 +185,15 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
         setDerived(data.derived ?? []);
         setQuestions(data.questions ?? []);
         setIntentId(data.intent?.id ?? null);
+        /*
+         * A derived shot list never overwrites shots somebody has edited, and
+         * the suggestion never overrides a chosen shape. Re-deriving after a
+         * typo must not silently rewrite the story a person just authored.
+         */
+        const derivedShots = data.shots ?? [];
+        setSuggested(Boolean(data.readsAsStory));
+        setShots((current) => (current.some((s) => s.provenance === "you") ? current : derivedShots));
+        if (!shapeChosenRef.current) setShape(data.readsAsStory ? "sequence" : "single");
         setDegraded(data.degraded ? (data.degradedReason ?? "Only the brand record is shown.") : null);
         setDerivedFrom(text);
       } catch (err) {
@@ -216,6 +267,16 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
         }
         if (typeof payload.intentId === "string") setIntentId(payload.intentId);
         if (Array.isArray(payload.derived)) setDerived(payload.derived as DerivedRow[]);
+        /*
+         * A saved shape is a decision, so restoring it marks the choice as made
+         * — otherwise the next derivation would quietly move a post somebody
+         * had already decided was one picture.
+         */
+        if (payload.shape === "sequence" || payload.shape === "single") {
+          setShape(payload.shape);
+          shapeChosenRef.current = true;
+        }
+        if (Array.isArray(payload.shots)) setShots(renumber(payload.shots as Shot[]));
         if (Array.isArray(payload.mentions)) {
           m.setMentions(
             (payload.mentions as Mention[]).filter(
@@ -247,6 +308,47 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
     );
     setSaved(false);
   }
+
+  /* ---- the shot list's edits. Every one of them is free. ---- */
+
+  function chooseShape(next: PostShape) {
+    if (locked) return;
+    shapeChosenRef.current = true;
+    setShape(next);
+    setSaved(false);
+  }
+
+  function editShot(n: number, text: string) {
+    setShots((rows) => rows.map((s) => (s.n === n ? { ...s, text, provenance: "you" } : s)));
+    setSaved(false);
+  }
+
+  function addShot() {
+    setShots((rows) => (rows.length >= MAX_SHOTS ? rows : renumber([...rows, { n: rows.length + 1, text: "", provenance: "you" }])));
+    setSaved(false);
+  }
+
+  function removeShot(n: number) {
+    setShots((rows) => renumber(rows.filter((s) => s.n !== n)));
+    setSaved(false);
+  }
+
+  /** Drop `dragging` in front of `targetN`. The whole order is rewritten. */
+  function dropShot(targetN: number) {
+    if (dragging === null || dragging === targetN) return;
+    setShots((rows) => {
+      const moved = rows.find((s) => s.n === dragging);
+      if (!moved) return rows;
+      const rest = rows.filter((s) => s.n !== dragging);
+      const at = rest.findIndex((s) => s.n === targetN);
+      rest.splice(at < 0 ? rest.length : at, 0, moved);
+      return renumber(rest);
+    });
+    setDragging(null);
+    setSaved(false);
+  }
+
+  const usableShots = shots.filter((s) => s.text.trim().length > 0);
 
   const yourWords = wordCount(line);
   // The gap the user is entitled to see: their words versus everything the
@@ -315,6 +417,16 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
             answers: questions
               .filter((q) => answers[q.id])
               .map((q) => ({ id: q.id, question: q.question, answer: answers[q.id] })),
+            /*
+             * The story path's decision and its shots. `shape` is what stage 03
+             * reads to know whether to plan a spread of one moment or a
+             * storyboard of several; empty rows are never saved, so an
+             * abandoned "+ Add a shot" cannot become a beat somebody pays for.
+             */
+            shape: usableShots.length >= 2 ? shape : "single",
+            shots: shape === "sequence"
+              ? renumber(usableShots).map((s) => ({ n: s.n, text: s.text.trim(), provenance: s.provenance }))
+              : [],
           },
           // The brief consumes nothing. Recording that truthfully is what makes
           // it unstaleable, which is the whole copy-led mechanism.
@@ -520,6 +632,122 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
               </p>
             )}
           </div>
+        </div>
+      )}
+
+      {/*
+        The story choice, and the shot list behind it (step 4a).
+        A shot is a MOMENT, not a framing — the spread already handles framings.
+        Every edit here is free; nothing runs until stage 03.
+      */}
+      {(derived.length > 0 || shots.length > 0) && (
+        <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3" data-testid="story-shape">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">This post is</span>
+            {([
+              ["single", "One picture"],
+              ["sequence", "A sequence of shots"],
+            ] as Array<[PostShape, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => chooseShape(key)}
+                disabled={locked}
+                aria-pressed={shape === key}
+                className={cn(
+                  "rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em] hover-elevate disabled:opacity-50",
+                  shape === key
+                    ? "border-grit-teal bg-grit-teal/15 text-cyber-teal"
+                    : "border-border text-muted-foreground",
+                )}
+                data-testid={`button-shape-${key}`}
+              >
+                {label}
+              </button>
+            ))}
+            <div className="flex-1" />
+            {suggested && (
+              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+                suggested {"·"} your line describes more than one moment
+              </span>
+            )}
+          </div>
+
+          {shape === "sequence" && (
+            <div className="mt-2.5 space-y-1.5">
+              <p className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-victory-gold">
+                Shot list {"·"} derived, yours to edit
+              </p>
+
+              {shots.length === 0 && (
+                <p className="text-[11.5px] leading-relaxed text-dim">
+                  Your line reads as one moment, so there is nothing to sequence yet. Add the shots by hand,
+                  or say more about what happens.
+                </p>
+              )}
+
+              {shots.map((s) => (
+                <div
+                  key={s.n}
+                  draggable={!locked}
+                  onDragStart={() => setDragging(s.n)}
+                  onDragEnd={() => setDragging(null)}
+                  onDragOver={(e) => { if (!locked) e.preventDefault(); }}
+                  onDrop={(e) => { e.preventDefault(); dropShot(s.n); }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-sm border bg-raised px-2 py-1.5",
+                    dragging === s.n ? "border-grit-teal opacity-50" : "border-border",
+                    locked ? "" : "cursor-grab active:cursor-grabbing",
+                  )}
+                  data-testid={`row-shot-${s.n}`}
+                >
+                  <span className="font-mono text-[8.5px] text-victory-gold" data-numeric>{s.n}</span>
+                  <input
+                    value={s.text}
+                    onChange={(e) => editShot(s.n, e.target.value)}
+                    disabled={locked}
+                    placeholder="what happens at this moment"
+                    aria-label={`Shot ${s.n}`}
+                    className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[11.5px] text-foreground outline-none placeholder:text-dim disabled:opacity-70"
+                  />
+                  <span
+                    className={cn(
+                      "whitespace-nowrap rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em]",
+                      PROVENANCE_STYLES[s.provenance].cls,
+                    )}
+                  >
+                    {PROVENANCE_STYLES[s.provenance].label}
+                  </span>
+                  {!locked && (
+                    <button
+                      onClick={() => removeShot(s.n)}
+                      aria-label={`Remove shot ${s.n}`}
+                      className="font-mono text-[10px] text-dim hover:text-rebel-pink"
+                    >
+                      {"×"}
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {!locked && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <button
+                    onClick={addShot}
+                    disabled={shots.length >= MAX_SHOTS}
+                    className="rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                    data-testid="button-add-shot"
+                  >
+                    + Add a shot
+                  </button>
+                  <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                    {usableShots.length < 2
+                      ? `two moments make a sequence · ${usableShots.length} so far`
+                      : `${usableShots.length} moments · each one generates and animates on its own`}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

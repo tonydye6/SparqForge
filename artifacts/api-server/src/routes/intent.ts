@@ -14,7 +14,10 @@ import {
   deriveChannels,
   deriveMustNot,
   normalizeQuestions,
+  normalizeShots,
+  readsAsStory,
   MAX_QUESTIONS,
+  MAX_SHOTS,
   type DerivedRow,
 } from "../services/brief-intake.js";
 
@@ -139,6 +142,13 @@ const IntakeSchema = z.object({
   // normalizeQuestions, not here, so a prompt regression cannot smuggle a
   // question through without a stated default.
   questions: z.array(z.unknown()).max(8).default([]),
+  /*
+   * The moments this brief describes, if it describes more than one. Shape only
+   * again: the dedupe, the cap and the "one moment is not a story" rule live in
+   * normalizeShots, so a chattier prompt cannot turn one moment into a
+   * three-beat bill.
+   */
+  shots: z.array(z.unknown()).max(12).default([]),
 });
 
 router.post(
@@ -204,12 +214,20 @@ Rules for the questions, all mandatory:
 - Each question needs 2 to 4 short concrete options.
 - Each question MUST include "assumption": what you will assume if the question is ignored, written as a sentence fragment continuing "Skip and I assume ...". A question without a real assumption will be discarded, so write one you would genuinely act on.
 - Fewer, sharper questions beat more. Zero is a valid answer if the brief is already clear.
+
+JOB 3. Decide whether this brief describes ONE MOMENT or SEVERAL, and if several, list them.
+
+- A "shot" is a distinct MOMENT IN TIME, not a different framing of one moment. "Wide shot of the win" and "close-up of the win" are ONE moment; "the start", "mid-race" and "the win" are three.
+- Return shots ONLY when the brief genuinely narrates more than one moment — a beginning and an end, a before and after, a sequence of events. A single scene, however richly described, is one moment.
+- If it is one moment, return an empty array. That is the common and correct answer.
+- At most ${MAX_SHOTS} shots, in the order they happen.
+- Each shot is one short line describing what is happening at that moment, in the brief's own terms. Do not invent story the brief does not imply.
 ${brandLine}
 
 The creator's brief: "${briefText.trim()}"
 
 Respond with ONLY JSON, no markdown and no code fence:
-{"intent": string, "confidence": number, "alternates": [{"intent": string, "confidence": number}], "reasoning": string, "questions": [{"id": string, "question": string, "options": [string], "assumption": string}]}`,
+{"intent": string, "confidence": number, "alternates": [{"intent": string, "confidence": number}], "reasoning": string, "questions": [{"id": string, "question": string, "options": [string], "assumption": string}], "shots": [{"text": string}]}`,
           },
         ],
       });
@@ -244,15 +262,18 @@ Respond with ONLY JSON, no markdown and no code fence:
           intent: null,
           derived: brandOnlyRows(),
           questions: [],
+          shots: [],
+          readsAsStory: false,
           degraded: true,
           degradedReason: "The goal could not be inferred, so only the brand record is shown.",
         });
         return;
       }
 
-      const { intent, confidence, alternates, reasoning, questions } = parsed.data;
+      const { intent, confidence, alternates, reasoning, questions, shots } = parsed.data;
       const ranked = alternates.filter(a => a.intent !== intent);
       const runnerUp = ranked.length > 0 ? ranked[0] : null;
+      const shotList = normalizeShots(shots);
 
       res.json({
         intent: {
@@ -270,6 +291,14 @@ Respond with ONLY JSON, no markdown and no code fence:
           brand: brandConstraints,
         }),
         questions: normalizeQuestions(questions),
+        /*
+         * The story path's suggestion (step 4a). `shots` is what the brief was
+         * read as narrating; `readsAsStory` is whether that is enough to be
+         * worth offering. The client SUGGESTS and the person decides — a
+         * derived shot list costs nothing until a beat is run.
+         */
+        shots: shotList,
+        readsAsStory: readsAsStory(shotList),
         degraded: false,
       });
     } catch {
@@ -277,6 +306,8 @@ Respond with ONLY JSON, no markdown and no code fence:
         intent: null,
         derived: brandOnlyRows(),
         questions: [],
+        shots: [],
+        readsAsStory: false,
         degraded: true,
         degradedReason: "The goal could not be inferred, so only the brand record is shown.",
       });
