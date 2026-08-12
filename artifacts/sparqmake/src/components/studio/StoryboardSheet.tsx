@@ -378,7 +378,9 @@ export function StoryboardSheet({
                         </p>
                       )}
                     </>
-                  ) : locked ? null : (
+                  ) : null}
+
+                  {!locked && (
                     <>
                       {beat.n > 1 && (
                         <button
@@ -418,7 +420,9 @@ export function StoryboardSheet({
                       >
                         {animating === beat.n
                           ? <Loader2 size={9} className="mx-auto animate-spin" />
-                          : <>Animate this shot {"·"} per second</>}
+                          : beat.clip
+                            ? <>Animate again {"·"} replaces this shot</>
+                            : <>Animate this shot {"·"} per second</>}
                       </button>
                     </>
                   )}
