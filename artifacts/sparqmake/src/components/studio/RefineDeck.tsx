@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 import { apiFetch, cn } from "@/lib/utils";
+import { LayerPanel } from "@/components/studio/LayerPanel";
 import { RegionEditor } from "@/components/studio/RegionEditor";
 import { MentionChips, MentionPickerList, reconcile, useMentions, type AssetOption } from "@/components/studio/mentions";
 
@@ -289,53 +290,63 @@ export function RefineDeck({
             )}
           </div>
 
-          {/* The deck. Every take for this slot, newest first. */}
-          <div className="space-y-1.5">
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
-              History · {history.length}
-            </p>
-            {history.map((t) => {
-              const p = payloadOf(t);
-              const isCurrent = t.id === current?.id;
-              return (
-                <div
-                  key={t.id}
-                  className={cn(
-                    "flex items-center gap-2 rounded-sm border p-1.5",
-                    isCurrent ? "border-grit-teal bg-grit-teal/5" : "border-border/60",
-                  )}
-                >
-                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-border/60">
-                    {p.imageUrl && <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />}
+          {/* The inspector: what this take is made of, then how it got here. */}
+          <div className="space-y-4">
+            <LayerPanel
+              creativeId={creativeId}
+              stageId={stageId}
+              slotKey={slotKey}
+              revision={history.length}
+            />
+
+            {/* The deck. Every take for this slot, newest first. */}
+            <div className="space-y-1.5">
+              <p className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
+                History · {history.length}
+              </p>
+              {history.map((t) => {
+                const p = payloadOf(t);
+                const isCurrent = t.id === current?.id;
+                return (
+                  <div
+                    key={t.id}
+                    className={cn(
+                      "flex items-center gap-2 rounded-sm border p-1.5",
+                      isCurrent ? "border-grit-teal bg-grit-teal/5" : "border-border/60",
+                    )}
+                  >
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-sm border border-border/60">
+                      {p.imageUrl && <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                        Take {t.takeIndex + 1}
+                      </p>
+                      <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                        {p.instruction ?? t.origin.replace(/_/g, " ")}
+                      </p>
+                    </div>
+                    {isCurrent ? (
+                      <span className="shrink-0 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal">
+                        In use
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => restore(t.id)}
+                        disabled={busy || locked}
+                        className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                      >
+                        Use
+                      </button>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground">
-                      Take {t.takeIndex + 1}
-                    </p>
-                    <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
-                      {p.instruction ?? t.origin.replace(/_/g, " ")}
-                    </p>
-                  </div>
-                  {isCurrent ? (
-                    <span className="shrink-0 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal">
-                      In use
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => restore(t.id)}
-                      disabled={busy || locked}
-                      className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
-                    >
-                      Use
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            <p className="pt-1 text-[10.5px] leading-relaxed text-dim">
-              Nothing here is deleted. Putting an earlier take back in use changes what the later stages
-              read, and leaves the rest of the history where it is.
-            </p>
+                );
+              })}
+              <p className="pt-1 text-[10.5px] leading-relaxed text-dim">
+                Nothing here is deleted. Putting an earlier take back in use changes what the later stages
+                read, and leaves the rest of the history where it is.
+              </p>
+            </div>
           </div>
         </div>
       )}
