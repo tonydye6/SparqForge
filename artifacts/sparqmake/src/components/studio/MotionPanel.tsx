@@ -37,6 +37,16 @@ interface MotionTake {
   durationSeconds?: number;
   /** What the clip actually cost, written by the server at billing time. */
   costUsd?: number;
+  /**
+   * Set when this take is a RENDERED CUT rather than one animated still.
+   *
+   * The cut takes this slot deliberately — it is the one thing ship reads for
+   * a clip — but only one of them can ship, so the tab has to say which one is
+   * sitting here. Calling a three-shot cut "a 6s clip" and offering "Animate
+   * again" beside it would let somebody replace a whole sequence by pressing
+   * the obvious button.
+   */
+  cut?: { sequenceId: string; shots: number } | null;
 }
 
 export function MotionPanel({
@@ -210,8 +220,12 @@ export function MotionPanel({
           />
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-[11.5px] leading-relaxed text-muted-foreground">
-              {motionTake.durationSeconds ? `${motionTake.durationSeconds}s clip` : "Clip"}
-              {typeof motionTake.costUsd === "number" ? ` ${"·"} $${motionTake.costUsd.toFixed(2)}` : ""}
+              {motionTake.cut
+                ? `The rendered cut ${"·"} ${motionTake.cut.shots} shot${motionTake.cut.shots === 1 ? "" : "s"}${
+                    motionTake.durationSeconds ? ` ${"·"} ${motionTake.durationSeconds}s` : ""
+                  }`
+                : motionTake.durationSeconds ? `${motionTake.durationSeconds}s clip` : "Clip"}
+              {!motionTake.cut && typeof motionTake.costUsd === "number" ? ` ${"·"} $${motionTake.costUsd.toFixed(2)}` : ""}
               {motionTake.instruction ? ` ${"·"} "${motionTake.instruction}"` : ""}
               {motionIsStale && (
                 <span className="text-victory-gold">
@@ -254,9 +268,11 @@ export function MotionPanel({
               data-testid="input-motion-instruction"
             />
             <div className="mt-1.5 flex items-center gap-2">
-              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
-                Animates the pick {"·"} billed per second of clip
-                {typeof motionTake?.costUsd === "number" && motionTake.durationSeconds
+              <span className={`font-mono text-[8.5px] uppercase tracking-[0.06em] ${motionTake?.cut ? "text-victory-gold" : "text-dim"}`}>
+                {motionTake?.cut
+                  ? `Animating replaces the rendered cut as what ships ${"·"} the cut stays on the Sequence tab`
+                  : "Animates the pick · billed per second of clip"}
+                {!motionTake?.cut && typeof motionTake?.costUsd === "number" && motionTake.durationSeconds
                   ? ` ${"·"} last clip $${motionTake.costUsd.toFixed(2)} (${motionTake.durationSeconds}s)`
                   : ""}
               </span>
@@ -267,7 +283,10 @@ export function MotionPanel({
                 className="rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
                 data-testid="button-motion-convert"
               >
-                {converting ? <Loader2 size={10} className="animate-spin" /> : motionTake?.videoUrl ? "Animate again" : "Animate the pick"}
+                {converting ? <Loader2 size={10} className="animate-spin" />
+                  : motionTake?.cut ? "Animate the pick instead"
+                  : motionTake?.videoUrl ? "Animate again"
+                  : "Animate the pick"}
               </button>
             </div>
             {convertError && (

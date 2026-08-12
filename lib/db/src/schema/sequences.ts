@@ -53,6 +53,20 @@ export const sequencesTable = pgTable("sequences", {
   totalDurationMs: integer("total_duration_ms"),
   renderedUrl: text("rendered_url"),
   renderStatus: text("render_status").$type<RenderStatus>().notNull().default("draft"),
+  /**
+   * What the cut WAS when it rendered (0044).
+   *
+   * Staleness everywhere else in this product is a lineage question, and the
+   * honest answer for a cut is "does the file on disk still match the rows".
+   * Comparing timestamps cannot answer it — a reorder changes no `createdAt`,
+   * and a re-picked still upstream changes no sequence row at all — so the
+   * render stamps a fingerprint of exactly what it consumed (every clip's
+   * source, trim and transition in order; every track's audio, level and duck)
+   * and the read model compares. Any edit changes the string, the cut says
+   * STALE in the same language as every other stage, and nothing ever
+   * re-renders itself behind somebody's back.
+   */
+  renderFingerprint: text("render_fingerprint"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => [

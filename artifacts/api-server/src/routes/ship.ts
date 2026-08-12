@@ -62,8 +62,14 @@ interface Loaded {
   image: ShipImage | null;
   copy: ShipCopy | null;
   crops: ShipCrops | null;
-  /** Stage 03's motion clip, when one exists; stale means it was animated from an earlier pick. */
-  motion: { videoUrl: string; stale: boolean } | null;
+  /**
+   * Stage 03's motion clip, when one exists; stale means it was animated from
+   * an earlier pick. `shots` is set when the clip is a RENDERED CUT rather than
+   * one animated still — the same slot, because a cut takes the motion slot's
+   * place (build step 3), but the preview should not call a three-shot
+   * sequence "a motion clip" when a person is about to publish it.
+   */
+  motion: { videoUrl: string; stale: boolean; shots: number | null } | null;
   existingVariants: Array<{
     id: string;
     platform: string;
@@ -137,7 +143,7 @@ async function load(creativeId: string): Promise<Loaded | null> {
    * it silently is the lineage failure the Motion panel exists to name.
    */
   const motionPayload = currentPayload(takes, idOf("asset"), "motion") as
-    | { videoUrl?: unknown; sourceImageUrl?: unknown }
+    | { videoUrl?: unknown; sourceImageUrl?: unknown; cut?: { shots?: unknown } | null }
     | null;
 
   const existingVariants = await db
@@ -168,6 +174,7 @@ async function load(creativeId: string): Promise<Loaded | null> {
   const stillUrl = typeof imagePayload?.imageUrl === "string" ? imagePayload.imageUrl : null;
   const motionUrl = typeof motionPayload?.videoUrl === "string" ? motionPayload.videoUrl : null;
   const motionSource = typeof motionPayload?.sourceImageUrl === "string" ? motionPayload.sourceImageUrl : null;
+  const motionShots = typeof motionPayload?.cut?.shots === "number" ? motionPayload.cut.shots : null;
 
   return {
     creative,
@@ -178,8 +185,8 @@ async function load(creativeId: string): Promise<Loaded | null> {
     /** The clip that ships with the still, or the reason one did not. */
     motion: motionUrl
       ? motionSource === stillUrl
-        ? { videoUrl: motionUrl, stale: false as const }
-        : { videoUrl: motionUrl, stale: true as const }
+        ? { videoUrl: motionUrl, stale: false as const, shots: motionShots }
+        : { videoUrl: motionUrl, stale: true as const, shots: motionShots }
       : null,
     existingVariants,
     entries,
@@ -199,7 +206,7 @@ function shape(
     focalX: number | null;
     focalY: number | null;
   }> = [],
-  motion: { videoUrl: string; stale: boolean } | null = null,
+  motion: { videoUrl: string; stale: boolean; shots?: number | null } | null = null,
 ) {
   const byPlatform = new Map(existing.map((e) => [e.platform, e]));
   const shipVideoUrl = motion && !motion.stale ? motion.videoUrl : null;
@@ -220,9 +227,17 @@ function shape(
   // along, and the clip that will be left behind because the pick moved on.
   const warnings = [...plan.warnings];
   if (motion && !motion.stale) {
-    warnings.push("A motion clip ships with every channel version, animated from this still.");
+    warnings.push(
+      typeof motion.shots === "number"
+        ? `A rendered cut of ${motion.shots} shot${motion.shots === 1 ? "" : "s"} ships with every channel version.`
+        : "A motion clip ships with every channel version, animated from this still.",
+    );
   } else if (motion?.stale) {
-    warnings.push("A clip exists but was animated from an earlier pick, so it will not ship. Animate the current pick on the Motion tab to carry it.");
+    warnings.push(
+      typeof motion.shots === "number"
+        ? "A rendered cut exists but the pick has moved on since, so it will not ship. Render the cut again on the Sequence tab to carry it."
+        : "A clip exists but was animated from an earlier pick, so it will not ship. Animate the current pick on the Motion tab to carry it.",
+    );
   }
   const variants = plan.variants.map((v) => ({
     platform: v.platform,

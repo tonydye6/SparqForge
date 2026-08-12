@@ -57,6 +57,8 @@ export function SequencePanel({
   takes,
   locked,
   onChanged,
+  /** The stage shell's forward, so a rendered cut is not a dead end. */
+  onContinue,
 }: {
   creativeId: string;
   stageId: string;
@@ -64,6 +66,7 @@ export function SequencePanel({
   takes: StageTake[];
   locked: boolean;
   onChanged: () => void;
+  onContinue?: () => void;
 }) {
   const [sequenceId, setSequenceId] = useState<string | null>(null);
   const [checkedForSequence, setCheckedForSequence] = useState(false);
@@ -89,6 +92,10 @@ export function SequencePanel({
   const [sfxPrompt, setSfxPrompt] = useState("");
   const [sfxAt, setSfxAt] = useState("0");
   const [soundNote, setSoundNote] = useState<string | null>(null);
+
+  /* Step 3: the render. What it did NOT do is kept beside what it produced. */
+  const [rendering, setRendering] = useState(false);
+  const [renderWarnings, setRenderWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     if (!brandId) return;
@@ -251,6 +258,38 @@ export function SequencePanel({
       setError("The shot could not be reached. Nothing was charged.");
     } finally {
       setAnimating(null);
+    }
+  }
+
+  /**
+   * Render the cut.
+   *
+   * Free — it is ffmpeg on the machine already running, not a vendor call — so
+   * there is no price to show and no confirmation to sit through. What it
+   * could not do comes back as warnings and stays on screen beside the result.
+   */
+  async function renderCut() {
+    if (!sequenceId || rendering || locked) return;
+    setRendering(true);
+    setError(null);
+    setRenderWarnings([]);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/sequences/${sequenceId}/render`, { method: "POST" });
+      const body = (await res.json().catch(() => null)) as
+        | { error?: string; warnings?: string[] }
+        | null;
+      if (!res.ok) {
+        setError(body?.error ?? "The cut could not be rendered.");
+        return;
+      }
+      setRenderWarnings(body?.warnings ?? []);
+      await loadTimeline();
+      // The cut takes the motion slot's place, so the stage's takes changed.
+      onChanged();
+    } catch {
+      setError("The render could not be reached. Nothing was published.");
+    } finally {
+      setRendering(false);
     }
   }
 
@@ -599,6 +638,93 @@ export function SequencePanel({
               {soundBusy === "sfx" ? <Loader2 size={9} className="animate-spin" /> : "Add the hit"}
             </button>
           </div>
+        </div>
+      )}
+
+      {/*
+        The exit (build step 3). One line saying what the cut IS and where it
+        stands, one action, and — once it has rendered — the file itself, so
+        nobody has to publish to find out what they made. Every word of the
+        line comes from the server's own status, so the bar cannot claim a
+        state the render endpoint would refuse.
+      */}
+      {data?.cut && (
+        <div className="rounded-sm border border-border bg-card px-3 py-2.5" data-testid="cut-bar">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span
+              className={cn(
+                "size-[7px] shrink-0 rounded-full",
+                data.cut.state === "rendered" ? "bg-cyber-teal"
+                  : data.cut.state === "failed" ? "bg-rebel-pink"
+                  : data.cut.state === "empty" ? "bg-dim"
+                  : "bg-victory-gold",
+              )}
+            />
+            <span className="text-[12px] text-foreground" data-testid="text-cut-summary">
+              {data.cut.summary}
+            </span>
+            <div className="flex-1" />
+
+            {data.cut.state === "rendered" && onContinue && (
+              <button
+                onClick={onContinue}
+                className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                data-testid="button-cut-continue"
+              >
+                Continue {"·"} 04 Copy <ArrowRight size={9} />
+              </button>
+            )}
+
+            {!locked && data.cut.state !== "empty" && (
+              <button
+                onClick={() => void renderCut()}
+                disabled={rendering || data.cut.blocked !== null}
+                className={cn(
+                  "rounded-sm px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate disabled:opacity-40",
+                  data.cut.state === "rendered"
+                    ? "border border-border text-muted-foreground"
+                    : "bg-primary text-primary-foreground",
+                )}
+                data-testid="button-render-cut"
+              >
+                {rendering ? (
+                  <Loader2 size={10} className="animate-spin" />
+                ) : data.cut.state === "rendered" ? (
+                  <>Render again {"·"} free</>
+                ) : data.cut.state === "stale" ? (
+                  <>Render it again {"·"} free</>
+                ) : data.cut.state === "failed" ? (
+                  <>Try again {"·"} free</>
+                ) : (
+                  <>Render the cut {"·"} free</>
+                )}
+              </button>
+            )}
+          </div>
+
+          {data.cut.blocked && (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-rebel-pink">{data.cut.blocked}</p>
+          )}
+
+          {data.cut.renderedUrl && (
+            <div className="mt-2">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video
+                controls
+                src={data.cut.renderedUrl}
+                className="max-h-[360px] rounded-sm border border-border bg-background"
+                data-testid="video-rendered-cut"
+              />
+            </div>
+          )}
+
+          {renderWarnings.length > 0 && (
+            <ul className="mt-2 flex flex-col gap-1">
+              {renderWarnings.map((w, i) => (
+                <li key={i} className="text-[11px] leading-relaxed text-victory-gold">{w}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

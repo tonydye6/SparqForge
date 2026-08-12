@@ -47,6 +47,16 @@ export interface TimelineTrack {
   pending: boolean;
 }
 
+/** Where the cut stands, decided on the server so the bar cannot disagree. */
+export interface TimelineCut {
+  state: "empty" | "unrendered" | "rendering" | "rendered" | "stale" | "failed";
+  summary: string;
+  blocked: string | null;
+  renderedUrl: string | null;
+  totalDurationMs: number;
+  fingerprint: string;
+}
+
 export interface TimelineData {
   clips: TimelineClip[];
   tracks: TimelineTrack[];
@@ -54,6 +64,7 @@ export interface TimelineData {
   /** False when a clip has lost its source. Distinct from having warnings. */
   renderable: boolean;
   warnings: string[];
+  cut?: TimelineCut;
 }
 
 const KIND_LABEL: Record<TimelineTrack["trackKind"], string> = {

@@ -306,7 +306,15 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
       | { imageUrl?: string }
       | undefined;
     const motionPayload = takes.find((t) => t.slotKey === "motion" && t.isCurrent)?.payload as
-      | { videoUrl?: string; sourceImageUrl?: string; instruction?: string | null; durationSeconds?: number; costUsd?: number }
+      | {
+          videoUrl?: string;
+          sourceImageUrl?: string;
+          instruction?: string | null;
+          durationSeconds?: number;
+          costUsd?: number;
+          /** Set when the current motion take is a rendered cut, not one animated still. */
+          cut?: { sequenceId: string; shots: number } | null;
+        }
       | undefined;
     return (
       <div>
@@ -341,6 +349,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
           takes={takes}
           locked={locked}
           onChanged={onChanged}
+          onContinue={onContinue}
         />
       </div>
     );

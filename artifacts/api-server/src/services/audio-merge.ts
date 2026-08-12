@@ -119,6 +119,17 @@ function extensionFor(mimeType: string | undefined): string {
 export async function renderMix(params: {
   videoBuffer: Buffer;
   tracks: readonly MixInput[];
+  /**
+   * The video's real length, in seconds. Pass it.
+   *
+   * **`-shortest` does not mean what the comment below used to claim.** It
+   * ends the output at the shortest MAPPED STREAM, and the mapped audio is the
+   * amix output — so a 6s cut carrying only a 2s voiceover came out 2s long,
+   * silently throwing away four seconds of picture. Nobody would find that
+   * without watching a render. With a duration, the output is held to the
+   * video exactly, which is what "the video decides the length" always meant.
+   */
+  videoDurationSeconds?: number;
 }): Promise<MixResult> {
   const { videoBuffer, tracks } = params;
   if (tracks.length === 0) {
@@ -153,9 +164,15 @@ export async function renderMix(params: {
       "-map", "0:v:0",
       "-map", `[${plan.outputLabel}]`,
       "-c:v", "copy",
-      // The mix runs to the longest track; the OUTPUT is cut to the video, so a
-      // music bed longer than the clip does not extend the post.
-      "-shortest",
+      /*
+       * The mix runs to the longest track; the OUTPUT is held to the video, so
+       * a music bed longer than the cut does not extend the post AND a short
+       * voiceover cannot cut the picture off. `-shortest` only ever managed
+       * the first of those — see the note on `videoDurationSeconds`.
+       */
+      ...(typeof params.videoDurationSeconds === "number" && params.videoDurationSeconds > 0
+        ? ["-t", params.videoDurationSeconds.toFixed(3)]
+        : ["-shortest"]),
       "-y", outputPath,
     );
 
