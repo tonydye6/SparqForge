@@ -36,6 +36,7 @@ import { requireStandardWrite } from "../middleware/auth.js";
 import { checkGenerationEligibility } from "../services/asset-policy.js";
 import { buildSequencePlan, type PlanClip } from "../services/sequence-plan.js";
 import { buildMixPlan, type MixTrack } from "../services/mixer.js";
+import { cutStatus, type CutClip, type CutTrack } from "../services/cut-status.js";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,21 @@ router.get("/sequences/:id", async (req: Request, res: Response): Promise<void> 
     renderable: plan.renderable,
     /** Both layers' refusals, in their own words. */
     warnings: [...plan.warnings, ...mix.warnings],
+    /*
+     * Where the cut stands: what is in it, whether it has rendered, and whether
+     * the rendered file is still what these rows say. Computed here rather than
+     * in the client so the bar, the render endpoint's refusals and the file on
+     * disk cannot tell three different stories (build step 3).
+     */
+    cut: cutStatus({
+      renderStatus: sequence.renderStatus,
+      renderedUrl: sequence.renderedUrl,
+      renderFingerprint: sequence.renderFingerprint,
+      clips: clips as unknown as CutClip[],
+      tracks: tracks as unknown as CutTrack[],
+      renderable: plan.renderable,
+      totalDurationMs: plan.totalDurationMs,
+    }),
   });
 });
 
