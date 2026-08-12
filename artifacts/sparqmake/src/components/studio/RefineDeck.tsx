@@ -36,8 +36,18 @@ export interface StageTake {
 interface TakePayload {
   imageUrl?: string;
   directive?: string;
-  /** What was asked of a refine/region edit — the deck's own transcript. */
-  instruction?: string;
+  /**
+   * What was asked of a refine/region edit — the deck's own transcript.
+   *
+   * Null for a wordless layer MOVE, which is the honest record: the drag said
+   * the whole ask and nobody typed anything. It used to be filled in with
+   * `move the <layer>` so the field could stay required (doc 46 §7.1).
+   */
+  instruction?: string | null;
+  /** The layer a layer-scoped edit was aimed at, so the row can say which. */
+  layerName?: string | null;
+  /** Set when the take was a move, which is what makes a wordless row legible. */
+  movedTo?: { x: number; y: number } | null;
   axisA?: { name: string; label: string };
   axisB?: { name: string; label: string };
   offBrief?: { reason: string } | null;
@@ -133,6 +143,7 @@ export function RefineDeck({
       if (Array.isArray(body?.droppedMentions) && body.droppedMentions.length > 0) setDropped(body.droppedMentions);
       setInstruction("");
       m.setMentions([]);
+      layers.reload();
       onChanged();
     } catch {
       setError("That refinement could not be reached. Nothing was charged.");
@@ -148,7 +159,7 @@ export function RefineDeck({
   const current = history.find((t) => t.isCurrent) ?? history[0] ?? null;
   const currentPayload = current ? payloadOf(current) : {};
 
-  const layers = useTakeLayers(creativeId, stageId, slotKey, history.length);
+  const layers = useTakeLayers(creativeId, stageId, slotKey);
 
   async function post(url: string, body?: unknown) {
     setBusy(true);
@@ -163,6 +174,13 @@ export function RefineDeck({
         setError(b?.error ?? "That did not save.");
         return false;
       }
+      /*
+       * Every mutation on this deck reloads the layers, RESTORE included. A
+       * restore flips which take is current without creating one, so nothing
+       * about the take list changes shape and the panel used to keep drawing the
+       * old take's boxes over a different picture (doc 46 §4).
+       */
+      layers.reload();
       onChanged();
       return true;
     } catch {
@@ -229,6 +247,7 @@ export function RefineDeck({
                 imageUrl={currentPayload.imageUrl}
                 brandId={brandId}
                 layers={layers.located.map((l) => ({ key: l.key, name: l.name, bbox: l.bbox }))}
+                layerEditCostUsd={layers.data?.layerEditCostUsd ?? 0}
                 hoveredLayer={hoveredLayer}
                 selectedLayer={selectedLayer}
                 onHoverLayer={setHoveredLayer}
@@ -353,10 +372,14 @@ export function RefineDeck({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground">
-                        Take {t.takeIndex + 1}
+                        {/* take_index is 1-BASED (stage_takes_index_positive_check),
+                            so this used to label the first take "Take 2". */}
+                        Take {t.takeIndex}
                       </p>
                       <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
-                        {p.instruction ?? t.origin.replace(/_/g, " ")}
+                        {/* A wordless move has no transcript, so say what it was. */}
+                        {p.instruction
+                          ?? (p.movedTo ? `moved ${p.layerName ?? "a layer"}` : t.origin.replace(/_/g, " "))}
                       </p>
                     </div>
                     {isCurrent ? (

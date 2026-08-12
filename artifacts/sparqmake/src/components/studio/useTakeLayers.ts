@@ -17,6 +17,13 @@ import { apiFetch } from "@/lib/utils";
  * lives above both the inspector and the image, because a layer has to be
  * hoverable in the picture as well as listed beside it, and two copies of the
  * same fetch would drift.
+ *
+ * THE TAKE-COUNT KEY IS GONE, not merely supplemented. It survived as a
+ * `revision` parameter beside the nonce, and doc 46 §4 found the hole it left:
+ * RESTORING an earlier take flips `isCurrent` without creating a take, so the
+ * count did not change either, and the panel went on drawing the old take's
+ * boxes on a different picture. Every mutation now calls `reload()`, which is
+ * what this docstring claimed before it was true.
  */
 
 export interface Layer {
@@ -42,6 +49,15 @@ export interface LayersResponse {
   inheritedCount: number;
   locatedCount: number;
   summary: string;
+  /**
+   * The two prices, from the server that charges them.
+   *
+   * Both buttons used to carry hand-typed numbers that were already wrong —
+   * $0.005 against $0.004, $0.13 against $0.134 — and both estimates are
+   * env-overridable, so a typed label cannot stay true (doc 46 §5).
+   */
+  detectCostUsd: number;
+  layerEditCostUsd: number;
 }
 
 /** The layer id behind the read model's `layer:<id>` key, or null for the cast. */
@@ -49,7 +65,7 @@ export function layerIdOf(key: string): string | null {
   return key.startsWith("layer:") ? key.slice("layer:".length) : null;
 }
 
-export function useTakeLayers(creativeId: string, stageId: string, slotKey: string, revision: number) {
+export function useTakeLayers(creativeId: string, stageId: string, slotKey: string) {
   const [data, setData] = useState<LayersResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
@@ -75,7 +91,7 @@ export function useTakeLayers(creativeId: string, stageId: string, slotKey: stri
         if (live) setError("The layers could not be reached.");
       });
     return () => { live = false; };
-  }, [creativeId, stageId, slotKey, revision, nonce]);
+  }, [creativeId, stageId, slotKey, nonce]);
 
   /** Only located layers can be drawn on the image or scoped to. */
   const located = (data?.layers ?? []).filter(

@@ -158,6 +158,28 @@ export function runCases(): Result[] {
     layerName(asset({ id: "s", name: "x.png", franchise: "Crown U", depictedEntities: ["SPARQ GAMES logo"] }), "subject", null)
       === "Crown U Subject",
   );
+  /*
+   * An ELEMENT is not the subject. It used to be named through the subject
+   * branch, so a prop attached as `object` that is neither a mark nor a subject
+   * surfaced as "Crown U Subject" (doc 46 §7.4) — a confident wrong answer in a
+   * feature whose whole premise is that the name can be trusted.
+   */
+  check(
+    "an element with nothing depictable is called an element, never the subject",
+    layerName(asset({ id: "e", name: "prop.png", franchise: "Crown U", depictedEntities: [] }), "element", null)
+      === "Crown U Element",
+    layerName(asset({ id: "e", name: "prop.png", franchise: "Crown U", depictedEntities: [] }), "element", null),
+  );
+  check(
+    "an element that DOES name something depictable uses that name",
+    layerName(asset({ id: "e", name: "prop.png", franchise: "Crown U", depictedEntities: ["tennis racket"] }), "element", null)
+      === "Crown U Tennis Racket",
+    layerName(asset({ id: "e", name: "prop.png", franchise: "Crown U", depictedEntities: ["tennis racket"] }), "element", null),
+  );
+  check(
+    "and an element is never called Base",
+    layerName(asset({ id: "e", name: "prop.png", depictedEntities: [] }), "element", null) !== "Base",
+  );
 
   // ---- the layer list ----
   const layers = castLayers({ cast, assets: [SUBJECT, MARK, BACKDROP, SWATCH], brandName: "Crown U" });

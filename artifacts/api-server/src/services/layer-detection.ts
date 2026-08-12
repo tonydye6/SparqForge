@@ -295,6 +295,73 @@ export function layerScopeSentence(layerName: string, where: string, instruction
     "Everything else in the image, including every other element and the background, stays exactly as it is.";
 }
 
+/**
+ * STRICT MARKS ON THE LAYER PATH — what a layer is CALLED in the prompt.
+ *
+ * `creative-direction.ts:679` states the rule the rest of the app already
+ * obeys: a mark is attached as an image and copied from that image, prose may
+ * refer to it only as "the brand mark in <asset name>", and a mark described in
+ * words is a mark redrawn from words — a trademark violation. The layer path
+ * broke that by putting the mark's NAME in the prompt with no file attached
+ * (doc 46 §1), so the model copied it out of the previous render: a copy of a
+ * copy on every edit, with nothing to snap it back to the authoritative file.
+ *
+ * Fixed by KIND rather than by widening `MARK_WORDS`. `kind === "mark"` is true
+ * whatever the user typed, where a word list is only true when they happened to
+ * mention one — and `MARK_WORDS` is shared with `stripMarkProse`, where adding
+ * the bare word "mark" would start deleting sentences about anyone named Mark.
+ */
+export function layerPromptReference(layer: {
+  name: string;
+  kind: string;
+  markAssetName?: string | null;
+}): string {
+  if (layer.kind === "mark" && layer.markAssetName) return `brand mark in ${layer.markAssetName}`;
+  return layer.name;
+}
+
+/**
+ * The slot description for a mark attached because its LAYER is being edited.
+ *
+ * Deliberately not `slotDescriptionForAsset(asset, "object")`, which ends
+ * "do not redesign, restyle, recolor" — correct when the mark is being placed
+ * in a fresh render, and a direct contradiction of the user's instruction when
+ * the instruction IS "make the mark bronze". This says the same thing where it
+ * matters (the artwork comes from the file, not from the raster) and leaves the
+ * one requested change as the only permitted deviation.
+ */
+export function markLayerSlotDescription(assetName: string): string {
+  return `Brand asset "${assetName}" — the authoritative artwork for the brand mark being changed in ` +
+    "the image above. Take its exact design, letterforms and proportions from THIS file rather than " +
+    "from the image, which is a generation and may already have drifted from it. Apply only the change " +
+    "asked for; in every other respect the mark must match this file.";
+}
+
+/**
+ * Why a layer edit is refused, or null when it may proceed.
+ *
+ * One refusal, and it is the marks rule again. Detection can find a mark that
+ * nothing in the take's record accounts for — a logo on a photographed shirt,
+ * or a mark whose attribution was refused as ambiguous — and there is then no
+ * authoritative artwork to attach. Both alternatives are worse than saying so:
+ * naming it in prose asks the model to redraw a trademark, and letting it copy
+ * from the previous render is the compounding degradation this rule exists to
+ * stop. `@`-mentioning the mark's own file satisfies it, which is why an
+ * attached object reference counts.
+ */
+export function layerEditRefusal(layer: {
+  name: string;
+  kind: string;
+  hasMarkArtwork: boolean;
+}): string | null {
+  if (layer.kind === "mark" && !layer.hasMarkArtwork) {
+    return `${layer.name} is a brand mark and this take has no source file for it, so changing it ` +
+      "would mean redrawing a trademark from a description. Nothing was changed or charged. " +
+      "Attach the mark's own file with @ and try again.";
+  }
+  return null;
+}
+
 /** The smallest box containing both — a move changes pixels in two places. */
 export function unionBox(
   a: { x: number; y: number; w: number; h: number },
@@ -344,24 +411,34 @@ export function layerMoveSentence(layerName: string, fromWhere: string, toWhere:
  * for detection twice, and the second detection would have been buying
  * information nobody had invalidated.
  *
- * The drift report already answers it. An edit scoped to ONE layer that came
- * back CLEAN is measured proof that nothing outside that layer's area moved —
- * so every other layer's geometry is still exactly as true as it was a moment
- * ago, and the edited layer's own box still contains it by construction.
+ * The drift report already answers it. A SCOPED edit that came back CLEAN is
+ * measured proof that nothing outside the scope moved — so every layer outside
+ * it is exactly as true as it was a moment ago, and a layer the edit did reach
+ * is still contained by its own box, because the scope bounds where its pixels
+ * could have gone. A box can go loose; it cannot go wrong.
  *
- * Refused in the three cases where the claim cannot be made: a whole-image
- * refine (the picture changed everywhere by design), a drift the measurement
- * could not produce (unmeasured is not clean), and a drift that came back
- * notable or repainted (the model went outside the lines, so the boxes are
- * suspect and a re-detect is the honest answer).
+ * A HAND-DRAWN BOX NOW CARRIES TOO, which is the fourth gate doc 46 §6 found:
+ * the docstring named three refusals while `!wasLayerScoped` quietly refused a
+ * fourth case, a box edit, and threw away a decomposition the user had paid for.
+ * The containment argument above does not care how the scope was said — drawn or
+ * named, `measureDrift(before, after, region)` measures the same thing — so the
+ * gate now asks only whether there WAS a scope. (Nothing unscoped reaches this
+ * today: refine-edit does not carry at all. The parameter stays because the
+ * invariant is about the scope, not about which route is calling.)
+ *
+ * Refused in three cases: an unscoped edit (the picture may have changed
+ * everywhere), a drift the measurement could not produce (unmeasured is not
+ * clean), and a drift that came back notable or repainted (the model went
+ * outside the lines, so the boxes are suspect and a re-detect is the honest
+ * answer). A move is refused separately, below.
  */
 export function shouldCarryLayers(
-  wasLayerScoped: boolean,
+  wasScoped: boolean,
   driftPercent: number | null,
   driftTolerance: number,
   wasMove = false,
 ): boolean {
-  if (!wasLayerScoped) return false;
+  if (!wasScoped) return false;
   /*
    * A MOVE never carries, however clean the drift. The moved layer is no longer
    * where its row says it is, and how faithfully the model honoured the

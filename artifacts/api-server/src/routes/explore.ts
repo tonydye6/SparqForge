@@ -1,7 +1,7 @@
 import { extractLastFrame } from "../services/cut-render.js";
 import { VEO_MODEL, runVeoVideo } from "../services/veo.js";
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, takeLayersTable, type DesignerPersona } from "@workspace/db";
+import { db, appSettingsTable, assetsTable, brandsTable, costLogsTable, creativesTable, designerPersonasTable, sequenceClipsTable, sequencesTable, stageStatesTable, stageTakesTable, takeLayersTable, type DesignerPersona, type LayerKind } from "@workspace/db";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { AI_MODELS, COPILOT_MODELS, COST_ESTIMATES, DEFAULT_SPREAD_PASS, estimateGeminiTextCost, estimateImagenCost, estimateVideoDurationSeconds, imagePass, type ImagePassType } from "../lib/ai-config.js";
 
@@ -81,7 +81,15 @@ import {
   type DirectedPromptInput,
 } from "../services/explore-direction.js";
 import { normalizeRegion, driftMessage, driftVerdict, DRIFT_TOLERANCE } from "../services/region-edit.js";
-import { layerMoveSentence, layerScopeSentence, shouldCarryLayers, unionBox } from "../services/layer-detection.js";
+import {
+  layerEditRefusal,
+  layerMoveSentence,
+  layerPromptReference,
+  layerScopeSentence,
+  markLayerSlotDescription,
+  shouldCarryLayers,
+  unionBox,
+} from "../services/layer-detection.js";
 import { measureDrift, describeRegion } from "../services/region-drift.js";
 import { runImageInteraction, runVideoInteraction } from "../services/interactions-client.js";
 import { beatPickSlotKey, buildBeatPlan, buildExplorePlan, normaliseSpreadSize } from "../services/explore-plan.js";
@@ -2277,7 +2285,18 @@ const RegionEditBody = z.object({
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
   }).optional(),
-  instruction: z.string().min(1).max(1000),
+  /*
+   * WORDS, when the action needs them. A restyle is nothing without them; a
+   * MOVE needs none — the drag already said the whole ask.
+   *
+   * It was required, so the composer sent `"move the <layer name>"` for a
+   * wordless move (doc 46 §7.1). That put words in the history deck the user
+   * never typed, appended a redundant clause to a prompt where every word costs
+   * fidelity, and — worse after the strict-marks fix above — smuggled a mark's
+   * layer NAME back into the prompt through the one field that is passed
+   * through verbatim.
+   */
+  instruction: z.string().max(1000).optional(),
   // Same shape and same gate as refine-edit: the region editor's composer
   // gained `@` too (doc 41 item 3), and a mention is a mention wherever typed.
   mentions: z
@@ -2299,6 +2318,8 @@ router.post(
     const creativeId = String(req.params.creativeId);
     const stageId = String(req.params.stageId);
     const { slotKey, region: rawRegion, layerId, moveTo, instruction, mentions = [] } = req.body as z.infer<typeof RegionEditBody>;
+    /** What the user actually typed, which for a move may be nothing at all. */
+    const said = (instruction ?? "").trim();
     let reservationId: string | null = null;
 
     try {
@@ -2310,16 +2331,36 @@ router.post(
         res.status(400).json({ error: "Only a layer can be moved, and no layer was named. Nothing was charged." });
         return;
       }
+      // A move is the one action the drag fully describes. Everything else needs
+      // words, and an empty instruction would otherwise buy an image of nothing.
+      if (!moveTo && said.length === 0) {
+        res.status(400).json({ error: "Say what to change. Nothing was charged." });
+        return;
+      }
 
       /*
        * A named layer, when one was picked. Loaded BEFORE anything is reserved,
        * and joined back through the take so a layer id from another post cannot
        * scope an edit here.
        */
-      let layer: { id: string; name: string; bbox: { x: number; y: number; w: number; h: number } } | null = null;
+      let layer: {
+        id: string;
+        name: string;
+        /** WHAT it is, not just what it is called — the marks rule reads this. */
+        kind: LayerKind;
+        /** The authoritative file, when attribution found one. */
+        assetId: string | null;
+        bbox: { x: number; y: number; w: number; h: number };
+      } | null = null;
       if (layerId) {
         const [row] = await db
-          .select({ id: takeLayersTable.id, name: takeLayersTable.name, bbox: takeLayersTable.bbox })
+          .select({
+            id: takeLayersTable.id,
+            name: takeLayersTable.name,
+            kind: takeLayersTable.kind,
+            assetId: takeLayersTable.assetId,
+            bbox: takeLayersTable.bbox,
+          })
           .from(takeLayersTable)
           .innerJoin(stageTakesTable, eq(takeLayersTable.stageTakeId, stageTakesTable.id))
           .where(and(
@@ -2428,6 +2469,56 @@ router.post(
         return true;
       });
 
+      /*
+       * STRICT MARKS ON THE LAYER PATH (doc 46 §1). Resolved BEFORE the budget
+       * is reserved, because the answer can be a refusal.
+       *
+       * A mark layer's own `assetId` IS the authoritative artwork, and until now
+       * this route dropped that column and named the mark in prose instead — so
+       * the model copied it out of the before-image, a copy of a copy every
+       * edit, with nothing to pull it back to the file. An `@`-mentioned object
+       * reference satisfies the same requirement, so it counts.
+       */
+      let markLayerAsset: { id: string; name: string; mimeType: string | null } | null = null;
+      let markLayerBuffer: Buffer | null = null;
+      let markPromptName: string | null = null;
+      if (layer?.kind === "mark") {
+        if (layer.assetId) {
+          const [row] = await db
+            .select({
+              id: assetsTable.id,
+              name: assetsTable.name,
+              fileUrl: assetsTable.fileUrl,
+              mimeType: assetsTable.mimeType,
+            })
+            .from(assetsTable)
+            .where(and(eq(assetsTable.id, layer.assetId), ne(assetsTable.status, "archived")));
+          // Unreadable is the same as absent: a file that cannot be attached
+          // must not license naming the mark in the prompt.
+          const buf = row?.fileUrl ? await readFileByUrl(row.fileUrl) : null;
+          if (row && buf) {
+            markLayerAsset = { id: row.id, name: row.name, mimeType: row.mimeType };
+            markLayerBuffer = buf;
+          }
+        }
+        const mentionedMark = allowed
+          .filter(mn => mn.role === "object")
+          .map(mn => mentionRowById.get(mn.assetId))
+          .find(row => Boolean(row?.fileUrl));
+        const refusal = layerEditRefusal({
+          name: layer.name,
+          kind: layer.kind,
+          hasMarkArtwork: Boolean(markLayerAsset) || Boolean(mentionedMark),
+        });
+        if (refusal) {
+          res.status(422).json({ error: refusal });
+          return;
+        }
+        // The only name the prompt may use. The mentioned file's own name when
+        // that is what will be attached, so prose never falls back to the layer.
+        markPromptName = markLayerAsset?.name ?? mentionedMark?.name ?? null;
+      }
+
       const budget = await reserveBudget(creativeId, estimateImagenCost(1));
       if (!budget.ok) {
         res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
@@ -2464,10 +2555,28 @@ router.post(
       // The id as well as the name: the name is what the rail SHOWS, the id is
       // what makes the mark a cast member the layer list can resolve to a file.
       let autoAttachedMarkId: string | null = null;
-      if (mentionsMark(instruction) && !referenceSlots.some(s => s.slot === "object")) {
+      /*
+       * The mark whose LAYER is being edited, resolved above. Attached first so
+       * the `mentionsMark` fallback below sees an object slot already filled and
+       * does not go looking for a second, worse-matched mark. Recorded as an
+       * auto-attachment because that is exactly what it is — which also keeps
+       * the layer panel's "The real mark file, attached to this render." true
+       * across the edit, since the next take's cast reads these selections.
+       */
+      if (markLayerAsset && markLayerBuffer) {
+        referenceSlots.push({
+          imageBuffer: markLayerBuffer,
+          mimeType: markLayerAsset.mimeType || "image/png",
+          slot: "object",
+          description: markLayerSlotDescription(markLayerAsset.name),
+        });
+        autoAttachedMark = markLayerAsset.name;
+        autoAttachedMarkId = markLayerAsset.id;
+      }
+      if (mentionsMark(said) && !referenceSlots.some(s => s.slot === "object")) {
         const mark = await findBestMarkAsset({
           brandId: creative.brandId,
-          text: instruction,
+          text: said,
           template: creative.templateId ?? null,
         });
         const markBuf = mark?.fileUrl ? await readFileByUrl(mark.fileUrl) : null;
@@ -2488,17 +2597,24 @@ router.post(
        * the geometry has to become words either way — and "the Crown U Mark, a
        * small area in the upper left" tells the model which thing to change,
        * where a rectangle only tells it where to look.
+       *
+       * For a MARK the name is not the layer's, it is the attached file's, per
+       * the rule at `creative-direction.ts:679`: prose may say "the brand mark
+       * in <asset name>" and nothing more.
        */
+      const layerRef = layer
+        ? layerPromptReference({ name: layer.name, kind: layer.kind, markAssetName: markPromptName })
+        : "";
       const scoped = layer && destination
         ? layerMoveSentence(
-            layer.name,
+            layerRef,
             describeRegion({ shape: "box", ...layer.bbox }),
             describeRegion({ shape: "box", ...destination }),
-            instruction,
+            said,
           )
         : layer
-          ? layerScopeSentence(layer.name, describeRegion(region), instruction)
-          : `Change only ${describeRegion(region)}. ${instruction.trim()} Leave the rest of the image exactly as it is.`;
+          ? layerScopeSentence(layerRef, describeRegion(region), said)
+          : `Change only ${describeRegion(region)}. ${said} Leave the rest of the image exactly as it is.`;
       const prompt = wrapEditInstruction(contract, scoped);
 
       const result = await runImageInteraction({
@@ -2542,7 +2658,9 @@ router.post(
             // Which take, not just which picture — same reason as refine-edit:
             // the layer read model walks this to carry the cast across an edit.
             sourceTakeId: current?.id ?? null,
-            instruction: instruction.trim(),
+            // Null rather than invented: a wordless move typed nothing, so the
+            // deck reads the move off `movedTo` instead of quoting words.
+            instruction: said || null,
             region,
             /*
              * Which layer this was scoped to, by id AND by name. The id can go
@@ -2582,12 +2700,17 @@ router.post(
          * second time to re-learn something nothing had invalidated. The drift
          * report is the evidence: clean means measured proof that nothing
          * outside the edited layer's own area moved, so every other box is
-         * still as true as it was. See shouldCarryLayers for the three cases
-         * where that claim cannot be made.
+         * still as true as it was. See shouldCarryLayers for the cases where that
+         * claim cannot be made.
+         *
+         * `true` because every edit on THIS route is scoped — a named layer or a
+         * hand-drawn area, and it refuses above if it has neither. It used to
+         * pass `layer !== null`, which silently threw the decomposition away on a
+         * clean box edit for no stated reason (doc 46 §6).
          */
         if (
           inserted && current?.id &&
-          shouldCarryLayers(layer !== null, drift?.driftPercent ?? null, DRIFT_TOLERANCE, destination !== null)
+          shouldCarryLayers(true, drift?.driftPercent ?? null, DRIFT_TOLERANCE, destination !== null)
         ) {
           const carried = await tx
             .select()

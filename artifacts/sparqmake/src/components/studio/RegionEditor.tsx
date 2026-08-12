@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { apiFetch, cn } from "@/lib/utils";
 import { LayerComposer, type Drift } from "@/components/studio/LayerComposer";
@@ -82,6 +82,8 @@ interface RegionEditorProps {
   namedRegions?: NamedRegion[];
   /** Located layers, drawn on the image and selectable there. */
   layers?: LayerOverlay[];
+  /** What one layer edit or move costs, from the server that charges it. */
+  layerEditCostUsd?: number;
   /** Which layer the inspector is pointing at, so the two views agree. */
   hoveredLayer?: string | null;
   selectedLayer?: string | null;
@@ -128,6 +130,7 @@ export function RegionEditor({
   brandId,
   namedRegions = [],
   layers = [],
+  layerEditCostUsd = 0,
   hoveredLayer = null,
   selectedLayer = null,
   onHoverLayer,
@@ -154,19 +157,50 @@ export function RegionEditor({
    * survives the pointer coming up: the drag says WHERE, and the move is only
    * spent when the attached composer's button is pressed. A drag that committed
    * on release would charge for a generation on a slip of the hand.
+   *
+   * AND IT BELONGS TO THE LAYER IT WAS DRAGGED FROM, which is why it carries
+   * that layer's key and cannot be read against any other one.
+   *
+   * Found by review (doc 46 §2): this was a bare `{x, y}`, so dragging the mark
+   * and then clicking the character handed the character the mark's destination
+   * and "Move it here" charged $0.134 to move the wrong thing to coordinates
+   * chosen for something else. Pointing at a layer must never be a commitment —
+   * doc 40's P0.1, "a mode target is not a pick".
+   *
+   * Tagged AND cleared on selection change, deliberately: the tag makes a
+   * mismatched move unreachable even in the render before the effect runs, and
+   * the clearing stops an abandoned destination resurrecting when the user comes
+   * back to the layer they dragged.
    */
-  const [moveTo, setMoveTo] = useState<{ x: number; y: number } | null>(null);
+  const [moveTo, setMoveTo] = useState<{ layerKey: string; x: number; y: number } | null>(null);
   const [moveGrab, setMoveGrab] = useState<{ dx: number; dy: number } | null>(null);
 
   const selected = layers.find((l) => l.key === selectedLayer) ?? null;
+  /** The pending destination, but only ever for the layer it was dragged from. */
+  const pendingMove = moveTo && selected && moveTo.layerKey === selected.key ? moveTo : null;
   /** Where the selected layer currently sits — its own box, or the drag. */
   const selectedAt = selected
-    ? { x: moveTo?.x ?? selected.bbox.x, y: moveTo?.y ?? selected.bbox.y, w: selected.bbox.w, h: selected.bbox.h }
+    ? {
+        x: pendingMove?.x ?? selected.bbox.x,
+        y: pendingMove?.y ?? selected.bbox.y,
+        w: selected.bbox.w,
+        h: selected.bbox.h,
+      }
     : null;
 
-  function clearSelection() {
+  function forgetPendingMove() {
     setMoveTo(null);
     setMoveGrab(null);
+  }
+
+  // Switching layers is not committing to anything, so the destination goes.
+  useEffect(() => {
+    setMoveTo(null);
+    setMoveGrab(null);
+  }, [selectedLayer]);
+
+  function clearSelection() {
+    forgetPendingMove();
     onSelectLayer?.(null);
   }
 
@@ -220,6 +254,9 @@ export function RegionEditor({
       setRegion(null);
       return;
     }
+    // Drawing an area by hand is a different way of saying where, so a
+    // destination dragged a moment ago is abandoned rather than left pending.
+    forgetPendingMove();
     if (tool === "lasso") {
       setTracing(true);
       setRegion({ shape: "lasso", points: [p] });
@@ -235,6 +272,7 @@ export function RegionEditor({
     if (moveGrab && selected) {
       // Clamped so a layer cannot be dragged out of its own picture.
       setMoveTo({
+        layerKey: selected.key,
         x: Math.min(1 - selected.bbox.w, Math.max(0, p.x - moveGrab.dx)),
         y: Math.min(1 - selected.bbox.h, Math.max(0, p.y - moveGrab.dy)),
       });
@@ -273,7 +311,7 @@ export function RegionEditor({
       setMoveGrab(null);
       // A drag that never really moved is a click, not a relocation.
       setMoveTo((t) => {
-        if (!t || !selected) return null;
+        if (!t || !selected || t.layerKey !== selected.key) return null;
         const shifted = Math.abs(t.x - selected.bbox.x) > MIN_DRAG || Math.abs(t.y - selected.bbox.y) > MIN_DRAG;
         return shifted ? t : null;
       });
@@ -400,7 +438,7 @@ export function RegionEditor({
           */}
         {!region && selected && selectedAt && (
           <>
-            {moveTo && (
+            {pendingMove && (
               /* Where it started, left visible so the move is legible as a move
                  rather than as the element mysteriously appearing elsewhere. */
               <div
@@ -446,9 +484,10 @@ export function RegionEditor({
                     brandId={brandId}
                     layerId={id}
                     layerName={selected.name}
-                    moveTo={moveTo}
+                    moveTo={pendingMove ? { x: pendingMove.x, y: pendingMove.y } : null}
+                    costUsd={layerEditCostUsd}
                     flipped={low}
-                    onCancelMove={() => setMoveTo(null)}
+                    onCancelMove={forgetPendingMove}
                     onDone={(r) => { onLayerEdited?.(r); onEdited(); }}
                     onClose={clearSelection}
                   />
