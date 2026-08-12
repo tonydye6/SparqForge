@@ -30,11 +30,23 @@ interface BeatTake {
   framing: string | null;
 }
 
+interface BeatClip {
+  videoUrl: string;
+  durationSeconds: number | null;
+  costUsd: number | null;
+  engine: string;
+  /** Set when this shot began on the previous beat's final frame. */
+  chainedFrom: string | null;
+  /** Set when a chain was asked for and could not be made, with the reason. */
+  chainRefused: string | null;
+}
+
 interface Beat {
   n: number;
   text: string;
   takes: BeatTake[];
   picked: { slotKey: string; imageUrl: string | null } | null;
+  clip: BeatClip | null;
   locked: boolean;
   empty: boolean;
 }
@@ -47,9 +59,12 @@ interface Storyboard {
   takesPerBeat: number;
   beatCostUsd: number;
   pickedCount: number;
+  animatedCount: number;
   unpickedCount: number;
   unrunCount: number;
   summary: string;
+  /** Which engine rendered the beats — routing disclosed, not chosen from a menu. */
+  renderedBy: string | null;
 }
 
 export function StoryboardSheet({
@@ -72,6 +87,16 @@ export function StoryboardSheet({
   const [picking, setPicking] = useState<string | null>(null);
   const [steering, setSteering] = useState<Record<number, string>>({});
   const [note, setNote] = useState<string | null>(null);
+  /** Which beat is animating. Priced per second, so one at a time. */
+  const [animating, setAnimating] = useState<number | null>(null);
+  /**
+   * Whether each beat starts on the previous shot's final frame.
+   *
+   * On by default for every beat after the first, because continuity is what a
+   * sequence is FOR — a story whose shots do not flow is three posts. Turning it
+   * off is one press and the take records which it did.
+   */
+  const [chain, setChain] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     try {
@@ -135,6 +160,59 @@ export function StoryboardSheet({
       setError("That take could not be used.");
     } finally {
       setPicking(null);
+    }
+  }
+
+  /**
+   * Animate one beat into the cut.
+   *
+   * The clip goes to the post's sequence, so the storyboard and the Sequence tab
+   * are the same cut seen twice rather than two piles of clips. The sequence is
+   * created on first use — a story always ends up needing one.
+   */
+  async function animateBeat(n: number) {
+    if (animating !== null || locked) return;
+    setAnimating(n);
+    setError(null);
+    setNote(null);
+    try {
+      let sequenceId: string | null = null;
+      const listRes = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/sequences`);
+      if (listRes.ok) {
+        const body = (await listRes.json()) as { sequences?: Array<{ id: string }> };
+        sequenceId = body.sequences?.[0]?.id ?? null;
+      }
+      if (!sequenceId) {
+        const madeRes = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/sequences`, { method: "POST" });
+        const made = (await madeRes.json().catch(() => null)) as { sequence?: { id: string } } | null;
+        sequenceId = made?.sequence?.id ?? null;
+      }
+      if (!sequenceId) {
+        setError("The cut this shot belongs to could not be started, so nothing was charged.");
+        return;
+      }
+
+      const res = await apiFetch(`${API_BASE}/api/creatives/${creativeId}/stages/${stageId}/motion-convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          beat: n,
+          sequenceId,
+          chainFromPreviousBeat: n > 1 && (chain[n] ?? true),
+        }),
+      });
+      const out = (await res.json().catch(() => null)) as { error?: string; costUsd?: number } | null;
+      if (!res.ok) {
+        setError(out?.error ?? "That shot could not be animated.");
+        return;
+      }
+      if (typeof out?.costUsd === "number") setNote(`Beat ${n} animated · $${out.costUsd.toFixed(2)}`);
+      await load();
+      onChanged();
+    } catch {
+      setError("That shot could not be animated. Nothing was charged.");
+    } finally {
+      setAnimating(null);
     }
   }
 
@@ -236,9 +314,62 @@ export function StoryboardSheet({
 
             <div className="mt-auto border-t border-border px-2 py-1.5">
               {beat.locked ? (
-                <p className="text-[10.5px] leading-relaxed text-dim">
-                  Locked by your pick. No run touches it.
-                </p>
+                <div className="space-y-1.5">
+                  <p className="text-[10.5px] leading-relaxed text-dim">
+                    Locked by your pick. No run touches it.
+                  </p>
+
+                  {beat.clip ? (
+                    <>
+                      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                      <video
+                        controls
+                        src={beat.clip.videoUrl}
+                        className="w-full rounded-sm border border-border bg-background"
+                        data-testid={`beat-${beat.n}-clip`}
+                      />
+                      <p className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                        {beat.clip.durationSeconds ? `${beat.clip.durationSeconds}s` : "clip"}
+                        {beat.clip.costUsd !== null ? ` ${"·"} $${beat.clip.costUsd.toFixed(2)}` : ""}
+                        {" · "}{beat.clip.engine}
+                        {beat.clip.chainedFrom ? ` ${"·"} starts on beat ${beat.n - 1}'s final frame` : ""}
+                      </p>
+                      {beat.clip.chainRefused && (
+                        <p className="text-[10px] leading-relaxed text-victory-gold">
+                          Did not chain: {beat.clip.chainRefused}.
+                        </p>
+                      )}
+                    </>
+                  ) : locked ? null : (
+                    <>
+                      {beat.n > 1 && (
+                        <button
+                          onClick={() => setChain((c) => ({ ...c, [beat.n]: !(c[beat.n] ?? true) }))}
+                          aria-pressed={chain[beat.n] ?? true}
+                          className={cn(
+                            "w-full rounded-sm border px-1.5 py-1 font-mono text-[8px] uppercase tracking-[0.05em] hover-elevate",
+                            (chain[beat.n] ?? true)
+                              ? "border-grit-teal bg-grit-teal/10 text-cyber-teal"
+                              : "border-border text-muted-foreground",
+                          )}
+                          data-testid={`button-chain-beat-${beat.n}`}
+                        >
+                          Start from beat {beat.n - 1}{"'"}s final frame
+                        </button>
+                      )}
+                      <button
+                        onClick={() => void animateBeat(beat.n)}
+                        disabled={animating !== null}
+                        className="w-full rounded-sm border border-victory-gold/60 px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-victory-gold hover-elevate disabled:opacity-40"
+                        data-testid={`button-animate-beat-${beat.n}`}
+                      >
+                        {animating === beat.n
+                          ? <Loader2 size={9} className="mx-auto animate-spin" />
+                          : <>Animate this shot {"·"} per second</>}
+                      </button>
+                    </>
+                  )}
+                </div>
               ) : locked ? (
                 <p className="text-[10.5px] leading-relaxed text-dim">The stage is locked.</p>
               ) : (
@@ -272,6 +403,11 @@ export function StoryboardSheet({
           {board.summary}
         </span>
         {note && <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal">{note}</span>}
+        {board.renderedBy && (
+          <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+            {board.animatedCount} animated {"·"} rendered by {board.renderedBy}
+          </span>
+        )}
         <div className="flex-1" />
         {!locked && board.unrunCount > 0 && (
           <button

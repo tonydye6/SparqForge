@@ -206,6 +206,43 @@ export async function assembleCut(params: {
   }
 }
 
+/**
+ * The story path · step 4c · the last frame of a clip.
+ *
+ * Frame chaining, and it needs no new model: beat N+1 is seeded with the final
+ * frame of beat N's clip, so the story literally begins where the previous shot
+ * ended. Omni takes a first frame today, which is why this is buildable now and
+ * end-frame PINNING is not (that needs Veo 3.1 — probed, doc 44 §4).
+ *
+ * `sseof` seeks from the end, which is the only reliable way to land on the true
+ * last frame: seeking to `duration - epsilon` depends on knowing the duration
+ * exactly, and a studio clip's stored duration is an estimate. Returns null
+ * rather than throwing, because a chain that cannot be made should fall back to
+ * the beat's own still and SAY so, not lose the animation.
+ */
+export async function extractLastFrame(videoBuffer: Buffer): Promise<Buffer | null> {
+  const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sparqmake-lastframe-"));
+  try {
+    const videoPath = path.join(dir, "in.mp4");
+    const framePath = path.join(dir, "last.png");
+    await fs.promises.writeFile(videoPath, videoBuffer);
+    await execFileAsync("ffmpeg", [
+      // Read only the final second, then keep the last frame of it.
+      "-sseof", "-1",
+      "-i", videoPath,
+      "-update", "1",
+      "-frames:v", "1",
+      "-y", framePath,
+    ], { maxBuffer: 32 * 1024 * 1024 });
+    const buf = await fs.promises.readFile(framePath);
+    return buf.length > 0 ? buf : null;
+  } catch {
+    return null;
+  } finally {
+    await fs.promises.rm(dir, { recursive: true, force: true });
+  }
+}
+
 /** The measured length of a finished buffer, for the row that has to be true. */
 export async function measureDurationMs(videoBuffer: Buffer): Promise<number | null> {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "sparqmake-measure-"));
