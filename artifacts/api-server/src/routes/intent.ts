@@ -6,7 +6,7 @@ import { z } from "zod";
 import { AI_MODELS, estimateClaudeTextCost } from "../lib/ai-config.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { validateRequest } from "../middleware/validate.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 import { extractJSON } from "../lib/extract-json.js";
 import { INTENTS, INTENT_LABELS, INTENT_DESCRIPTIONS, isIntent, intentPromptCatalog, type Intent } from "../lib/intents.js";
 import {
@@ -52,7 +52,7 @@ router.get("/intents", (_req: Request, res: Response): void => {
 
 router.post(
   "/intent-inference",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: InferIntentBody }),
   async (req: Request, res: Response): Promise<void> => {
     const { briefText, brandId } = req.body as z.infer<typeof InferIntentBody>;
@@ -153,7 +153,7 @@ const IntakeSchema = z.object({
 
 router.post(
   "/brief-intake",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: BriefIntakeBody }),
   async (req: Request, res: Response): Promise<void> => {
     const { briefText, brandId } = req.body as z.infer<typeof BriefIntakeBody>;

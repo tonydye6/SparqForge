@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { AI_MODELS } from "../lib/ai-config.js";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 
 // N3 dual-path editing: the structured brand spec can be edited directly OR by
 // telling an agent what to change in natural language. This endpoint takes an
@@ -36,7 +36,7 @@ const router: IRouter = Router();
 
 router.post(
   "/brands/:id/assist",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: AssistBody }),
   async (req: Request, res: Response): Promise<void> => {
     const brandId = req.params.id as string;
@@ -103,7 +103,7 @@ const SeedBody = z.object({
 // Returns a PROPOSAL to review (~80% → confirm/correct), never auto-applied.
 router.post(
   "/brands/:id/seed",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: SeedBody }),
   async (req: Request, res: Response): Promise<void> => {
     const brandId = req.params.id as string;

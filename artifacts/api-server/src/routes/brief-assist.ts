@@ -42,7 +42,7 @@ async function recordAssistCost(operation: string, brandId: string, usage?: { in
     console.error(`Cost row for ${operation} could not be written`, err);
   }
 }
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 import { validateRequest } from "../middleware/validate.js";
 import {
   buildCollabSystem,
@@ -78,7 +78,7 @@ const ImproveBody = z.object({
 
 router.post(
   "/brief-improve",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: ImproveBody }),
   async (req: Request, res: Response): Promise<void> => {
     const { brandId, briefText } = req.body as z.infer<typeof ImproveBody>;
@@ -124,7 +124,7 @@ const CollabBody = z.object({
 
 router.post(
   "/brief-collab",
-  generationLimiter,
+  assistLimiter,
   validateRequest({ body: CollabBody }),
   async (req: Request, res: Response): Promise<void> => {
     const { brandId, personaId, messages } = req.body as z.infer<typeof CollabBody>;

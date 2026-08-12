@@ -63,6 +63,15 @@ NODE_ENV = "production"
 
 [nix]
 channel = "stable-25_05"
+# ffmpeg is DECLARED here so the DEPLOYMENT gets it, not just the workspace.
+# Daniel's first test of the published app hit "This machine has no ffmpeg, so
+# the cut cannot be rendered here." The workspace resolves ffmpeg from
+# `replit-runtime-path` (/nix/store/…-replit-runtime-path/bin/ffmpeg, 6.1.2),
+# which is a workspace convenience and is NOT part of the deployment image, so
+# `ffmpegAvailable()` in services/cut-render.ts was correctly reporting absence.
+# The cut is assembled on the machine running the server, so without this the
+# whole Sequence stage is dead in production.
+packages = ["ffmpeg-full"]
 
 [[ports]]
 localPort = 8080

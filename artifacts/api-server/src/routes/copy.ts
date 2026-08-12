@@ -4,7 +4,7 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
-import { generationLimiter } from "../lib/rate-limit.js";
+import { assistLimiter } from "../lib/rate-limit.js";
 import { nextTakeIndex } from "../services/stage-graph.js";
 import { readFileByUrl } from "../services/reference-images.js";
 import { generateImageFromPrompt, type ReferenceImage } from "../services/imagen.js";
@@ -472,7 +472,7 @@ router.post(
 router.post(
   "/creatives/:creativeId/copy-draft",
   requireStandardWrite,
-  generationLimiter,
+  assistLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
 
