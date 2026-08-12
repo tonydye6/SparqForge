@@ -1,4 +1,12 @@
-const ELEVENLABS_API_KEY = process.env.SparqMake_ElevenLabs_API_Key;
+/*
+ * Both names, new first. The product rename (SparqForge → SparqMake) never
+ * reached the Replit secret, so the code read a key that did not exist and
+ * every ElevenLabs call has failed "not configured" since — found when the
+ * first voice route went live (2026-08-12). The fallback keeps whichever
+ * name the environment actually has.
+ */
+const ELEVENLABS_API_KEY =
+  process.env.SparqMake_ElevenLabs_API_Key ?? process.env.SparqForge_ElevenLabs_API_Key;
 const BASE_URL = "https://api.elevenlabs.io/v1";
 
 export type AudioType = "music" | "sfx";
