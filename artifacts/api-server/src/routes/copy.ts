@@ -15,6 +15,7 @@ import { buildImageAwareCaption } from "../services/session-service.js";
 import { splitTrailingHashtags } from "../services/copy-stage.js";
 import { MAX_SHOTS } from "../services/brief-intake.js";
 import { beatOfPickSlotKey, beatPickSlotKey } from "../services/explore-plan.js";
+import { findVoicePersona, voicePersonaOptions } from "../services/voice-personas.js";
 
 /**
  * Stage 03 → 04 · the handoff, and stage 04 Copy's model call.
@@ -469,12 +470,37 @@ router.post(
  * Drafting is OFFERED, never automatic: typing is stage 04's primary path
  * (§1.12), and this costs a model call.
  */
+/**
+ * The five voices, for the stage 04 picker. Free: no model call, no writes.
+ *
+ * Server-owned like the storyboard's price and the layer list, for the same
+ * reason — a client that assembled this itself would be a second place the
+ * roster could drift. Only the fields the picker shows are sent; the rules,
+ * failure modes and tone anchors are the INSTRUCTION and stay on the server.
+ */
+router.get("/voice-personas", (_req: Request, res: Response): void => {
+  res.json({ data: voicePersonaOptions() });
+});
+
 router.post(
   "/creatives/:creativeId/copy-draft",
   requireStandardWrite,
   assistLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const creativeId = String(req.params.creativeId);
+    /*
+     * WHO IS TALKING, chosen per draft rather than stored on the brand.
+     *
+     * Deliberately not persisted to the creative: the same post's Instagram and
+     * LinkedIn copy can want different voices, and a stored default would make
+     * the choice invisible the next time somebody pressed Draft.
+     */
+    const requestedVoice = (req.body as { voicePersonaId?: unknown } | undefined)?.voicePersonaId;
+    const voicePersonaId = typeof requestedVoice === "string" ? requestedVoice : null;
+    if (voicePersonaId && !findVoicePersona(voicePersonaId)) {
+      res.status(400).json({ error: "That voice is not one of the five. Nothing was drafted or charged." });
+      return;
+    }
 
     try {
       const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
@@ -549,6 +575,7 @@ router.post(
         imageBuffer: buffer,
         imageMimeType: imageUrl.endsWith(".jpeg") || imageUrl.endsWith(".jpg") ? "image/jpeg" : "image/png",
         intent: creative.intent,
+        voicePersonaId,
       });
 
       /*
@@ -586,7 +613,9 @@ router.post(
         }),
       );
 
-      res.json({ drafted, imageUrl });
+      // Named back, so the stage can say which voice wrote this draft rather
+      // than leaving the user to remember what they picked.
+      res.json({ drafted, imageUrl, voicePersona: findVoicePersona(voicePersonaId)?.name ?? null });
     } catch (err) {
       console.error("Failed to draft copy", err);
       res.status(500).json({ error: "The copy could not be drafted. Nothing was saved." });

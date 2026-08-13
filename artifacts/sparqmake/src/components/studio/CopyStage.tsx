@@ -105,6 +105,13 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
   const [channels, setChannels] = useState<Record<string, ChannelState>>({});
   const [banned, setBanned] = useState<string[]>([]);
   const [drafting, setDrafting] = useState(false);
+  /*
+   * WHO IS TALKING. Empty means the brand's own voice, which stays the default:
+   * a persona is a departure you choose, never something applied behind your back.
+   */
+  const [voices, setVoices] = useState<Array<{ id: string; name: string; energy: string; bestFor: string }>>([]);
+  const [voiceId, setVoiceId] = useState<string>("");
+  const [lastVoice, setLastVoice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,12 +185,28 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
     return () => { cancelled = true; };
   }, [creativeId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiFetch(`/api/voice-personas`);
+        const body = await res.json();
+        if (!cancelled && Array.isArray(body?.data)) setVoices(body.data);
+      } catch { /* the picker simply does not appear */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const draft = useCallback(async () => {
     if (locked || drafting) return;
     setDrafting(true);
     setError(null);
     try {
-      const res = await apiFetch(`/api/creatives/${creativeId}/copy-draft`, { method: "POST" });
+      const res = await apiFetch(`/api/creatives/${creativeId}/copy-draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(voiceId ? { voicePersonaId: voiceId } : {}),
+      });
       const body = await res.json();
       if (!res.ok) {
         setError(body?.error ?? "The copy could not be drafted.");
@@ -210,13 +233,14 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
         }
         return next;
       });
+      setLastVoice(typeof body.voicePersona === "string" ? body.voicePersona : null);
       setSaved(false);
     } catch {
       setError("The copy could not be drafted.");
     } finally {
       setDrafting(false);
     }
-  }, [creativeId, locked, drafting, hook, base]);
+  }, [creativeId, locked, drafting, hook, base, voiceId]);
 
   // Fires at most once per open, only when the restore found nothing saved.
   // Waits for the channel list too — walked on the live build: drafting before
@@ -431,6 +455,32 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {saved && <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">Saved</span>}
+          {/*
+            * WHO IS TALKING, chosen per draft. The brand's own voice is the
+            * default and stays selectable, because a persona is a departure you
+            * pick rather than something applied for you. The hint lives on the
+            * option, not as standing text beside the control (doc 38 §3).
+            */}
+          {voices.length > 0 && (
+            <select
+              value={voiceId}
+              onChange={(e) => setVoiceId(e.target.value)}
+              disabled={locked || drafting}
+              aria-label="Which voice writes this draft"
+              className="rounded-sm border border-border bg-card px-2 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-muted-foreground disabled:opacity-50"
+              data-testid="select-voice-persona"
+            >
+              <option value="">Brand voice</option>
+              {voices.map((v) => (
+                <option key={v.id} value={v.id}>{v.name} {"·"} {v.bestFor}</option>
+              ))}
+            </select>
+          )}
+          {lastVoice && !drafting && (
+            <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+              Drafted as {lastVoice}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => void draft()}

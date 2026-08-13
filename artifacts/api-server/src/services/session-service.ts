@@ -41,6 +41,7 @@ import { promisify } from "node:util";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { findVoicePersona, voicePersonaPrompt } from "./voice-personas.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -366,8 +367,10 @@ export async function buildImageAwareCaption(params: {
   existingCaptions?: Partial<CaptionResult>;
   intent?: string | null;
   twoAlternates?: boolean;
+  /** Stage 04's WHO IS TALKING. Shapes tone only; the brand always outranks it. */
+  voicePersonaId?: string | null;
 }): Promise<{ captions: CaptionResult; alternates?: { caption: string; headline: string }[] }> {
-  const { brandId, briefText, imageBuffer, imageMimeType, platform, existingCaptions, intent, twoAlternates } = params;
+  const { brandId, briefText, imageBuffer, imageMimeType, platform, existingCaptions, intent, twoAlternates, voicePersonaId } = params;
   const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, brandId));
   if (!brand) throw new Error("Brand not found");
 
@@ -397,9 +400,22 @@ export async function buildImageAwareCaption(params: {
     return `- ${p}: ${limit || 2200} chars max`;
   }).join("\n");
 
+  /*
+   * The voice persona goes BELOW the brand contract, never above it.
+   *
+   * Ordering is the enforcement. The brand's voice, trademark rules and
+   * never-use list are stated first and the persona fragment then says, in
+   * words, that the brand wins any conflict — otherwise a persona drawn as
+   * "confident, meme-capable" reads as licence to reach for exactly the
+   * vocabulary `bannedTerms` forbids, and nothing tells the model which
+   * instruction outranks the other.
+   */
+  const persona = findVoicePersona(voicePersonaId);
+  const personaSection = persona ? `\n${voicePersonaPrompt(persona)}\n` : "";
+
   const system = `You are a social media copywriter for ${brand.name}.
 VOICE: ${brand.voiceDescription}
-${brand.trademarkRules ? `TRADEMARK RULES:\n${brand.trademarkRules}\n` : ""}${bannedTerms.length > 0 ? `NEVER USE: ${bannedTerms.join(", ")}\n` : ""}${fewShotSection}${hashtagSection}
+${brand.trademarkRules ? `TRADEMARK RULES:\n${brand.trademarkRules}\n` : ""}${bannedTerms.length > 0 ? `NEVER USE: ${bannedTerms.join(", ")}\n` : ""}${fewShotSection}${hashtagSection}${personaSection}
 PLATFORM CHARACTER LIMITS:\n${platformLimits}
 IMPORTANT: Captions must be written AGAINST the actual image content — describe what is shown, not what was briefed. The image is attached.`;
 
