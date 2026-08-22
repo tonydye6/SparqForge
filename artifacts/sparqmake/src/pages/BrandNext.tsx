@@ -77,13 +77,12 @@ export default function BrandNext() {
 
   const { data: assetsData, refetch: refetchAssets } = useGetAssets(activeBrandId ? { brandId: activeBrandId } : undefined);
   const { data: templatesData } = useGetTemplates(activeBrandId ? { brandId: activeBrandId } : undefined);
-  const { data: socialData, refetch: refetchSocial } = useGetSocialAccounts();
+  const { data: socialData } = useGetSocialAccounts();
 
   const list = (brands ?? []) as unknown as BrandSpec[];
   const assets = toArray<{ id: string; name: string; type?: string; status?: string; assetClass?: string | null; thumbnailUrl?: string | null }>(assetsData);
   const templates = toArray<{ id: string; name: string; description?: string | null; totalGenerations?: number; isActive?: boolean }>(templatesData);
-  const accounts = toArray<{ id: string; platform: string; accountName?: string; displayStatus?: string; status?: string; brandId?: string }>(socialData)
-    .filter((a) => !a.brandId || a.brandId === activeBrandId);
+  const accounts = toArray<{ id: string; platform: string; accountName?: string; displayStatus?: string; status?: string; brandId?: string }>(socialData);
 
   // Default to the first brand once the list loads.
   useEffect(() => {

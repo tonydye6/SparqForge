@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { accountPlatformFor, ACCOUNT_PLATFORM_MAP } from "./platform-accounts.js";
+import {
+  accountPlatformFor,
+  ACCOUNT_PLATFORM_MAP,
+  publishingAccountFor,
+  workspaceAccountPlatforms,
+} from "./platform-accounts.js";
 
 describe("accountPlatformFor", () => {
   it("routes both Instagram surfaces to the single instagram account", () => {
@@ -29,5 +34,36 @@ describe("accountPlatformFor", () => {
       "twitter",
       "youtube",
     ]);
+  });
+});
+
+describe("publishingAccountFor", () => {
+  const accounts = [
+    { id: "house-ig", platform: "instagram", brandId: "brand-sparq" },
+    { id: "house-yt", platform: "youtube", brandId: "brand-sparq" },
+    { id: "crown-ig", platform: "instagram", brandId: "brand-crown" },
+  ];
+
+  it("uses a house account for a sub-brand with no account of its own", () => {
+    expect(publishingAccountFor(accounts, "instagram_story", "brand-rumble")?.id).toBe("house-ig");
+  });
+
+  it("prefers a future brand-owned account when one exists", () => {
+    expect(publishingAccountFor(accounts, "instagram_feed", "brand-crown")?.id).toBe("crown-ig");
+  });
+
+  it("returns no account when the workspace cannot publish that platform", () => {
+    expect(publishingAccountFor(accounts, "tiktok", "brand-crown")).toBeUndefined();
+  });
+});
+
+describe("workspaceAccountPlatforms", () => {
+  it("deduplicates and ignores blank account platforms", () => {
+    expect(workspaceAccountPlatforms([
+      { platform: "instagram" },
+      { platform: "instagram" },
+      { platform: " " },
+      { platform: "youtube" },
+    ])).toEqual(["instagram", "youtube"]);
   });
 });

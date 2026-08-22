@@ -8,6 +8,7 @@ import { validateRequest } from "../middleware/validate.js";
 import { logger } from "../lib/logger";
 import { requireDestructive } from "../middleware/auth.js";
 import { recordAudit, actorFromRequest } from "../lib/audit.js";
+import { accountPlatformFor } from "../lib/platform-accounts.js";
 
 const CreateCalendarEntryBody = z.object({
   creativeId: z.string().min(1),
@@ -96,14 +97,18 @@ router.post("/calendar-entries", validateRequest({ body: CreateCalendarEntryBody
   }
 
   if (socialAccountId) {
-    const [account] = await db.select({ id: socialAccountsTable.id, brandId: socialAccountsTable.brandId, platform: socialAccountsTable.platform })
+    const [account] = await db.select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform, status: socialAccountsTable.status })
       .from(socialAccountsTable).where(eq(socialAccountsTable.id, socialAccountId));
     if (!account) {
       res.status(400).json({ error: "Social account not found" });
       return;
     }
-    if (account.brandId && account.brandId !== creative.brandId) {
-      res.status(400).json({ error: "Social account belongs to a different brand than the creative" });
+    if (account.status !== "connected") {
+      res.status(400).json({ error: "Social account is not connected" });
+      return;
+    }
+    if (account.platform !== accountPlatformFor(platform)) {
+      res.status(400).json({ error: `Social account cannot publish ${platform}` });
       return;
     }
   }

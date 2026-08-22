@@ -35,6 +35,7 @@ import {
 } from "@workspace/db";
 import { str } from "../lib/http-params.js";
 import { constraintOf } from "../lib/db-errors.js";
+import { workspaceAccountPlatforms } from "../lib/platform-accounts.js";
 import { recordAudit, actorFromRequest } from "../lib/audit.js";
 import { requireStandardWrite, requireDestructive } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
@@ -67,15 +68,16 @@ async function loadTargets(brandIds: string[]): Promise<Map<string, ReplayTarget
 
   const brands = await db.select().from(brandsTable).where(inArray(brandsTable.id, brandIds));
   const accounts = await db
-    .select({ brandId: socialAccountsTable.brandId, platform: socialAccountsTable.platform })
+    .select({ platform: socialAccountsTable.platform })
     .from(socialAccountsTable)
-    .where(and(inArray(socialAccountsTable.brandId, brandIds), eq(socialAccountsTable.status, "connected")));
+    .where(eq(socialAccountsTable.status, "connected"));
+  const connectedPlatforms = workspaceAccountPlatforms(accounts);
 
   for (const brand of brands) {
     out.set(brand.id, {
       brandId: brand.id,
       brandName: brand.name,
-      connectedPlatforms: accounts.filter((a) => a.brandId === brand.id).map((a) => a.platform),
+      connectedPlatforms,
       constraints: {
         bannedTerms: brand.bannedTerms,
         negativePrompt: brand.negativePrompt,
