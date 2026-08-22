@@ -45,10 +45,6 @@ async function configuredSpreadSize(): Promise<number> {
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { buildCostRow } from "../services/cost-recording.js";
-import {
-  motionConvertFailureBody,
-  settleMotionCostBeforePersist,
-} from "../services/motion-convert.js";
 import { monthToDateBudget, reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
 import { validateRequest } from "../middleware/validate.js";
@@ -1678,15 +1674,9 @@ router.post(
     const { instruction, slotKey, sequenceId, beat, chainFromPreviousBeat, endOnNextBeat } =
       req.body as z.infer<typeof MotionConvertBody>;
     let reservationId: string | null = null;
-    let vendorRequested = false;
-    let vendorReturned = false;
-    let costSettled = false;
 
     try {
-      const [creative] = await db
-        .select()
-        .from(creativesTable)
-        .where(eq(creativesTable.id, creativeId));
+      const [creative] = await db.select().from(creativesTable).where(eq(creativesTable.id, creativeId));
       if (!creative) {
         res.status(404).json({ error: "Creative not found" });
         return;
@@ -1694,20 +1684,14 @@ router.post(
       const [stage] = await db
         .select({ id: stageStatesTable.id, status: stageStatesTable.status })
         .from(stageStatesTable)
-        .where(
-          and(
-            eq(stageStatesTable.id, stageId),
-            eq(stageStatesTable.creativeId, creativeId),
-          ),
-        );
+        .where(and(eq(stageStatesTable.id, stageId), eq(stageStatesTable.creativeId, creativeId)));
       if (!stage) {
         res.status(404).json({ error: "Stage not found on this creative" });
         return;
       }
       if (stage.status === "locked") {
         res.status(409).json({
-          error:
-            "This stage is locked, so nothing was made and nothing was charged. Unlock it first.",
+          error: "This stage is locked, so nothing was made and nothing was charged. Unlock it first.",
           stageStatus: "locked",
         });
         return;
@@ -1720,10 +1704,7 @@ router.post(
        * as the single-picture pick lives in `selected`, so this is the same
        * lookup with a different slot name.
        */
-      const sourceSlot =
-        typeof beat === "number"
-          ? beatPickSlotKey(beat)
-          : (slotKey ?? "selected");
+      const sourceSlot = typeof beat === "number" ? beatPickSlotKey(beat) : (slotKey ?? "selected");
       const [picked] = await db
         .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
         .from(stageTakesTable)
@@ -1734,16 +1715,14 @@ router.post(
             eq(stageTakesTable.isCurrent, true),
           ),
         );
-      const stillUrl = (picked?.payload as { imageUrl?: unknown } | undefined)
-        ?.imageUrl;
+      const stillUrl = (picked?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
       if (typeof stillUrl !== "string") {
         res.status(400).json({
-          error:
-            typeof beat === "number"
-              ? `Beat ${beat} has no picked still yet, so there is nothing to animate. Pick one on the storyboard first.`
-              : sourceSlot === "selected"
-                ? "Pick a take first. Motion animates the picked still, so there is nothing to animate yet."
-                : "That take has no image, so there is nothing to animate.",
+          error: typeof beat === "number"
+            ? `Beat ${beat} has no picked still yet, so there is nothing to animate. Pick one on the storyboard first.`
+            : sourceSlot === "selected"
+              ? "Pick a take first. Motion animates the picked still, so there is nothing to animate yet."
+              : "That take has no image, so there is nothing to animate.",
         });
         return;
       }
@@ -1753,30 +1732,15 @@ router.post(
         const [seq] = await db
           .select({ id: sequencesTable.id })
           .from(sequencesTable)
-          .where(
-            and(
-              eq(sequencesTable.id, sequenceId),
-              eq(sequencesTable.creativeId, creativeId),
-            ),
-          );
+          .where(and(eq(sequencesTable.id, sequenceId), eq(sequencesTable.creativeId, creativeId)));
         if (!seq) {
-          res
-            .status(404)
-            .json({
-              error:
-                "That sequence is not on this post, so nothing was charged.",
-            });
+          res.status(404).json({ error: "That sequence is not on this post, so nothing was charged." });
           return;
         }
       }
       const stillBuffer = await readFileByUrl(stillUrl);
       if (!stillBuffer) {
-        res
-          .status(400)
-          .json({
-            error:
-              "The picked image could not be read, so nothing was charged.",
-          });
+        res.status(400).json({ error: "The picked image could not be read, so nothing was charged." });
         return;
       }
 
@@ -1800,21 +1764,14 @@ router.post(
           const previousClip = await db
             .select({ payload: stageTakesTable.payload })
             .from(stageTakesTable)
-            .where(
-              and(
-                eq(stageTakesTable.stageStateId, stageId),
-                eq(stageTakesTable.isCurrent, true),
-              ),
-            );
+            .where(and(
+              eq(stageTakesTable.stageStateId, stageId),
+              eq(stageTakesTable.isCurrent, true),
+            ));
           const prior = previousClip
-            .map(
-              (t) => t.payload as { videoUrl?: unknown; beat?: unknown } | null,
-            )
-            .find(
-              (pl) => typeof pl?.videoUrl === "string" && pl?.beat === beat - 1,
-            );
-          const priorUrl =
-            typeof prior?.videoUrl === "string" ? prior.videoUrl : null;
+            .map(t => t.payload as { videoUrl?: unknown; beat?: unknown } | null)
+            .find(pl => typeof pl?.videoUrl === "string" && pl?.beat === beat - 1);
+          const priorUrl = typeof prior?.videoUrl === "string" ? prior.videoUrl : null;
           const priorBytes = priorUrl ? await readFileByUrl(priorUrl) : null;
           const frame = priorBytes ? await extractLastFrame(priorBytes) : null;
           if (frame) {
@@ -1833,9 +1790,7 @@ router.post(
       const reserveUsd = 8 * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
       const budget = await reserveBudget(creativeId, reserveUsd);
       if (!budget.ok) {
-        res
-          .status(429)
-          .json(budgetExceededBody(budget.todaySpend, budget.threshold));
+        res.status(429).json(budgetExceededBody(budget.todaySpend, budget.threshold));
         return;
       }
       reservationId = budget.reservationId;
@@ -1855,24 +1810,18 @@ router.post(
         const [nextPick] = await db
           .select({ payload: stageTakesTable.payload })
           .from(stageTakesTable)
-          .where(
-            and(
-              eq(stageTakesTable.stageStateId, stageId),
-              eq(stageTakesTable.slotKey, beatPickSlotKey(beat + 1)),
-              eq(stageTakesTable.isCurrent, true),
-            ),
-          );
-        const nextUrl = (
-          nextPick?.payload as { imageUrl?: unknown } | undefined
-        )?.imageUrl;
-        const nextBytes =
-          typeof nextUrl === "string" ? await readFileByUrl(nextUrl) : null;
+          .where(and(
+            eq(stageTakesTable.stageStateId, stageId),
+            eq(stageTakesTable.slotKey, beatPickSlotKey(beat + 1)),
+            eq(stageTakesTable.isCurrent, true),
+          ));
+        const nextUrl = (nextPick?.payload as { imageUrl?: unknown } | undefined)?.imageUrl;
+        const nextBytes = typeof nextUrl === "string" ? await readFileByUrl(nextUrl) : null;
         if (nextBytes) endFrameBuffer = nextBytes;
         else {
-          endPinRefused =
-            typeof nextUrl === "string"
-              ? `beat ${beat + 1}'s still could not be read`
-              : `beat ${beat + 1} has no picked still to end on`;
+          endPinRefused = typeof nextUrl === "string"
+            ? `beat ${beat + 1}'s still could not be read`
+            : `beat ${beat + 1} has no picked still to end on`;
         }
       } else if (endOnNextBeat) {
         endPinRefused = "only a beat of a story can end on the next moment";
@@ -1890,49 +1839,27 @@ router.post(
        * wording), the character reference rides along as an attached image, and
        * the brand contract (which now carries the neon ban) closes the prompt.
        */
-      const [brand] = await db
-        .select()
-        .from(brandsTable)
-        .where(eq(brandsTable.id, creative.brandId));
+      const [brand] = await db.select().from(brandsTable).where(eq(brandsTable.id, creative.brandId));
       const persona = await directorFor(creativeId, creative.brandId);
-      const contract = brand
-        ? buildSessionStyleContract({ brand, persona })
-        : "";
+      const contract = brand ? buildSessionStyleContract({ brand, persona }) : "";
 
       // The pick's subject, via the pin the spread records on every take. The
       // picked take's own material wins; any current take's pin is the fallback.
       const pinFrom = (p: unknown): string | null => {
-        const pin = (
-          p as
-            | { material?: { subjectPin?: { assetId?: unknown } } }
-            | null
-            | undefined
-        )?.material?.subjectPin;
-        return pin && typeof pin.assetId === "string" && pin.assetId
-          ? pin.assetId
-          : null;
+        const pin = (p as { material?: { subjectPin?: { assetId?: unknown } } } | null | undefined)
+          ?.material?.subjectPin;
+        return pin && typeof pin.assetId === "string" && pin.assetId ? pin.assetId : null;
       };
       let subjectAssetId = pinFrom(picked?.payload);
       if (!subjectAssetId) {
         const currentTakes = await db
           .select({ payload: stageTakesTable.payload })
           .from(stageTakesTable)
-          .where(
-            and(
-              eq(stageTakesTable.stageStateId, stageId),
-              eq(stageTakesTable.isCurrent, true),
-            ),
-          );
-        subjectAssetId =
-          currentTakes.map((t) => pinFrom(t.payload)).find(Boolean) ?? null;
+          .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.isCurrent, true)));
+        subjectAssetId = currentTakes.map(t => pinFrom(t.payload)).find(Boolean) ?? null;
       }
 
-      const referenceSlots = [] as Array<{
-        imageBuffer: Buffer;
-        mimeType: string;
-        slot: "character" | "object" | "style";
-        description: string;
-      }>;
+      const referenceSlots = [] as Array<{ imageBuffer: Buffer; mimeType: string; slot: "character" | "object" | "style"; description: string }>;
       let subjectRefName: string | null = null;
       // Why the reference did NOT ride, when it did not — walked on the live
       // build 2026-08-11: the demo post's pin is an owner-blocked asset
@@ -1941,9 +1868,7 @@ router.post(
       // exists to prevent (§1.17), so the refusal is recorded by name.
       let subjectRefDropped: string | null = null;
       if (subjectAssetId) {
-        const [subjectAsset] = await loadBrandAssetsByIds(creative.brandId, [
-          subjectAssetId,
-        ]);
+        const [subjectAsset] = await loadBrandAssetsByIds(creative.brandId, [subjectAssetId]);
         // The same gate every other reference passes; a subject blocked since
         // the pick must not keep steering through the pin's memory.
         const verdict = subjectAsset
@@ -1986,9 +1911,7 @@ router.post(
           text: `${brand.name} logo primary mark`,
           template: creative.templateId ?? null,
         });
-        const markBuf = mark?.fileUrl
-          ? await readFileByUrl(mark.fileUrl)
-          : null;
+        const markBuf = mark?.fileUrl ? await readFileByUrl(mark.fileUrl) : null;
         if (mark && markBuf) {
           referenceSlots.push({
             imageBuffer: markBuf,
@@ -2026,8 +1949,7 @@ router.post(
       const motionStyle =
         "MOTION STYLE. These are stylized game characters, and they move like it: extremely fast, snappy movements that cut between big, exaggerated poses held for a beat — anime-fight pacing in the spirit of Dragon Ball Z. " +
         "Never realistic human physics, never soft motion-captured weight, never slow naturalistic drift of the character.";
-      const baseInstruction =
-        instruction?.trim() ||
+      const baseInstruction = instruction?.trim() ||
         "Convert this image into a short, dynamic video clip: the character snaps between big poses with fast, punchy motion while the camera whips or cuts rather than drifts. Keep the brand framing intact.";
       const motionPrompt = [
         motionLock,
@@ -2035,9 +1957,7 @@ router.post(
         motionStyle,
         baseInstruction,
         contract ? `NON-NEGOTIABLE BRAND CONSTRAINTS:\n${contract}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      ].filter(Boolean).join("\n\n");
 
       /*
        * When the chain replaced the seed, the beat's own picked still rides as a
@@ -2050,8 +1970,8 @@ router.post(
           mimeType: "image/png",
           slot: "style",
           description:
-            "This is the still chosen for this moment. The clip starts from the previous shot's final frame and " +
-            "moves TOWARDS this composition: match its staging, framing and action.",
+            "This is the still chosen for this moment. The clip starts from the previous shot's final frame and "
+            + "moves TOWARDS this composition: match its staging, framing and action.",
         });
       }
 
@@ -2063,9 +1983,7 @@ router.post(
        * is identical on both engines, because it is all in the prompt and the
        * attachments rather than in the vendor.
        */
-      let engine: "omni" | "veo-3.1-fast" = endFrameBuffer
-        ? "veo-3.1-fast"
-        : "omni";
+      let engine: "omni" | "veo-3.1-fast" = endFrameBuffer ? "veo-3.1-fast" : "omni";
       let veoReferencesDropped = false;
       let routeFellBack: string | null = null;
 
@@ -2073,19 +1991,13 @@ router.post(
       let veoCostUsd: number | null = null;
       let veoDurationSeconds: number | null = null;
 
-      // Conservative boundary: from here a vendor request may be billable even
-      // if it rejects before returning a clip.
-      vendorRequested = true;
       if (endFrameBuffer) {
         try {
           const veo = await runVeoVideo({
             prompt: motionPrompt,
             firstFrame: { buffer: seedBuffer, mimeType: "image/png" },
             lastFrame: { buffer: endFrameBuffer, mimeType: "image/png" },
-            references: referenceSlots.map((r) => ({
-              buffer: r.imageBuffer,
-              mimeType: r.mimeType,
-            })),
+            references: referenceSlots.map(r => ({ buffer: r.imageBuffer, mimeType: r.mimeType })),
             durationSeconds: 6,
           });
           videoResult = { videoBuffer: veo.videoBuffer };
@@ -2100,14 +2012,8 @@ router.post(
            * alternative is a person losing the whole animation to a preview
            * model's outage.
            */
-          routeFellBack =
-            veoErr instanceof Error
-              ? veoErr.message
-              : "the pinning model could not be reached";
-          console.warn(
-            "Veo route failed; falling back to Omni without the end pin",
-            veoErr,
-          );
+          routeFellBack = veoErr instanceof Error ? veoErr.message : "the pinning model could not be reached";
+          console.warn("Veo route failed; falling back to Omni without the end pin", veoErr);
           engine = "omni";
           endFrameBuffer = null;
           videoResult = await runVideoInteraction({
@@ -2127,21 +2033,18 @@ router.post(
           slots: referenceSlots,
         });
       }
-      vendorReturned = true;
 
       const videoFilename = `studio-motion-${crypto.randomUUID()}.mp4`;
+      await writeBuffer("generated", videoFilename, videoResult.videoBuffer);
       const videoUrl = `/api/files/generated/${videoFilename}`;
       /*
        * Veo states its own duration and bills at its own rate, so its clip is
        * not measured by the byte-length estimate Omni's is. Two engines, two
        * honest numbers, rather than one estimate stretched over both.
        */
-      const durationSeconds =
-        veoDurationSeconds ??
-        estimateVideoDurationSeconds(videoResult.videoBuffer.length);
-      const costUsd =
-        veoCostUsd ??
-        durationSeconds * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
+      const durationSeconds = veoDurationSeconds
+        ?? estimateVideoDurationSeconds(videoResult.videoBuffer.length);
+      const costUsd = veoCostUsd ?? durationSeconds * COST_ESTIMATES.VIDEO_COST_PER_SECOND_USD;
 
       const payload = {
         videoUrl,
@@ -2183,226 +2086,156 @@ router.post(
       };
 
       let clipTakeId: string | null = null;
-      await settleMotionCostBeforePersist({
-        /*
-         * The vendor has returned a billable clip. Commit that fact before the
-         * file, take, or sequence can fail. A cost row without a take link is a
-         * reporting gap; a paid render with no cost row is a false ledger.
-         */
-        settleCost: async () => {
-          await db.transaction(async (tx) => {
-            if (reservationId)
-              await tx
-                .delete(costLogsTable)
-                .where(eq(costLogsTable.id, reservationId));
-            await tx.insert(costLogsTable).values(
-              buildCostRow({
-                creativeId,
-                brandId: creative.brandId,
-                service: "gemini",
-                operation: "convert_video",
-                // The engine that was actually billed. Recording Omni for a Veo
-                // clip would make the ledger disagree with the invoice.
-                model:
-                  engine === "veo-3.1-fast"
-                    ? VEO_MODEL
-                    : COPILOT_MODELS.OMNI_VIDEO_MODEL,
-                costUsd,
-                costDerivedFromUsage: true,
-              }),
-            );
-          });
-        },
-        markCostSettled: () => {
-          costSettled = true;
-          reservationId = null;
-        },
-        persistResult: async () => {
-          await writeBuffer(
-            "generated",
-            videoFilename,
-            videoResult.videoBuffer,
-          );
-          await db.transaction(async (tx) => {
-            if (sequenceId) {
-              /*
-               * A shot for the sequence: its own clip_* slot, so the motion slot's
-               * quick-path clip is untouched, then a studio_take clip row at the
-               * end of the cut. The unique (sequenceId, position) index turns a
-               * concurrent append into a constraint failure instead of two shots
-               * silently claiming one slot.
-               *
-               * **RE-ANIMATING A BEAT REPLACES ITS SHOT, IT DOES NOT ADD ONE.**
-               * Found by walking step 5: re-animating beat 2 appended, so the cut
-               * held three clips for two animated beats and played the mid-race
-               * moment twice — 9s of video for a 6s story, with one clip take
-               * silently orphaned. A beat is ONE shot; two clips for it is not a
-               * choice, it is a duplicate. So the beat's previous clip goes to
-               * history (isCurrent=false, restorable like every other take) and its
-               * row in the cut is RE-POINTED in place, keeping the position the
-               * story gave it. Only beats replace: the Sequence tab's
-               * animate-any-take still appends, because there the shot genuinely is
-               * a new one and the panel says it lands at the end.
-               */
-              let replacedClipRowId: string | null = null;
-              if (typeof beat === "number") {
-                const priorClips = await tx
-                  .select({
-                    id: stageTakesTable.id,
-                    payload: stageTakesTable.payload,
-                  })
-                  .from(stageTakesTable)
-                  .where(
-                    and(
-                      eq(stageTakesTable.stageStateId, stageId),
-                      eq(stageTakesTable.isCurrent, true),
-                    ),
-                  );
-                const priorIds = priorClips
-                  .filter((t) => {
-                    const pl = t.payload as {
-                      videoUrl?: unknown;
-                      beat?: unknown;
-                    } | null;
-                    return (
-                      typeof pl?.videoUrl === "string" && pl?.beat === beat
-                    );
-                  })
-                  .map((t) => t.id);
+      await db.transaction(async (tx) => {
+        if (sequenceId) {
+          /*
+           * A shot for the sequence: its own clip_* slot, so the motion slot's
+           * quick-path clip is untouched, then a studio_take clip row at the
+           * end of the cut. The unique (sequenceId, position) index turns a
+           * concurrent append into a constraint failure instead of two shots
+           * silently claiming one slot.
+           *
+           * **RE-ANIMATING A BEAT REPLACES ITS SHOT, IT DOES NOT ADD ONE.**
+           * Found by walking step 5: re-animating beat 2 appended, so the cut
+           * held three clips for two animated beats and played the mid-race
+           * moment twice — 9s of video for a 6s story, with one clip take
+           * silently orphaned. A beat is ONE shot; two clips for it is not a
+           * choice, it is a duplicate. So the beat's previous clip goes to
+           * history (isCurrent=false, restorable like every other take) and its
+           * row in the cut is RE-POINTED in place, keeping the position the
+           * story gave it. Only beats replace: the Sequence tab's
+           * animate-any-take still appends, because there the shot genuinely is
+           * a new one and the panel says it lands at the end.
+           */
+          let replacedClipRowId: string | null = null;
+          if (typeof beat === "number") {
+            const priorClips = await tx
+              .select({ id: stageTakesTable.id, payload: stageTakesTable.payload })
+              .from(stageTakesTable)
+              .where(and(
+                eq(stageTakesTable.stageStateId, stageId),
+                eq(stageTakesTable.isCurrent, true),
+              ));
+            const priorIds = priorClips
+              .filter(t => {
+                const pl = t.payload as { videoUrl?: unknown; beat?: unknown } | null;
+                return typeof pl?.videoUrl === "string" && pl?.beat === beat;
+              })
+              .map(t => t.id);
 
-                if (priorIds.length > 0) {
-                  await tx
-                    .update(stageTakesTable)
-                    .set({ isCurrent: false })
-                    .where(inArray(stageTakesTable.id, priorIds));
-
-                  // The rows in the cut those takes were playing. The first keeps
-                  // its slot; any others are duplicates from before this rule and
-                  // are removed rather than left to play the same beat twice.
-                  const rows = await tx
-                    .select({
-                      id: sequenceClipsTable.id,
-                      position: sequenceClipsTable.position,
-                    })
-                    .from(sequenceClipsTable)
-                    .where(
-                      and(
-                        eq(sequenceClipsTable.sequenceId, sequenceId),
-                        inArray(sequenceClipsTable.sourceTakeId, priorIds),
-                      ),
-                    )
-                    .orderBy(asc(sequenceClipsTable.position));
-                  if (rows.length > 0) {
-                    replacedClipRowId = rows[0].id;
-                    for (const extra of rows.slice(1)) {
-                      await tx
-                        .delete(sequenceClipsTable)
-                        .where(eq(sequenceClipsTable.id, extra.id));
-                    }
-                  }
-                }
-              }
-
-              const [take] = await tx
-                .insert(stageTakesTable)
-                .values({
-                  stageStateId: stageId,
-                  slotKey: `clip_${crypto.randomUUID().slice(0, 8)}`,
-                  // Take indexes are 1-based (stage_takes_index_positive_check) —
-                  // walked into on the live build: 0 rolled the whole insert back
-                  // AFTER the video was paid for.
-                  takeIndex: 1,
-                  origin: "generated",
-                  payload,
-                  isCurrent: true,
-                  costCents: Math.round(costUsd * 100),
-                })
-                .returning({ id: stageTakesTable.id });
-              clipTakeId = take?.id ?? null;
-
-              if (replacedClipRowId) {
-                // In place: the story decided where this moment sits, and a
-                // re-animate is a better take of the same moment, not a new one.
-                await tx
-                  .update(sequenceClipsTable)
-                  .set({
-                    sourceTakeId: clipTakeId,
-                    trimStartMs: 0,
-                    trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
-                    sourceMissingAt: null,
-                  })
-                  .where(eq(sequenceClipsTable.id, replacedClipRowId));
-
-                /*
-                 * Compact, because removing a duplicate above can leave a hole and
-                 * position IS the ordering model — "position 3" has to mean the
-                 * same thing before and after.
-                 */
-                const rest = await tx
-                  .select()
-                  .from(sequenceClipsTable)
-                  .where(eq(sequenceClipsTable.sequenceId, sequenceId))
-                  .orderBy(asc(sequenceClipsTable.position));
-                for (const [i, row] of rest.entries()) {
-                  if (row.position !== i) {
-                    await tx
-                      .update(sequenceClipsTable)
-                      .set({ position: i })
-                      .where(eq(sequenceClipsTable.id, row.id));
-                  }
-                }
-              } else {
-                const [last] = await tx
-                  .select({
-                    max: sql<number>`COALESCE(MAX(${sequenceClipsTable.position}), -1)`,
-                  })
-                  .from(sequenceClipsTable)
-                  .where(eq(sequenceClipsTable.sequenceId, sequenceId));
-                await tx.insert(sequenceClipsTable).values({
-                  sequenceId,
-                  position: (last?.max ?? -1) + 1,
-                  sourceKind: "studio_take",
-                  sourceTakeId: clipTakeId,
-                  trimStartMs: 0,
-                  trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
-                  transitionIn: "cut",
-                });
-              }
-            } else {
+            if (priorIds.length > 0) {
               await tx
                 .update(stageTakesTable)
                 .set({ isCurrent: false })
-                .where(
-                  and(
-                    eq(stageTakesTable.stageStateId, stageId),
-                    eq(stageTakesTable.slotKey, "motion"),
-                  ),
-                );
-              const prior = await tx
-                .select({
-                  slotKey: stageTakesTable.slotKey,
-                  takeIndex: stageTakesTable.takeIndex,
-                })
-                .from(stageTakesTable)
-                .where(
-                  and(
-                    eq(stageTakesTable.stageStateId, stageId),
-                    eq(stageTakesTable.slotKey, "motion"),
-                  ),
-                );
-              await tx.insert(stageTakesTable).values({
-                stageStateId: stageId,
-                slotKey: "motion",
-                takeIndex: nextTakeIndex(prior, "motion"),
-                origin: "generated",
-                payload,
-                isCurrent: true,
-                costCents: Math.round(costUsd * 100),
-              });
+                .where(inArray(stageTakesTable.id, priorIds));
+
+              // The rows in the cut those takes were playing. The first keeps
+              // its slot; any others are duplicates from before this rule and
+              // are removed rather than left to play the same beat twice.
+              const rows = await tx
+                .select({ id: sequenceClipsTable.id, position: sequenceClipsTable.position })
+                .from(sequenceClipsTable)
+                .where(and(
+                  eq(sequenceClipsTable.sequenceId, sequenceId),
+                  inArray(sequenceClipsTable.sourceTakeId, priorIds),
+                ))
+                .orderBy(asc(sequenceClipsTable.position));
+              if (rows.length > 0) {
+                replacedClipRowId = rows[0].id;
+                for (const extra of rows.slice(1)) {
+                  await tx.delete(sequenceClipsTable).where(eq(sequenceClipsTable.id, extra.id));
+                }
+              }
             }
+          }
+
+          const [take] = await tx.insert(stageTakesTable).values({
+            stageStateId: stageId,
+            slotKey: `clip_${crypto.randomUUID().slice(0, 8)}`,
+            // Take indexes are 1-based (stage_takes_index_positive_check) —
+            // walked into on the live build: 0 rolled the whole insert back
+            // AFTER the video was paid for.
+            takeIndex: 1,
+            origin: "generated",
+            payload,
+            isCurrent: true,
+            costCents: Math.round(costUsd * 100),
+          }).returning({ id: stageTakesTable.id });
+          clipTakeId = take?.id ?? null;
+
+          if (replacedClipRowId) {
+            // In place: the story decided where this moment sits, and a
+            // re-animate is a better take of the same moment, not a new one.
+            await tx.update(sequenceClipsTable).set({
+              sourceTakeId: clipTakeId,
+              trimStartMs: 0,
+              trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
+              sourceMissingAt: null,
+            }).where(eq(sequenceClipsTable.id, replacedClipRowId));
+
+            /*
+             * Compact, because removing a duplicate above can leave a hole and
+             * position IS the ordering model — "position 3" has to mean the
+             * same thing before and after.
+             */
+            const rest = await tx.select().from(sequenceClipsTable)
+              .where(eq(sequenceClipsTable.sequenceId, sequenceId))
+              .orderBy(asc(sequenceClipsTable.position));
+            for (const [i, row] of rest.entries()) {
+              if (row.position !== i) {
+                await tx.update(sequenceClipsTable).set({ position: i })
+                  .where(eq(sequenceClipsTable.id, row.id));
+              }
+            }
+          } else {
+            const [last] = await tx
+              .select({ max: sql<number>`COALESCE(MAX(${sequenceClipsTable.position}), -1)` })
+              .from(sequenceClipsTable)
+              .where(eq(sequenceClipsTable.sequenceId, sequenceId));
+            await tx.insert(sequenceClipsTable).values({
+              sequenceId,
+              position: (last?.max ?? -1) + 1,
+              sourceKind: "studio_take",
+              sourceTakeId: clipTakeId,
+              trimStartMs: 0,
+              trimEndMs: Math.max(1, Math.round(durationSeconds * 1000)),
+              transitionIn: "cut",
+            });
+          }
+        } else {
+          await tx
+            .update(stageTakesTable)
+            .set({ isCurrent: false })
+            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "motion")));
+          const prior = await tx
+            .select({ slotKey: stageTakesTable.slotKey, takeIndex: stageTakesTable.takeIndex })
+            .from(stageTakesTable)
+            .where(and(eq(stageTakesTable.stageStateId, stageId), eq(stageTakesTable.slotKey, "motion")));
+          await tx.insert(stageTakesTable).values({
+            stageStateId: stageId,
+            slotKey: "motion",
+            takeIndex: nextTakeIndex(prior, "motion"),
+            origin: "generated",
+            payload,
+            isCurrent: true,
+            costCents: Math.round(costUsd * 100),
           });
-        },
+        }
+
+        if (reservationId) await tx.delete(costLogsTable).where(eq(costLogsTable.id, reservationId));
+        await tx.insert(costLogsTable).values(buildCostRow({
+          creativeId,
+          brandId: creative.brandId,
+          service: "gemini",
+          operation: "convert_video",
+          // The engine that was actually billed. Recording Omni for a Veo clip
+          // would make the ledger disagree with the invoice.
+          model: engine === "veo-3.1-fast" ? VEO_MODEL : COPILOT_MODELS.OMNI_VIDEO_MODEL,
+          costUsd,
+          costDerivedFromUsage: true,
+        }));
       });
+      reservationId = null;
 
       res.json({
         videoUrl,
@@ -2417,24 +2250,10 @@ router.post(
       });
     } catch (err) {
       if (reservationId) {
-        try {
-          await db
-            .delete(costLogsTable)
-            .where(eq(costLogsTable.id, reservationId));
-        } catch {
-          /* best effort */
-        }
+        try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
       }
       console.error("Motion convert failed", err);
-      res
-        .status(500)
-        .json(
-          motionConvertFailureBody({
-            vendorRequested,
-            vendorReturned,
-            costSettled,
-          }),
-        );
+      res.status(500).json({ error: "The clip could not be made. Nothing was charged." });
     }
   },
 );
