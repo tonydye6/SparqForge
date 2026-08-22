@@ -33,7 +33,7 @@ export interface AccountRef {
   /** Social-account platform: "instagram", not "instagram_feed". */
   platform: string;
   accountName: string | null;
-  /** Storage owner. House accounts use the Sparq brand id; legacy rows may be null. */
+  /** The brand this account belongs to, null for a workspace/house account. */
   brandId: string | null;
 }
 

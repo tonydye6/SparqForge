@@ -20,7 +20,7 @@ import {
 } from "./creative-direction.js";
 import { buildCostRow } from "./cost-recording.js";
 import { INTENT_COPY_DIRECTIVES, isIntent } from "../lib/intents.js";
-import { publishingAccountFor } from "../lib/platform-accounts.js";
+import { accountPlatformFor } from "../lib/platform-accounts.js";
 import { compositeImage, reframeImage, imageDimensions } from "./compositing.js";
 import { detectSubject, predictClip } from "./focal-point.js";
 import { outpaintImage } from "./imagen.js";
@@ -2369,21 +2369,26 @@ async function executeSchedule(params: {
   // Platform-to-account mapping is shared with the publish scheduler and the
   // smart scheduler (lib/platform-accounts.ts) so the three paths cannot drift.
 
-  // Accounts are connected once for the workspace. Prefer a future account
-  // owned by this creative's brand, then fall back to the compatible house
-  // account that serves every sub-brand.
-  const connectedAccounts = await db
-    .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform, brandId: socialAccountsTable.brandId })
+  // Load all connected accounts for this brand once, keyed by account platform.
+  const brandAccounts = await db
+    .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform })
     .from(socialAccountsTable)
-    .where(eq(socialAccountsTable.status, "connected"));
+    .where(
+      and(
+        eq(socialAccountsTable.brandId, creative.brandId),
+        eq(socialAccountsTable.status, "connected"),
+      ),
+    );
+  const accountByPlatform = new Map(brandAccounts.map(a => [a.platform, a.id]));
 
   // Validate that every scheduled platform has a connected account before
   // inserting any rows — fail fast with a clear message so the user can
   // connect the missing account in Settings first.
   for (const sched of schedules) {
-    if (!publishingAccountFor(connectedAccounts, sched.platform, creative.brandId)) {
+    const accountPlatform = accountPlatformFor(sched.platform);
+    if (!accountByPlatform.has(accountPlatform)) {
       throw new Error(
-        `No connected ${sched.platform} account found in this workspace. ` +
+        `No connected ${sched.platform} account found for this brand. ` +
         `Connect the account in Settings before scheduling.`,
       );
     }
@@ -2411,11 +2416,8 @@ async function executeSchedule(params: {
   // publish-scheduler (pollAndPublish) will pick it up at the scheduled time
   // and dispatch through the platform-specific publish services.
   for (const sched of schedules) {
-    const socialAccountId = publishingAccountFor(
-      connectedAccounts,
-      sched.platform,
-      creative.brandId,
-    )?.id ?? null;
+    const accountPlatform = accountPlatformFor(sched.platform);
+    const socialAccountId = accountByPlatform.get(accountPlatform) ?? null;
     const [entry] = await db
       .insert(calendarEntriesTable)
       .values({

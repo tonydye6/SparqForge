@@ -778,7 +778,7 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   channel_fetch_failed: "Could not load the YouTube channel for this account.",
   no_youtube_channel: "No YouTube channel was found for the signed-in Google account.",
   no_ig_business_account: "No Instagram Business account is linked to the connected Facebook page.",
-  invalid_brand: "Shared account setup is incomplete. Add the Sparq house brand before connecting an account.",
+  invalid_brand: "Select a valid brand before connecting an account.",
   config_missing: "This platform's developer credentials are not configured.",
   callback_error: "Something went wrong while completing the connection. Please try again.",
 };
@@ -787,6 +787,7 @@ function ConnectedAccountsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: accounts, isLoading } = useGetSocialAccounts();
+  const { data: brands } = useGetBrands();
   const [disconnectAccount, setDisconnectAccount] = useState<{ id: string; accountName: string } | null>(null);
   const [platformStatus, setPlatformStatus] = useState<Map<string, PlatformConfigStatus> | null>(null);
   const baseUrl = import.meta.env.VITE_API_URL || "";
@@ -888,10 +889,11 @@ function ConnectedAccountsTab() {
     }
     toast({
       title: "Continue in the new tab",
-      description: "Finish signing in there, then come back here. This list refreshes automatically.",
+      description: "Finish signing in there, then come back here — this list refreshes automatically.",
     });
   };
 
+  const brandNameById = new Map((brands || []).map(b => [b.id, b.name]));
   // Every connected account, not the ones belonging to a selected brand: one
   // Instagram connection serves Crown U, Rumble U and Mascot Mayhem alike.
   const connectedPlatforms = new Set((accounts || []).map(a => a.platform));
@@ -940,6 +942,9 @@ function ConnectedAccountsTab() {
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{account.accountName}</span>
                         <Badge variant="outline" className="text-xs">{config.label}</Badge>
+                        {account.brandId && brandNameById.has(account.brandId) && (
+                          <Badge variant="secondary" className="text-xs">{brandNameById.get(account.brandId)}</Badge>
+                        )}
                         {subscriberCount && (
                           <span className="text-xs text-muted-foreground">
                             {Number(subscriberCount).toLocaleString()} subscribers
@@ -1001,11 +1006,13 @@ function ConnectedAccountsTab() {
                         <RefreshCw className={`h-4 w-4 mr-1 ${refreshMutation.isPending ? "animate-spin" : ""}`} /> Refresh
                       </Button>
                     )}
-                    {(status === "expired" || status === "needs_reconnect" || status === "revoked") && (
+                    {(status === "expired" || status === "needs_reconnect" || status === "revoked") && account.brandId && (
                       <Button
                         size="sm"
                         className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                        onClick={() => handleConnect(account.platform)}
+                        onClick={() => {
+                          window.location.href = `${baseUrl}/api/auth/${account.platform}?brandId=${encodeURIComponent(account.brandId!)}`;
+                        }}
                         data-testid={`button-reconnect-${account.id}`}
                       >
                         <Share2 className="h-4 w-4 mr-1" /> Reconnect

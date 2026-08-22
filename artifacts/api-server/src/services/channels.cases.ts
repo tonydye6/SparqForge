@@ -18,14 +18,13 @@ export interface Case {
 }
 
 const CROWN = "brand-crown";
-const SPARQ = "brand-sparq";
 
-/** The normalized workspace: every shared account is owned by the Sparq house brand. */
+/** The workspace as it actually is on dev: Sparq's house accounts plus Crown U's one LinkedIn. */
 const WORKSPACE: AccountRef[] = [
-  { id: "acct-sparq-ig", platform: "instagram", accountName: "@sparqgames", brandId: SPARQ },
-  { id: "acct-sparq-tt", platform: "tiktok", accountName: "SPARQ", brandId: SPARQ },
-  { id: "acct-sparq-yt", platform: "youtube", accountName: "Sparq Games", brandId: SPARQ },
-  { id: "acct-sparq-li", platform: "linkedin", accountName: "Tony Dye", brandId: SPARQ },
+  { id: "acct-sparq-ig", platform: "instagram", accountName: "@sparqgames", brandId: null },
+  { id: "acct-sparq-tt", platform: "tiktok", accountName: "SPARQ", brandId: null },
+  { id: "acct-sparq-yt", platform: "youtube", accountName: "Sparq Games", brandId: null },
+  { id: "acct-crown-li", platform: "linkedin", accountName: "Tony Dye", brandId: CROWN },
 ];
 
 export function collectChannelCases(): Case[] {
@@ -44,7 +43,7 @@ export function collectChannelCases(): Case[] {
     const out = resolveChannels(WORKSPACE, CROWN);
     const platforms = out.map((c) => c.platform);
     check(
-      "a sub-brand with no own account still gets every workspace channel",
+      "a brand with one own account still gets every workspace channel",
       JSON.stringify(platforms) === JSON.stringify(["instagram_feed", "instagram_story", "tiktok", "linkedin", "youtube"]),
       platforms,
     );
@@ -54,14 +53,14 @@ export function collectChannelCases(): Case[] {
     const out = resolveChannels(WORKSPACE, CROWN);
     const li = out.find((c) => c.platform === "linkedin")!;
     const ig = out.find((c) => c.platform === "instagram_feed")!;
-    check("a sub-brand defaults to the compatible house account", li.defaultAccountId === "acct-sparq-li", li);
+    check("a channel with an own-brand account defaults to it", li.defaultAccountId === "acct-crown-li", li);
     check("a channel with only house accounts defaults to the house one", ig.defaultAccountId === "acct-sparq-ig", ig);
     check(
       "the default is the picker's first entry, so they cannot disagree",
       out.every((c) => c.accounts[0]?.id === c.defaultAccountId),
       out.map((c) => [c.platform, c.defaultAccountId, c.accounts[0]?.id]),
     );
-    check("house accounts are not mislabeled as sub-brand-owned", li.accounts[0]?.ownBrand === false && ig.accounts[0]?.ownBrand === false);
+    check("own-brand accounts are marked, so a picker can say why one leads", li.accounts[0]?.ownBrand === true && ig.accounts[0]?.ownBrand === false);
   }
 
   {

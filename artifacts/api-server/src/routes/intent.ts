@@ -1,14 +1,13 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { db, brandsTable, costLogsTable, socialAccountsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { AI_MODELS, estimateClaudeTextCost } from "../lib/ai-config.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { validateRequest } from "../middleware/validate.js";
 import { assistLimiter } from "../lib/rate-limit.js";
 import { extractJSON } from "../lib/extract-json.js";
-import { workspaceAccountPlatforms } from "../lib/platform-accounts.js";
 import { INTENTS, INTENT_LABELS, INTENT_DESCRIPTIONS, isIntent, intentPromptCatalog, type Intent } from "../lib/intents.js";
 import {
   buildDerivedRows,
@@ -178,16 +177,12 @@ router.post(
           trademarkRules: brand.trademarkRules,
         };
       }
+      const accounts = await db
+        .select({ platform: socialAccountsTable.platform })
+        .from(socialAccountsTable)
+        .where(and(eq(socialAccountsTable.brandId, brandId), eq(socialAccountsTable.status, "connected")));
+      connectedPlatforms = accounts.map(a => a.platform);
     }
-
-    // Accounts are connected once for the workspace. A sub-brand's brief gets
-    // every channel the shared Sparq accounts can publish, not only accounts
-    // whose storage owner happens to equal the brief's brand id.
-    const accounts = await db
-      .select({ platform: socialAccountsTable.platform })
-      .from(socialAccountsTable)
-      .where(eq(socialAccountsTable.status, "connected"));
-    connectedPlatforms = workspaceAccountPlatforms(accounts);
 
     /** What we can still say with no model at all. */
     const brandOnlyRows = (): DerivedRow[] => {

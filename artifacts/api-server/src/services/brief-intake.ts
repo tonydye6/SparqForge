@@ -107,8 +107,8 @@ export function deriveAudience(intent: Intent): DerivedRow {
 }
 
 /**
- * Where it can actually go: the platforms this workspace has a connected
- * account for. Reading real accounts rather than listing every platform the product
+ * Where it can actually go: the platforms this brand has a connected account
+ * for. Reading real accounts rather than listing every platform the product
  * supports means the row cannot promise a channel that would fail at publish.
  */
 export function deriveChannels(connectedPlatforms: string[]): DerivedRow {
@@ -117,7 +117,7 @@ export function deriveChannels(connectedPlatforms: string[]): DerivedRow {
     return {
       key: "channels",
       label: "Channels",
-      value: "No channel is connected for this workspace yet, so nothing can publish",
+      value: "No channel is connected for this brand yet, so nothing can publish",
       provenance: "brand",
       note: "connect one in Settings",
     };

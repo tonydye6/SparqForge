@@ -13,7 +13,7 @@ import {
 } from "@workspace/db";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
-import { publishingAccountFor } from "../lib/platform-accounts.js";
+import { accountPlatformFor } from "../lib/platform-accounts.js";
 
 const router: IRouter = Router();
 
@@ -618,17 +618,26 @@ router.post(
     // auto-retry sweep skips those rows, so an entry created without one fails
     // permanently and silently. This path used to omit it entirely; the
     // Co-pilot's own scheduling has always resolved it (see session-service).
-    const connectedAccounts = await db
-      .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform, brandId: socialAccountsTable.brandId })
-      .from(socialAccountsTable)
-      .where(eq(socialAccountsTable.status, "connected"));
+    const confirmBrandIds = [...new Set([...brandByCreative.values()].filter(Boolean))] as string[];
+    const connectedAccounts = confirmBrandIds.length > 0
+      ? await db
+          .select({ id: socialAccountsTable.id, platform: socialAccountsTable.platform, brandId: socialAccountsTable.brandId })
+          .from(socialAccountsTable)
+          .where(
+            and(
+              sql`${socialAccountsTable.brandId} = ANY(${confirmBrandIds})`,
+              eq(socialAccountsTable.status, "connected"),
+            ),
+          )
+      : [];
+    const accountByBrandPlatform = new Map(
+      connectedAccounts.map((a) => [`${a.brandId}:${a.platform}`, a.id]),
+    );
 
     const accountIdFor = (creativeId: string, platform: string): string | undefined => {
-      return publishingAccountFor(
-        connectedAccounts,
-        platform,
-        brandByCreative.get(creativeId) ?? null,
-      )?.id;
+      const brandId = brandByCreative.get(creativeId);
+      if (!brandId) return undefined;
+      return accountByBrandPlatform.get(`${brandId}:${accountPlatformFor(platform)}`);
     };
 
     // Fail the whole batch rather than scheduling posts that cannot publish.

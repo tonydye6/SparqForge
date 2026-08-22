@@ -122,7 +122,7 @@ export function classifyFailure(input: FailureInput): TypedFailure {
     return {
       kind: "no_account",
       fault: "us",
-      title: `No ${where} account is connected for this workspace.`,
+      title: `No ${where} account is connected for this brand.`,
       guidance: "Connect one in Settings and this post can be sent again.",
       action: "connect_account",
       actionLabel: "Connect an account",

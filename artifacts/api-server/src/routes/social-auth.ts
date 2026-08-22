@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db, socialAccountsTable, brandsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { encryptToken } from "../services/token-encryption";
 import { logger } from "../lib/logger";
 import type {
@@ -118,8 +118,8 @@ function consumeOAuthState(
  * what `channels.ts` already calls them: house accounts, not own-brand ones.
  *
  * `brand_id` is NOT NULL, so the house brand's id is the honest way to say
- * "belongs to the workspace". Migration 0046 moves legacy rows to that owner.
- * `AccountRef.brandId` remains nullable for callers that still hold older data.
+ * "belongs to the workspace" without a migration. `AccountRef.brandId` is typed
+ * `string | null` for the day that column becomes nullable.
  */
 const HOUSE_BRAND_SLUG = (process.env.HOUSE_BRAND_SLUG || "sparq").toLowerCase();
 
@@ -129,10 +129,21 @@ async function resolveConnectBrandId(_brandId: unknown): Promise<string | null> 
     .from(brandsTable)
     .where(eq(brandsTable.slug, HOUSE_BRAND_SLUG));
   if (bySlug) return bySlug.id;
-  logger.error(
-    { houseBrandSlug: HOUSE_BRAND_SLUG },
-    "No brand matches HOUSE_BRAND_SLUG; refusing to assign a shared account to a sub-brand",
-  );
+  // No brand with that slug: fall back to the oldest brand rather than refusing
+  // the connection, and say so, because a silent refusal here reads as an OAuth
+  // failure and sends people hunting in the wrong place.
+  const [oldest] = await db
+    .select({ id: brandsTable.id, name: brandsTable.name })
+    .from(brandsTable)
+    .orderBy(asc(brandsTable.createdAt))
+    .limit(1);
+  if (oldest) {
+    logger.warn(
+      { houseBrandSlug: HOUSE_BRAND_SLUG, fellBackTo: oldest.name },
+      "No brand matches HOUSE_BRAND_SLUG; connecting the account to the oldest brand instead",
+    );
+    return oldest.id;
+  }
   return null;
 }
 

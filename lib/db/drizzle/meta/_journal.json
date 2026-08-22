@@ -330,6 +330,13 @@
       "when": 1787380968008,
       "tag": "0046_normalize_house_social_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1787384795300,
+      "tag": "0047_restore_crown_u_linkedin",
+      "breakpoints": true
     }
   ]
 }

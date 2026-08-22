@@ -170,6 +170,18 @@ async function publishEntry(entryId: string): Promise<void> {
       return null;
     }
 
+    if (socialAccount.brandId && socialAccount.brandId !== creative.brandId) {
+      await tx.update(calendarEntriesTable)
+        .set({
+          publishStatus: "failed",
+          publishError: `Brand mismatch: account belongs to brand ${socialAccount.brandId} but creative belongs to brand ${creative.brandId}`,
+          retryCount: MAX_RETRIES,
+          updatedAt: new Date(),
+        })
+        .where(eq(calendarEntriesTable.id, entryId));
+      return null;
+    }
+
     return { entry, socialAccount, variant };
   });
 

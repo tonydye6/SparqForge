@@ -635,8 +635,8 @@ describe("schedule turn — ownership validation (real handler)", () => {
     setupSessionAndCreative();
     // Ownership check passes: variant found in this creative
     setSelectRows("creative_variants", [{ id: "v-owned", creativeId: "cre-sched" }]);
-    // The Sparq house account serves this sub-brand creative.
-    setSelectRows("social_accounts", [{ id: "acct-ig-1", platform: "instagram", brandId: "brand-sparq", status: "connected" }]);
+    // A connected Instagram account exists for this brand
+    setSelectRows("social_accounts", [{ id: "acct-ig-1", platform: "instagram", brandId: "brand-123", status: "connected" }]);
 
     const onProgress = vi.fn();
     await executeTurn({
