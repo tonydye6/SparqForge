@@ -337,6 +337,13 @@
       "when": 1787384795300,
       "tag": "0047_restore_crown_u_linkedin",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787527111408,
+      "tag": "0048_house_brand_owns_every_social_account",
+      "breakpoints": true
     }
   ]
 }
