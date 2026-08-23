@@ -77,13 +77,20 @@ export default function BrandNext() {
 
   const { data: assetsData, refetch: refetchAssets } = useGetAssets(activeBrandId ? { brandId: activeBrandId } : undefined);
   const { data: templatesData } = useGetTemplates(activeBrandId ? { brandId: activeBrandId } : undefined);
-  const { data: socialData, refetch: refetchSocial } = useGetSocialAccounts();
+  const { data: socialData } = useGetSocialAccounts();
 
   const list = (brands ?? []) as unknown as BrandSpec[];
   const assets = toArray<{ id: string; name: string; type?: string; status?: string; assetClass?: string | null; thumbnailUrl?: string | null }>(assetsData);
   const templates = toArray<{ id: string; name: string; description?: string | null; totalGenerations?: number; isActive?: boolean }>(templatesData);
-  const accounts = toArray<{ id: string; platform: string; accountName?: string; displayStatus?: string; status?: string; brandId?: string }>(socialData)
-    .filter((a) => !a.brandId || a.brandId === activeBrandId);
+  /*
+   * Every account, unfiltered. Accounts are workspace-wide (doc 38 §3), so
+   * filtering by `brand_id` here contradicted the panel's own InfoDot and
+   * under-reported: Crown U listed one channel and Rumble U said "Nothing
+   * connected yet" while `resolveChannels` would happily publish either brand
+   * through all five. `brand_id` is NOT NULL, so the old `!a.brandId` escape
+   * never fired - the filter was always on.
+   */
+  const accounts = toArray<{ id: string; platform: string; accountName?: string; displayStatus?: string; status?: string; brandId?: string }>(socialData);
 
   // Default to the first brand once the list loads.
   useEffect(() => {
