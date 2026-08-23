@@ -321,41 +321,72 @@ export function layerPromptReference(layer: {
 }
 
 /**
- * The slot description for a mark attached because its LAYER is being edited.
+ * The slot description for a mark attached because its LAYER is being moved.
  *
- * Deliberately not `slotDescriptionForAsset(asset, "object")`, which ends
- * "do not redesign, restyle, recolor" — correct when the mark is being placed
- * in a fresh render, and a direct contradiction of the user's instruction when
- * the instruction IS "make the mark bronze". This says the same thing where it
- * matters (the artwork comes from the file, not from the raster) and leaves the
- * one requested change as the only permitted deviation.
+ * This used to leave "the one requested change" as a permitted deviation,
+ * because the layer path was built assuming an instruction like "make the mark
+ * bronze" was a thing a user could ask for. **Tony ruled on 2026-08-23 that it
+ * is not: a mark may not be recoloured at all.** `layerEditRefusal` now turns
+ * every worded mark edit away, so the only edit that reaches this description
+ * is a wordless drag — and a drag changes where the mark is, never what it is.
+ * With no permitted deviation left, the description forbids all of them, which
+ * is also what the brand records already say in their own words ("The logo
+ * lockup is locked · never recolor or distort it").
  */
 export function markLayerSlotDescription(assetName: string): string {
-  return `Brand asset "${assetName}" — the authoritative artwork for the brand mark being changed in ` +
-    "the image above. Take its exact design, letterforms and proportions from THIS file rather than " +
-    "from the image, which is a generation and may already have drifted from it. Apply only the change " +
-    "asked for; in every other respect the mark must match this file.";
+  return `Brand asset "${assetName}" — the authoritative artwork for the brand mark being moved in ` +
+    "the image above. Take its exact design, letterforms, proportions and colours from THIS file rather " +
+    "than from the image, which is a generation and may already have drifted from it. Do not redesign, " +
+    "restyle, recolor or distort it: reproduce this file exactly, only in its new position.";
 }
 
 /**
  * Why a layer edit is refused, or null when it may proceed.
  *
- * One refusal, and it is the marks rule again. Detection can find a mark that
- * nothing in the take's record accounts for — a logo on a photographed shirt,
- * or a mark whose attribution was refused as ambiguous — and there is then no
- * authoritative artwork to attach. Both alternatives are worse than saying so:
- * naming it in prose asks the model to redraw a trademark, and letting it copy
- * from the previous render is the compounding degradation this rule exists to
- * stop. `@`-mentioning the mark's own file satisfies it, which is why an
- * attached object reference counts.
+ * TWO refusals, and both are the marks rule.
+ *
+ * 1. A MARK MAY NOT BE ALTERED AT ALL. Tony ruled on 2026-08-23, asked directly
+ *    whether recolouring a mark is allowed: "no, they cannot." The brand records
+ *    said it first, in their own words — Rumble U's trademark rules read "The
+ *    logo lockup is locked · never recolor or distort it." So a mark layer is an
+ *    ALLOW-LIST, not a word filter: the one edit permitted is a wordless drag,
+ *    which changes where the mark is and never what it is. Any typed instruction
+ *    is refused, whatever it says.
+ *
+ *    Deliberately not a list of colour words. "Bronze", "warmer", "match the
+ *    jersey" and "like the one on the left" are all recolours and no word list
+ *    catches them, while the model, handed the mark's file and any instruction
+ *    at all, will alter it — `markLayerSlotDescription` used to tell it to. A
+ *    false allow here is a trademark violation; a false refusal is a sentence
+ *    on screen that says what to do instead. The asymmetry picks the rule.
+ *
+ * 2. A mark with no artwork to attach is refused even for a move. Detection can
+ *    find a mark that nothing in the take's record accounts for — a logo on a
+ *    photographed shirt, or a mark whose attribution was refused as ambiguous —
+ *    and there is then no authoritative artwork. Both alternatives are worse
+ *    than saying so: naming it in prose asks the model to redraw a trademark,
+ *    and letting it copy from the previous render is the compounding
+ *    degradation this rule exists to stop. `@`-mentioning the mark's own file
+ *    satisfies it, which is why an attached object reference counts.
+ *
+ * Rule 1 is checked FIRST. Rule 2's message ends "attach the file and try
+ * again", which would be a lie for a worded edit that rule 1 refuses anyway.
  */
 export function layerEditRefusal(layer: {
   name: string;
   kind: string;
   hasMarkArtwork: boolean;
+  /** True when the user typed anything. A move alone types nothing. */
+  hasInstruction: boolean;
 }): string | null {
-  if (layer.kind === "mark" && !layer.hasMarkArtwork) {
-    return `${layer.name} is a brand mark and this take has no source file for it, so changing it ` +
+  if (layer.kind !== "mark") return null;
+  if (layer.hasInstruction) {
+    return `${layer.name} is a brand mark, and a brand mark cannot be recoloured, restyled or ` +
+      "redrawn — not even from its own file. Nothing was changed or charged. You can still drag it " +
+      "to a new place, or change the artwork by replacing the brand asset itself.";
+  }
+  if (!layer.hasMarkArtwork) {
+    return `${layer.name} is a brand mark and this take has no source file for it, so moving it ` +
       "would mean redrawing a trademark from a description. Nothing was changed or charged. " +
       "Attach the mark's own file with @ and try again.";
   }

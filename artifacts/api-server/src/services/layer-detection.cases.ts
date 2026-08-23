@@ -259,26 +259,57 @@ export function runCases(): Result[] {
     layerPromptReference({ name: "Crown U Tennis Athlete", kind: "character", markAssetName: "x.png" })
       === "Crown U Tennis Athlete",
   );
+  /*
+   * A MARK CANNOT BE ALTERED. Tony, 2026-08-23, asked directly whether
+   * recolouring a mark is allowed at all: "no, they cannot." That reverses what
+   * this file asserted a fortnight earlier — the case below used to read "and it
+   * does NOT forbid the recolour the user just asked for", which encoded the
+   * opposite ruling. The permitted set is now a wordless drag and nothing else.
+   */
+  check(
+    "a WORDED mark edit is refused even when the artwork is attached",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true, hasInstruction: true })
+      ?.includes("cannot be recoloured, restyled or redrawn") === true,
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true, hasInstruction: true }),
+  );
+  check(
+    "the words do not matter — the refusal is by KIND, not by a colour word list",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true, hasInstruction: true })
+      === layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false, hasInstruction: true }),
+  );
+  check(
+    "and it says what IS still allowed, so the refusal is actionable",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true, hasInstruction: true })
+      ?.includes("drag it to a new place") === true,
+  );
+  check(
+    "a WORDLESS drag of a mark with its artwork proceeds — position is not the artwork",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true, hasInstruction: false }) === null,
+  );
   check(
     "a mark with no file to attach is REFUSED rather than described",
-    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false })?.includes("redrawing a trademark") === true,
-    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false }),
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false, hasInstruction: false })
+      ?.includes("redrawing a trademark") === true,
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false, hasInstruction: false }),
   );
   check(
     "the refusal says which layer, so it is actionable",
-    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false })?.startsWith("Crown U Mark is a brand mark") === true,
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false, hasInstruction: false })
+      ?.startsWith("Crown U Mark is a brand mark") === true,
   );
   check(
     "and it says nothing was charged, because nothing was",
-    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false })?.includes("Nothing was changed or charged") === true,
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false, hasInstruction: false })
+      ?.includes("Nothing was changed or charged") === true,
   );
   check(
-    "a mark WITH its artwork proceeds",
-    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: true }) === null,
+    "a worded edit never gets the attach-the-file advice, which would be a dead end",
+    layerEditRefusal({ ...MARK_LAYER, hasMarkArtwork: false, hasInstruction: true })
+      ?.includes("try again") === false,
   );
   check(
     "only marks are gated — an unattributed sparkle is nobody's trademark",
-    layerEditRefusal({ name: "Sparkle FX", kind: "element", hasMarkArtwork: false }) === null,
+    layerEditRefusal({ name: "Sparkle FX", kind: "element", hasMarkArtwork: false, hasInstruction: true }) === null,
   );
   check(
     "the attached mark's description says to copy from the FILE, not from the render",
@@ -286,8 +317,13 @@ export function runCases(): Result[] {
     markLayerSlotDescription("Crown-U_Mark_Gold.png"),
   );
   check(
-    "and it does NOT forbid the recolour the user just asked for",
-    !/do not (redesign|restyle|recolor)/i.test(markLayerSlotDescription("Crown-U_Mark_Gold.png")),
+    "and it now FORBIDS every deviation, because none is permitted any more",
+    /do not redesign, restyle, recolor or distort it/i.test(markLayerSlotDescription("Crown-U_Mark_Gold.png")),
+    markLayerSlotDescription("Crown-U_Mark_Gold.png"),
+  );
+  check(
+    "the mark description names colour explicitly — it is the one that was allowed before",
+    /colours from THIS file/i.test(markLayerSlotDescription("Crown-U_Mark_Gold.png")),
     markLayerSlotDescription("Crown-U_Mark_Gold.png"),
   );
 

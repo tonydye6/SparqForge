@@ -2509,6 +2509,10 @@ router.post(
           name: layer.name,
           kind: layer.kind,
           hasMarkArtwork: Boolean(markLayerAsset) || Boolean(mentionedMark),
+          // Typed words on a mark are an instruction to alter it, and a mark may
+          // not be altered (Tony, 2026-08-23). A drag types nothing, which is
+          // why `said` and not `instruction` is the test: whitespace is silence.
+          hasInstruction: said.length > 0,
         });
         if (refusal) {
           res.status(422).json({ error: refusal });
