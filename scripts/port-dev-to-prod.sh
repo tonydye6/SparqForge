@@ -83,6 +83,21 @@ UPDATE assets a
 
 INSERT INTO brands ($BCOLS) SELECT $BCOLS FROM s_brands
   ON CONFLICT (id) DO UPDATE SET $BSETS;
+
+-- 0048's rule, applied by hand because migrations' data statements never reach
+-- production (publish copies DDL only). Measured 2026-08-23: prod has FIVE
+-- connected accounts -- Instagram, X, LinkedIn, YouTube, TikTok -- and every one
+-- is stamped Crown U, which is the pre-0046 state. Accounts are workspace-wide
+-- (doc 38 §3) and the connect route already resolves the house brand, so the
+-- data is the only side still disagreeing. Same statement as 0046 and 0048.
+UPDATE social_accounts AS account
+   SET brand_id = house.id,
+       updated_at = NOW()
+  FROM (
+    SELECT id FROM brands WHERE LOWER(slug) = 'sparq'
+     ORDER BY created_at ASC, id ASC LIMIT 1
+  ) AS house
+ WHERE account.brand_id IS DISTINCT FROM house.id;
 COMMIT;
 SQL
 
@@ -103,6 +118,10 @@ select 'DEV     '||count(*)
   from assets"
 echo "-- brand colours in prod (Crown U should now be Victory Gold #FFD700):"
 psql "$PROD_DATABASE_URL" -A -t -c "select name||' '||color_primary from brands order by name"
+echo "-- every social account should now say Sparq:"
+psql "$PROD_DATABASE_URL" -A -t -c "
+select a.platform||' '||a.account_name||' -> '||b.name
+  from social_accounts a join brands b on b.id = a.brand_id order by a.platform"
 
 echo
 echo "== who touched production, and when =="
