@@ -44,6 +44,7 @@ async function configuredSpreadSize(): Promise<number> {
 }
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
+import { describeVendorConfigError } from "../lib/vendor-errors.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { monthToDateBudget, reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
@@ -2776,7 +2777,15 @@ router.post(
         try { await db.delete(costLogsTable).where(eq(costLogsTable.id, reservationId)); } catch { /* best effort */ }
       }
       console.error("Region edit failed", err);
-      res.status(500).json({ error: "That edit could not be made. Nothing was charged." });
+      /*
+       * A misconfigured AI key is not a creative failure and must not read like
+       * one — "that edit could not be made" sends the operator to rewrite a
+       * prompt that can never work. See lib/vendor-errors.ts.
+       */
+      const config = describeVendorConfigError(err);
+      res.status(config ? 503 : 500).json({
+        error: config ?? "That edit could not be made. Nothing was charged.",
+      });
     }
   },
 );
