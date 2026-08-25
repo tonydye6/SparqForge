@@ -27,6 +27,8 @@
  * the first response.
  */
 /** The tier the routing targets. Env-overridable for the Settings-level escape. */
+import { directGeminiKeyNames, resolveDirectGeminiKey } from "@workspace/integrations-gemini-ai/api-key";
+
 export const VEO_MODEL = process.env.VEO_FIRST_LAST_MODEL || "veo-3.1-fast-generate-preview";
 
 /**
@@ -56,10 +58,21 @@ export interface VeoResult {
   referencesDropped: boolean;
 }
 
+/*
+ * A DIRECT Google key only. The old fallback to AI_INTEGRATIONS_GEMINI_API_KEY
+ * was a bug: that variable is the PROXY's credential, and on this workspace its
+ * value is the literal string "_DUMMY_API_KEY_" — so the fallback turned a
+ * missing-key configuration error into a Google auth rejection, against an
+ * endpoint (API_ROOT above) the proxy credential was never valid for.
+ */
 function apiKey(): string {
-  const key = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
-  if (!key) throw new Error("Veo needs GEMINI_API_KEY, which is not configured on this environment.");
-  return key;
+  const direct = resolveDirectGeminiKey();
+  if (!direct) {
+    throw new Error(
+      `Veo needs a direct Google AI key (${directGeminiKeyNames()}), none of which is set on this environment.`,
+    );
+  }
+  return direct.key;
 }
 
 const asImage = (img: VeoImage) => ({

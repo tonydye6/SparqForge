@@ -9,6 +9,7 @@
  */
 
 import { Router, type IRouter, type Request, type Response } from "express";
+import { directGeminiKeyNames, resolveDirectGeminiKey } from "@workspace/integrations-gemini-ai/api-key";
 import { str } from "../lib/http-params.js";
 import { z } from "zod";
 import { validateRequest } from "../middleware/validate.js";
@@ -191,10 +192,13 @@ router.post(
 
     // D4: Fail fast when the direct Gemini key is missing — the Replit proxy
     // does not support the pinned model names and would return UNSUPPORTED_MODEL.
-    if (!process.env["GEMINI_API_KEY"]) {
+    if (!resolveDirectGeminiKey()) {
       res.status(503).json({
         error: "AI model access is not configured",
-        message: "GEMINI_API_KEY is not set — Co-pilot Studio requires a direct Gemini API key to access the required models. Set the secret and restart.",
+        message:
+          `No direct Google AI key is set. Looked for ${directGeminiKeyNames()}. Co-pilot Studio ` +
+          "requires one to reach the pinned models; the Replit proxy cannot serve them. Set one of " +
+          "those secrets and restart the server.",
       });
       return;
     }

@@ -1,4 +1,5 @@
 import type { Server } from "node:http";
+import { directGeminiKeyNames, resolveDirectGeminiKey } from "@workspace/integrations-gemini-ai/api-key";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedDatabase } from "./seed";
@@ -125,15 +126,24 @@ function registerShutdownHandlers(server: Server): void {
 // turn-sequence check and can make the session appear permanently "busy".
 // Turns cancelled in real time (AbortSignal) are stored as 'cancelled' and are
 // deliberately NOT swept — the eq(status, 'running') filter exempts them.
-// D4: Emit ONE prominent warning at startup when GEMINI_API_KEY is absent so
+// D4: Emit ONE prominent warning at startup when no direct Google AI key is set, so
 // admins can act before the first failed user session.  The actual 503 guard
 // lives in the sessions/:id/turns route.
 function warnMissingGeminiKey(): void {
-  if (!process.env["GEMINI_API_KEY"]) {
+  // Reads every accepted spelling, not just GEMINI_API_KEY. The old check named
+  // one variable, so a workspace that HAD the key under GOOGLE_AI_VISION_API_KEY
+  // was warned it had none — and a workspace with the key genuinely missing got
+  // a warning that named the only name someone would then fail to find in the
+  // Secrets tab. See api-key.ts.
+  const direct = resolveDirectGeminiKey();
+  if (!direct) {
     logger.warn(
-      "GEMINI_API_KEY is not set — Co-pilot Studio (draft, edit, video, fan-out, " +
-      "caption, compare) will return 503 for every turn. Set the secret and restart.",
+      `No direct Google AI key is set (looked for ${directGeminiKeyNames()}) — Co-pilot Studio ` +
+      "(draft, edit, video, fan-out, caption, compare) will return 503 for every turn, and image " +
+      "generation and layer edits will fail against the proxy. Set one and restart.",
     );
+  } else {
+    logger.info(`Direct Google AI key found in ${direct.varName}.`);
   }
 }
 

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./batch": "./src/batch/index.ts",
-    "./image": "./src/image/index.ts"
+    "./image": "./src/image/index.ts",
+    "./api-key": "./src/api-key.ts"
   },
   "dependencies": {
     "@google/genai": "^2.12.0",
