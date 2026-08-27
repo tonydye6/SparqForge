@@ -455,6 +455,27 @@ const MIN_AXIS_FRACTION = 0.02;
  * Cells are still worth saying — they tell the model WHERE in the frame to look
  * — but they cannot carry the ask on their own. A displacement can: it survives
  * quantisation because it is measured, not bucketed.
+ *
+ * ⚠️ AND IT WAS NOT ENOUGH. Measured after this shipped, same creative, same
+ * mark, three renders at $0.134 each:
+ *
+ *   take 13 · 16% displacement · self-contradictory sentence   → did NOT move
+ *   take 14 · ~35% displacement · cross-cell, coherent         → MOVED (grew ~2x)
+ *   take 15 · 17% displacement · explicit "17% to the left"    → did NOT move
+ *
+ * So the sentence was never the lever; the MAGNITUDE is. A modest shift of a
+ * small element does not survive one generative pass no matter how precisely it
+ * is asked for, and take 15 proves the precise ask is not sufficient. What this
+ * function fixes is narrower than it first looked: the instruction is no longer
+ * a self-contradiction, the size is checkable, and a sub-3% drag is refused for
+ * free. It does NOT make a 17% move land.
+ *
+ * The real fix is the one doc 49 §7 already names and nobody has built: a
+ * cut-out mask plus a separate inpaint, so a move is compositing rather than
+ * re-imagining. Until then the honest options are to raise the refusal floor to
+ * whatever magnitude actually lands — which needs more than three samples to
+ * site — or to say after the fact that the move may not have taken. Tony's call;
+ * do not guess a threshold from n=3.
  */
 export function describeMoveDelta(from: MoveBox, to: MoveBox): string | null {
   const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
