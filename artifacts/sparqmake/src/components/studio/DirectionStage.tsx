@@ -168,7 +168,7 @@ export function DirectionStage({
         <p className="text-[12.5px] text-rebel-pink">{error}</p>
         <button
           onClick={() => void load()}
-          className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+          className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
         >
           Try again
         </button>
@@ -181,7 +181,7 @@ export function DirectionStage({
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-6">
       <div className="space-y-1.5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+        <p className="ui-label text-grit-teal">
           Stage 02 · Director
         </p>
         <h2 className="flex items-center gap-2 font-display text-xl tracking-wide text-foreground">
@@ -223,12 +223,12 @@ export function DirectionStage({
                     {card.name}
                   </p>
                   {card.kind === "house" && (
-                    <span className="mt-0.5 rounded-sm border border-border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-dim">
+                    <span className="mt-0.5 rounded-sm border border-border px-1 py-px ui-label text-dim">
                       Baseline
                     </span>
                   )}
                   {card.isBrandDefault && (
-                    <span className="mt-0.5 flex items-center gap-1 rounded-sm border border-victory-gold/40 px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em] text-victory-gold">
+                    <span className="mt-0.5 flex items-center gap-1 rounded-sm border border-victory-gold/40 px-1 py-px ui-label text-victory-gold">
                       <Lock size={7} />
                       Brand default
                     </span>
@@ -241,7 +241,7 @@ export function DirectionStage({
 
                 <div className="mt-2 space-y-1">
                   {/* A rate is never shown without the sample behind it. */}
-                  <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+                  <p className="ui-label text-dim">
                     {card.hitRate.rate === null ? (
                       card.hitRate.n === 0 ? (
                         <>No signal yet</>
@@ -260,7 +260,7 @@ export function DirectionStage({
                       </>
                     )}
                   </p>
-                  <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+                  <p className="ui-label text-dim">
                     {card.referenceCount === 0
                       ? "No references"
                       : `${card.referenceCount} reference${card.referenceCount === 1 ? "" : "s"}`}
@@ -276,7 +276,7 @@ export function DirectionStage({
               <button
                 onClick={() => void toggleBrandDefault(card)}
                 disabled={locked || lockingDefault}
-                className="mt-2.5 rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                className="mt-2.5 rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
               >
                 {card.isBrandDefault ? "Unlock brand default" : "Lock as brand default"}
               </button>
@@ -300,14 +300,14 @@ export function DirectionStage({
         </p>
         <div className="ml-auto flex items-center gap-2">
           {saved && (
-            <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal">
+            <span className="ui-label text-cyber-teal">
               Saved
             </span>
           )}
           <button
             onClick={() => void save()}
             disabled={!selected || saving || locked}
-            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+            className="rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
           >
             {locked ? "Locked" : saving ? "Saving" : "Use this director"}
           </button>

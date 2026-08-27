@@ -325,7 +325,7 @@ export default function Pipeline() {
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border/60 px-5 py-3">
         <h1 className="font-display text-lg tracking-wide text-foreground">Pipeline</h1>
-        <span className="font-mono text-[10px] uppercase tracking-[0.06em] text-dim" data-numeric>
+        <span className="ui-label text-dim" data-numeric>
           {rangeLabel}
           {needsYou > 0 && ` · ${needsYou} need you`}
           {agingCount > 0 && ` · ${agingCount} aging`}
@@ -340,7 +340,7 @@ export default function Pipeline() {
           </button>
           <button
             onClick={() => goToWeek(null)}
-            className="rounded-sm border border-border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+            className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
           >
             This week
           </button>
@@ -390,7 +390,7 @@ export default function Pipeline() {
                 <p className="line-clamp-2 text-[11.5px] leading-tight text-muted-foreground">{u.name}</p>
                 {awaiting[u.id] && (
                   <p className={cn(
-                    "mt-1 font-mono text-[8.5px] uppercase tracking-[0.07em]",
+                    "mt-1 ui-label",
                     awaiting[u.id].needsYou ? "text-victory-gold" : "text-dim",
                   )}>
                     {awaiting[u.id].needsYou ? "Waiting on you" : "Waiting on a decision"}
@@ -404,7 +404,7 @@ export default function Pipeline() {
               </button>
             ))}
           </div>
-          <p className="border-t border-border/60 px-3 py-2 font-mono text-[8.5px] leading-relaxed tracking-[0.06em] text-dim">
+          <p className="border-t border-border/60 px-3 py-2 text-[11px] leading-relaxed text-dim">
             Undated work stays visible
           </p>
         </aside>
@@ -418,7 +418,7 @@ export default function Pipeline() {
                 <div key={i} className="border-r border-border/60 px-2.5 py-2 last:border-r-0">
                   <p
                     className={cn(
-                      "font-mono text-[9.5px] uppercase tracking-[0.12em]",
+                      "ui-label",
                       isToday ? "text-grit-teal" : "text-dim",
                     )}
                   >
@@ -466,7 +466,7 @@ export default function Pipeline() {
                       */}
                       {awaiting[c.creativeId] && (
                         <p className={cn(
-                          "mb-1 border-l-2 pl-1.5 font-mono text-[8.5px] uppercase tracking-[0.07em]",
+                          "mb-1 border-l-2 pl-1.5 ui-label",
                           awaiting[c.creativeId].needsYou
                             ? "border-l-victory-gold text-victory-gold"
                             : "border-l-border text-dim",
@@ -495,7 +495,7 @@ export default function Pipeline() {
                       href="/studio-v2"
                       className="block rounded-sm border border-dashed border-border p-2.5 transition-colors hover:border-grit-teal/50 hover:bg-grit-teal/5"
                     >
-                      <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+                      <p className="ui-label text-dim">
                         Nothing here yet
                       </p>
                       <p className="mt-1 text-[10.5px] leading-snug text-dim">
@@ -516,7 +516,7 @@ export default function Pipeline() {
         <StateChip state="scheduled" />
         <StateChip state="published" />
         <StateChip state="failed" />
-        <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+        <span className="ml-auto ui-label text-dim">
           ×N expands to per-channel
         </span>
       </footer>

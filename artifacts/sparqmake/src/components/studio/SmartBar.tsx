@@ -92,7 +92,7 @@ export function SmartBar({
         ) : (
           <ChevronRight size={9} className="shrink-0 text-dim" />
         )}
-        <span className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">What it saw</span>
+        <span className="ui-label text-muted-foreground">What it saw</span>
         {/* Health as a dot: teal is "watched everything, nothing to flag" —
             visible proof of the quiet invariant instead of empty space. */}
         <span
@@ -115,7 +115,7 @@ export function SmartBar({
               )}
               data-testid={`smart-card-${card.id}`}
             >
-              <p className="mb-1 font-mono text-[8px] uppercase tracking-[0.08em] text-dim">
+              <p className="mb-1 ui-label text-dim">
                 saw{" "}
                 <span className={card.tone === "risk" ? "text-rebel-pink" : "text-victory-gold"}>{card.saw}</span>
               </p>
@@ -124,21 +124,21 @@ export function SmartBar({
                 {card.action?.type === "open_stage" && (
                   <button
                     onClick={() => onOpenStage(card.action!.type === "open_stage" ? card.action!.stageKind : "")}
-                    className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate"
+                    className="rounded-sm border border-grit-teal px-2 py-0.5 text-[12px] font-medium text-cyber-teal hover-elevate"
                   >
                     {card.action.label}
                   </button>
                 )}
                 {card.action?.type === "href" && (
                   <Link href={card.action.href}>
-                    <a className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate">
+                    <a className="rounded-sm border border-grit-teal px-2 py-0.5 text-[12px] font-medium text-cyber-teal hover-elevate">
                       {card.action.label}
                     </a>
                   </Link>
                 )}
                 <button
                   onClick={() => setDismissed((prev) => new Set(prev).add(card.id))}
-                  className="px-1 font-mono text-[8px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground"
+                  className="px-1 text-[12px] font-medium text-dim hover:text-muted-foreground"
                 >
                   Not now
                 </button>
@@ -149,13 +149,13 @@ export function SmartBar({
           {events.length > 0 ? (
             <ul>
               {events.map((e, i) => (
-                <li key={i} className="font-mono text-[8.5px] leading-[1.9] text-dim">
+                <li key={i} className="text-[11px] leading-relaxed text-dim">
                   {e.line}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="font-mono text-[8.5px] text-dim">Nothing has happened on this post yet.</p>
+            <p className="ui-data text-[11px] text-dim">Nothing has happened on this post yet.</p>
           )}
         </div>
       )}

@@ -155,7 +155,7 @@ export function LayerComposer({
       onPointerDown={(e) => e.stopPropagation()}
       data-testid="composer-layer"
     >
-      <p className="mb-1 flex items-center gap-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal">
+      <p className="mb-1 flex items-center gap-1 ui-label text-cyber-teal">
         {moveTo ? <Move size={9} /> : <Sparkles size={9} />}
         {layerName}
       </p>
@@ -199,7 +199,7 @@ export function LayerComposer({
       )}
 
       <div className="mt-1.5 flex items-center gap-2">
-        <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+        <span className="ui-label text-dim">
           {moveTo
             ? <>Moves it {"·"} fills the gap {"·"} ${costUsd.toFixed(3)}</>
             : <>This layer only {"·"} @ attaches {"·"} ${costUsd.toFixed(3)}</>}
@@ -209,7 +209,7 @@ export function LayerComposer({
           <button
             onClick={onCancelMove}
             disabled={busy}
-            className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+            className="rounded-sm border border-border px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
             data-testid="button-layer-move-cancel"
           >
             Put it back
@@ -218,7 +218,7 @@ export function LayerComposer({
         <button
           onClick={() => void submit()}
           disabled={!canSubmit || busy}
-          className="rounded-sm border border-grit-teal px-2 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+          className="rounded-sm border border-grit-teal px-2 py-0.5 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
           data-testid="button-layer-submit"
         >
           {busy ? <Loader2 size={10} className="animate-spin" /> : moveTo ? "Move it here" : "Change it"}

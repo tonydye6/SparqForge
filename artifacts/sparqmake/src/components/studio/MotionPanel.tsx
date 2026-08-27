@@ -175,7 +175,7 @@ export function MotionPanel({
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="flex items-start gap-3">
         <div className="space-y-1.5">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+          <p className="ui-label text-grit-teal">
             Stage 03 · Motion
           </p>
           <h2 className="font-display text-xl tracking-wide text-foreground">
@@ -189,7 +189,7 @@ export function MotionPanel({
         <button
           onClick={() => void openSequence()}
           disabled={sequenceBusy}
-          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
           data-testid="button-open-sequence"
         >
           {sequenceBusy ? (
@@ -242,7 +242,7 @@ export function MotionPanel({
             {!motionIsStale && onContinue && (
               <button
                 onClick={onContinue}
-                className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate"
                 data-testid="button-motion-continue"
               >
                 Ships with every channel version {"·"} continue
@@ -268,7 +268,7 @@ export function MotionPanel({
               data-testid="input-motion-instruction"
             />
             <div className="mt-1.5 flex items-center gap-2">
-              <span className={`font-mono text-[8.5px] uppercase tracking-[0.06em] ${motionTake?.cut ? "text-victory-gold" : "text-dim"}`}>
+              <span className={`ui-label ${motionTake?.cut ? "text-victory-gold" : "text-dim"}`}>
                 {motionTake?.cut
                   ? `Animating replaces the rendered cut as what ships ${"·"} the cut stays on the Sequence tab`
                   : "Animates the pick · billed per second of clip"}
@@ -280,7 +280,7 @@ export function MotionPanel({
               <button
                 onClick={() => void convert()}
                 disabled={converting}
-                className="rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                className="rounded-sm border border-grit-teal px-2.5 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
                 data-testid="button-motion-convert"
               >
                 {converting ? <Loader2 size={10} className="animate-spin" />
@@ -311,7 +311,7 @@ export function MotionPanel({
               <div className="mb-2 flex items-center justify-between gap-3">
                 <span className="text-[12.5px] text-foreground">{choice.platform}</span>
                 <span
-                  className={`rounded-sm border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.09em] ${
+                  className={`rounded-sm border px-1.5 py-0.5 ui-label ${
                     choice.motionFromThisImage
                       ? "border-grit-teal text-cyber-teal"
                       : "border-rebel-pink text-rebel-pink"

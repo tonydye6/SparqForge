@@ -136,7 +136,7 @@ export function LayerPanel({
 
   if (error && !data) {
     return (
-      <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim" data-testid="text-layers-error">
+      <p className="ui-label text-dim" data-testid="text-layers-error">
         {error}
       </p>
     );
@@ -146,7 +146,7 @@ export function LayerPanel({
   return (
     <div className="space-y-1.5" data-testid="panel-layers">
       <div className="flex items-center gap-1.5">
-        <p className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
+        <p className="ui-label text-dim">
           Layers {"·"} {data.layers.length}
         </p>
         <InfoDot text="Read off the take itself: the real files this picture was rendered from, back to front. NOT LOCATED means a layer is known to be in the frame but has not been measured into a position, so nothing selects it yet. CARRIED FORWARD means it came from the take this one was edited from, since an edit is handed the previous picture rather than the original files." />
@@ -199,7 +199,7 @@ export function LayerPanel({
                   * 220px column. A row with nothing to disclose says nothing.
                   */}
                 {(!l.bbox || l.origin === "inherited_cast") && (
-                  <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                  <p className="truncate ui-label text-dim">
                     {!l.bbox && <>not located</>}
                     {!l.bbox && l.origin === "inherited_cast" && <> {"·"} </>}
                     {l.origin === "inherited_cast" && <>carried forward</>}
@@ -255,7 +255,7 @@ export function LayerPanel({
         <button
           onClick={() => void findLayers()}
           disabled={finding}
-          className="w-full rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+          className="w-full rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
           data-testid="button-find-layers"
         >
           {finding ? (

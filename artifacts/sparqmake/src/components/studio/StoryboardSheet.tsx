@@ -253,12 +253,12 @@ export function StoryboardSheet({
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="space-y-1">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+        <p className="ui-label text-grit-teal">
           Stage 03 {"·"} Media {"·"} Storyboard
         </p>
         <div className="flex flex-wrap items-baseline gap-3">
           <h2 className="font-display text-xl tracking-wide text-foreground">The shots</h2>
-          <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+          <span className="ui-label text-dim">
             {board.beats.length} beats {"·"} same subject pinned in every one
           </span>
         </div>
@@ -282,14 +282,14 @@ export function StoryboardSheet({
           >
             <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
               {beat.locked && <span className="size-[6px] shrink-0 rounded-full bg-cyber-teal" />}
-              <span className="min-w-0 flex-1 truncate font-mono text-[8px] uppercase tracking-[0.07em] text-foreground" title={beat.text}>
+              <span className="min-w-0 flex-1 truncate ui-label text-foreground" title={beat.text}>
                 {beat.n} {"·"} {beat.text}
               </span>
               {beat.locked && (
-                <span className="shrink-0 font-mono text-[8px] uppercase tracking-[0.07em] text-cyber-teal">Kept</span>
+                <span className="shrink-0 ui-label text-cyber-teal">Kept</span>
               )}
               {running === beat.n && (
-                <span className="shrink-0 font-mono text-[8px] uppercase tracking-[0.07em] text-victory-gold">Running</span>
+                <span className="shrink-0 ui-label text-victory-gold">Running</span>
               )}
             </div>
 
@@ -325,7 +325,7 @@ export function StoryboardSheet({
                   >
                     {t.imageUrl && <img src={t.imageUrl} alt="" className="h-full w-full object-cover" />}
                     {isPick && (
-                      <span className="absolute left-1 top-1 rounded-sm bg-black/60 px-1 py-px font-mono text-[7px] uppercase tracking-[0.05em] text-cyber-teal">
+                      <span className="absolute left-1 top-1 rounded-sm bg-black/60 px-1 py-px ui-label text-cyber-teal">
                         in use
                       </span>
                     )}
@@ -355,7 +355,7 @@ export function StoryboardSheet({
                         className="w-full rounded-sm border border-border bg-background"
                         data-testid={`beat-${beat.n}-clip`}
                       />
-                      <p className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                      <p className="ui-label text-dim">
                         {beat.clip.durationSeconds ? `${beat.clip.durationSeconds}s` : "clip"}
                         {beat.clip.costUsd !== null ? ` ${"·"} $${beat.clip.costUsd.toFixed(2)}` : ""}
                         {" · "}{beat.clip.engine}
@@ -387,7 +387,7 @@ export function StoryboardSheet({
                           onClick={() => setChain((c) => ({ ...c, [beat.n]: !(c[beat.n] ?? true) }))}
                           aria-pressed={chain[beat.n] ?? true}
                           className={cn(
-                            "w-full rounded-sm border px-1.5 py-1 font-mono text-[8px] uppercase tracking-[0.05em] hover-elevate",
+                            "w-full rounded-sm border px-1.5 py-1 text-[12px] font-medium hover-elevate",
                             (chain[beat.n] ?? true)
                               ? "border-grit-teal bg-grit-teal/10 text-cyber-teal"
                               : "border-border text-muted-foreground",
@@ -402,7 +402,7 @@ export function StoryboardSheet({
                           onClick={() => setEndPin((c) => ({ ...c, [beat.n]: !c[beat.n] }))}
                           aria-pressed={endPin[beat.n] === true}
                           className={cn(
-                            "w-full rounded-sm border px-1.5 py-1 font-mono text-[8px] uppercase tracking-[0.05em] hover-elevate",
+                            "w-full rounded-sm border px-1.5 py-1 text-[12px] font-medium hover-elevate",
                             endPin[beat.n]
                               ? "border-victory-gold bg-victory-gold/10 text-victory-gold"
                               : "border-border text-muted-foreground",
@@ -415,7 +415,7 @@ export function StoryboardSheet({
                       <button
                         onClick={() => void animateBeat(beat.n)}
                         disabled={animating !== null}
-                        className="w-full rounded-sm border border-victory-gold/60 px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-victory-gold hover-elevate disabled:opacity-40"
+                        className="w-full rounded-sm border border-victory-gold/60 px-2 py-1 text-[12px] font-medium text-victory-gold hover-elevate disabled:opacity-40"
                         data-testid={`button-animate-beat-${beat.n}`}
                       >
                         {animating === beat.n
@@ -441,7 +441,7 @@ export function StoryboardSheet({
                   <button
                     onClick={() => void runBeat(beat.n)}
                     disabled={running !== null}
-                    className="w-full rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                    className="w-full rounded-sm border border-grit-teal px-2 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
                     data-testid={`button-run-beat-${beat.n}`}
                   >
                     {running === beat.n
@@ -459,9 +459,9 @@ export function StoryboardSheet({
         <span className="text-[12px] text-foreground" data-testid="text-storyboard-summary">
           {board.summary}
         </span>
-        {note && <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal">{note}</span>}
+        {note && <span className="ui-label text-cyber-teal">{note}</span>}
         {board.renderedBy && (
-          <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+          <span className="ui-label text-dim">
             {board.animatedCount} animated {"·"} rendered by {board.renderedBy}
           </span>
         )}
@@ -473,7 +473,7 @@ export function StoryboardSheet({
               if (next) void runBeat(next.n);
             }}
             disabled={running !== null}
-            className="rounded-sm border border-victory-gold/60 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-victory-gold hover-elevate disabled:opacity-40"
+            className="rounded-sm border border-victory-gold/60 px-2.5 py-1 text-[12px] font-medium text-victory-gold hover-elevate disabled:opacity-40"
             data-testid="button-run-next-beat"
           >
             Run the next unrun beat {"·"} {price}
@@ -482,7 +482,7 @@ export function StoryboardSheet({
         {allPicked && onContinue && (
           <button
             onClick={onContinue}
-            className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+            className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate"
             data-testid="button-storyboard-continue"
           >
             Continue {"·"} animate the beats <ArrowRight size={9} />

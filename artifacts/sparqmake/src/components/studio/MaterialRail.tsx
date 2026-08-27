@@ -49,7 +49,7 @@ const STAGE_LABELS: Record<RailStage["stageKind"], string> = {
 
 const Line = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="border-b border-border/40 py-1.5 last:border-b-0">
-    <p className="font-mono text-[7.5px] uppercase tracking-[0.09em] text-dim">{label}</p>
+    <p className="ui-label text-dim">{label}</p>
     <div className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">{children}</div>
   </div>
 );
@@ -92,7 +92,7 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
   if (!activeStage) {
     return (
       <div className="px-3 py-2.5">
-        <p className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</p>
+        <p className="ui-label text-muted-foreground">Material</p>
         <p className="mt-0.5 text-[10px] leading-snug text-dim">No stage open.</p>
       </div>
     );
@@ -241,8 +241,8 @@ export function MaterialRail({ stages, activeStage, takesByStage }: MaterialRail
         ) : (
           <ChevronRight size={9} className="shrink-0 text-dim" />
         )}
-        <span className="font-display text-[13px] uppercase tracking-[0.09em] text-foreground">Material</span>
-        <span className="ml-auto min-w-0 truncate text-[9.5px] text-dim">{headline}</span>
+        <span className="ui-label text-muted-foreground">Material</span>
+        <span className="ml-auto min-w-0 truncate text-[11px] text-dim">{headline}</span>
       </button>
 
       {expanded && (

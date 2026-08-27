@@ -49,7 +49,7 @@ export default function SequenceTimeline() {
   return (
     <div className="mx-auto flex h-full w-full max-w-[1200px] flex-col overflow-hidden p-3 sm:p-6">
       <div className="mb-4 flex shrink-0 flex-col gap-1 sm:mb-6">
-        <span className="font-mono text-[10px] uppercase tracking-[0.11em] text-dim">Sequence</span>
+        <span className="ui-label text-dim">Sequence</span>
         <h1 className="text-xl font-bold text-foreground sm:text-3xl">Timeline</h1>
         <p className="text-xs text-muted-foreground sm:text-sm">
           Clips, levels, and where the music steps back for the voice.
@@ -68,16 +68,16 @@ export default function SequenceTimeline() {
         {data && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground">
+              <span className="rounded-sm border border-border px-2 py-1 ui-label text-muted-foreground">
                 {data.clips.length} clip{data.clips.length === 1 ? "" : "s"}
               </span>
               <span
-                className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground"
+                className="rounded-sm border border-border px-2 py-1 ui-label text-muted-foreground"
                 data-numeric
               >
                 {(data.totalDurationMs / 1000).toFixed(1)}s total
               </span>
-              <span className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground">
+              <span className="rounded-sm border border-border px-2 py-1 ui-label text-muted-foreground">
                 {data.tracks.length} track{data.tracks.length === 1 ? "" : "s"}
               </span>
             </div>

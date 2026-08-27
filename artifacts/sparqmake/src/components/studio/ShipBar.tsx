@@ -116,7 +116,7 @@ export function ShipBar({
   return (
     <div className="shrink-0 border-t border-border/60 bg-card" data-testid="bar-ship">
       <div className="flex items-start gap-3 px-4 py-2.5">
-        <span className="whitespace-nowrap pt-0.5 font-mono text-[9.5px] uppercase tracking-[0.11em] text-grit-teal">
+        <span className="whitespace-nowrap pt-0.5 ui-label text-grit-teal">
           Publishing
         </span>
 
@@ -138,7 +138,7 @@ export function ShipBar({
                 go find their own work again (doc 40 P1.6).
               */}
               <Link href={`/pipeline?focus=${creativeId}`}>
-                <a className="inline-flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-cyber-teal hover:underline" data-testid="link-pipeline">
+                <a className="inline-flex items-center gap-1 text-[12px] font-medium text-cyber-teal hover:underline" data-testid="link-pipeline">
                   Schedule it in the Pipeline <ArrowRight size={9} />
                 </a>
               </Link>
@@ -162,7 +162,7 @@ export function ShipBar({
                 {preview.variants.length === 1 ? "One channel version is" : `${preview.variants.length} channel versions are`} ready to schedule.
               </p>
               <Link href={`/pipeline?focus=${creativeId}`}>
-                <a className="inline-flex items-center gap-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-cyber-teal hover:underline" data-testid="link-pipeline-insync">
+                <a className="inline-flex items-center gap-1 text-[12px] font-medium text-cyber-teal hover:underline" data-testid="link-pipeline-insync">
                   Schedule it in the Pipeline <ArrowRight size={9} />
                 </a>
               </Link>
@@ -175,7 +175,7 @@ export function ShipBar({
                   : `Ready to make ${preview.variants.length} channel ${preview.variants.length === 1 ? "version" : "versions"}.`}{" "}
                 <button
                   onClick={() => setOpen((v) => !v)}
-                  className="font-mono text-[9.5px] uppercase tracking-[0.06em] text-muted-foreground underline-offset-2 hover:underline"
+                  className="text-[12px] font-medium text-muted-foreground underline-offset-2 hover:underline"
                   data-testid="button-toggle-ship-detail"
                 >
                   {open ? "Hide" : "What goes where"}
@@ -194,7 +194,7 @@ export function ShipBar({
           <button
             onClick={() => void ship()}
             disabled={shipping}
-            className="shrink-0 rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+            className="shrink-0 rounded-sm border border-grit-teal px-2.5 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
             data-testid="button-ship"
           >
             {shipping ? <Loader2 size={10} className="animate-spin" /> : updating ? "Update it" : "Make it publishable"}
@@ -212,7 +212,7 @@ export function ShipBar({
           {preview.variants.map((v) => (
             <div key={v.platform} className="flex gap-3" data-testid={`ship-channel-${v.platform}`}>
               <span className={cn(
-                "w-[190px] shrink-0 truncate font-mono text-[9.5px] uppercase tracking-[0.06em]",
+                "w-[190px] shrink-0 truncate ui-label",
                 v.updates ? "text-muted-foreground" : "text-cyber-teal",
               )}>
                 {v.label} · {v.aspectRatio}

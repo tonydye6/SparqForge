@@ -318,8 +318,8 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
         <div className="min-w-0 flex-1 space-y-3">
           <div className="rounded-sm border border-l-2 border-border/60 border-l-grit-teal bg-card px-3.5 py-3">
             <div className="flex items-baseline justify-between gap-3">
-              <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">Hook · a layer, not pixels</p>
-              <span className={cn("font-mono text-[9.5px]", FIT_CLASS[hookState])} data-numeric>
+              <p className="ui-label text-grit-teal">Hook · a layer, not pixels</p>
+              <span className={cn("ui-data text-[11px]", FIT_CLASS[hookState])} data-numeric>
                 {hookChars}/{HOOK_BUDGET}
               </span>
             </div>
@@ -340,7 +340,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
           </div>
 
           <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
-            <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">Base caption</p>
+            <p className="ui-label text-muted-foreground">Base caption</p>
             <textarea
               value={base}
               onChange={(e) => { setBase(e.target.value); setSaved(false); }}
@@ -373,14 +373,14 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
             <button
               type="button"
               onClick={() => { setChannels((prev) => { const n = { ...prev }; for (const p of offerable) delete n[p]; return n; }); setDerivedFrom(base); }}
-              className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate"
+              className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
             >
               Clear {offerable.length}
             </button>
             <button
               type="button"
               onClick={() => setDerivedFrom(base)}
-              className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate"
+              className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
             >
               Keep all four
             </button>
@@ -408,14 +408,14 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
           return (
             <div key={platform} className="rounded-sm border border-border/60 bg-card p-3">
               <div className="flex items-baseline justify-between gap-2">
-                <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">{rule.label}</p>
+                <p className="ui-label text-muted-foreground">{rule.label}</p>
                 <div className="flex items-center gap-1.5">
                   {st.authored && (
-                    <span className="rounded-sm border border-grit-teal/40 px-1 py-px font-mono text-[8px] uppercase tracking-[0.09em] text-grit-teal">
+                    <span className="rounded-sm border border-grit-teal/40 px-1 py-px ui-label text-grit-teal">
                       Yours
                     </span>
                   )}
-                  <span className={cn("font-mono text-[9.5px]", FIT_CLASS[state])} data-numeric>
+                  <span className={cn("ui-data text-[11px]", FIT_CLASS[state])} data-numeric>
                     {chars}/{rule.caption}
                   </span>
                 </div>
@@ -435,7 +435,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
                 disabled={locked}
                 placeholder="#hashtags"
                 aria-label={`${rule.label} hashtags`}
-                className="mt-1 w-full border-0 border-t border-border/40 bg-transparent px-0 pt-1.5 font-mono text-[10.5px] text-muted-foreground outline-none placeholder:text-dim disabled:opacity-70"
+                className="mt-1 w-full border-0 border-t border-border/40 bg-transparent px-0 pt-1.5 ui-data text-[11px] text-muted-foreground outline-none placeholder:text-dim disabled:opacity-70"
               />
               {tagNote && <p className="mt-1 text-[10px] text-victory-gold">{tagNote}</p>}
             </div>
@@ -454,7 +454,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
           Typing is the point here. Drafting reads the picture you chose and fills what you have not written.
         </p>
         <div className="flex shrink-0 items-center gap-2">
-          {saved && <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">Saved</span>}
+          {saved && <span className="ui-label text-dim">Saved</span>}
           {/*
             * WHO IS TALKING, chosen per draft. The brand's own voice is the
             * default and stays selectable, because a persona is a departure you
@@ -467,7 +467,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
               onChange={(e) => setVoiceId(e.target.value)}
               disabled={locked || drafting}
               aria-label="Which voice writes this draft"
-              className="rounded-sm border border-border bg-card px-2 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-muted-foreground disabled:opacity-50"
+              className="rounded-sm border border-border bg-card px-2 py-1.5 ui-label text-muted-foreground disabled:opacity-50"
               data-testid="select-voice-persona"
             >
               <option value="">Brand voice</option>
@@ -477,7 +477,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
             </select>
           )}
           {lastVoice && !drafting && (
-            <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+            <span className="ui-label text-dim">
               Drafted as {lastVoice}
             </span>
           )}
@@ -485,7 +485,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
             type="button"
             onClick={() => void draft()}
             disabled={locked || drafting}
-            className="rounded-sm border border-border px-2.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate disabled:opacity-50"
+            className="rounded-sm border border-border px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-50"
           >
             {drafting ? "Drafting" : "Draft from the picture"}
           </button>
@@ -493,7 +493,7 @@ export function CopyStage({ creativeId, stageId, locked, selectedImageUrl, onSav
             type="button"
             onClick={() => void save()}
             disabled={locked || saving || (!hook.trim() && !base.trim())}
-            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+            className="rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
           >
             {saving ? "Saving" : "Save the copy"}
           </button>

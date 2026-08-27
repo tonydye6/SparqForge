@@ -415,7 +415,7 @@ export default function StudioV2() {
           <p className="text-[12.5px] text-foreground">{error}</p>
           <button
             onClick={() => creativeId && loadSpine(creativeId)}
-            className="mt-2 rounded-sm border border-border px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+            className="mt-2 rounded-md border border-border px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground hover-elevate"
           >
             Try again
           </button>
@@ -442,10 +442,16 @@ export default function StudioV2() {
 
           <div className="relative flex min-h-0 flex-1">
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2">
-                <span className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim">
-                  Stage {String(activeStage?.stageNumber ?? 0).padStart(2, "0")} ·{" "}
-                  {activeStage ? STAGE_LABELS[activeStage.stageKind] : ""}
+              <div className="flex shrink-0 items-center gap-3 px-5 py-2.5">
+                {/* The stage name is the TITLE of this screen — the display
+                    voice at a real size, not a mono annotation. */}
+                <span className="flex items-baseline gap-2">
+                  <span className="ui-data text-[11px] text-dim">
+                    {String(activeStage?.stageNumber ?? 0).padStart(2, "0")}
+                  </span>
+                  <span className="font-display text-[17px] font-extrabold uppercase leading-none text-foreground" style={{ letterSpacing: "-0.01em" }}>
+                    {activeStage ? STAGE_LABELS[activeStage.stageKind] : ""}
+                  </span>
                   {/* Why-this, off the floor and onto the title (13B). */}
                   {activeStage && <InfoDot text={whyThis} />}
                 </span>
@@ -458,7 +464,7 @@ export default function StudioV2() {
                   {pub && (
                     <button
                       onClick={() => setPublishOpen((v) => !v)}
-                      className="flex items-center gap-1.5 rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                      className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover-elevate"
                       data-testid="button-publish-chip"
                       aria-expanded={publishOpen}
                     >
@@ -486,13 +492,13 @@ export default function StudioV2() {
                           : "Lock, making this an input to every other stage"
                       }
                       className={cn(
-                        "flex items-center gap-1.5 rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate",
+                        "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium hover-elevate",
                         activeStage.status === "locked"
-                          ? "border-grit-teal text-cyber-teal"
-                          : "border-border text-muted-foreground",
+                          ? "text-cyber-teal"
+                          : "text-muted-foreground",
                       )}
                     >
-                      {activeStage.status === "locked" ? <Lock size={9} /> : <Unlock size={9} />}
+                      {activeStage.status === "locked" ? <Lock size={12} /> : <Unlock size={12} />}
                       {activeStage.status === "locked" ? "Locked" : "Lock"}
                     </button>
                   )}
@@ -509,20 +515,20 @@ export default function StudioV2() {
                   {activeStage && (nextStage ? (
                     <button
                       onClick={() => void openStage(nextStage.id)}
-                      className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                      className="flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover-elevate"
                       data-testid="button-stage-continue"
                     >
-                      Continue {"·"} {String(nextStage.stageNumber).padStart(2, "0")} {STAGE_LABELS[nextStage.stageKind]}
-                      <ArrowRight size={9} />
+                      Continue {"·"} {STAGE_LABELS[nextStage.stageKind]}
+                      <ArrowRight size={13} />
                     </button>
                   ) : (
                     <button
                       onClick={() => setPublishOpen(true)}
-                      className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                      className="flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-[12.5px] font-semibold text-primary-foreground hover-elevate"
                       data-testid="button-stage-continue"
                     >
                       Finish {"·"} make it publishable
-                      <ArrowRight size={9} />
+                      <ArrowRight size={13} />
                     </button>
                   ))}
                 </div>
@@ -643,14 +649,14 @@ export default function StudioV2() {
                 aria-label="Publishing and review"
                 data-testid="panel-publish"
               >
-                <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2.5">
-                  <span className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-grit-teal">
+                <div className="flex shrink-0 items-center gap-2 border-b border-border-soft px-5 py-3">
+                  <span className="ui-label text-grit-teal">
                     Publishing {"&"} review
                   </span>
                   <button
                     onClick={() => setPublishOpen(false)}
                     aria-label="Close the publish panel"
-                    className="ml-auto rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                    className="ml-auto rounded-md px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
                     data-testid="button-close-publish"
                   >
                     Close
@@ -677,7 +683,7 @@ export default function StudioV2() {
             )}
 
             {/* The brand contract, permanently locked, and the Material rail. */}
-            <aside className="flex w-[196px] shrink-0 flex-col border-l border-border/60 bg-card">
+            <aside className="flex w-[212px] shrink-0 flex-col border-l border-border-soft">
               <BrandContract
                 brandId={brandId}
               />

@@ -169,13 +169,13 @@ export function ReviewBar({
       */}
       {stageNotes && stageNotes.open.length > 0 && (
         <div className="border-b border-border/60 px-4 py-2">
-          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-victory-gold">
+          <p className="ui-label text-victory-gold">
             {stageNotes.summary}
           </p>
           <ul className="mt-1 space-y-1">
             {stageNotes.open.map((n) => (
               <li key={n.id} className="flex items-baseline gap-2 text-[11.5px] leading-relaxed">
-                <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+                <span className="shrink-0 ui-label text-dim">
                   {n.authorName ?? "Someone"}
                 </span>
                 <span className="text-foreground">{n.body}</span>
@@ -186,7 +186,7 @@ export function ReviewBar({
       )}
 
       <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
-        <span className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-grit-teal">Review</span>
+        <span className="ui-label text-grit-teal">Review</span>
         <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-muted-foreground">
           {approval.summary}
           {/* Never let a viewer conclude the product is broken. */}
@@ -197,7 +197,7 @@ export function ReviewBar({
           you.canRequest && (
             <button
               type="button" onClick={() => void request()} disabled={busy}
-              className="shrink-0 rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate disabled:opacity-50"
+              className="shrink-0 rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-50"
             >
               Ask for a decision
             </button>
@@ -207,7 +207,7 @@ export function ReviewBar({
             <button
               type="button" onClick={() => { setOpen(v => !v); setError(null); }} disabled={busy}
               className={cn(
-                "rounded-sm border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.09em] hover-elevate disabled:opacity-50",
+                "rounded-sm border px-2.5 py-1 text-[12px] font-medium hover-elevate disabled:opacity-50",
                 open ? "border-victory-gold text-victory-gold" : "border-border text-muted-foreground",
               )}
             >
@@ -215,7 +215,7 @@ export function ReviewBar({
             </button>
             <button
               type="button" onClick={() => void decide("approved")} disabled={busy}
-              className="rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+              className="rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
             >
               Approve
             </button>
@@ -261,12 +261,12 @@ export function ReviewBar({
               </p>
 
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">Caused by</span>
+                <span className="ui-label text-dim">Caused by</span>
                 {state.stages.map((s) => (
                   <button
                     key={s.id} type="button" onClick={() => setStageId(s.id)}
                     className={cn(
-                      "rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate",
+                      "rounded-sm border px-2 py-1 text-[12px] font-medium hover-elevate",
                       stageId === s.id ? "border-grit-teal text-cyber-teal" : "border-border/60 text-muted-foreground",
                     )}
                   >
@@ -292,13 +292,13 @@ export function ReviewBar({
               <div className="mt-2 flex items-center gap-2">
                 <button
                   type="button" onClick={() => void decide("needs_work")} disabled={busy}
-                  className="rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+                  className="rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
                 >
                   Send it back
                 </button>
                 <button
                   type="button" onClick={() => { setOpen(false); setReason(null); setNote(""); }}
-                  className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate"
+                  className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
                 >
                   Cancel
                 </button>

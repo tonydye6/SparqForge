@@ -514,7 +514,7 @@ export function Entrance({
             {brand?.name ?? "Pick a brand"}
             <ChevronDown size={11} className="text-dim" />
           </button>
-          <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-dim">makes this post</span>
+          <span className="ui-label text-dim">makes this post</span>
           {brandOpen && (
             <div className="absolute left-0 top-9 z-20 w-52 rounded-sm border border-border bg-card py-1 shadow-lg">
               {brands.map((b) => (
@@ -539,7 +539,7 @@ export function Entrance({
                 <>
                   <p className="px-5 pt-4 text-[13px] text-dim line-through decoration-border">{line}</p>
                   <div className="mx-4 mt-2.5 rounded-sm border border-grit-teal bg-background/60 px-4 py-3">
-                    <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.08em] text-grit-teal">
+                    <p className="mb-1.5 flex items-center gap-1.5 ui-label text-grit-teal">
                       Improved
                       <InfoDot text="One proposal per press. Your line stays yours until you choose Replace; Retry proposes again without touching it. Text only, free." />
                     </p>
@@ -547,21 +547,21 @@ export function Entrance({
                     <div className="mt-3 flex items-center gap-2">
                       <button
                         onClick={() => { setLine(proposal); setProposal(null); }}
-                        className="rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                        className="rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate"
                         data-testid="button-replace"
                       >
                         Replace mine
                       </button>
                       <button
                         onClick={() => { setProposal(null); void improve(); }}
-                        className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                        className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
                         data-testid="button-retry"
                       >
                         Retry
                       </button>
                       <button
                         onClick={() => setProposal(null)}
-                        className="px-1 font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground"
+                        className="px-1 text-[12px] font-medium text-dim hover:text-muted-foreground"
                       >
                         Keep mine
                       </button>
@@ -608,7 +608,7 @@ export function Entrance({
               {(suggested || shape === "sequence" || shots.length > 0) && (
                 <div className="border-t border-border/60 px-3.5 py-2.5" data-testid="story-shape">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">This post is</span>
+                    <span className="ui-label text-dim">This post is</span>
                     {([
                       ["single", "One picture"],
                       ["sequence", "A sequence of shots"],
@@ -618,7 +618,7 @@ export function Entrance({
                         onClick={() => chooseShape(key)}
                         aria-pressed={shape === key}
                         className={cn(
-                          "rounded-sm border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.05em] hover-elevate",
+                          "rounded-sm border px-2 py-1 text-[12px] font-medium hover-elevate",
                           shape === key
                             ? "border-grit-teal bg-grit-teal/15 text-cyber-teal"
                             : "border-border text-muted-foreground",
@@ -631,7 +631,7 @@ export function Entrance({
                     <div className="flex-1" />
                     {reading && <Loader2 size={9} className="animate-spin text-cyber-teal" />}
                     {suggested && !reading && (
-                      <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                      <span className="ui-label text-dim">
                         suggested {"·"} your line describes more than one moment
                       </span>
                     )}
@@ -639,7 +639,7 @@ export function Entrance({
 
                   {shape === "sequence" && (
                     <div className="mt-2 space-y-1.5">
-                      <p className="font-mono text-[8px] uppercase tracking-[0.09em] text-victory-gold">
+                      <p className="ui-label text-victory-gold">
                         Shot list {"·"} derived, yours to edit
                       </p>
                       {shots.map((s) => (
@@ -656,7 +656,7 @@ export function Entrance({
                           )}
                           data-testid={`row-shot-${s.n}`}
                         >
-                          <span className="font-mono text-[8.5px] text-victory-gold" data-numeric>{s.n}</span>
+                          <span className="ui-data text-[11px] text-victory-gold" data-numeric>{s.n}</span>
                           <input
                             value={s.text}
                             onChange={(e) => editShot(s.n, e.target.value)}
@@ -666,7 +666,7 @@ export function Entrance({
                           />
                           <span
                             className={cn(
-                              "whitespace-nowrap rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em]",
+                              "whitespace-nowrap rounded-sm border px-1 py-px ui-label",
                               s.provenance === "you" ? "border-border text-foreground" : "border-grit-teal/40 text-cyber-teal",
                             )}
                           >
@@ -675,7 +675,7 @@ export function Entrance({
                           <button
                             onClick={() => removeShot(s.n)}
                             aria-label={`Remove shot ${s.n}`}
-                            className="font-mono text-[10px] text-dim hover:text-rebel-pink"
+                            className="ui-data text-[11px] text-dim hover:text-rebel-pink"
                           >
                             {"×"}
                           </button>
@@ -685,12 +685,12 @@ export function Entrance({
                         <button
                           onClick={addShot}
                           disabled={shots.length >= MAX_SHOTS}
-                          className="rounded-sm border border-border px-2 py-1 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                          className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
                           data-testid="button-add-shot"
                         >
                           + Add a shot
                         </button>
-                        <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                        <span className="ui-label text-dim">
                           {usableShots.length < 2
                             ? `two moments make a sequence · ${usableShots.length} so far`
                             : `${usableShots.length} moments · each generates and animates on its own`}
@@ -705,24 +705,24 @@ export function Entrance({
                 <button
                   onClick={() => void improve()}
                   disabled={!line.trim() || improving}
-                  className="flex items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-cyber-teal disabled:opacity-40"
+                  className="flex items-center gap-1.5 rounded-sm px-2 py-1 text-[12px] font-medium text-dim hover:text-cyber-teal disabled:opacity-40"
                   data-testid="button-improve"
                 >
                   {improving ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />} Improve
                 </button>
                 <button
                   onClick={openCollab}
-                  className="rounded-sm px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-cyber-teal"
+                  className="rounded-sm px-2 py-1 text-[12px] font-medium text-dim hover:text-cyber-teal"
                   data-testid="button-collab"
                 >
                   ◈ Let a director lead
                 </button>
-                <span className="ml-1 font-mono text-[9px] text-dim">@ attaches an asset</span>
+                <span className="ml-1 ui-data text-[11px] text-dim">@ attaches an asset</span>
                 <div className="flex-1" />
                 <button
                   onClick={() => void start()}
                   disabled={!startable || starting}
-                  className="rounded-sm bg-primary px-3.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+                  className="rounded-sm bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
                   data-testid="button-start"
                 >
                   {starting ? "Reading the brief…" : "Start →"}
@@ -733,7 +733,7 @@ export function Entrance({
             <>
               {/* who leads */}
               <div className="relative mx-3.5 mt-3.5 flex items-center gap-2.5 rounded-sm border border-border bg-background/50 px-3 py-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-grit-teal font-mono text-[9px] text-cyber-teal">
+                <span className="flex h-7 w-7 items-center justify-center rounded-sm border border-grit-teal ui-data text-[11px] text-cyber-teal">
                   {director.name.split(/[\s-]+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
                 </span>
                 <div className="min-w-0">
@@ -741,7 +741,7 @@ export function Entrance({
                 </div>
                 <button
                   onClick={() => setSwapOpen((v) => !v)}
-                  className="ml-auto font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground"
+                  className="ml-auto text-[12px] font-medium text-dim hover:text-muted-foreground"
                   data-testid="button-swap-director"
                 >
                   Swap ▾
@@ -802,7 +802,7 @@ export function Entrance({
               {/* whose words are whose */}
               {(yours || framing) && (
                 <div className="mx-3.5 mb-3 rounded-sm border border-dashed border-border px-3.5 py-2.5">
-                  <p className="mb-1 flex items-center gap-1.5 font-mono text-[8.5px] uppercase tracking-[0.1em] text-grit-teal">
+                  <p className="mb-1 flex items-center gap-1.5 ui-label text-grit-teal">
                     The brief so far
                     <InfoDot text="Yours in white, the director's framing in teal. Your words are never rewritten; Start hands both to stage 01 with the split intact." />
                   </p>
@@ -825,7 +825,7 @@ export function Entrance({
                 <button
                   onClick={() => void send(draft)}
                   disabled={!draft.trim() || talking}
-                  className="rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground disabled:opacity-40"
+                  className="rounded-sm bg-primary px-2.5 py-1 ui-label text-primary-foreground disabled:opacity-40"
                 >
                   Send
                 </button>
@@ -834,7 +834,7 @@ export function Entrance({
               <div className="flex items-center gap-2 border-t border-border/60 px-3.5 py-2.5">
                 <button
                   onClick={() => setCollab(false)}
-                  className="rounded-sm px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground"
+                  className="rounded-sm px-2 py-1 text-[12px] font-medium text-dim hover:text-muted-foreground"
                 >
                   ← Back to the line
                 </button>
@@ -842,7 +842,7 @@ export function Entrance({
                 <button
                   onClick={() => void start()}
                   disabled={!startable || starting}
-                  className="rounded-sm bg-primary px-3.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+                  className="rounded-sm bg-primary px-3.5 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
                   data-testid="button-start-collab"
                 >
                   {starting ? "Reading the brief…" : `Start with ${director.name.split(/[\s-]+/)[0]} →`}
@@ -857,7 +857,7 @@ export function Entrance({
         {/* concepts */}
         <div className="mt-9">
           <div className="mb-3 flex items-center gap-2">
-            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+            <span className="flex items-center gap-1.5 ui-label text-grit-teal">
               Or pick a concept
               <InfoDot text="Three brand-aware starting points, freshly generated. Using one fills the composer; it is yours to edit before anything starts." />
             </span>
@@ -865,7 +865,7 @@ export function Entrance({
             <button
               onClick={() => brandId && void rollConcepts(brandId, true)}
               disabled={rolling}
-              className="flex items-center gap-1.5 rounded-sm px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-dim hover:text-muted-foreground disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-sm px-2 py-1 text-[12px] font-medium text-dim hover:text-muted-foreground disabled:opacity-40"
               data-testid="button-reroll"
             >
               <RefreshCw size={9} className={cn(rolling && "animate-spin")} /> Re-roll
@@ -884,7 +884,7 @@ export function Entrance({
                   <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-dim group-hover:line-clamp-none group-hover:text-muted-foreground">
                     {c.angle}
                   </p>
-                  <span className="mt-2.5 inline-block rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.07em] text-muted-foreground">
+                  <span className="mt-2.5 inline-block rounded-sm border border-border px-1.5 py-0.5 ui-label text-muted-foreground">
                     {INTENT_LABELS[c.intent] ?? c.intent}
                   </span>
                 </button>
@@ -899,7 +899,7 @@ export function Entrance({
       {/* ------------------------------------------------ rail */}
       <aside className="w-[252px] shrink-0 overflow-y-auto border-l border-border/60 bg-card px-3.5 py-5">
         <div className="mb-6">
-          <p className="mb-2.5 font-mono text-[9.5px] uppercase tracking-[0.1em] text-dim">Continue</p>
+          <p className="mb-2.5 ui-label text-dim">Continue</p>
           {recent.length === 0 && <p className="text-[12px] text-dim">Nothing yet.</p>}
           {recent.slice(0, 8).map((c) => (
             <button
@@ -915,7 +915,7 @@ export function Entrance({
               )}
               <span className="min-w-0">
                 <span className="block truncate text-[12px] text-foreground">{c.name}</span>
-                <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+                <span className="ui-label text-dim">
                   {c.status}
                   {c.at ? ` ${"·"} ${new Date(c.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : ""}
                 </span>

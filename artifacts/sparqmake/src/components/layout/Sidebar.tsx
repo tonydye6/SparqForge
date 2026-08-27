@@ -135,11 +135,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       initial={false}
       animate={{ width: mode === "mobile" ? 280 : sidebarWidth }}
       className={cn(
-        "h-screen flex flex-col bg-sidebar border-r border-sidebar-border relative z-20 shrink-0 transition-all duration-300 ease-in-out",
+        // Same ground as the app, no right keyline: the nav is a margin of the
+        // room, not a cabinet bolted to it. The content column separates itself.
+        "h-screen flex flex-col bg-sidebar relative z-20 shrink-0 transition-all duration-300 ease-in-out",
         mode === "mobile" && "w-[280px]"
       )}
     >
-      <div className="h-16 flex items-center px-4 border-b border-sidebar-border shrink-0 overflow-hidden">
+      <div className="h-16 flex items-center px-5 shrink-0 overflow-hidden">
         {mode === "mobile" || !collapsed ? (
           <img
             src={`${import.meta.env.BASE_URL}images/sparqmake-horizontal.svg`}
@@ -181,7 +183,7 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         </button>
       )}
 
-      <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto overflow-x-hidden">
+      <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map((item) => {
           // Match on a path SEGMENT boundary, not a bare prefix.
           //
@@ -200,31 +202,34 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
               href={item.href}
               onClick={handleNavClick}
               className={cn(
-                "flex items-center px-3 py-3 rounded-lg transition-all duration-200 group relative",
-                isActive 
-                  ? "bg-primary/10 text-primary" 
-                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                // The row is text, not a pill. Active = ink + the teal edge;
+                // colour is not spent on a whole row of chrome.
+                "flex items-center px-3 py-2 rounded-md transition-colors duration-150 group relative",
+                isActive
+                  ? "bg-white/[0.04] text-foreground"
+                  : "text-muted-foreground hover:bg-white/[0.03] hover:text-foreground"
               )}
               title={collapsed && mode !== "mobile" ? item.label : undefined}
             >
               {isActive && (
                 <motion.div 
                   layoutId="activeNavIndicator"
-                  className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full"
+                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-full"
                   initial={false}
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 />
               )}
-              <item.icon size={20} className={cn("shrink-0", isActive && "text-primary")} />
-              
+              <item.icon size={17} strokeWidth={isActive ? 2.2 : 1.8} className="shrink-0" />
+
               {showLabel && (
-                <span className="ml-3 font-medium text-sm whitespace-nowrap flex-1">
+                <span className="ml-3 text-[13px] font-medium whitespace-nowrap flex-1">
                   {item.label}
                 </span>
               )}
 
+              {/* A count is data, not an alert: plain tabular figures, no pill. */}
               {showLabel && item.badge && (
-                <span className="ml-auto bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+                <span className="ml-auto ui-data text-[11px] text-dim">
                   {item.badge}
                 </span>
               )}
@@ -241,26 +246,26 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           twice a year does not earn one. /design is the internal design system
           reference and is deliberately not in the nav at all. */}
       {(mode === "mobile" || !collapsed) && (
-        <div className="shrink-0 border-t border-sidebar-border px-3 py-2">
-          <div className="flex items-center gap-3 px-3">
+        <div className="shrink-0 px-6 pb-3">
+          <div className="flex items-center gap-4">
             <Link
               href="/feedback"
               onClick={handleNavClick}
-              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+              className="text-[11px] text-dim transition-colors hover:text-muted-foreground"
             >
               Feedback
             </Link>
             <Link
               href="/brand-record"
               onClick={handleNavClick}
-              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+              className="text-[11px] text-dim transition-colors hover:text-muted-foreground"
             >
               Record
             </Link>
             <Link
               href="/design"
               onClick={handleNavClick}
-              className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-dim transition-colors hover:text-muted-foreground"
+              className="text-[11px] text-dim transition-colors hover:text-muted-foreground"
             >
               Design
             </Link>
@@ -268,19 +273,19 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         </div>
       )}
 
-      <div className="p-4 border-t border-sidebar-border shrink-0">
+      <div className="px-5 pb-4 pt-2 shrink-0">
         <div className={cn("flex items-center", collapsed && mode !== "mobile" ? "justify-center" : "justify-between")}>
           <div className="flex items-center overflow-hidden">
             <img 
               src={avatarUrl}
               alt="User Avatar"
-              className="w-9 h-9 rounded-full object-cover border border-border"
+              className="w-8 h-8 rounded-full object-cover"
               referrerPolicy="no-referrer"
             />
             {(mode === "mobile" || !collapsed) && (
               <div className="ml-3 truncate">
-                <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
-                <p className="text-xs text-muted-foreground truncate capitalize">{displayRole}</p>
+                <p className="text-[13px] font-medium text-foreground truncate">{displayName}</p>
+                <p className="text-[11px] text-dim truncate capitalize">{displayRole}</p>
               </div>
             )}
           </div>

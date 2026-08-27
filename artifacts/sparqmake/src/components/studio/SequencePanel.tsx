@@ -347,14 +347,14 @@ export function SequencePanel({
   if (!sequenceId) {
     return (
       <div className="mx-auto max-w-5xl space-y-3 p-6">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+        <p className="ui-label text-grit-teal">
           Stage 03 · Sequence
         </p>
         <h2 className="font-display text-xl tracking-wide text-foreground">Several shots, one post</h2>
         <button
           onClick={() => void startSequence()}
           disabled={busy || locked}
-          className="flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
           data-testid="button-start-sequence"
         >
           {busy ? <Loader2 size={10} className="animate-spin" /> : <>Start a sequence <ArrowRight size={9} /></>}
@@ -368,7 +368,7 @@ export function SequencePanel({
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="flex items-start gap-3">
         <div className="space-y-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+          <p className="ui-label text-grit-teal">
             Stage 03 · Sequence
           </p>
           <h2 className="font-display text-xl tracking-wide text-foreground">The cut</h2>
@@ -401,7 +401,7 @@ export function SequencePanel({
       {!locked && (
         <div className="rounded-sm border border-border bg-card px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">Add a shot</span>
+            <span className="ui-label text-grit-teal">Add a shot</span>
             {([
               ["animate", "Animate a take"],
               ["clips", "Existing clips"],
@@ -412,7 +412,7 @@ export function SequencePanel({
                 onClick={() => setSource((s) => (s === key ? null : key))}
                 aria-pressed={source === key}
                 className={cn(
-                  "rounded-sm border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] hover-elevate",
+                  "rounded-sm border px-2 py-1 text-[12px] font-medium hover-elevate",
                   source === key ? "border-grit-teal bg-grit-teal/10 text-cyber-teal" : "border-border text-muted-foreground",
                 )}
                 data-testid={`button-shot-source-${key}`}
@@ -422,7 +422,7 @@ export function SequencePanel({
             ))}
             <div className="flex-1" />
             {source === "animate" && (
-              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+              <span className="ui-label text-dim">
                 billed per second of clip {"·"} the shot lands at the end of the cut
               </span>
             )}
@@ -475,7 +475,7 @@ export function SequencePanel({
                     <span className="h-9 w-9 shrink-0 rounded-sm border border-border/60" />
                   )}
                   <span className="min-w-0 flex-1 truncate text-[11.5px] text-foreground">{c.name}</span>
-                  <span className="shrink-0 font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+                  <span className="shrink-0 ui-label text-dim">
                     {c.durationMs ? `${(c.durationMs / 1000).toFixed(1)}s` : "length unknown"}
                   </span>
                 </button>
@@ -504,13 +504,13 @@ export function SequencePanel({
       {!locked && (
         <div className="rounded-sm border border-border bg-card px-3 py-2.5" data-testid="sound-rack">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">Sound</span>
-            {soundNote && <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal">{soundNote}</span>}
+            <span className="ui-label text-grit-teal">Sound</span>
+            {soundNote && <span className="ui-label text-cyber-teal">{soundNote}</span>}
           </div>
 
           {/* Voice */}
           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <span className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-victory-gold">Voice</span>
+            <span className="ui-label text-victory-gold">Voice</span>
             {narratorVoiceId ? (
               <>
                 <span className="text-[11px] text-muted-foreground">Reads in the brand's narrator</span>
@@ -518,7 +518,7 @@ export function SequencePanel({
                 <button
                   onClick={() => void generateSound("voice", { source: "hook" })}
                   disabled={soundBusy !== null}
-                  className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                  className="rounded-sm border border-grit-teal px-2 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
                   data-testid="button-voice-hook"
                 >
                   {soundBusy === "voice" ? <Loader2 size={9} className="animate-spin" /> : "Read the hook"}
@@ -526,7 +526,7 @@ export function SequencePanel({
                 <button
                   onClick={() => void generateSound("voice", { source: "base" })}
                   disabled={soundBusy !== null}
-                  className="rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                  className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
                   data-testid="button-voice-base"
                 >
                   Read the caption
@@ -541,7 +541,7 @@ export function SequencePanel({
                 <button
                   onClick={() => void generateSound("voice", { source: "custom", script: voiceScript })}
                   disabled={soundBusy !== null || !voiceScript.trim()}
-                  className="rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                  className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
                   data-testid="button-voice-custom"
                 >
                   Speak it
@@ -553,7 +553,7 @@ export function SequencePanel({
                 <div className="flex-1" />
                 <button
                   onClick={() => void openVoicePicker()}
-                  className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate"
+                  className="rounded-sm border border-grit-teal px-2 py-1 text-[12px] font-medium text-cyber-teal hover-elevate"
                   data-testid="button-choose-narrator"
                 >
                   Choose a narrator
@@ -574,7 +574,7 @@ export function SequencePanel({
                   {v.previewUrl && (
                     <button
                       onClick={() => { new Audio(v.previewUrl!).play().catch(() => undefined); }}
-                      className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                      className="rounded-sm border border-border px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground hover-elevate"
                     >
                       Hear it
                     </button>
@@ -582,7 +582,7 @@ export function SequencePanel({
                   <button
                     onClick={() => void chooseNarrator(v)}
                     disabled={busy}
-                    className="rounded-sm border border-grit-teal px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                    className="rounded-sm border border-grit-teal px-1.5 py-0.5 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
                     data-testid={`button-narrator-${v.voiceId}`}
                   >
                     This one
@@ -595,7 +595,7 @@ export function SequencePanel({
 
           {/* Music */}
           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <span className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">Music</span>
+            <span className="ui-label text-dim">Music</span>
             <input
               value={musicPrompt}
               onChange={(e) => setMusicPrompt(e.target.value)}
@@ -604,11 +604,11 @@ export function SequencePanel({
               className="w-56 rounded-sm border border-border bg-raised px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal"
             />
             <div className="flex-1" />
-            <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">scored at the cut's length {"·"} steps back under the voice</span>
+            <span className="ui-label text-dim">scored at the cut's length {"·"} steps back under the voice</span>
             <button
               onClick={() => void generateSound("music", musicPrompt.trim() ? { prompt: musicPrompt.trim() } : {})}
               disabled={soundBusy !== null}
-              className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+              className="rounded-sm border border-grit-teal px-2 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
               data-testid="button-score-cut"
             >
               {soundBusy === "music" ? <Loader2 size={9} className="animate-spin" /> : "Score the cut"}
@@ -617,7 +617,7 @@ export function SequencePanel({
 
           {/* SFX */}
           <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
-            <span className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">SFX</span>
+            <span className="ui-label text-dim">SFX</span>
             <input
               value={sfxPrompt}
               onChange={(e) => setSfxPrompt(e.target.value)}
@@ -625,7 +625,7 @@ export function SequencePanel({
               aria-label="What the effect is"
               className="w-44 rounded-sm border border-border bg-raised px-2 py-1 text-[11px] text-foreground outline-none placeholder:text-dim focus:border-grit-teal"
             />
-            <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">at</span>
+            <span className="ui-label text-dim">at</span>
             <input
               value={sfxAt}
               onChange={(e) => setSfxAt(e.target.value)}
@@ -633,7 +633,7 @@ export function SequencePanel({
               aria-label="Seconds into the cut"
               className="w-12 rounded-sm border border-border bg-raised px-2 py-1 text-right text-[11px] text-foreground outline-none focus:border-grit-teal"
             />
-            <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">s</span>
+            <span className="ui-label text-dim">s</span>
             <div className="flex-1" />
             <button
               onClick={() => {
@@ -641,7 +641,7 @@ export function SequencePanel({
                 void generateSound("sfx", { prompt: sfxPrompt.trim(), atMs: at });
               }}
               disabled={soundBusy !== null || !sfxPrompt.trim()}
-              className="rounded-sm border border-grit-teal px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+              className="rounded-sm border border-grit-teal px-2 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
               data-testid="button-add-sfx"
             >
               {soundBusy === "sfx" ? <Loader2 size={9} className="animate-spin" /> : "Add the hit"}
@@ -677,7 +677,7 @@ export function SequencePanel({
             {data.cut.state === "rendered" && onContinue && (
               <button
                 onClick={onContinue}
-                className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate"
+                className="flex items-center gap-1.5 rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate"
                 data-testid="button-cut-continue"
               >
                 Continue {"·"} 04 Copy <ArrowRight size={9} />
@@ -689,7 +689,7 @@ export function SequencePanel({
                 onClick={() => void renderCut()}
                 disabled={rendering || data.cut.blocked !== null}
                 className={cn(
-                  "rounded-sm px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate disabled:opacity-40",
+                  "rounded-sm px-2.5 py-1 text-[12px] font-medium hover-elevate disabled:opacity-40",
                   data.cut.state === "rendered"
                     ? "border border-border text-muted-foreground"
                     : "bg-primary text-primary-foreground",

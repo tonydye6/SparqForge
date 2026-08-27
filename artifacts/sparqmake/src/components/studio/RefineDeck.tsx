@@ -203,13 +203,13 @@ export function RefineDeck({
         <button
           onClick={backToExplore}
           disabled={busy || locked}
-          className="mt-0.5 flex items-center gap-1 rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+          className="mt-0.5 flex items-center gap-1 rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
         >
           <ArrowLeft size={9} />
           Back to the spread
         </button>
         <div className="space-y-1">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+          <p className="ui-label text-grit-teal">
             Stage 03 · Media · Refine
           </p>
           <h2 className="font-display text-xl tracking-wide text-foreground">
@@ -258,7 +258,7 @@ export function RefineDeck({
               />
             ) : (
               <div className="flex aspect-[4/3] items-center justify-center rounded-sm border border-border bg-card">
-                <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+                <span className="ui-label text-dim">
                   This take has no image
                 </span>
               </div>
@@ -304,7 +304,7 @@ export function RefineDeck({
                 </div>
                 <MentionChips mentions={m.mentions} />
                 <div className="mt-1.5 flex items-center gap-2">
-                  <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+                  <span className="ui-label text-dim">
                     {/* The same server-owned price the layer composer reads. This
                         label is where the invented-price habit started (doc 41 §5,
                         still open in doc 42) and the new components copied it. */}
@@ -314,7 +314,7 @@ export function RefineDeck({
                   <button
                     onClick={onUse}
                     disabled={sending || busy}
-                    className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                    className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
                     data-testid="button-refine-use"
                   >
                     Use this version
@@ -322,7 +322,7 @@ export function RefineDeck({
                   <button
                     onClick={() => void sendRefine()}
                     disabled={!instruction.trim() || sending}
-                    className="rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                    className="rounded-sm border border-grit-teal px-2.5 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
                     data-testid="button-refine-send"
                   >
                     {sending ? <Loader2 size={10} className="animate-spin" /> : "Make it"}
@@ -356,7 +356,7 @@ export function RefineDeck({
 
             {/* The deck. Every take for this slot, newest first. */}
             <div className="space-y-1.5">
-              <p className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
+              <p className="ui-label text-dim">
                 History · {history.length}
               </p>
               {history.map((t) => {
@@ -374,26 +374,26 @@ export function RefineDeck({
                       {p.imageUrl && <img src={p.imageUrl} alt="" className="h-full w-full object-cover" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground">
+                      <p className="truncate ui-label text-muted-foreground">
                         {/* take_index is 1-BASED (stage_takes_index_positive_check),
                             so this used to label the first take "Take 2". */}
                         Take {t.takeIndex}
                       </p>
-                      <p className="truncate font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                      <p className="truncate ui-label text-dim">
                         {/* A wordless move has no transcript, so say what it was. */}
                         {p.instruction
                           ?? (p.movedTo ? `moved ${p.layerName ?? "a layer"}` : t.origin.replace(/_/g, " "))}
                       </p>
                     </div>
                     {isCurrent ? (
-                      <span className="shrink-0 font-mono text-[8px] uppercase tracking-[0.06em] text-cyber-teal">
+                      <span className="shrink-0 ui-label text-cyber-teal">
                         In use
                       </span>
                     ) : (
                       <button
                         onClick={() => restore(t.id)}
                         disabled={busy || locked}
-                        className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                        className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
                       >
                         Use
                       </button>

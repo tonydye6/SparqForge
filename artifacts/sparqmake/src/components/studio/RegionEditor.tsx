@@ -418,7 +418,7 @@ export function RegionEditor({
                   >
                     <span
                       className={cn(
-                        "pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-br-sm bg-grit-teal px-1 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-black transition-opacity",
+                        "pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-br-sm bg-grit-teal px-1 py-0.5 ui-label text-black transition-opacity",
                         active ? "opacity-100" : "opacity-0",
                       )}
                     >
@@ -454,7 +454,7 @@ export function RegionEditor({
               style={{ left: pct(selectedAt.x), top: pct(selectedAt.y), width: pct(selectedAt.w), height: pct(selectedAt.h) }}
               data-testid="overlay-layer-selected"
             >
-              <span className="pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-br-sm bg-grit-teal px-1 py-0.5 font-mono text-[8px] uppercase tracking-[0.06em] text-black">
+              <span className="pointer-events-none absolute left-0 top-0 max-w-full truncate rounded-br-sm bg-grit-teal px-1 py-0.5 ui-label text-black">
                 {selected.name}
               </span>
             </div>
@@ -556,7 +556,7 @@ export function RegionEditor({
                 setRegion(null);
               }}
               className={cn(
-                "rounded-sm px-2 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.06em] hover-elevate disabled:opacity-40",
+                "rounded-sm px-2 py-0.5 text-[12px] font-medium hover-elevate disabled:opacity-40",
                 tool === t ? "bg-grit-teal/15 text-cyber-teal" : "text-muted-foreground",
               )}
               data-testid={`button-region-tool-${t}`}
@@ -569,13 +569,13 @@ export function RegionEditor({
 
       {namedRegions.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">Or pick</span>
+          <span className="ui-label text-dim">Or pick</span>
           {namedRegions.map((n) => (
             <button
               key={n.key}
               onClick={() => setRegion(n.region)}
               disabled={locked || busy}
-              className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+              className="rounded-sm border border-border px-1.5 py-0.5 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
             >
               {n.label}
             </button>
@@ -626,7 +626,7 @@ export function RegionEditor({
           <button
             onClick={() => void submit()}
             disabled={!region || !instruction.trim() || locked || busy}
-            className="ml-auto shrink-0 rounded-sm bg-primary px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+            className="ml-auto shrink-0 rounded-sm bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
           >
             {busy ? "Editing" : "Edit this region"}
           </button>
@@ -653,7 +653,7 @@ export function RegionEditor({
             drift.verdict === "clean" ? "border-border/60" : "border-rebel-pink/40",
           )}
         >
-          <p className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">
+          <p className="ui-label text-dim">
             Drift · <span data-numeric>{drift.driftPercent}%</span> outside your selection
           </p>
           <p

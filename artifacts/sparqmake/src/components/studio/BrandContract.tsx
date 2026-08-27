@@ -39,7 +39,7 @@ interface BrandRecord {
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="border-b border-border/40 py-1.5 last:border-b-0">
-    <p className="font-mono text-[7.5px] uppercase tracking-[0.09em] text-dim">{label}</p>
+    <p className="ui-label text-dim">{label}</p>
     <div className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">{children}</div>
   </div>
 );
@@ -101,7 +101,7 @@ export function BrandContract({ brandId }: BrandContractProps) {
           <ChevronRight size={9} className="shrink-0 text-dim" />
         )}
         <Lock size={9} className="shrink-0 text-cyber-teal" />
-        <span className="min-w-0 truncate font-display text-[13px] uppercase tracking-[0.08em] text-foreground">
+        <span className="min-w-0 truncate ui-label text-muted-foreground">
           {brand?.name ?? "Brand"}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -123,7 +123,7 @@ export function BrandContract({ brandId }: BrandContractProps) {
       {expanded && (
         <div className="px-3 pb-2.5">
           {failed && (
-            <p className="font-mono text-[8px] leading-relaxed tracking-[0.07em] text-rebel-pink">
+            <p className="text-[11px] leading-relaxed text-rebel-pink">
               THE BRAND RECORD COULD NOT BE READ. WHAT IS BELOW MAY BE INCOMPLETE.
             </p>
           )}
@@ -140,17 +140,17 @@ export function BrandContract({ brandId }: BrandContractProps) {
                 {brand.narratorDescription?.trim() ? (
                   brand.narratorDescription
                 ) : brand.narratorVoiceId ? (
-                  <span className="font-mono text-[9.5px]">{brand.narratorVoiceId}</span>
+                  <span className="ui-data text-[11px]">{brand.narratorVoiceId}</span>
                 ) : (
                   <Unset what="narrator" />
                 )}
               </Row>
-              <p className="mt-1.5 font-mono text-[7.5px] leading-relaxed tracking-[0.07em] text-dim">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
                 CANNOT BE REMOVED HERE · CHANGING BRAND IS A DIFFERENT POST · NON-NEGOTIABLE
               </p>
             </div>
           ) : (
-            <p className="font-mono text-[8px] leading-relaxed tracking-[0.07em] text-dim">
+            <p className="text-[11px] leading-relaxed text-dim">
               {brandId ? "READING THE BRAND RECORD" : "NO BRAND ON THIS CREATIVE"}
             </p>
           )}

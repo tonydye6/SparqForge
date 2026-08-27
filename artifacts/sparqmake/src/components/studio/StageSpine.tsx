@@ -58,15 +58,21 @@ export interface StageSpineProps {
   className?: string;
 }
 
-const STATUS_STYLES: Record<SpineStatus, { box: string; key: string }> = {
+/**
+ * No boxes. A stage is a strip of its own pictures with a label above it —
+ * the grid is pictures (doc 38 §3), and the state lives in an underline edge
+ * and the label's colour rather than five outlined containers competing for
+ * the same weight. `edge` is the 2px baseline bar; `key` colours the label.
+ */
+const STATUS_STYLES: Record<SpineStatus, { edge: string; key: string }> = {
   // Nothing here yet. Quiet, but still a real target you can click into.
-  empty: { box: "border-border/60 bg-card", key: "text-dim" },
-  active: { box: "border-grit-teal bg-grit-teal/15", key: "text-cyber-teal" },
-  done: { box: "border-border/60 bg-card", key: "text-dim" },
-  // Dashed and pink: built on something you have since reopened. This means
-  // "needs a decision", not "wrong", and the copy elsewhere says so.
-  stale: { box: "border-rebel-pink border-dashed bg-rebel-pink/10", key: "text-rebel-pink" },
-  locked: { box: "border-grit-teal bg-grit-teal/15", key: "text-cyber-teal" },
+  empty: { edge: "bg-transparent", key: "text-dim" },
+  active: { edge: "bg-grit-teal", key: "text-foreground" },
+  done: { edge: "bg-transparent", key: "text-muted-foreground" },
+  // Pink: built on something you have since reopened. This means "needs a
+  // decision", not "wrong", and the copy elsewhere says so.
+  stale: { edge: "bg-rebel-pink", key: "text-rebel-pink" },
+  locked: { edge: "bg-grit-teal/50", key: "text-muted-foreground" },
 };
 
 function Connector({ direction }: { direction: EdgeDirection }) {
@@ -87,8 +93,8 @@ function Connector({ direction }: { direction: EdgeDirection }) {
   return (
     <span
       className={cn(
-        "flex w-5 shrink-0 items-center justify-center",
-        inverted ? "text-cyber-teal" : "text-border",
+        "flex w-6 shrink-0 items-center justify-center pb-2",
+        inverted ? "text-cyber-teal" : "text-dim/50",
       )}
       title={inverted ? "This stage was built to fit the one after it" : undefined}
     >
@@ -130,7 +136,7 @@ export function StageSpine({
 
   return (
     <div
-      className={cn("flex items-stretch gap-0 border-b border-border/60 bg-card px-4 py-2.5", className)}
+      className={cn("flex items-stretch gap-0 border-b border-border-soft px-5 pt-3 pb-0", className)}
       role="toolbar"
       aria-label="Post stages"
                  aria-orientation="horizontal"
@@ -151,31 +157,31 @@ export function StageSpine({
               tabIndex={isActive || (!activeStageId && i === 0) ? 0 : -1}
               aria-current={isActive ? "step" : undefined}
               className={cn(
-                "min-w-0 flex-1 rounded-sm border px-2.5 py-1.5 text-left transition-colors",
-                style.box,
-                isActive && "ring-1 ring-grit-teal",
-                "hover:border-grit-teal/50",
+                "group/stage min-w-0 flex-1 rounded-t-md px-2 pb-0 pt-1 text-left transition-colors",
+                "hover:bg-white/[0.03]",
+                !isActive && stage.status !== "stale" && "opacity-80 hover:opacity-100",
               )}
             >
-              <span className={cn("flex items-center gap-1.5 font-mono text-[8.5px] uppercase tracking-[0.11em]", style.key)}>
-                {stage.status === "locked" && <Lock size={9} aria-hidden="true" />}
-                {String(stage.stageNumber).padStart(2, "0")} · {stage.label}
+              <span className={cn("flex items-center gap-1.5 ui-label", style.key)}>
+                {stage.status === "locked" && <Lock size={10} aria-hidden="true" />}
+                <span className="ui-data font-normal">{String(stage.stageNumber).padStart(2, "0")}</span>
+                {stage.label}
                 {/* Never colour alone: the state is also said in words. */}
-                {stage.status === "stale" && <span className="ml-auto">Stale</span>}
-                {stage.status === "locked" && <span className="ml-auto">Locked</span>}
+                {stage.status === "stale" && <span className="ml-auto normal-case tracking-normal">Stale</span>}
+                {stage.status === "locked" && <span className="ml-auto normal-case tracking-normal">Locked</span>}
               </span>
               {stage.thumbs && stage.thumbs.length > 0 ? (
-                <span className="mt-1 flex items-center gap-1">
+                <span className="mt-1.5 flex items-center gap-1.5">
                   {stage.thumbs.map((t, j) => (
                     <span
                       key={j}
-                      className="relative h-6 w-6 shrink-0 overflow-hidden rounded-sm border border-border/60"
+                      className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md"
                     >
                       <img src={t.url} alt="" className="h-full w-full object-cover" />
                       {t.video && (
                         <span
                           aria-label="clip"
-                          className="absolute inset-0 flex items-center justify-center text-[9px] text-white"
+                          className="absolute inset-0 flex items-center justify-center text-[11px] text-white"
                           style={{ textShadow: "0 0 4px #000" }}
                         >
                           {"▸"}
@@ -187,13 +193,15 @@ export function StageSpine({
               ) : (
                 <span
                   className={cn(
-                    "mt-0.5 block truncate text-[11.5px] leading-tight",
+                    "mt-1 block truncate text-[12.5px] leading-snug",
                     stage.status === "empty" ? "text-dim" : "text-foreground",
                   )}
                 >
                   {stage.summary}
                 </span>
               )}
+              {/* The state edge: a 2px baseline, not a ring around a box. */}
+              <span aria-hidden="true" className={cn("mt-2 block h-0.5 rounded-full", style.edge)} />
             </button>
             {i < stages.length - 1 && (
               <Connector direction={edgeBetween(stage.id, stages[i + 1].id)} />
@@ -233,14 +241,14 @@ export function ReopenBar({ summary, staleCount, rerunCents, onRerun, onKeep }: 
         <button
           type="button"
           onClick={onKeep}
-          className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+          className="rounded-md px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground hover-elevate"
         >
           Keep them as they are
         </button>
         <button
           type="button"
           onClick={onRerun}
-          className="rounded-sm bg-rebel-pink px-2.5 py-1 font-mono text-[9.5px] uppercase tracking-[0.06em] text-[#170309] hover-elevate"
+          className="rounded-md bg-rebel-pink px-3 py-1.5 text-[12.5px] font-semibold text-[#170309] hover-elevate"
         >
           Re-run {staleCount}
           {typeof rerunCents === "number" && (

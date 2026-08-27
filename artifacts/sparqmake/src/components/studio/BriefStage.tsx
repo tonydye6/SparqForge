@@ -446,7 +446,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
     <div className="mx-auto max-w-3xl space-y-4 p-6">
       {/* Your words, verbatim and never rewritten. */}
       <div className="rounded-sm border border-l-2 border-border/60 border-l-grit-teal bg-card px-3.5 py-3">
-        <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">What you typed</p>
+        <p className="ui-label text-grit-teal">What you typed</p>
         <div className="relative">
           <textarea
             ref={textareaRef}
@@ -504,7 +504,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
       {(derived.length > 0 || thinking) && (
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-sm border border-border/60 bg-card p-3.5">
-            <p className="mb-2 flex items-center gap-2 font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
+            <p className="mb-2 flex items-center gap-2 ui-label text-dim">
               What I derived from that
               {thinking && <span className="text-cyber-teal">reading</span>}
               {!thinking && stale && <span className="text-victory-gold">from your previous line</span>}
@@ -519,7 +519,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                 key={d.key}
                 className="grid grid-cols-[70px_1fr] gap-2 border-b border-border/40 py-1.5 last:border-b-0"
               >
-                <span className="pt-0.5 font-mono text-[8.5px] uppercase tracking-[0.09em] text-dim">
+                <span className="pt-0.5 ui-label text-dim">
                   {d.label}
                 </span>
                 <span className="text-[11.5px] leading-snug text-foreground">
@@ -547,14 +547,14 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                   )}
                   <span
                     className={cn(
-                      "ml-1.5 whitespace-nowrap rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em]",
+                      "ml-1.5 whitespace-nowrap rounded-sm border px-1 py-px ui-label",
                       PROVENANCE_STYLES[d.provenance].cls,
                     )}
                   >
                     {PROVENANCE_STYLES[d.provenance].label}
                   </span>
                   {d.note && (
-                    <span className="ml-1.5 font-mono text-[7.5px] uppercase tracking-[0.06em] text-dim">
+                    <span className="ml-1.5 ui-label text-dim">
                       {d.note}
                     </span>
                   )}
@@ -570,7 +570,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
           </div>
 
           <div className="rounded-sm border border-border/60 bg-card p-3.5">
-            <p className="mb-2 font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">
+            <p className="mb-2 ui-label text-dim">
               What I actually need from you · {questions.length}
             </p>
 
@@ -600,7 +600,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                       }
                       aria-pressed={answers[q.id] === opt}
                       className={cn(
-                        "rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em] hover-elevate",
+                        "rounded-sm border px-2 py-1 text-[12px] font-medium hover-elevate",
                         answers[q.id] === opt
                           ? "border-grit-teal bg-grit-teal/15 text-cyber-teal"
                           : "border-border text-muted-foreground",
@@ -643,7 +643,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
       {(derived.length > 0 || shots.length > 0) && (
         <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3" data-testid="story-shape">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[0.11em] text-dim">This post is</span>
+            <span className="ui-label text-dim">This post is</span>
             {([
               ["single", "One picture"],
               ["sequence", "A sequence of shots"],
@@ -654,7 +654,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                 disabled={locked}
                 aria-pressed={shape === key}
                 className={cn(
-                  "rounded-sm border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.05em] hover-elevate disabled:opacity-50",
+                  "rounded-sm border px-2 py-1 text-[12px] font-medium hover-elevate disabled:opacity-50",
                   shape === key
                     ? "border-grit-teal bg-grit-teal/15 text-cyber-teal"
                     : "border-border text-muted-foreground",
@@ -666,7 +666,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
             ))}
             <div className="flex-1" />
             {suggested && (
-              <span className="font-mono text-[8.5px] uppercase tracking-[0.06em] text-dim">
+              <span className="ui-label text-dim">
                 suggested {"·"} your line describes more than one moment
               </span>
             )}
@@ -674,7 +674,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
 
           {shape === "sequence" && (
             <div className="mt-2.5 space-y-1.5">
-              <p className="font-mono text-[8.5px] uppercase tracking-[0.09em] text-victory-gold">
+              <p className="ui-label text-victory-gold">
                 Shot list {"·"} derived, yours to edit
               </p>
 
@@ -700,7 +700,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                   )}
                   data-testid={`row-shot-${s.n}`}
                 >
-                  <span className="font-mono text-[8.5px] text-victory-gold" data-numeric>{s.n}</span>
+                  <span className="ui-data text-[11px] text-victory-gold" data-numeric>{s.n}</span>
                   <input
                     value={s.text}
                     onChange={(e) => editShot(s.n, e.target.value)}
@@ -711,7 +711,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                   />
                   <span
                     className={cn(
-                      "whitespace-nowrap rounded-sm border px-1 py-px font-mono text-[7.5px] uppercase tracking-[0.06em]",
+                      "whitespace-nowrap rounded-sm border px-1 py-px ui-label",
                       PROVENANCE_STYLES[s.provenance].cls,
                     )}
                   >
@@ -721,7 +721,7 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                     <button
                       onClick={() => removeShot(s.n)}
                       aria-label={`Remove shot ${s.n}`}
-                      className="font-mono text-[10px] text-dim hover:text-rebel-pink"
+                      className="ui-data text-[11px] text-dim hover:text-rebel-pink"
                     >
                       {"×"}
                     </button>
@@ -734,12 +734,12 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
                   <button
                     onClick={addShot}
                     disabled={shots.length >= MAX_SHOTS}
-                    className="rounded-sm border border-border px-2 py-1 font-mono text-[8.5px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+                    className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
                     data-testid="button-add-shot"
                   >
                     + Add a shot
                   </button>
-                  <span className="font-mono text-[8px] uppercase tracking-[0.06em] text-dim">
+                  <span className="ui-label text-dim">
                     {usableShots.length < 2
                       ? `two moments make a sequence · ${usableShots.length} so far`
                       : `${usableShots.length} moments · each one generates and animates on its own`}
@@ -761,14 +761,14 @@ export function BriefStage({ creativeId, brandId, stageId, locked, onSaved }: Br
         )}
         <div className="ml-auto flex items-center gap-2">
           {saved && (
-            <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal">
+            <span className="ui-label text-cyber-teal">
               Saved · stage locked
             </span>
           )}
           <button
             onClick={() => void save()}
             disabled={!line.trim() || saving || locked}
-            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+            className="rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
           >
             {locked ? "Locked" : saving ? "Saving" : "Save the brief"}
           </button>

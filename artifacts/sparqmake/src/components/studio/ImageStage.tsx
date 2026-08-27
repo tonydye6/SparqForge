@@ -135,7 +135,7 @@ function MediumSwitch({
           aria-pressed={medium === m}
           onClick={() => onChange(m)}
           className={cn(
-            "px-3 py-1 font-mono text-[9px] uppercase tracking-[0.09em] transition-colors",
+            "px-3 py-1 ui-label transition-colors",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-cyber-teal",
             medium === m
               ? "bg-primary text-primary-foreground"
@@ -439,7 +439,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
         <p className="text-[12.5px] text-rebel-pink">{error ?? "No plan."}</p>
         <button
           onClick={() => void load()}
-          className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+          className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
         >
           Try again
         </button>
@@ -466,7 +466,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <MediumSwitch medium={medium} onChange={setMedium} />
       <div className="space-y-1.5">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+        <p className="ui-label text-grit-teal">
           Stage 03 · Media · Explore
         </p>
         <h2 className="flex items-center gap-2 font-display text-xl tracking-wide text-foreground">
@@ -602,7 +602,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
                   disabled={running}
                   aria-pressed={plan.takes.length === n}
                   className={cn(
-                    "rounded-sm px-2 py-1 font-mono text-[9.5px] hover-elevate disabled:opacity-40",
+                    "rounded-sm px-2 py-1 ui-data text-[11px] hover-elevate disabled:opacity-40",
                     plan.takes.length === n ? "bg-grit-teal/15 text-cyber-teal" : "text-muted-foreground",
                   )}
                   data-testid={`button-spread-size-${n}`}
@@ -621,7 +621,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
             <button
               onClick={() => void enterRefine(selectedSlotKey)}
               disabled={switching}
-              className="rounded-sm border border-grit-teal px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+              className="rounded-sm border border-grit-teal px-3 py-1.5 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
               data-testid="button-refine-pick"
             >
               Refine the pick
@@ -630,7 +630,7 @@ export function ImageStage({ creativeId, stageId, mode, modeSlotKey, brandId, ta
           <button
             onClick={() => void runSpread()}
             disabled={locked || running}
-            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.06em] text-primary-foreground hover-elevate disabled:opacity-40"
+            className="rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-40"
           >
             {locked
               ? "Locked"
@@ -731,7 +731,7 @@ function SpreadInspector({
       data-testid="spread-inspector"
       aria-live="polite"
     >
-      <p className="border-b border-border/60 px-3.5 py-2 font-mono text-[9px] uppercase tracking-[0.08em] text-cyber-teal">
+      <p className="border-b border-border/60 px-3.5 py-2 ui-label text-cyber-teal">
         {take.axisA.label} × {take.axisB.label}
         {take.offBrief && <span className="text-victory-gold"> · past the brief, on purpose</span>}
       </p>
@@ -741,7 +741,7 @@ function SpreadInspector({
           <img src={o.imageUrl} alt={`${take.axisA.label}, ${take.axisB.label}`} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center">
-            <span className={cn("font-mono text-[9px] uppercase tracking-[0.08em]", o && !o.ok ? "text-rebel-pink" : "text-dim")}>
+            <span className={cn("ui-label", o && !o.ok ? "text-rebel-pink" : "text-dim")}>
               {o && !o.ok ? "Did not render · run again retries it" : "Not made yet"}
             </span>
           </div>
@@ -749,7 +749,7 @@ function SpreadInspector({
       </div>
 
       <div className="space-y-2 px-3.5 py-3">
-        <p className="font-mono text-[8.5px] uppercase tracking-[0.1em] text-grit-teal">What drives this take</p>
+        <p className="ui-label text-grit-teal">What drives this take</p>
         <p className="text-[12px] leading-relaxed text-muted-foreground">
           {take.directive}.
           {take.offBrief && <span className="text-foreground"> {take.offBrief.reason}</span>}
@@ -760,7 +760,7 @@ function SpreadInspector({
             <button
               onClick={() => canAct && onRefine(take.id)}
               disabled={!canAct}
-              className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate disabled:opacity-40"
+              className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-40"
               data-testid="inspector-refine"
             >
               Refine
@@ -773,7 +773,7 @@ function SpreadInspector({
             <button
               onClick={() => onUse(take.id)}
               className={cn(
-                "rounded-sm border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] hover-elevate",
+                "rounded-sm border px-2.5 py-1 text-[12px] font-medium hover-elevate",
                 usedSlotKey === take.id ? "border-grit-teal text-grit-teal" : "border-grit-teal text-cyber-teal",
               )}
               data-testid="inspector-use"

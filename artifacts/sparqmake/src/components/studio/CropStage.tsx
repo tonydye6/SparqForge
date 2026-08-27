@@ -196,7 +196,7 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-6">
       <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
-        <p className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">
+        <p className="flex items-center gap-1.5 ui-label text-grit-teal">
           Framing
           <InfoDot text="Not resizing. Each channel draws its own interface over your picture, so the frame moves to keep the subject clear of it. One point drives every frame." />
         </p>
@@ -222,11 +222,11 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
           <button
             type="button" disabled={locked}
             onClick={() => { setFocal(DEFAULT_FOCAL); setSaved(false); }}
-            className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate"
+            className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
           >
             Reset
           </button>
-          <span className={cn("ml-auto font-mono text-[9.5px] uppercase tracking-[0.09em]", totalWarnings > 0 ? "text-victory-gold" : "text-dim")}>
+          <span className={cn("ml-auto ui-label", totalWarnings > 0 ? "text-victory-gold" : "text-dim")}>
             {totalWarnings === 0 ? "Nothing covered" : `${totalWarnings} to look at`}
           </span>
         </div>
@@ -238,8 +238,8 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
         {plans.map(({ target, rect, warnings, furnitureMapped }) => (
           <div key={target.platform} className="space-y-1.5">
             <div className="flex items-baseline justify-between gap-2">
-              <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">{target.label}</p>
-              <span className="font-mono text-[9px] text-dim">{target.aspectLabel}</span>
+              <p className="ui-label text-muted-foreground">{target.label}</p>
+              <span className="ui-data text-[11px] text-dim">{target.aspectLabel}</span>
             </div>
             {!furnitureMapped && (
               <p className="text-[10.5px] leading-relaxed text-dim">
@@ -298,7 +298,7 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
               />
 
               {hook?.trim() && (
-                <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 font-display text-[9px] uppercase leading-tight text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
+                <span className="pointer-events-none absolute inset-x-1.5 bottom-1.5 font-display text-[11px] uppercase leading-tight text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.9)]">
                   {hook}
                 </span>
               )}
@@ -323,10 +323,10 @@ export function CropStage({ creativeId, stageId, locked, selectedImageUrl, hook,
           <InfoDot text="You may well decide the mark can sit under TikTok's caption block; what you should not do is find out afterwards. Save with warnings standing whenever the call is yours." />
         </p>
         <div className="flex shrink-0 items-center gap-2">
-          {saved && <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">Saved</span>}
+          {saved && <span className="ui-label text-dim">Saved</span>}
           <button
             type="button" onClick={() => void save()} disabled={locked || saving}
-            className="rounded-sm bg-primary px-3 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+            className="rounded-sm bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
           >
             {saving ? "Saving" : "Save the framing"}
           </button>

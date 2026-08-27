@@ -146,7 +146,7 @@ export function SaveRunButton({
     <div className="relative">
       <button
         onClick={() => { setOpen((v) => !v); setDone(false); }}
-        className="flex items-center gap-1.5 rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+        className="flex items-center gap-1.5 rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
         data-testid="button-save-run"
       >
         Save this run
@@ -159,14 +159,14 @@ export function SaveRunButton({
               <p className="text-[12.5px] text-foreground">Saved. It is on the Studio home, ready to run again.</p>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                className="rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
               >
                 Close
               </button>
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="flex items-center gap-1.5 font-mono text-[9.5px] uppercase tracking-[0.08em] text-grit-teal">
+              <p className="flex items-center gap-1.5 ui-label text-grit-teal">
                 Save this run
                 <InfoDot text="A saved run is the brief plus whichever stages you locked. Running it later writes them straight in and costs nothing." />
               </p>
@@ -180,7 +180,7 @@ export function SaveRunButton({
               />
 
               <div className="space-y-1">
-                <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">What travels</p>
+                <p className="ui-label text-dim">What travels</p>
                 {briefPresent ? (
                   <p className="text-[12px] text-foreground">
                     {travelling.map((s) => STAGE_LABELS[s.stageKind] ?? s.stageKind).join(", ")}
@@ -193,7 +193,7 @@ export function SaveRunButton({
               </div>
 
               <div className="space-y-1">
-                <p className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">Also run it for</p>
+                <p className="ui-label text-dim">Also run it for</p>
                 <div className="flex flex-wrap gap-1">
                   {brands.filter((b) => b.id !== brandId).map((b) => {
                     const on = extra.includes(b.id);
@@ -220,14 +220,14 @@ export function SaveRunButton({
                 <button
                   onClick={() => void save()}
                   disabled={saving || !name.trim() || !briefPresent}
-                  className="rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+                  className="rounded-sm border border-grit-teal px-2.5 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
                   data-testid="button-confirm-save-run"
                 >
                   {saving ? <Loader2 size={10} className="animate-spin" /> : "Save"}
                 </button>
                 <button
                   onClick={() => setOpen(false)}
-                  className="rounded-sm border border-border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-muted-foreground hover-elevate"
+                  className="rounded-sm border border-border px-2.5 py-1 text-[12px] font-medium text-muted-foreground hover-elevate"
                 >
                   Cancel
                 </button>
@@ -293,7 +293,7 @@ function RunDetail({ runId, onOpenCreative }: { runId: string; onOpenCreative: (
           <div className="flex items-center gap-2">
             <span className="text-[12.5px] text-foreground">{p.brandName}</span>
             {p.crossBrand && (
-              <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">another brand</span>
+              <span className="ui-label text-dim">another brand</span>
             )}
           </div>
 
@@ -307,7 +307,7 @@ function RunDetail({ runId, onOpenCreative }: { runId: string; onOpenCreative: (
                 <span
                   key={s.number}
                   className={cn(
-                    "rounded-sm border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.05em]",
+                    "rounded-sm border px-1.5 py-0.5 ui-label",
                     carried ? "border-grit-teal/60 text-cyber-teal" : "border-border/50 text-dim line-through",
                   )}
                 >
@@ -337,7 +337,7 @@ function RunDetail({ runId, onOpenCreative }: { runId: string; onOpenCreative: (
               <button
                 key={m.creativeId}
                 onClick={() => onOpenCreative(m.creativeId)}
-                className="flex items-center gap-1 rounded-sm border border-grit-teal px-2 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate"
+                className="flex items-center gap-1 rounded-sm border border-grit-teal px-2 py-1 text-[12px] font-medium text-cyber-teal hover-elevate"
                 data-testid={`button-open-made-${m.creativeId}`}
               >
                 Open {m.brandName} <ChevronRight size={9} />
@@ -350,7 +350,7 @@ function RunDetail({ runId, onOpenCreative }: { runId: string; onOpenCreative: (
           <button
             onClick={() => void run()}
             disabled={running || previews.length === 0}
-            className="flex items-center gap-1.5 rounded-sm border border-grit-teal px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.06em] text-cyber-teal hover-elevate disabled:opacity-40"
+            className="flex items-center gap-1.5 rounded-sm border border-grit-teal px-2.5 py-1 text-[12px] font-medium text-cyber-teal hover-elevate disabled:opacity-40"
             data-testid="button-run-saved-run"
           >
             {running ? <Loader2 size={10} className="animate-spin" /> : <Play size={9} />}
@@ -379,7 +379,7 @@ export function SavedRunsPanel({ onOpenCreative }: { onOpenCreative: (creativeId
 
   return (
     <div className="space-y-1.5" data-testid="panel-saved-runs">
-      <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+      <p className="flex items-center gap-1.5 ui-label text-grit-teal">
         Saved runs
         <InfoDot text="A brief plus whichever stages were locked, ready to run again. Running one writes those stages straight in, so it costs nothing. A run pointed at more than one brand makes one post per brand, each under its own contract." />
       </p>
@@ -396,10 +396,10 @@ export function SavedRunsPanel({ onOpenCreative }: { onOpenCreative: (creativeId
                 className={cn("shrink-0 text-dim transition-transform", openId === run.id && "rotate-90")}
               />
               <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{run.name}</span>
-              <span className="font-mono text-[9px] uppercase tracking-[0.06em] text-dim">
+              <span className="ui-label text-dim">
                 {run.brands.map((b) => b.name).join(" · ")}
               </span>
-              <span className="font-mono text-[9px] tabular-nums text-dim">
+              <span className="ui-data text-[11px] tabular-nums text-dim">
                 {run.runCount === 0 ? "never run" : `run ${run.runCount}`}
               </span>
             </button>
