@@ -427,14 +427,16 @@ export function unionBox(
 export interface MoveBox { x: number; y: number; w: number; h: number }
 
 /**
- * Below this, a drag is smaller than the prompt can honestly express.
+ * Below this, the drag did not really ask for anything.
  *
- * The instruction is prose, and prose cannot ask for a two-pixel nudge. Rather
- * than spend a generative pass on a request the model will read as "leave it",
- * the route refuses and says to drag further. 3% of the frame is roughly the
- * point at which "a little to the left" stops being a lie.
+ * This floor was 3% while a move was prose, because prose cannot ask for a
+ * two-pixel nudge. A move is now compositing (services/layer-move.ts), so any
+ * displacement lands EXACTLY and a 3% floor would refuse work the system does
+ * perfectly. What is left to catch is a drag that moved nothing - a mis-click,
+ * or a pointer returned to where it started - which would otherwise buy a
+ * remove-and-put-it-back for the price of a render.
  */
-export const MIN_MOVE_FRACTION = 0.03;
+export const MIN_MOVE_FRACTION = 0.005;
 
 /** Components smaller than this are noise beside the larger axis; omit them. */
 const MIN_AXIS_FRACTION = 0.02;

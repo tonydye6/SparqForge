@@ -13,7 +13,6 @@ import {
   describeMoveDelta,
   layerEditRefusal,
   MIN_MOVE_FRACTION,
-  layerMoveSentence,
   layerPromptReference,
   layerScopeSentence,
   markLayerSlotDescription,
@@ -215,25 +214,12 @@ export function runCases(): Result[] {
     })(),
   );
 
-  const UL = { x: 0.10, y: 0.10, w: 0.12, h: 0.10 };
-  const LR = { x: 0.72, y: 0.74, w: 0.12, h: 0.10 };
-  const crossCell = layerMoveSentence(
-    "Crown U Mark", UL, LR,
-    "a small area in the upper left", "a small area in the lower right",
-  );
-  check("a move names the layer and both places",
-    crossCell.includes("Move the Crown U Mark out of a small area in the upper left")
-      && crossCell.includes("into a small area in the lower right"), crossCell);
-  check("a move asks for the hole to be closed, or the model draws two copies",
-    crossCell.includes("reconstruct whatever belongs behind it"));
-  check("a move forbids a leftover duplicate by name",
-    crossCell.includes("no trace or duplicate of it remains"));
-  check("a move holds the size — now as a number, not the word 'same'",
-    /stay exactly the size it is now - about 12% of the frame's width/.test(crossCell), crossCell);
-  check(
-    "a typed extra rides along, punctuated",
-    layerMoveSentence("X", UL, LR, "here", "there", "make it smaller").includes("make it smaller."),
-  );
+  /*
+   * The prose move sentence is gone: a move is compositing now, so there is no
+   * sentence to assert. What survives is the displacement measurement, which
+   * the route still uses to reject a drag that moved nothing. The three renders
+   * that killed the prose path are recorded in services/layer-move.ts.
+   */
 
   /*
    * ---- STRICT MARKS ON THE LAYER PATH (doc 46 §1) ----
@@ -270,46 +256,17 @@ export function runCases(): Result[] {
    */
   const MARK_BOX = { x: 0.456, y: 0.034, w: 0.09, h: 0.062 };
   const DRAGGED_LEFT = { ...MARK_BOX, x: MARK_BOX.x - 0.16 };
-  const SAME_CELL = describeRegion({ shape: "box" as const, ...MARK_BOX })
-    === describeRegion({ shape: "box" as const, ...DRAGGED_LEFT });
-  check("the regression is real: that drag DOES collapse to one cell phrase", SAME_CELL);
-
-  const movedSentence = layerMoveSentence(
-    layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" }),
-    MARK_BOX, DRAGGED_LEFT,
-    describeRegion({ shape: "box", ...MARK_BOX }),
-    describeRegion({ shape: "box", ...DRAGGED_LEFT }),
-  );
-  check(
-    "so the sentence states the DISPLACEMENT, which survives quantisation",
-    /16% of the frame's width to the left/.test(movedSentence), movedSentence,
-  );
-  check(
-    "and it never says out of X and into X",
-    !/out of (.+) and into \1/.test(movedSentence), movedSentence,
-  );
-  check(
-    "size is given as numbers, because 'the same size' let it come back twice as wide",
-    /9% of the frame's width and 6% of its height/.test(movedSentence), movedSentence,
-  );
-  check(
-    "a MOVE obeys the marks rule — the file's name, never the layer's",
-    movedSentence.includes("brand mark in Crown-U_Mark_Gold.png") && !movedSentence.includes("Crown U Mark"),
-    movedSentence,
-  );
-  check(
-    "a cross-cell move still names both cells",
-    /out of .* and into /.test(layerMoveSentence(
-      "the crown", MARK_BOX, { ...MARK_BOX, x: 0.05, y: 0.8 },
-      "a small area in the upper centre", "a small area in the lower left",
-    )),
-  );
+  check("the 3x3 quantisation that broke the prose path is real",
+    describeRegion({ shape: "box" as const, ...MARK_BOX })
+      === describeRegion({ shape: "box" as const, ...DRAGGED_LEFT }));
 
   // The guard: below this the route refuses for free rather than buying a no-op.
-  check("a 16% drag is expressible", describeMoveDelta(MARK_BOX, DRAGGED_LEFT) !== null);
-  check("a 1% nudge is NOT, so the route can refuse before reserving",
-    describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + 0.01 }) === null);
-  check("exactly at the 3% threshold it is expressible",
+  check("a 16% drag is a real ask", describeMoveDelta(MARK_BOX, DRAGGED_LEFT) !== null);
+  check("so is a 1% nudge, now that compositing places it exactly",
+    describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + 0.01 }) !== null);
+  check("a drag that moved nothing is still rejected",
+    describeMoveDelta(MARK_BOX, { ...MARK_BOX }) === null);
+  check("exactly at the floor it counts",
     describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + MIN_MOVE_FRACTION }) !== null);
   check("direction words follow the sign",
     describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + 0.2, y: MARK_BOX.y + 0.3 })

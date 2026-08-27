@@ -45,6 +45,8 @@ async function configuredSpreadSize(): Promise<number> {
 import { isIntent, INTENT_LABELS, type Intent } from "../lib/intents.js";
 import { generationLimiter } from "../lib/rate-limit.js";
 import { describeVendorConfigError } from "../lib/vendor-errors.js";
+import { describeMoveDelta } from "../services/layer-detection.js";
+import { applyLayerMove, removalPrompt } from "../services/layer-move.js";
 import { buildCostRow } from "../services/cost-recording.js";
 import { monthToDateBudget, reserveBudget, budgetExceededBody } from "../lib/budget.js";
 import { requireStandardWrite } from "../middleware/auth.js";
@@ -84,8 +86,6 @@ import {
 import { normalizeRegion, driftMessage, driftVerdict, DRIFT_TOLERANCE } from "../services/region-edit.js";
 import {
   layerEditRefusal,
-  describeMoveDelta,
-  layerMoveSentence,
   layerPromptReference,
   layerScopeSentence,
   markLayerSlotDescription,
@@ -2404,8 +2404,8 @@ router.post(
        */
       if (destination && layer && !describeMoveDelta(layer.bbox, destination)) {
         res.status(422).json({
-          error: "That is too small a move to describe to the model, so nothing was changed or " +
-            "charged. Drag it further and try again.",
+          error: "That drag did not move anything, so nothing was changed or charged. " +
+            "Drop it somewhere else and try again.",
         });
         return;
       }
@@ -2628,15 +2628,17 @@ router.post(
       const layerRef = layer
         ? layerPromptReference({ name: layer.name, kind: layer.kind, markAssetName: markPromptName })
         : "";
+      /*
+       * A MOVE ASKS FOR REMOVAL ONLY. The placement is compositing, done after
+       * this call with the layer's own pixels — so the model is never asked to
+       * relocate anything, which is the ask it could not do (three measured
+       * renders in services/layer-move.ts). Anything the user typed alongside a
+       * drag would be an instruction about the moved element, and the element
+       * is no longer being drawn, so it is deliberately dropped here rather
+       * than smuggled into a removal prompt where it can only cause damage.
+       */
       const scoped = layer && destination
-        ? layerMoveSentence(
-            layerRef,
-            layer.bbox,
-            destination,
-            describeRegion({ shape: "box", ...layer.bbox }),
-            describeRegion({ shape: "box", ...destination }),
-            said,
-          )
+        ? removalPrompt(layerRef, describeRegion({ shape: "box", ...layer.bbox }))
         : layer
           ? layerScopeSentence(layerRef, describeRegion(region), said)
           : `Change only ${describeRegion(region)}. ${said} Leave the rest of the image exactly as it is.`;
@@ -2650,15 +2652,44 @@ router.post(
         ],
       });
 
+      /*
+       * The half the model does not get to do. `result` is the background with
+       * the layer removed; the layer's own pixels are cut from `beforeBuffer`
+       * and pasted at the destination, so the position is exact, the size is
+       * unchanged by construction, and a brand mark is byte-identical to what
+       * it was — which is how Tony's "a mark cannot be recoloured" ruling is
+       * enforced on the move path rather than merely requested.
+       */
+      let editedBuffer = result.imageBuffer;
+      let moveWarning: string | null = null;
+      if (layer && destination) {
+        try {
+          const composited = await applyLayerMove({
+            beforeBuffer,
+            filledBuffer: result.imageBuffer,
+            from: layer.bbox,
+            to: destination,
+            layerName: layer.name,
+          });
+          editedBuffer = composited.imageBuffer;
+          moveWarning = composited.warning;
+        } catch (err) {
+          // A compositing failure must not lose a render the user has paid for:
+          // keep the removal pass and say the placement did not happen.
+          console.error("Layer move compositing failed", err);
+          moveWarning = `${layer.name} could not be placed in its new position, so this take shows it removed rather than moved.`;
+        }
+      }
+
       const filename = takeFilename(creativeId, `${slotKey}_edit`, crypto.randomUUID().slice(0, 8));
-      await writeBuffer("generated", filename, result.imageBuffer);
+      await writeBuffer("generated", filename, editedBuffer);
       const afterUrl = `/api/files/generated/${filename}`;
 
       // Measured after storing, so a drift-measurement failure cannot lose an
       // image the user has already paid for.
       let drift: { driftPercent: number; sampledOutside: number; changedOutside: number } | null = null;
       try {
-        drift = await measureDrift(beforeBuffer, result.imageBuffer, region);
+        drift = await measureDrift(beforeBuffer, editedBuffer, region);
       } catch (err) {
         console.error("Drift could not be measured for a region edit", err);
       }
@@ -2791,6 +2822,12 @@ router.post(
         driftUnavailable: drift === null
           ? "The edit worked, but how far it strayed outside your selection could not be measured."
           : null,
+        /*
+         * A move places the layer itself, so the only thing that can go wrong
+         * is the model failing to clear the OLD position - which would show the
+         * layer twice. Said out loud rather than left for the eye to catch.
+         */
+        moveWarning,
       });
     } catch (err) {
       if (reservationId) {

@@ -5,6 +5,7 @@ import { db, assetsTable, costLogsTable } from "@workspace/db";
 import type { Asset } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { resolveUrl, readBuffer } from "./storage.js";
+import { resolveNarrativeUpdates } from "./asset-narrative.js";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
@@ -170,15 +171,29 @@ export async function analyzeAndStoreAsset(assetId: string): Promise<Asset> {
   const newAiSuggestedFields = new Set<string>(currentAiFields);
 
   const mergedTags = [...new Set([...(asset.tags || []), ...analysis.tags])];
+
+  // Prose obeys the same provenance rule as every other field: a curator's own
+  // description is never replaced by model prose, and an empty model answer
+  // never blanks something somebody wrote. See asset-narrative.ts.
+  const narrative = resolveNarrativeUpdates(
+    {
+      description: asset.description,
+      styleNotes: asset.styleNotes,
+      colors: asset.colors,
+      depictedEntities: asset.depictedEntities,
+    },
+    analysis,
+    currentAiFields,
+  );
+
   const updates: Record<string, unknown> = {
-    description: analysis.description || asset.description,
     tags: mergedTags,
-    depictedEntities: analysis.entities,
-    colors: analysis.colors,
-    styleNotes: analysis.styleNotes || null,
+    ...narrative.updates,
     aiAnalyzedAt: new Date(),
     updatedAt: new Date(),
   };
+
+  for (const field of narrative.aiFieldsAdded) newAiSuggestedFields.add(field);
 
   // Standard helper: skip null/undefined/empty-array AI values; respect canOverwrite.
   const setIntelligenceField = (

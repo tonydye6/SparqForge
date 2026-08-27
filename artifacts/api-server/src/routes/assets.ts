@@ -1,6 +1,6 @@
 import { str } from "../lib/http-params.js";
 import { Router, type IRouter } from "express";
-import { eq, ne, and, ilike, or, inArray, desc, sql, arrayContains } from "drizzle-orm";
+import { eq, ne, and, inArray, desc, sql, arrayContains } from "drizzle-orm";
 import { db, assetsTable, creativesTable } from "@workspace/db";
 import {
   GetAssetsQueryParams,
@@ -14,6 +14,9 @@ import {
   DeleteAssetParams,
   DeleteAssetResponse,
 } from "@workspace/api-zod";
+import { resolveAssetListOrder } from "../lib/asset-order.js";
+import { NARRATIVE_FIELDS, proseFieldsEdited } from "../services/asset-narrative.js";
+import { searchTokens, compactText } from "../lib/asset-search.js";
 import { backfillAssetClassifications } from "../services/backfill-assets.js";
 import { analyzeAndStoreAsset, backfillAssetAnalysis, analyzeAssetInBackground, isAnalyzableAsset } from "../services/asset-analysis.js";
 import { matchAssetsToBrief } from "../services/asset-matching.js";
@@ -30,6 +33,15 @@ interface AuthenticatedUser {
 
 const router: IRouter = Router();
 
+/**
+ * An asset's name and description, lowercased with every separator removed, so
+ * `crownu_3d_logo` and `Crown U Logo` are the same shape to a search.
+ */
+const SEARCHABLE_TEXT = sql`regexp_replace(lower(coalesce(${assetsTable.name}, '') || ' ' || coalesce(${assetsTable.description}, '')), '[^a-z0-9]+', '', 'g')`;
+
+/** Just the name, same normalization — used for ranking, not for matching. */
+const SEARCHABLE_NAME = sql`regexp_replace(lower(coalesce(${assetsTable.name}, '')), '[^a-z0-9]+', '', 'g')`;
+
 router.get("/assets", async (req, res): Promise<void> => {
   const query = GetAssetsQueryParams.safeParse(req.query);
   const conditions = [];
@@ -45,12 +57,13 @@ router.get("/assets", async (req, res): Promise<void> => {
       conditions.push(ne(assetsTable.status, "archived"));
     }
     if (query.data.search) {
-      conditions.push(
-        or(
-          ilike(assetsTable.name, `%${query.data.search}%`),
-          ilike(assetsTable.description, `%${query.data.search}%`)
-        )!
-      );
+      // Every typed WORD has to appear somewhere in the name or description,
+      // with separators stripped from both sides — see lib/asset-search.ts for
+      // why one contiguous ILIKE was the wrong rule for this library. Each
+      // token is alphanumeric by construction, so it is LIKE-pattern safe.
+      for (const token of searchTokens(query.data.search)) {
+        conditions.push(sql`${SEARCHABLE_TEXT} LIKE ${`%${token}%`}`);
+      }
     }
   }
 
@@ -77,6 +90,38 @@ router.get("/assets", async (req, res): Promise<void> => {
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
   const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
+  // Opt-in newest-first. The default stays ascending because the Asset
+  // Library's paging is built on it; see lib/asset-order.ts for why the `@`
+  // mention picker needs the other end of the list.
+  const order = resolveAssetListOrder(req.query.order);
+  const recencyFirst = order === "recent" ? desc(assetsTable.createdAt) : assetsTable.createdAt;
+
+  /**
+   * When the caller typed something, RELEVANCE decides the page, not the clock.
+   *
+   * This matters because the page is capped: ranking after the cut would sort
+   * fifty arbitrary rows, so an exact match sitting at row 900 by date would
+   * never be returned at all. Exact name, then name-prefix, then a contiguous
+   * run inside the name, then recency — and `id` last so paging is stable.
+   */
+  const searchOrder = (() => {
+    const typed = query.success ? (query.data.search ?? "") : "";
+    const compact = compactText(typed);
+    if (!compact) return null;
+    return [
+      sql`(${SEARCHABLE_NAME} = ${compact}) DESC`,
+      sql`(${SEARCHABLE_NAME} LIKE ${`${compact}%`}) DESC`,
+      sql`(${SEARCHABLE_NAME} LIKE ${`%${compact}%`}) DESC`,
+      recencyFirst,
+      assetsTable.id,
+    ];
+  })();
+
+  // `id` last on BOTH paths: bulk-created rows share `created_at` to the
+  // millisecond (18 production rows share 2026-08-23T22:14:05.644Z), and an
+  // ordering that is not total lets limit/offset paging repeat or skip rows.
+  const orderBy = searchOrder ?? [recencyFirst, assetsTable.id];
+
   const baseCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [countResult] = await db
@@ -86,8 +131,8 @@ router.get("/assets", async (req, res): Promise<void> => {
   const total = countResult?.count ?? 0;
 
   const results = baseCondition
-    ? await db.select().from(assetsTable).where(baseCondition).orderBy(assetsTable.createdAt).limit(limit).offset(offset)
-    : await db.select().from(assetsTable).orderBy(assetsTable.createdAt).limit(limit).offset(offset);
+    ? await db.select().from(assetsTable).where(baseCondition).orderBy(...orderBy).limit(limit).offset(offset)
+    : await db.select().from(assetsTable).orderBy(...orderBy).limit(limit).offset(offset);
 
   res.json({ data: results, total, limit, offset });
 });
@@ -436,14 +481,28 @@ router.put("/assets/:id", validateRequest({ params: UpdateAssetParams, body: Upd
     f => req.body[f] !== undefined,
   );
 
-  if (intelligenceFieldsBeingSet.length > 0) {
+  // Prose is handled separately, and on a real EDIT rather than on presence:
+  // the Asset Library editor sends `description` on every save even when the
+  // curator only touched the tags, and taking ownership then would freeze the
+  // field against Analyze forever. See services/asset-narrative.ts.
+  const proseInBody = NARRATIVE_FIELDS.some(f => req.body[f] !== undefined);
+
+  if (intelligenceFieldsBeingSet.length > 0 || proseInBody) {
     const [current] = await db
-      .select({ aiSuggestedFields: assetsTable.aiSuggestedFields })
+      .select({
+        aiSuggestedFields: assetsTable.aiSuggestedFields,
+        description: assetsTable.description,
+        styleNotes: assetsTable.styleNotes,
+      })
       .from(assetsTable)
       .where(eq(assetsTable.id, str(req.params.id)));
     if (current) {
+      const relinquished = new Set<string>([
+        ...intelligenceFieldsBeingSet,
+        ...proseFieldsEdited(req.body as Record<string, unknown>, current),
+      ]);
       updateData.aiSuggestedFields = (current.aiSuggestedFields || [])
-        .filter((f: string) => !intelligenceFieldsBeingSet.includes(f));
+        .filter((f: string) => !relinquished.has(f));
     }
   }
 
@@ -512,6 +571,10 @@ router.put("/assets/:id/metadata", async (req, res): Promise<void> => {
     return;
   }
 
+  // Deliberately WITHOUT description/styleNotes: this route never writes them,
+  // so listing them here would strip the analyzer's ownership of prose that
+  // nobody actually edited. The Asset Library editor saves through
+  // PUT /assets/:id, which does write them.
   const INTELLIGENCE_FIELDS = [
     "assetClass", "generationRole", "brandLayer", "compositingOnly",
     "generationAllowed", "subjectIdentityScore", "styleStrengthScore",
