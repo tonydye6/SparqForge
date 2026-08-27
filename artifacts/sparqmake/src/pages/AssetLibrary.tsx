@@ -1473,7 +1473,18 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
   const [approvedChannelsStr, setApprovedChannelsStr] = useState((asset.approvedChannels || []).join(", "));
   const [approvedTemplatesStr, setApprovedTemplatesStr] = useState((asset.approvedTemplates || []).join(", "));
 
-  const aiSuggested = new Set(asset.aiSuggestedFields || []);
+  // The nine fields THIS panel actually renders an AI badge for. `aiSuggestedFields`
+  // is wider than the panel — the analyzer also records prose it wrote
+  // (`description`, `styleNotes`), which lives up in the detail pane — so the
+  // count has to be scoped or the header claims suggestions that are nowhere
+  // inside it.
+  const PANEL_FIELDS = [
+    "assetClass", "generationRole", "brandLayer", "subjectIdentityScore",
+    "styleStrengthScore", "freshnessScore", "compositingOnly",
+    "generationAllowed", "conflictTags",
+  ];
+  const suggestedAnywhere = new Set(asset.aiSuggestedFields || []);
+  const aiSuggested = new Set(PANEL_FIELDS.filter(f => suggestedAnywhere.has(f)));
   const isAi = (field: string) => aiSuggested.has(field);
 
   useEffect(() => {
