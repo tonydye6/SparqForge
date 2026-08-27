@@ -324,7 +324,7 @@ export default function CostDashboard() {
                   className="bg-background border-border w-full sm:w-40"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted-foreground mt-1">
                 Set to 0 or leave empty to disable. This one REFUSES spend.
               </p>
             </div>
@@ -343,7 +343,7 @@ export default function CostDashboard() {
                   className="bg-background border-border w-full sm:w-40"
                 />
               </div>
-              <label className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+              <label className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
                 <input
                   type="checkbox"
                   checked={hardCap}
@@ -370,7 +370,7 @@ export default function CostDashboard() {
                 <option value="6">6 takes</option>
                 <option value="4">4 takes · cheapest</option>
               </select>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-[11px] text-muted-foreground mt-1">
                 Every size keeps at least one take that goes past the brief.
               </p>
             </div>
@@ -448,7 +448,7 @@ export default function CostDashboard() {
                   const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center group relative min-w-0">
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background border border-border rounded px-2 py-1 text-[10px] text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background border border-border rounded px-2 py-1 text-[11px] text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
                         ${day.totalCost.toFixed(3)} ({day.count} calls)
                       </div>
                       <div
@@ -456,7 +456,7 @@ export default function CostDashboard() {
                         style={{ height: `${height}%` }}
                       />
                       {summary.dailySpend.length <= 14 && (
-                        <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-1 truncate w-full text-center hidden sm:block">{label}</span>
+                        <span className="text-[11px] sm:text-[11px] text-muted-foreground mt-1 truncate w-full text-center hidden sm:block">{label}</span>
                       )}
                     </div>
                   );
@@ -487,7 +487,7 @@ export default function CostDashboard() {
                         style={{ width: `${pct}%`, backgroundColor: color }}
                       />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">{s.count} calls · {pct.toFixed(0)}%</span>
+                    <span className="text-[11px] text-muted-foreground">{s.count} calls · {pct.toFixed(0)}%</span>
                   </div>
                 );
               })}
@@ -507,12 +507,12 @@ export default function CostDashboard() {
                 .map((o, i) => (
                 <div key={i} className="flex items-center justify-between p-2 bg-background rounded-lg border border-border gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Badge variant="outline" className="text-[10px] font-mono shrink-0">{o.operation}</Badge>
-                    <span className="text-[10px] text-muted-foreground truncate hidden sm:inline">{SERVICE_LABELS[o.service] || o.service}</span>
+                    <Badge variant="outline" className="text-[11px] font-mono shrink-0">{o.operation}</Badge>
+                    <span className="text-[11px] text-muted-foreground truncate hidden sm:inline">{SERVICE_LABELS[o.service] || o.service}</span>
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-sm font-semibold text-foreground">${o.totalCost.toFixed(3)}</span>
-                    <span className="text-[10px] text-muted-foreground ml-2">{o.count}x</span>
+                    <span className="text-[11px] text-muted-foreground ml-2">{o.count}x</span>
                   </div>
                 </div>
               ))}
@@ -533,11 +533,11 @@ export default function CostDashboard() {
                       style={{ backgroundColor: SERVICE_COLORS[log.service] || "#666" }}
                     />
                     <span className="text-foreground truncate">{log.operation}</span>
-                    {log.model && <span className="text-muted-foreground text-[10px] shrink-0 hidden sm:inline">{log.model}</span>}
+                    {log.model && <span className="text-muted-foreground text-[11px] shrink-0 hidden sm:inline">{log.model}</span>}
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
                     <span className="font-mono text-foreground">${log.costUsd.toFixed(4)}</span>
-                    <span className="text-muted-foreground text-[10px] hidden sm:inline">
+                    <span className="text-muted-foreground text-[11px] hidden sm:inline">
                       {new Date(log.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                     </span>
                   </div>
@@ -661,7 +661,7 @@ function SpendSplit({
     <div className="bg-card border border-border rounded-xl p-4 sm:p-6 mb-4 sm:mb-6">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <h3 className="text-sm font-semibold text-foreground">What the money bought</h3>
-        <p className="text-[10px] sm:text-xs text-muted-foreground">
+        <p className="text-[11px] sm:text-xs text-muted-foreground">
           {/*
             Say "estimated" out loud. Every figure here is a flat per-call
             constant, not a measurement, and pricingBasis exists so the surface
@@ -689,7 +689,7 @@ function SpendSplit({
             <span className="text-xs font-semibold text-foreground tabular-nums">
               ${b.usd.toFixed(2)}
             </span>
-            <span className="text-[10px] text-muted-foreground tabular-nums">
+            <span className="text-[11px] text-muted-foreground tabular-nums">
               {pct(b.usd).toFixed(0)}%
             </span>
           </div>
@@ -711,7 +711,7 @@ function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; lab
     <div className="bg-card border border-border rounded-xl p-3 sm:p-5">
       <div className={`${color} mb-1 sm:mb-2`}>{icon}</div>
       <div className="text-lg sm:text-2xl font-bold text-foreground">{value}</div>
-      <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
+      <div className="text-[11px] sm:text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
     </div>
   );
 }

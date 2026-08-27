@@ -123,7 +123,7 @@ export default function DesignSystem() {
     <div className="h-full overflow-y-auto">
     <div className="mx-auto w-full max-w-6xl space-y-10 p-8">
       <header className="space-y-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">
+        <p className="ui-label text-grit-teal">
           Internal reference · not in the nav
         </p>
         <h1 className="font-display text-3xl tracking-wide text-foreground">
@@ -147,10 +147,10 @@ export default function DesignSystem() {
             <div key={g.name} className="space-y-2">
               <div className={`h-16 rounded-sm border border-white/10 ${g.cls}`} />
               <div className="space-y-0.5">
-                <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="ui-label text-muted-foreground">
                   {g.name}
                 </p>
-                <p className="font-mono text-[9.5px] text-dim" data-numeric>
+                <p className="ui-data text-[11px] text-dim" data-numeric>
                   {g.hex}
                 </p>
                 <p className="text-[10px] leading-snug text-dim">{g.use}</p>
@@ -169,10 +169,10 @@ export default function DesignSystem() {
             <div key={c.name} className="space-y-2">
               <div className={`h-16 rounded-sm border border-white/10 ${c.cls}`} />
               <div className="space-y-0.5">
-                <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="ui-label text-muted-foreground">
                   {c.name}
                 </p>
-                <p className="font-mono text-[9.5px] text-dim" data-numeric>
+                <p className="ui-data text-[11px] text-dim" data-numeric>
                   {c.hex}
                 </p>
                 <p className="text-[10px] leading-snug text-dim">{c.job}</p>
@@ -320,14 +320,14 @@ export default function DesignSystem() {
       >
         <div className="space-y-6">
           <div>
-            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.1em] text-dim">
+            <p className="mb-2 ui-label text-dim">
               Normal · working at stage 03
             </p>
             <StageSpine stages={SPINE_NORMAL} edges={SPINE_NORMAL_EDGES} activeStageId="c" onOpenStage={() => {}} />
           </div>
 
           <div>
-            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.1em] text-dim">
+            <p className="mb-2 ui-label text-dim">
               Copy-led · the hook was written first and locked, so the image was built to fit it
             </p>
             <StageSpine stages={SPINE_COPY_LED} edges={SPINE_COPY_LED_EDGES} activeStageId="c" onOpenStage={() => {}} />
@@ -339,7 +339,7 @@ export default function DesignSystem() {
           </div>
 
           <div>
-            <p className="mb-2 font-mono text-[9px] uppercase tracking-[0.1em] text-dim">
+            <p className="mb-2 ui-label text-dim">
               After reopening Direction · downstream marked stale, with the offer
             </p>
             <div className="overflow-hidden rounded-sm border border-border/60">

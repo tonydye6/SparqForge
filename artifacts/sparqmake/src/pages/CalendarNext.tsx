@@ -208,7 +208,7 @@ export default function CalendarNext() {
                         <span className="text-sm font-medium text-foreground w-16 shrink-0">{time}</span>
                         {Icon && <Icon size={16} className="text-foreground shrink-0" />}
                         <div className="min-w-0 flex-1">
-                          <Badge variant={STATUS_VARIANT[e.publishStatus] || "secondary"} className="text-[10px]">{e.publishStatus}</Badge>
+                          <Badge variant={STATUS_VARIANT[e.publishStatus] || "secondary"} className="text-[11px]">{e.publishStatus}</Badge>
                           {e.publishError && <p className="text-xs text-destructive truncate mt-0.5">{e.publishError}</p>}
                           {e.publishStatus === "published" && metrics[e.id] && (
                             <div className="flex items-center gap-2.5 mt-1 text-[11px] text-muted-foreground">

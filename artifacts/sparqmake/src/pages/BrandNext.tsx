@@ -406,8 +406,8 @@ export default function BrandNext() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-foreground truncate">{a.name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            {a.assetClass && <Badge variant="outline" className="text-[10px]">{a.assetClass.replace(/_/g, " ")}</Badge>}
-                            <Badge variant={a.status === "approved" ? "default" : "secondary"} className="text-[10px]">{a.status || "uploaded"}</Badge>
+                            {a.assetClass && <Badge variant="outline" className="text-[11px]">{a.assetClass.replace(/_/g, " ")}</Badge>}
+                            <Badge variant={a.status === "approved" ? "default" : "secondary"} className="text-[11px]">{a.status || "uploaded"}</Badge>
                           </div>
                         </div>
                         {a.status !== "approved" && (
@@ -439,7 +439,7 @@ export default function BrandNext() {
                           {t.description && <p className="text-xs text-muted-foreground truncate">{t.description}</p>}
                         </div>
                         {typeof t.totalGenerations === "number" && (
-                          <Badge variant="secondary" className="text-[10px]">{t.totalGenerations} uses</Badge>
+                          <Badge variant="secondary" className="text-[11px]">{t.totalGenerations} uses</Badge>
                         )}
                       </div>
                     ))}
@@ -474,7 +474,7 @@ export default function BrandNext() {
                           {Icon && <Icon size={18} className="text-foreground shrink-0" />}
                           <div className="min-w-0 flex-1">
                             <p className="text-sm text-foreground truncate">{acc.accountName || acc.platform}</p>
-                            <Badge variant={st === "connected" ? "default" : "secondary"} className="text-[10px] mt-0.5">{st}</Badge>
+                            <Badge variant={st === "connected" ? "default" : "secondary"} className="text-[11px] mt-0.5">{st}</Badge>
                           </div>
                         </div>
                       );
@@ -653,7 +653,7 @@ function TastePanel({ brandId }: { brandId: string }) {
         <div className="flex items-center gap-2">
           <Brain size={15} className="text-primary" />
           <span className="text-sm font-medium text-foreground">What we've learned</span>
-          {version > 0 && <Badge variant="secondary" className="text-[10px]">v{version}</Badge>}
+          {version > 0 && <Badge variant="secondary" className="text-[11px]">v{version}</Badge>}
           <Button
             size="sm"
             variant="outline"
@@ -692,7 +692,7 @@ function TastePanel({ brandId }: { brandId: string }) {
           <div className="space-y-1.5">
             {versions.map((v) => (
               <div key={v.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-                <Badge variant="outline" className="text-[10px]">v{v.version}</Badge>
+                <Badge variant="outline" className="text-[11px]">v{v.version}</Badge>
                 <span className="text-foreground">{v.source === "manual" ? "Edited by the team" : `Learned from ${v.signalCount} decision${v.signalCount === 1 ? "" : "s"}`}</span>
                 <span className="ml-auto text-muted-foreground">{new Date(v.createdAt).toLocaleString()}</span>
               </div>

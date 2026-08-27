@@ -90,7 +90,7 @@ export function TasteReactionChips({
               onClick={() => void tapChip(chip)}
               disabled={done || sending === chip}
               className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
                 done
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground",
@@ -105,7 +105,7 @@ export function TasteReactionChips({
         })}
         <button
           onClick={() => setNoteOpen((o) => !o)}
-          className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
+          className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground"
           title="Add a note about why"
           data-testid={`reaction-note-toggle-${variantId}`}
         >
@@ -126,7 +126,7 @@ export function TasteReactionChips({
             <Button
               size="sm"
               variant="outline"
-              className="h-6 px-2 text-[10px]"
+              className="h-6 px-2 text-[11px]"
               disabled={noteSending || !note.trim()}
               onClick={() => void sendNote()}
               data-testid={`reaction-note-send-${variantId}`}

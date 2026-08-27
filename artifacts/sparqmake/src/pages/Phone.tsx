@@ -125,7 +125,7 @@ export function PhoneQueue() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">SparqMake</p>
+      <p className="ui-label text-grit-teal">SparqMake</p>
       <h1 className="mt-1 font-display text-xl tracking-wide text-foreground">Waiting on a decision</h1>
       <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
         The phone does three things: look at a post channel by channel, approve it or send it back with
@@ -144,7 +144,7 @@ export function PhoneQueue() {
               data-testid={`link-phone-creative-${r.creativeId}`}
             >
               <p className="truncate text-[15px] text-foreground">{names[r.creativeId] ?? "Loading..."}</p>
-              <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-dim">
+              <p className="mt-0.5 ui-label text-dim">
                 {r.needsYou ? "needs you" : "asked for"} ·{" "}
                 {r.requestedByName ?? "someone"} · {new Date(r.requestedAt).toLocaleDateString()}
               </p>
@@ -303,7 +303,7 @@ export function PhoneCreative() {
               key={v.id}
               onClick={() => setChannel(v.platform)}
               className={cn(
-                "shrink-0 rounded-sm border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.06em]",
+                "shrink-0 rounded-sm border px-2.5 py-1.5 ui-label",
                 v.platform === current?.platform
                   ? "border-grit-teal text-cyber-teal"
                   : "border-border text-muted-foreground",
@@ -347,12 +347,12 @@ export function PhoneCreative() {
 
       {/* 3 · notes, anchored to a stage */}
       <div className="mt-5 space-y-2 border-t border-border/60 px-3 pt-4">
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-grit-teal">Notes</p>
+        <p className="ui-label text-grit-teal">Notes</p>
         {openNotes.length === 0 && <p className="text-[13px] text-dim">No open notes.</p>}
         {openNotes.map((n) => (
           <div key={n.id} className="rounded-sm border border-border/60 bg-card px-3 py-2">
             <p className="text-[13.5px] leading-relaxed text-foreground">{n.body}</p>
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-dim">
+            <p className="mt-1 ui-label text-dim">
               {n.authorName ?? "someone"}
               {n.stageStateId && (
                 <> · on {team?.stages.find((s) => s.id === n.stageStateId)?.label ?? "a stage"}</>
@@ -367,7 +367,7 @@ export function PhoneCreative() {
               <button
                 onClick={() => setNoteStage(null)}
                 className={cn(
-                  "shrink-0 rounded-sm border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em]",
+                  "shrink-0 rounded-sm border px-2 py-1 ui-label",
                   noteStage === null ? "border-grit-teal text-cyber-teal" : "border-border text-muted-foreground",
                 )}
               >
@@ -378,7 +378,7 @@ export function PhoneCreative() {
                   key={s.id}
                   onClick={() => setNoteStage(s.id)}
                   className={cn(
-                    "shrink-0 rounded-sm border px-2 py-1 font-mono text-[10px] uppercase tracking-[0.06em]",
+                    "shrink-0 rounded-sm border px-2 py-1 ui-label",
                     noteStage === s.id ? "border-grit-teal text-cyber-teal" : "border-border text-muted-foreground",
                   )}
                   data-testid={`chip-note-stage-${s.stageKind}`}
@@ -398,7 +398,7 @@ export function PhoneCreative() {
             <button
               onClick={() => void addNote()}
               disabled={busy || !noteBody.trim()}
-              className="rounded-sm border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground disabled:opacity-40"
+              className="rounded-sm border border-border px-3 py-1.5 ui-label text-muted-foreground disabled:opacity-40"
               data-testid="button-phone-add-note"
             >
               {noteStage
@@ -423,7 +423,7 @@ export function PhoneCreative() {
           <p className="text-[12.5px] text-muted-foreground">{team.approval.summary}</p>
         ) : sendingBack ? (
           <div className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-dim">Why is it going back</p>
+            <p className="ui-label text-dim">Why is it going back</p>
             <div className="flex flex-wrap gap-1.5">
               {team.taxonomy.map((c) => (
                 <button
@@ -457,14 +457,14 @@ export function PhoneCreative() {
               <button
                 onClick={() => void decide("needs_work")}
                 disabled={busy || !reason}
-                className="flex-1 rounded-sm border border-rebel-pink px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.06em] text-rebel-pink disabled:opacity-40"
+                className="flex-1 rounded-sm border border-rebel-pink px-3 py-2.5 ui-label text-rebel-pink disabled:opacity-40"
                 data-testid="button-confirm-send-back"
               >
                 {busy ? <Loader2 size={12} className="mx-auto animate-spin" /> : "Send it back"}
               </button>
               <button
                 onClick={() => { setSendingBack(false); setReason(null); setReasonWhy(null); }}
-                className="rounded-sm border border-border px-3 py-2.5 font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground"
+                className="rounded-sm border border-border px-3 py-2.5 ui-label text-muted-foreground"
               >
                 Cancel
               </button>
@@ -475,14 +475,14 @@ export function PhoneCreative() {
             <button
               onClick={() => void decide("approved")}
               disabled={busy}
-              className="flex-1 rounded-sm border border-grit-teal px-3 py-3 font-mono text-[11px] uppercase tracking-[0.06em] text-cyber-teal disabled:opacity-40"
+              className="flex-1 rounded-sm border border-grit-teal px-3 py-3 ui-label text-cyber-teal disabled:opacity-40"
               data-testid="button-phone-approve"
             >
               {busy ? <Loader2 size={12} className="mx-auto animate-spin" /> : "Approve"}
             </button>
             <button
               onClick={() => setSendingBack(true)}
-              className="flex-1 rounded-sm border border-border px-3 py-3 font-mono text-[11px] uppercase tracking-[0.06em] text-muted-foreground"
+              className="flex-1 rounded-sm border border-border px-3 py-3 ui-label text-muted-foreground"
               data-testid="button-phone-send-back"
             >
               Send it back

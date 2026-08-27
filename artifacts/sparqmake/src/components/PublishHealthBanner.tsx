@@ -263,7 +263,7 @@ function GroupCard({
             rather than the person fixing. Removing it would hide something the
             system was told. */}
         {first?.typed?.technical && (
-          <p className="pt-0.5 font-mono text-[10px] leading-relaxed text-muted-foreground/70 break-all" data-testid="text-technical">
+          <p className="pt-0.5 ui-data text-[11px] leading-relaxed text-muted-foreground/70 break-all" data-testid="text-technical">
             {first.typed.technical}
           </p>
         )}
@@ -343,7 +343,7 @@ export function PublishHealthCard() {
             <GroupCard key={g.key} group={g} canWrite={canWrite} busyKey={busyKey} onRetry={retry} />
           ))}
           {health.alerts.length > 0 && (
-            <p className="text-[10px] text-muted-foreground pt-1">
+            <p className="text-[11px] text-muted-foreground pt-1">
               Last alert: {new Date(health.alerts[0].sentAt).toLocaleString()} ({health.alerts[0].status}, {health.alerts[0].entryCount} post{health.alerts[0].entryCount === 1 ? "" : "s"})
             </p>
           )}

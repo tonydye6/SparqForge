@@ -219,15 +219,15 @@ export function ScheduleProfileEditor({ brandId, timezone }: ScheduleProfileEdit
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-green-500" />
-              <span className="text-[10px] text-muted-foreground">Preferred</span>
+              <span className="text-[11px] text-muted-foreground">Preferred</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-yellow-500" />
-              <span className="text-[10px] text-muted-foreground">Acceptable</span>
+              <span className="text-[11px] text-muted-foreground">Acceptable</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded-sm bg-zinc-700" />
-              <span className="text-[10px] text-muted-foreground">Blocked</span>
+              <span className="text-[11px] text-muted-foreground">Blocked</span>
             </div>
           </div>
         </div>
@@ -267,7 +267,7 @@ export function ScheduleProfileEditor({ brandId, timezone }: ScheduleProfileEdit
             <div className="grid grid-cols-[50px_repeat(24,1fr)] gap-px">
               <div />
               {HOURS.map(h => (
-                <div key={h} className="text-center text-[9px] text-muted-foreground py-1">
+                <div key={h} className="text-center text-[11px] text-muted-foreground py-1">
                   {formatHour(h)}
                 </div>
               ))}

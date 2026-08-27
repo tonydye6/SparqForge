@@ -1172,7 +1172,7 @@ function InfluenceThumb({
       </div>
       {onRemove && (
         <button
-          className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-background text-[10px] shadow"
+          className="absolute -top-1.5 -right-1.5 hidden group-hover:flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-background text-[11px] shadow"
           onClick={onRemove}
           title={`Remove ${item.name}`}
           data-testid={`influence-remove-${item.assetId}`}
@@ -1181,12 +1181,12 @@ function InfluenceThumb({
         </button>
       )}
       <div className="mt-1 space-y-0.5">
-        <div className="text-[10px] leading-tight text-foreground truncate" title={item.name}>{item.name}</div>
-        <div className="text-[9px] text-muted-foreground">{label}{item.pinned ? " · pinned" : ""}</div>
+        <div className="text-[11px] leading-tight text-foreground truncate" title={item.name}>{item.name}</div>
+        <div className="text-[11px] text-muted-foreground">{label}{item.pinned ? " · pinned" : ""}</div>
         {onSwap && swapOptions && swapOptions.length > 0 && (
           <div className="relative">
             <button
-              className="text-[9px] text-primary underline hidden group-hover:inline"
+              className="text-[11px] text-primary underline hidden group-hover:inline"
               onClick={() => setSwapOpen((o) => !o)}
               data-testid={`influence-swap-${item.assetId}`}
             >
@@ -1347,10 +1347,10 @@ function InfluencesPanel({ creativeId, onChanged }: { creativeId: string; onChan
                 className="w-20 h-20 rounded-lg object-cover border border-border"
               />
               <div className="mt-1 space-y-0.5">
-                <div className="text-[10px] leading-tight text-foreground truncate" title={ref.label || influences.persona?.name}>
+                <div className="text-[11px] leading-tight text-foreground truncate" title={ref.label || influences.persona?.name}>
                   {ref.label || influences.persona?.name}
                 </div>
-                <div className="text-[9px] text-muted-foreground">Designer · guaranteed</div>
+                <div className="text-[11px] text-muted-foreground">Designer · guaranteed</div>
               </div>
             </div>
           ))}
@@ -1575,7 +1575,7 @@ function BeatBoard({
                 <Sparkles size={12} className="ml-1 text-muted-foreground" />
               )}
               {a.name}
-              {a.role === "primary" && <span className="text-[10px] text-primary font-medium">primary</span>}
+              {a.role === "primary" && <span className="text-[11px] text-primary font-medium">primary</span>}
             </span>
           ))}
         </div>
@@ -2042,7 +2042,7 @@ function VariantCard({
           </span>
         )}
         {take.varyMode && (
-          <span className="absolute top-2 left-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="absolute top-2 left-2 rounded bg-background/80 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
             {take.varyMode.replace(/_/g, " ")}
           </span>
         )}
@@ -2775,7 +2775,7 @@ function BeatFanout({ state, dispatch }: { state: StudioState; dispatch: Dispatc
                       {p.group}
                       {p.sub && <span className="text-muted-foreground font-normal"> · {p.sub}</span>}
                       {recommended && (
-                        <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-medium align-middle">
+                        <span className="ml-1.5 inline-flex items-center rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-medium align-middle">
                           top performer
                         </span>
                       )}
@@ -2965,7 +2965,7 @@ function FanoutCard({
           <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">No image</div>
         )}
         {variant.clipWarning && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded bg-destructive/90 px-1.5 py-0.5 text-[10px] font-medium text-destructive-foreground">
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded bg-destructive/90 px-1.5 py-0.5 text-[11px] font-medium text-destructive-foreground">
             <AlertTriangle size={11} /> subject clipped
           </span>
         )}

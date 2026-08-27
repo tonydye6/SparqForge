@@ -505,7 +505,7 @@ export default function ReviewQueue() {
                             {brand && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] bg-background"
+                                className="text-[11px] bg-background"
                                 style={{ borderColor: `${brand.colorPrimary}40`, color: brand.colorPrimary }}
                               >
                                 {brand.name}
@@ -587,7 +587,7 @@ export default function ReviewQueue() {
                   {(() => {
                     const brand = getBrand(expandedCreative.brandId);
                     return brand ? (
-                      <Badge variant="outline" className="text-[10px]" style={{ borderColor: `${brand.colorPrimary}40`, color: brand.colorPrimary }}>
+                      <Badge variant="outline" className="text-[11px]" style={{ borderColor: `${brand.colorPrimary}40`, color: brand.colorPrimary }}>
                         {brand.name}
                       </Badge>
                     ) : null;
@@ -624,14 +624,14 @@ export default function ReviewQueue() {
 
             {expandedCreative.briefText && (
               <div className="px-3 sm:px-4 py-3 border-b border-border bg-muted/30">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Brief</span>
+                <span className="ui-label tracking-wider text-muted-foreground font-semibold">Brief</span>
                 <p className="text-sm text-foreground mt-1">{expandedCreative.briefText}</p>
               </div>
             )}
 
             {expandedCreative.reviewComment && (
               <div className="px-3 sm:px-4 py-3 border-b border-border bg-amber-500/5">
-                <span className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1">
+                <span className="ui-label tracking-wider text-amber-400 font-semibold flex items-center gap-1">
                   <MessageSquare size={10} /> Previous Feedback
                 </span>
                 <p className="text-sm text-foreground mt-1">{expandedCreative.reviewComment}</p>
@@ -740,16 +740,16 @@ export default function ReviewQueue() {
                               )}
                               <PlatformIcon platform={label.icon} />
                               <span className="font-semibold text-xs">{label.name}</span>
-                              <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded">{variant.aspectRatio}</span>
+                              <span className="text-[11px] text-muted-foreground px-1.5 py-0.5 bg-muted rounded">{variant.aspectRatio}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               {variant.status === "approved" && (
-                                <Badge className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px]">
+                                <Badge className="bg-green-500/10 text-green-400 border-green-500/30 text-[11px]">
                                   <Check size={10} className="mr-0.5" /> Approved
                                 </Badge>
                               )}
                               {variant.status === "rejected" && (
-                                <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-[10px]">
+                                <Badge className="bg-red-500/10 text-red-400 border-red-500/30 text-[11px]">
                                   <XCircle size={10} className="mr-0.5" /> Rejected
                                 </Badge>
                               )}
@@ -768,7 +768,7 @@ export default function ReviewQueue() {
                           <div className="p-2 sm:p-3 space-y-2">
                             {variant.headlineText && (
                               <div className="bg-primary/5 border border-primary/20 rounded px-2 py-1.5">
-                                <span className="text-[10px] text-primary uppercase tracking-wider font-semibold">Headline</span>
+                                <span className="text-[11px] text-primary uppercase tracking-wider font-semibold">Headline</span>
                                 <p className="text-xs font-bold text-foreground mt-0.5">{variant.headlineText}</p>
                               </div>
                             )}
@@ -780,7 +780,7 @@ export default function ReviewQueue() {
                                 {parsedComment.category && (
                                   <Badge
                                     variant="outline"
-                                    className={`text-[10px] ${CATEGORY_COLORS[parsedComment.category] || CATEGORY_COLORS.other}`}
+                                    className={`text-[11px] ${CATEGORY_COLORS[parsedComment.category] || CATEGORY_COLORS.other}`}
                                   >
                                     {getCategoryLabel(parsedComment.category)}
                                   </Badge>
@@ -823,7 +823,7 @@ export default function ReviewQueue() {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-6 text-[10px] text-muted-foreground w-full"
+                                  className="h-6 text-[11px] text-muted-foreground w-full"
                                   onClick={async () => {
                                     try {
                                       const resp = await apiFetch(`${API_BASE}/api/creatives/${expandedCreativeId}/variants/${variant.id}`, {

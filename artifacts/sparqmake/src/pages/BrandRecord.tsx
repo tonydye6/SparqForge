@@ -309,7 +309,7 @@ export default function BrandRecord() {
       {c && (
         <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-grit-teal">
+            <p className="ui-label text-grit-teal">
               {data!.brand.name}
             </p>
             <span className="font-mono text-[13px] text-foreground" data-numeric>{c.score}%</span>
@@ -333,7 +333,7 @@ export default function BrandRecord() {
 
       {data && data.harvested.length > 0 && (
         <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">
+          <p className="ui-label text-muted-foreground">
             Colours already in this brand's library
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-dim">
@@ -344,8 +344,8 @@ export default function BrandRecord() {
             {data.harvested.map((h) => (
               <span key={h.color} className="inline-flex items-center gap-1.5 rounded-sm border border-border px-1.5 py-0.5">
                 <span className="h-3 w-3 rounded-sm border border-border/60" style={{ background: h.color }} />
-                <span className="font-mono text-[10px] text-foreground">{h.color}</span>
-                <span className="font-mono text-[9px] text-dim" data-numeric>×{h.count}</span>
+                <span className="ui-data text-[11px] text-foreground">{h.color}</span>
+                <span className="ui-data text-[11px] text-dim" data-numeric>×{h.count}</span>
               </span>
             ))}
           </div>
@@ -364,11 +364,11 @@ export default function BrandRecord() {
       */}
       <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">
+          <p className="ui-label text-muted-foreground">
             Read a brand guide
           </p>
           {data?.guideFileUrl && (
-            <a href={data.guideFileUrl} target="_blank" rel="noreferrer" className="font-mono text-[9px] uppercase tracking-[0.09em] text-grit-teal">
+            <a href={data.guideFileUrl} target="_blank" rel="noreferrer" className="ui-label text-grit-teal">
               Current guide
             </a>
           )}
@@ -377,7 +377,7 @@ export default function BrandRecord() {
           A PDF the brand team already wrote is the fastest way to fill this in. Nothing is applied
           until you apply it, and every line comes with the sentence it was read from.
         </p>
-        <label className="mt-2 inline-flex cursor-pointer items-center rounded-sm border border-border px-2.5 py-1.5 font-mono text-[9.5px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate">
+        <label className="mt-2 inline-flex cursor-pointer items-center rounded-sm border border-border px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover-elevate">
           {reading ? "Reading" : "Choose a PDF"}
           <input
             type="file" accept="application/pdf" className="hidden" disabled={reading}
@@ -400,17 +400,17 @@ export default function BrandRecord() {
                   <p className="text-[12px] text-foreground">{cand.label}</p>
                   <button
                     type="button" onClick={() => void accept(cand)} disabled={saving}
-                    className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+                    className="shrink-0 rounded-sm bg-primary px-2 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
                   >
                     Apply
                   </button>
                 </div>
                 <p className="mt-0.5 text-[11.5px] leading-relaxed text-foreground">{cand.formatted}</p>
-                <p className="mt-1 text-[10.5px] leading-relaxed text-dim">
+                <p className="mt-1 text-[11px] leading-relaxed text-dim">
                   Read from: <span className="text-muted-foreground">&ldquo;{cand.quote}&rdquo;</span>
                 </p>
                 {cand.replacesAuthored && (
-                  <p className="mt-1 text-[10.5px] leading-relaxed text-rebel-pink">
+                  <p className="mt-1 text-[11px] leading-relaxed text-rebel-pink">
                     This would replace what you wrote: &ldquo;{cand.current}&rdquo;
                   </p>
                 )}
@@ -420,7 +420,7 @@ export default function BrandRecord() {
         )}
 
         {rejected.length > 0 && (
-          <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
+          <p className="mt-2 text-[11px] leading-relaxed text-dim">
             Not proposed: {rejected.map((r) => `${r.key} (${r.reason})`).join(" · ")}
           </p>
         )}
@@ -439,10 +439,10 @@ export default function BrandRecord() {
       */}
       <div className="rounded-sm border border-border/60 bg-card px-3.5 py-3">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="font-mono text-[9px] uppercase tracking-[0.11em] text-muted-foreground">
+          <p className="ui-label text-muted-foreground">
             Composition rules
           </p>
-          <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+          <span className="ui-label text-dim">
             {liveRules.length} in the contract
           </span>
         </div>
@@ -461,13 +461,13 @@ export default function BrandRecord() {
                   {r.conclusionId && (
                     <button
                       type="button" onClick={() => void retire(r.conclusionId!)} disabled={saving}
-                      className="shrink-0 rounded-sm border border-border px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground hover-elevate disabled:opacity-50"
+                      className="shrink-0 rounded-sm border border-border px-2 py-1 text-[12px] font-medium text-muted-foreground hover-elevate disabled:opacity-50"
                     >
                       Retire
                     </button>
                   )}
                 </div>
-                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.09em] text-dim">
+                <p className="mt-1 ui-label text-dim">
                   {r.source === "learned" ? `Learned · ${r.n} post${r.n === 1 ? "" : "s"}`
                     : r.source === "guide" ? "From the guide" : "Set by the team"}
                 </p>
@@ -484,15 +484,15 @@ export default function BrandRecord() {
                   <p className="text-[11.5px] leading-relaxed text-foreground">{cand.rule}</p>
                   <button
                     type="button" onClick={() => void applyRule({ conclusionId: cand.conclusionId })} disabled={saving}
-                    className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+                    className="shrink-0 rounded-sm bg-primary px-2 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
                   >
                     Apply
                   </button>
                 </div>
-                <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">{cand.because}</p>
-                <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.09em] text-grit-teal">{cand.evidenceLine}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{cand.because}</p>
+                <p className="mt-0.5 ui-label text-grit-teal">{cand.evidenceLine}</p>
                 {cand.overlapsApplied && (
-                  <p className="mt-1 text-[10.5px] leading-relaxed text-victory-gold">
+                  <p className="mt-1 text-[11px] leading-relaxed text-victory-gold">
                     A rule already says something similar: &ldquo;{cand.overlapsApplied}&rdquo;
                   </p>
                 )}
@@ -523,7 +523,7 @@ export default function BrandRecord() {
         {learned && learned.withheld.length > 0 && (
           <ul className="mt-1 space-y-0.5">
             {learned.withheld.map((w) => (
-              <li key={w.conclusionId} className="text-[10.5px] leading-relaxed text-dim">
+              <li key={w.conclusionId} className="text-[11px] leading-relaxed text-dim">
                 Not proposed: {w.rule ? <span className="text-muted-foreground">{w.rule}</span> : "an unnamed finding"}{" "}
                 &mdash; {w.reason}
               </li>
@@ -542,7 +542,7 @@ export default function BrandRecord() {
           {newRule.trim() && (
             <button
               type="button" onClick={() => void applyRule({ rule: newRule.trim() })} disabled={saving}
-              className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+              className="shrink-0 rounded-sm bg-primary px-2 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
             >
               Add
             </button>
@@ -550,7 +550,7 @@ export default function BrandRecord() {
         </div>
 
         {retiredRules.length > 0 && (
-          <p className="mt-2 text-[10.5px] leading-relaxed text-dim">
+          <p className="mt-2 text-[11px] leading-relaxed text-dim">
             Retired, and kept so they are not proposed again:{" "}
             {retiredRules.map((r) => r.rule).join(" · ")}
           </p>
@@ -574,8 +574,8 @@ export default function BrandRecord() {
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-[12.5px] text-foreground">{f.label}</p>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.09em] text-dim">{f.consumedBy}</span>
-                  <span className={cn("rounded-sm border px-1 py-px font-mono text-[8.5px] uppercase tracking-[0.09em]", style.cls)}>
+                  <span className="ui-label text-dim">{f.consumedBy}</span>
+                  <span className={cn("rounded-sm border px-1 py-px ui-label", style.cls)}>
                     {style.label}
                   </span>
                 </div>
@@ -597,7 +597,7 @@ export default function BrandRecord() {
                     type="button"
                     onClick={() => void save(f.key, f.kind)}
                     disabled={saving}
-                    className="shrink-0 rounded-sm bg-primary px-2 py-1 font-mono text-[9px] uppercase tracking-[0.09em] text-primary-foreground hover-elevate disabled:opacity-50"
+                    className="shrink-0 rounded-sm bg-primary px-2 py-1 text-[12px] font-medium text-primary-foreground hover-elevate disabled:opacity-50"
                   >
                     Save
                   </button>
@@ -610,7 +610,7 @@ export default function BrandRecord() {
                 record worth filling in.
               */}
               {!f.filled && (
-                <p className="mt-1.5 text-[10.5px] leading-relaxed text-victory-gold">{f.costWhenMissing}</p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-victory-gold">{f.costWhenMissing}</p>
               )}
             </div>
           );

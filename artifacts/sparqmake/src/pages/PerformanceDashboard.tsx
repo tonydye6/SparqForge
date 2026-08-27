@@ -335,7 +335,7 @@ export default function PerformanceDashboard() {
                   const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
                   return (
                     <div key={i} className="flex-1 h-full flex flex-col items-center justify-end group relative min-w-0">
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background border border-border rounded px-2 py-1 text-[10px] text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-background border border-border rounded px-2 py-1 text-[11px] text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
                         {fmt(day.engagements)} engagements · {fmt(day.impressions)} impressions ({day.posts} posts)
                       </div>
                       <div
@@ -343,7 +343,7 @@ export default function PerformanceDashboard() {
                         style={{ height: `${height}%` }}
                       />
                       {summary.daily.length <= 14 && (
-                        <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-1 truncate w-full text-center hidden sm:block">{label}</span>
+                        <span className="text-[11px] sm:text-[11px] text-muted-foreground mt-1 truncate w-full text-center hidden sm:block">{label}</span>
                       )}
                     </div>
                   );
@@ -378,7 +378,7 @@ export default function PerformanceDashboard() {
                         style={{ width: `${pct}%`, backgroundColor: color }}
                       />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {p.postsWithMetrics}/{p.posts} posts tracked · {fmt(p.impressions + p.views)} impressions/views
                     </span>
                   </div>
@@ -417,7 +417,7 @@ export default function PerformanceDashboard() {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {row.postsWithMetrics}/{row.posts} posts tracked
                       {row.postsWithMetrics > 0 && row.postsWithMetrics < 3 && " · early data — treat as a hint"}
                     </span>
@@ -446,10 +446,10 @@ export default function PerformanceDashboard() {
                       {Icon && <Icon size={14} className="shrink-0" style={{ color: PLATFORM_COLORS[post.platform] || undefined }} />}
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-foreground truncate">{post.creativeName}</p>
-                        {post.caption && <p className="text-[10px] text-muted-foreground truncate">{post.caption}</p>}
+                        {post.caption && <p className="text-[11px] text-muted-foreground truncate">{post.caption}</p>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-0.5"><Eye size={10} />{metricOrDash(post.metrics?.impressions ?? post.metrics?.views)}</span>
                       <span className="flex items-center gap-0.5"><Heart size={10} />{metricOrDash(post.metrics?.likes)}</span>
                       <span className="flex items-center gap-0.5"><MessageCircle size={10} />{metricOrDash(post.metrics?.comments)}</span>
@@ -474,9 +474,9 @@ export default function PerformanceDashboard() {
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       {Icon && <Icon size={12} className="shrink-0" style={{ color: PLATFORM_COLORS[post.platform] || undefined }} />}
                       <span className="text-foreground truncate">{post.creativeName}</span>
-                      {!post.metrics && <Badge variant="outline" className="text-[9px] shrink-0">awaiting metrics</Badge>}
+                      {!post.metrics && <Badge variant="outline" className="text-[11px] shrink-0">awaiting metrics</Badge>}
                     </div>
-                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 text-[11px] text-muted-foreground">
                       {post.metrics && (
                         <>
                           <span className="flex items-center gap-0.5"><Eye size={10} />{metricOrDash(post.metrics.impressions ?? post.metrics.views)}</span>
@@ -506,7 +506,7 @@ function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; lab
     <div className="bg-card border border-border rounded-xl p-3 sm:p-5">
       <div className={`${color} mb-1 sm:mb-2`}>{icon}</div>
       <div className="text-lg sm:text-2xl font-bold text-foreground">{value}</div>
-      <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
+      <div className="text-[11px] sm:text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
     </div>
   );
 }

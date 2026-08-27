@@ -74,7 +74,7 @@ function ScoreBar({ score }: { score: number }) {
       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${percentage}%` }} />
       </div>
-      <span className="text-[10px] font-mono text-muted-foreground w-8 text-right">{percentage}%</span>
+      <span className="text-[11px] font-mono text-muted-foreground w-8 text-right">{percentage}%</span>
     </div>
   );
 }
@@ -108,12 +108,12 @@ function MiniTimeline({ proposals }: { proposals: Record<string, CreativeProposa
     <div className="bg-background/50 rounded-lg border border-border p-3">
       <div className="flex items-center gap-1.5 mb-2">
         <CalendarDays size={12} className="text-muted-foreground" />
-        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Schedule Timeline</span>
+        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Schedule Timeline</span>
       </div>
       <div className="flex gap-1">
         {days.map((day, i) => (
           <div key={i} className="flex-1 min-w-0">
-            <div className="text-[9px] text-muted-foreground text-center mb-1 truncate">{day.label}</div>
+            <div className="text-[11px] text-muted-foreground text-center mb-1 truncate">{day.label}</div>
             <div className="space-y-0.5">
               {day.items.map((item, j) => {
                 const config = PLATFORM_MAP[item.platform];
@@ -124,7 +124,7 @@ function MiniTimeline({ proposals }: { proposals: Record<string, CreativeProposa
                     style={{ backgroundColor: `${config?.color || "#888"}20`, borderLeft: `2px solid ${config?.color || "#888"}` }}
                     title={`${config?.label || item.platform} at ${item.hour > 12 ? item.hour - 12 : item.hour}${item.hour >= 12 ? "PM" : "AM"}`}
                   >
-                    <span className="text-[7px] font-mono text-muted-foreground">
+                    <span className="text-[11px] font-mono text-muted-foreground">
                       {item.hour > 12 ? item.hour - 12 : item.hour}{item.hour >= 12 ? "p" : "a"}
                     </span>
                   </div>
@@ -470,7 +470,7 @@ export function SmartScheduleModal({ open, onClose, creativeIds, onScheduled }: 
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
                                 <PlatformIcon platform={config.icon} className="w-4 h-4" />
-                                <Badge variant="outline" className="text-[10px] shrink-0">
+                                <Badge variant="outline" className="text-[11px] shrink-0">
                                   {config.label}
                                 </Badge>
                                 {v.proposedAt ? (
@@ -495,7 +495,7 @@ export function SmartScheduleModal({ open, onClose, creativeIds, onScheduled }: 
                                   <>
                                     <Badge
                                       variant="outline"
-                                      className={`text-[10px] ${getScoreBg(v.slotScore)} ${getScoreColor(v.slotScore)}`}
+                                      className={`text-[11px] ${getScoreBg(v.slotScore)} ${getScoreColor(v.slotScore)}`}
                                     >
                                       {(v.slotScore * 100).toFixed(0)}%
                                     </Badge>
@@ -519,7 +519,7 @@ export function SmartScheduleModal({ open, onClose, creativeIds, onScheduled }: 
                             {v.extended && (
                               <div className="flex items-center gap-1.5">
                                 <Calendar className="w-3 h-3 text-amber-400" />
-                                <span className="text-[10px] text-amber-400">Extended window</span>
+                                <span className="text-[11px] text-amber-400">Extended window</span>
                               </div>
                             )}
                           </div>

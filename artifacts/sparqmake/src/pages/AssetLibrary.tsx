@@ -968,15 +968,15 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
 
           <div className="absolute top-2 right-2 flex gap-1">
             {asset.assetClass && ASSET_CLASS_CONFIG[asset.assetClass] && (
-              <Badge className={cn("border-none shadow-sm text-[10px]", ASSET_CLASS_CONFIG[asset.assetClass].bg, ASSET_CLASS_CONFIG[asset.assetClass].color)}>
+              <Badge className={cn("border-none shadow-sm text-[11px]", ASSET_CLASS_CONFIG[asset.assetClass].bg, ASSET_CLASS_CONFIG[asset.assetClass].color)}>
                 {ASSET_CLASS_CONFIG[asset.assetClass].label}
               </Badge>
             )}
-            {asset.status === 'approved' && <Badge className="bg-success text-white border-none shadow-sm text-[10px]">Approved</Badge>}
-            {asset.status === 'uploaded' && <Badge className="bg-warning text-black border-none shadow-sm text-[10px]">Pending</Badge>}
-            {asset.status === 'archived' && <Badge variant="secondary" className="border-none shadow-sm text-[10px]">Archived</Badge>}
+            {asset.status === 'approved' && <Badge className="bg-success text-white border-none shadow-sm text-[11px]">Approved</Badge>}
+            {asset.status === 'uploaded' && <Badge className="bg-warning text-black border-none shadow-sm text-[11px]">Pending</Badge>}
+            {asset.status === 'archived' && <Badge variant="secondary" className="border-none shadow-sm text-[11px]">Archived</Badge>}
           </div>
-          <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur text-foreground rounded px-1.5 py-0.5 text-[10px] font-mono shadow-sm flex items-center gap-1">
+          <div className="absolute bottom-2 left-2 bg-background/80 backdrop-blur text-foreground rounded px-1.5 py-0.5 text-[11px] font-mono shadow-sm flex items-center gap-1">
             {asset.mimeType?.includes('video') ? <Video size={10} /> : <ImageIcon size={10} />}
             {asset.mimeType?.split('/')[1]?.toUpperCase() || 'FILE'}
           </div>
@@ -1075,7 +1075,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
                   {asset.assetClass && (
                     <div>
                       <span className="text-muted-foreground block text-xs uppercase mb-1">Role</span>
-                      <Badge className={cn("text-[10px]", ASSET_CLASS_CONFIG[asset.assetClass]?.bg, ASSET_CLASS_CONFIG[asset.assetClass]?.color)}>
+                      <Badge className={cn("text-[11px]", ASSET_CLASS_CONFIG[asset.assetClass]?.bg, ASSET_CLASS_CONFIG[asset.assetClass]?.color)}>
                         {ASSET_CLASS_CONFIG[asset.assetClass]?.label || asset.assetClass}
                       </Badge>
                     </div>
@@ -1090,11 +1090,11 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
                       </h4>
                       <div className="flex items-center gap-2">
                         {asset.aiAnalyzedAt ? (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-[11px]">
                             Analyzed {new Date(asset.aiAnalyzedAt).toLocaleDateString()}
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[10px]">Not analyzed</Badge>
+                          <Badge variant="outline" className="text-[11px]">Not analyzed</Badge>
                         )}
                         {canWrite && (
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={runAnalysis} disabled={analyzing} data-testid={`analyze-asset-${asset.id}`}>
@@ -1108,7 +1108,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
                       <div>
                         <span className="text-xs text-muted-foreground block mb-1">Depicts</span>
                         <div className="flex flex-wrap gap-1">
-                          {(asset.depictedEntities || []).map((e: string) => <Badge key={e} variant="secondary" className="text-[10px]">{e}</Badge>)}
+                          {(asset.depictedEntities || []).map((e: string) => <Badge key={e} variant="secondary" className="text-[11px]">{e}</Badge>)}
                         </div>
                       </div>
                     )}
@@ -1164,7 +1164,7 @@ function VisualAssetCard({ asset, selected, onToggleSelect, bulkMode, canWrite }
                             <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
                             <p className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</p>
                           </div>
-                          <Badge className={cn("ml-2 text-[10px] shrink-0", statusColor(c.status))}>
+                          <Badge className={cn("ml-2 text-[11px] shrink-0", statusColor(c.status))}>
                             {c.status.replace('_', ' ')}
                           </Badge>
                         </div>
@@ -1416,14 +1416,14 @@ function BriefsTab({ briefs, brands, isLoading, canWrite }: { briefs: Asset[], b
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <h4 className="font-bold text-lg text-foreground">{brief.name}</h4>
-                  <Badge variant="outline" className="text-[10px]">{brands.find(b => b.id === brief.brandId)?.name || 'Unknown Brand'}</Badge>
+                  <Badge variant="outline" className="text-[11px]">{brands.find(b => b.id === brief.brandId)?.name || 'Unknown Brand'}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-2 bg-background p-3 rounded border border-border font-mono">
                   {brief.content}
                 </p>
                 {brief.tags && brief.tags.length > 0 && (
                   <div className="flex gap-1 mt-3">
-                    {brief.tags.map(t => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}
+                    {brief.tags.map(t => <Badge key={t} variant="secondary" className="text-[11px]">{t}</Badge>)}
                   </div>
                 )}
               </div>
@@ -1449,7 +1449,7 @@ function BriefsTab({ briefs, brands, isLoading, canWrite }: { briefs: Asset[], b
 
 function AiBadge() {
   return (
-    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold bg-primary/15 text-primary border border-primary/30 leading-none">
+    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 rounded text-[11px] font-bold bg-primary/15 text-primary border border-primary/30 leading-none">
       <Zap size={8} />AI
     </span>
   );
@@ -1532,7 +1532,7 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
           <Zap size={14} className="text-primary" />
           <span className="text-xs uppercase font-semibold text-muted-foreground">Asset Intelligence</span>
           {hasSuggestions && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-primary/15 text-primary border border-primary/30">
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-primary/15 text-primary border border-primary/30">
               <Zap size={8} /> {aiSuggested.size} AI suggestion{aiSuggested.size !== 1 ? "s" : ""}
             </span>
           )}
@@ -1549,7 +1549,7 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
           )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Asset Role {isAi("assetClass") && <AiBadge />}
               </label>
               <Select value={assetClass} onValueChange={setAssetClass}>
@@ -1565,7 +1565,7 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Generation Role {isAi("generationRole") && <AiBadge />}
               </label>
               <Select value={generationRole} onValueChange={setGenerationRole}>
@@ -1584,7 +1584,7 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Brand Layer {isAi("brandLayer") && <AiBadge />}
               </label>
               <Select value={brandLayer} onValueChange={setBrandLayer}>
@@ -1600,7 +1600,7 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold">Franchise</label>
+              <label className="ui-label text-muted-foreground font-semibold">Franchise</label>
               <Select value={franchise || "_none"} onValueChange={v => setFranchise(v === "_none" ? "" : v)}>
                 <SelectTrigger className="h-8 text-xs bg-card border-border">
                   <SelectValue placeholder="Select Franchise" />
@@ -1618,19 +1618,19 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Subject Identity Score {isAi("subjectIdentityScore") && <AiBadge />}
               </label>
               <StarRating value={subjectScore} onChange={setSubjectScore} size={12} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Style Strength Score {isAi("styleStrengthScore") && <AiBadge />}
               </label>
               <StarRating value={styleScore} onChange={setStyleScore} size={12} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Freshness Score {isAi("freshnessScore") && <AiBadge />}
               </label>
               <StarRating value={freshnessScoreVal} onChange={setFreshnessScoreVal} size={12} />
@@ -1639,13 +1639,13 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Compositing Only {isAi("compositingOnly") && <AiBadge />}
               </label>
               <Switch checked={compositingOnly} onCheckedChange={setCompositingOnly} />
             </div>
             <div className="flex items-center justify-between">
-              <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+              <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
                 Generation Allowed {isAi("generationAllowed") && <AiBadge />}
               </label>
               <Switch checked={generationAllowed} onCheckedChange={setGenerationAllowed} />
@@ -1653,17 +1653,17 @@ function IntelligenceEditor({ asset, onUpdate, isPending }: { asset: Asset; onUp
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Approved Channels (comma separated)</label>
+            <label className="ui-label text-muted-foreground font-semibold">Approved Channels (comma separated)</label>
             <Input value={approvedChannelsStr} onChange={e => setApprovedChannelsStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="twitter, instagram, linkedin" />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] uppercase text-muted-foreground font-semibold">Approved Templates (comma separated)</label>
+            <label className="ui-label text-muted-foreground font-semibold">Approved Templates (comma separated)</label>
             <Input value={approvedTemplatesStr} onChange={e => setApprovedTemplatesStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="Template IDs" />
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] uppercase text-muted-foreground font-semibold flex items-center gap-1.5">
+            <label className="ui-label text-muted-foreground font-semibold flex items-center gap-1.5">
               Conflict Tags (comma separated) {isAi("conflictTags") && <AiBadge />}
             </label>
             <Input value={conflictTagsStr} onChange={e => setConflictTagsStr(e.target.value)} className="h-8 text-xs bg-card border-border" placeholder="e.g. competitor_a, rival_brand" />
@@ -1802,7 +1802,7 @@ function HashtagsTab({ sets, brands, canWrite }: { sets: HashtagSet[], brands: a
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h4 className="font-bold">{set.name}</h4>
-                        <Badge variant="outline" className="text-[10px] mt-1">{brands.find(b => b.id === set.brandId)?.name || 'Unknown'}</Badge>
+                        <Badge variant="outline" className="text-[11px] mt-1">{brands.find(b => b.id === set.brandId)?.name || 'Unknown'}</Badge>
                       </div>
                       {canWrite && (
                         <Button 

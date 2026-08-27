@@ -1633,7 +1633,7 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
               >
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-sm">{group.label}</span>
-                  <Badge variant="outline" className="text-[10px]">{assets.length}</Badge>
+                  <Badge variant="outline" className="text-[11px]">{assets.length}</Badge>
                 </div>
                 {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
@@ -1656,7 +1656,7 @@ function BrandAssetGroups({ brandId }: { brandId: string }) {
                             <XIcon size={10} className="text-white" />
                           </button>
                           <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
-                            <p className="text-[9px] text-white truncate">{asset.name}</p>
+                            <p className="text-[11px] text-white truncate">{asset.name}</p>
                           </div>
                         </div>
                       ))}
@@ -1866,7 +1866,7 @@ function BrandLogoManagement({ brandId }: { brandId: string }) {
                 ) : (
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium truncate">{logo.name || "Untitled logo"}</span>
-                    {logo.isDefault && <Badge className="text-[10px]">Default</Badge>}
+                    {logo.isDefault && <Badge className="text-[11px]">Default</Badge>}
                   </div>
                 )}
               </div>
@@ -2063,10 +2063,10 @@ function BrandFontManagement({ brandId }: { brandId: string }) {
                     <>
                       <p className="font-semibold text-sm truncate">{(font as any).fontName || font.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant="outline" className="text-[10px]">Weight: {(font as any).fontWeight || "400"}</Badge>
-                        <span className="text-[10px] text-muted-foreground">{font.mimeType}</span>
+                        <Badge variant="outline" className="text-[11px]">Weight: {(font as any).fontWeight || "400"}</Badge>
+                        <span className="text-[11px] text-muted-foreground">{font.mimeType}</span>
                         {font.fileSizeBytes && (
-                          <span className="text-[10px] text-muted-foreground">{(font.fileSizeBytes / 1024).toFixed(0)} KB</span>
+                          <span className="text-[11px] text-muted-foreground">{(font.fileSizeBytes / 1024).toFixed(0)} KB</span>
                         )}
                       </div>
                       {font.fileUrl && <FontPreview fontId={font.id} fileUrl={font.fileUrl} />}
@@ -2411,11 +2411,11 @@ function TemplateCard({ template, onDelete }: { template: Template; onDelete: ()
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-bold">{template.name}</h4>
-              <Badge variant="outline" className="text-[10px]">v{template.version || 1}</Badge>
+              <Badge variant="outline" className="text-[11px]">v{template.version || 1}</Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{template.description || "No description"}</p>
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {template.targetAspectRatios?.map((r: string) => <Badge key={r} variant="secondary" className="text-[10px]">{r}</Badge>)}
+              {template.targetAspectRatios?.map((r: string) => <Badge key={r} variant="secondary" className="text-[11px]">{r}</Badge>)}
             </div>
           </div>
         </div>
@@ -2509,7 +2509,7 @@ function TemplateCard({ template, onDelete }: { template: Template; onDelete: ()
                       {v.changeReason && <p className="text-xs text-muted-foreground mt-0.5">{v.changeReason}</p>}
                       {(v.changedFields?.length ?? 0) > 0 && (
                         <div className="flex gap-1 mt-1">
-                          {v.changedFields?.map((f: string) => <Badge key={f} variant="outline" className="text-[10px]">{f}</Badge>)}
+                          {v.changedFields?.map((f: string) => <Badge key={f} variant="outline" className="text-[11px]">{f}</Badge>)}
                         </div>
                       )}
                     </div>
@@ -2531,7 +2531,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="bg-card border border-border rounded-lg p-3 text-center">
       <div className="text-lg font-bold text-foreground">{value}</div>
-      <div className="text-[10px] uppercase text-muted-foreground font-semibold tracking-wider">{label}</div>
+      <div className="ui-label text-muted-foreground font-semibold tracking-wider">{label}</div>
     </div>
   );
 }
@@ -2544,7 +2544,7 @@ function RecommendationCard({ rec, onApply, onDismiss }: { rec: TemplateRecommen
     <div className={`border rounded-lg p-4 ${rec.status === "applied" ? "border-green-500/30 bg-green-500/5" : rec.status === "dismissed" ? "border-border bg-card/50 opacity-60" : "border-border bg-card"}`}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Badge variant={rec.status === "applied" ? "default" : rec.status === "dismissed" ? "secondary" : "outline"} className="text-[10px]">
+          <Badge variant={rec.status === "applied" ? "default" : rec.status === "dismissed" ? "secondary" : "outline"} className="text-[11px]">
             {rec.status}
           </Badge>
           <span className="text-xs text-muted-foreground">{new Date(rec.createdAt).toLocaleDateString()}</span>
@@ -2564,8 +2564,8 @@ function RecommendationCard({ rec, onApply, onDismiss }: { rec: TemplateRecommen
         {recs.map((r: TemplateRecommendationItem, i: number) => (
           <div key={i} className="bg-background rounded p-3 border border-border">
             <div className="flex items-center gap-2 mb-1">
-              <Badge variant="outline" className="text-[10px] font-mono">{r.field}</Badge>
-              {r.evidenceCount && <span className="text-[10px] text-muted-foreground">{r.evidenceCount} data points</span>}
+              <Badge variant="outline" className="text-[11px] font-mono">{r.field}</Badge>
+              {r.evidenceCount && <span className="text-[11px] text-muted-foreground">{r.evidenceCount} data points</span>}
             </div>
             <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
               <div>
@@ -2726,7 +2726,7 @@ function StyleProfilesSection({ brandId }: { brandId: string }) {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-semibold truncate">{p.name}</span>
-                  {p.isDefault && <Badge className="text-[10px] shrink-0">Default</Badge>}
+                  {p.isDefault && <Badge className="text-[11px] shrink-0">Default</Badge>}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(p)} data-testid={`style-profile-edit-${p.id}`}>
@@ -2754,7 +2754,7 @@ function StyleProfilesSection({ brandId }: { brandId: string }) {
                     );
                   })}
                   {(p.referenceAssetIds?.length ?? 0) > 5 && (
-                    <span className="text-[10px] text-muted-foreground">+{(p.referenceAssetIds || []).length - 5}</span>
+                    <span className="text-[11px] text-muted-foreground">+{(p.referenceAssetIds || []).length - 5}</span>
                   )}
                 </div>
               )}
