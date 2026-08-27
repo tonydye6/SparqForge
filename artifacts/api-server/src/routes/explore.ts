@@ -84,6 +84,7 @@ import {
 import { normalizeRegion, driftMessage, driftVerdict, DRIFT_TOLERANCE } from "../services/region-edit.js";
 import {
   layerEditRefusal,
+  describeMoveDelta,
   layerMoveSentence,
   layerPromptReference,
   layerScopeSentence,
@@ -2392,6 +2393,23 @@ router.post(
         ? (destination ? unionBox(layer.bbox, destination) : layer.bbox)
         : null;
 
+      /*
+       * A drag too small to put into words costs nothing.
+       *
+       * The instruction is prose. Below a few percent of the frame there is no
+       * honest phrasing left, and the model reads the result as "leave it" -
+       * which is exactly what happened on 2026-08-27, when a same-cell drag
+       * rendered, charged $0.134 and returned the mark unmoved. Refusing before
+       * the reservation is the difference between a no-op and a paid no-op.
+       */
+      if (destination && layer && !describeMoveDelta(layer.bbox, destination)) {
+        res.status(422).json({
+          error: "That is too small a move to describe to the model, so nothing was changed or " +
+            "charged. Drag it further and try again.",
+        });
+        return;
+      }
+
       // Reject a bad region BEFORE reserving anything. A silently widened mask
       // would edit pixels nobody selected, and the drift report cannot undo that.
       const region = normalizeRegion(scopeBox ? { shape: "box", ...scopeBox } : rawRegion);
@@ -2613,6 +2631,8 @@ router.post(
       const scoped = layer && destination
         ? layerMoveSentence(
             layerRef,
+            layer.bbox,
+            destination,
             describeRegion({ shape: "box", ...layer.bbox }),
             describeRegion({ shape: "box", ...destination }),
             said,

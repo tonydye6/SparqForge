@@ -6,10 +6,13 @@
  * not to — plus the attribution refusals, because a wrong match puts the wrong
  * file behind a layer and 5c hands that file to a generative edit.
  */
+import { describeRegion } from "./region-drift.js";
 import {
   attributeToCast,
   detectionSummary,
+  describeMoveDelta,
   layerEditRefusal,
+  MIN_MOVE_FRACTION,
   layerMoveSentence,
   layerPromptReference,
   layerScopeSentence,
@@ -212,14 +215,24 @@ export function runCases(): Result[] {
     })(),
   );
 
-  const moved = layerMoveSentence("Crown U Mark", "a small area in the upper left", "a small area in the lower right");
-  check("a move names the layer and both places", moved.includes("Move the Crown U Mark out of a small area in the upper left") && moved.includes("place it in a small area in the lower right"), moved);
-  check("a move asks for the hole to be closed, or the model draws two copies", moved.includes("reconstruct whatever belongs behind it"));
-  check("a move forbids a leftover duplicate by name", moved.includes("no trace or duplicate of it remains"));
-  check("a move holds the size and everything else", moved.includes("at the same size"));
+  const UL = { x: 0.10, y: 0.10, w: 0.12, h: 0.10 };
+  const LR = { x: 0.72, y: 0.74, w: 0.12, h: 0.10 };
+  const crossCell = layerMoveSentence(
+    "Crown U Mark", UL, LR,
+    "a small area in the upper left", "a small area in the lower right",
+  );
+  check("a move names the layer and both places",
+    crossCell.includes("Move the Crown U Mark out of a small area in the upper left")
+      && crossCell.includes("into a small area in the lower right"), crossCell);
+  check("a move asks for the hole to be closed, or the model draws two copies",
+    crossCell.includes("reconstruct whatever belongs behind it"));
+  check("a move forbids a leftover duplicate by name",
+    crossCell.includes("no trace or duplicate of it remains"));
+  check("a move holds the size — now as a number, not the word 'same'",
+    /stay exactly the size it is now - about 12% of the frame's width/.test(crossCell), crossCell);
   check(
     "a typed extra rides along, punctuated",
-    layerMoveSentence("X", "here", "there", "make it smaller").includes("make it smaller."),
+    layerMoveSentence("X", UL, LR, "here", "there", "make it smaller").includes("make it smaller."),
   );
 
   /*
@@ -247,13 +260,63 @@ export function runCases(): Result[] {
       "make it bronze",
     ).includes("Crown U Mark"),
   );
-  check(
-    "a MOVE obeys the same rule — it is the sentence that asks for a redraw",
-    layerMoveSentence(
-      layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" }),
-      "here", "there",
-    ).startsWith("Move the brand mark in Crown-U_Mark_Gold.png out of"),
+  /*
+   * THE MOVE THAT DID NOT MOVE. Walked 2026-08-27 on creative 44f26524: the
+   * Crown U Mark's bbox is {x:0.456,y:0.034,w:0.09,h:0.062} and it was dragged
+   * 16% of the frame to the left. Both centres — 0.501 and 0.341 — fall in the
+   * same 3x3 cell, so describeRegion produced the SAME phrase twice and the
+   * sentence read "out of a small area in the upper centre and place it in a
+   * small area in the upper centre". $0.134 for a no-op.
+   */
+  const MARK_BOX = { x: 0.456, y: 0.034, w: 0.09, h: 0.062 };
+  const DRAGGED_LEFT = { ...MARK_BOX, x: MARK_BOX.x - 0.16 };
+  const SAME_CELL = describeRegion({ shape: "box" as const, ...MARK_BOX })
+    === describeRegion({ shape: "box" as const, ...DRAGGED_LEFT });
+  check("the regression is real: that drag DOES collapse to one cell phrase", SAME_CELL);
+
+  const movedSentence = layerMoveSentence(
+    layerPromptReference({ ...MARK_LAYER, markAssetName: "Crown-U_Mark_Gold.png" }),
+    MARK_BOX, DRAGGED_LEFT,
+    describeRegion({ shape: "box", ...MARK_BOX }),
+    describeRegion({ shape: "box", ...DRAGGED_LEFT }),
   );
+  check(
+    "so the sentence states the DISPLACEMENT, which survives quantisation",
+    /16% of the frame's width to the left/.test(movedSentence), movedSentence,
+  );
+  check(
+    "and it never says out of X and into X",
+    !/out of (.+) and into \1/.test(movedSentence), movedSentence,
+  );
+  check(
+    "size is given as numbers, because 'the same size' let it come back twice as wide",
+    /9% of the frame's width and 6% of its height/.test(movedSentence), movedSentence,
+  );
+  check(
+    "a MOVE obeys the marks rule — the file's name, never the layer's",
+    movedSentence.includes("brand mark in Crown-U_Mark_Gold.png") && !movedSentence.includes("Crown U Mark"),
+    movedSentence,
+  );
+  check(
+    "a cross-cell move still names both cells",
+    /out of .* and into /.test(layerMoveSentence(
+      "the crown", MARK_BOX, { ...MARK_BOX, x: 0.05, y: 0.8 },
+      "a small area in the upper centre", "a small area in the lower left",
+    )),
+  );
+
+  // The guard: below this the route refuses for free rather than buying a no-op.
+  check("a 16% drag is expressible", describeMoveDelta(MARK_BOX, DRAGGED_LEFT) !== null);
+  check("a 1% nudge is NOT, so the route can refuse before reserving",
+    describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + 0.01 }) === null);
+  check("exactly at the 3% threshold it is expressible",
+    describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + MIN_MOVE_FRACTION }) !== null);
+  check("direction words follow the sign",
+    describeMoveDelta(MARK_BOX, { ...MARK_BOX, x: MARK_BOX.x + 0.2, y: MARK_BOX.y + 0.3 })
+      === "about 20% of the frame's width to the right and about 30% of the frame's height down");
+  check("a pure vertical move omits the horizontal component",
+    describeMoveDelta(MARK_BOX, { ...MARK_BOX, y: MARK_BOX.y + 0.25 })
+      === "about 25% of the frame's height down");
   check(
     "anything that is not a mark keeps its own name — the naming is the feature",
     layerPromptReference({ name: "Crown U Tennis Athlete", kind: "character", markAssetName: "x.png" })

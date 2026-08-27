@@ -424,14 +424,104 @@ export function unionBox(
  * generative pass over the union of the two places, and the drift report bounds
  * what it was allowed to touch.
  */
-export function layerMoveSentence(layerName: string, fromWhere: string, toWhere: string, extra?: string): string {
+export interface MoveBox { x: number; y: number; w: number; h: number }
+
+/**
+ * Below this, a drag is smaller than the prompt can honestly express.
+ *
+ * The instruction is prose, and prose cannot ask for a two-pixel nudge. Rather
+ * than spend a generative pass on a request the model will read as "leave it",
+ * the route refuses and says to drag further. 3% of the frame is roughly the
+ * point at which "a little to the left" stops being a lie.
+ */
+export const MIN_MOVE_FRACTION = 0.03;
+
+/** Components smaller than this are noise beside the larger axis; omit them. */
+const MIN_AXIS_FRACTION = 0.02;
+
+/**
+ * HOW FAR, AND WHICH WAY — the clause that makes a move actually happen.
+ *
+ * **This is the fix for a drag that renders, charges, and does not move the
+ * layer.** `describeRegion` quantises any point to a 3x3 grid (thresholds 0.34
+ * and 0.66), so a move whose start and end land in the same cell produced,
+ * literally: "Move the brand mark out of a small area in the upper centre and
+ * place it in a small area in the upper centre." That is a no-op instruction
+ * and the model obeyed it perfectly. Walked 2026-08-27: a 16%-of-frame drag
+ * came back with the mark exactly where it started, and $0.134 was charged for
+ * a take labelled "MOVED CROWN U MARK". The centre crossed from 0.501 to 0.341
+ * and missed the cell boundary by 0.001.
+ *
+ * Cells are still worth saying — they tell the model WHERE in the frame to look
+ * — but they cannot carry the ask on their own. A displacement can: it survives
+ * quantisation because it is measured, not bucketed.
+ */
+export function describeMoveDelta(from: MoveBox, to: MoveBox): string | null {
+  const dx = (to.x + to.w / 2) - (from.x + from.w / 2);
+  const dy = (to.y + to.h / 2) - (from.y + from.h / 2);
+  if (Math.abs(dx) < MIN_MOVE_FRACTION && Math.abs(dy) < MIN_MOVE_FRACTION) return null;
+
+  const parts: string[] = [];
+  if (Math.abs(dx) >= MIN_AXIS_FRACTION) {
+    parts.push(`about ${Math.round(Math.abs(dx) * 100)}% of the frame's width to the ${dx < 0 ? "left" : "right"}`);
+  }
+  if (Math.abs(dy) >= MIN_AXIS_FRACTION) {
+    parts.push(`about ${Math.round(Math.abs(dy) * 100)}% of the frame's height ${dy < 0 ? "up" : "down"}`);
+  }
+  return parts.join(" and ");
+}
+
+/**
+ * How a layer MOVE is described to the model.
+ *
+ * A move is two jobs in one pass and both have to be asked for, or the model
+ * cheerfully draws a second copy: put the element in the new place, AND close
+ * the hole it left with what belongs behind it. The second half is invention -
+ * those pixels never existed - which is why the response says so rather than
+ * implying the layer was lifted and set down.
+ *
+ * There is no compositing here and the wording does not pretend otherwise. A
+ * true lift-and-place needs a cut-out mask and a separate inpaint; this is one
+ * generative pass over the union of the two places, and the drift report bounds
+ * what it was allowed to touch.
+ *
+ * TWO THINGS THE WALK OF 2026-08-27 CHANGED.
+ *  1. The displacement is stated outright (see `describeMoveDelta`), because
+ *     the from/to cell names collapse to the same phrase for any move inside
+ *     one ninth of the frame, and the model then correctly does nothing.
+ *  2. "at the same size" is replaced by the size in NUMBERS. The cross-cell
+ *     move that did land came back with the mark at roughly TWICE its width,
+ *     having been told only to keep "the same size" - a phrase with no referent
+ *     once the element has been redrawn somewhere else. A percentage of the
+ *     frame is checkable; "the same" is not.
+ */
+export function layerMoveSentence(
+  layerName: string,
+  from: MoveBox,
+  to: MoveBox,
+  fromWhere: string,
+  toWhere: string,
+  extra?: string,
+): string {
   const said = (extra ?? "").trim().replace(/\s+/g, " ");
-  return `Move the ${layerName} out of ${fromWhere} and place it in ${toWhere}, at the same size and ` +
-    `unchanged in every other way. Where it used to be, reconstruct whatever belongs behind it so no ` +
-    `trace or duplicate of it remains there.` +
+  const delta = describeMoveDelta(from, to);
+  const width = Math.max(1, Math.round(from.w * 100));
+  const height = Math.max(1, Math.round(from.h * 100));
+
+  // Naming the same cell twice reads as a contradiction, so when the move stays
+  // inside one cell the displacement carries the whole ask on its own.
+  const where = fromWhere === toWhere
+    ? `Move the ${layerName}, currently in ${fromWhere},`
+    : `Move the ${layerName} out of ${fromWhere} and into ${toWhere},`;
+
+  return `${where} shifting it ${delta ?? "to the new position"}. It must stay exactly the size ` +
+    `it is now - about ${width}% of the frame's width and ${height}% of its height - and be ` +
+    `unchanged in every other way. Where it used to be, reconstruct whatever belongs behind it so ` +
+    `no trace or duplicate of it remains there.` +
     (said ? ` ${/[.!?]$/.test(said) ? said : `${said}.`}` : "") +
     " Nothing else in the image changes.";
 }
+
 
 /**
  * Does the decomposition survive this edit?
